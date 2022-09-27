@@ -20,7 +20,7 @@ classifiers = [
 keywords = ["Graph Neural Networks", "Federated Learning"]
 
 
-# [project.urls]
+# [project.urls]  # currently disable since sites not public, which cause trouble when uplaoding pacakge
 # "Homepage" = "https://github.com/FedGraph/fedgraph"
 # "Bug Tracker" = "https://github.com/FedGraph/fedgraph/issues"
 requires-python = ">=3.9"
