@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fedgraph"
-version = "0.0.2"
+version = "0.0.3"
 authors = [
   { name="Jiayu Chang", email="jiayuc@andrew.cmu.edu" },
 ]
@@ -24,7 +24,10 @@ keywords = ["Graph Neural Networks", "Federated Learning"]
 # "Homepage" = "https://github.com/FedGraph/fedgraph"
 # "Bug Tracker" = "https://github.com/FedGraph/fedgraph/issues"
 requires-python = ">=3.9"
-# dependencies = []
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["build", "mypy", "pre-commit"]
 
 
 # third party tools
