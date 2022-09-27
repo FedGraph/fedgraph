@@ -5,22 +5,23 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fedgraph"
-version = "0.0.1"
+version = "0.0.2"
 authors = [
   { name="Jiayu Chang", email="jiayuc@andrew.cmu.edu" },
 ]
 # description = ""
 readme = "README.md"
-# license = { file="LICENSE" }
-requires-python = ">=3.9"
 classifiers = [
     "Programming Language :: Python :: 3",
     # "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-# keywords = ["Graph Neural Networks", "Federated Learning"]
+# license = { file="LICENSE" }
+keywords = ["Graph Neural Networks", "Federated Learning"]
 
 
-[project.urls]
-"Homepage" = "https://github.com/FedGraph/fedgraph"
-"Bug Tracker" = "https://github.com/FedGraph/fedgraph/issues"
+# [project.urls]
+# "Homepage" = "https://github.com/FedGraph/fedgraph"
+# "Bug Tracker" = "https://github.com/FedGraph/fedgraph/issues"
+requires-python = ">=3.9"
+# dependencies = []
