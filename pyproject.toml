@@ -25,3 +25,8 @@ keywords = ["Graph Neural Networks", "Federated Learning"]
 # "Bug Tracker" = "https://github.com/FedGraph/fedgraph/issues"
 requires-python = ">=3.9"
 # dependencies = []
+
+
+# third party tools
+[tool.isort]
+profile = "black"
