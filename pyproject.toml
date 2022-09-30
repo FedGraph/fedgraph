@@ -5,9 +5,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fedgraph"
-version = "0.0.3"
+version = "0.0.4"
 authors = [
   { name="Jiayu Chang", email="jiayuc@andrew.cmu.edu" },
+  { name="Yuhang Yao", email="yuhangya@andrew.cmu.edu" },
 ]
 # description = ""
 readme = "README.md"

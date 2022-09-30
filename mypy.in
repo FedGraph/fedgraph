@@ -1,6 +1,6 @@
 [mypy]
-python_version = 3.9
-platform = linux
+python_version = 3.9 #decease python_version requirement
+platform = linux #support multiple platform
 files = fedgraph
 
 show_column_numbers=True
