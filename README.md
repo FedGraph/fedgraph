@@ -2,7 +2,7 @@
 
 [pypi-url]: https://pypi.python.org/pypi/fedgraph
 
-**[Documentation]()** | **[Paper](https://arxiv.org/abs/2201.12433)** 
+**[Documentation]()** | **[Paper](https://arxiv.org/abs/2201.12433)**
 
 **FedGraph** *(Federated Graph)* is a library built upon [PyTorch](https://pytorch.org/) to easily train Graph Neural Networks (GNNs) under federated (distributed) setting.
 
@@ -11,7 +11,7 @@ It supports various federated training methods of graph neural networks under si
 ## Various Training Tasks
 * **Node classification (and link prediction) on a single large graph (Main focus)**:
  Our library recoveres information stored in other client without affecting the privacy of users.
- 
+
 * **Graph classification on multiple graphs**
 
 ## Cross Platform Deployment

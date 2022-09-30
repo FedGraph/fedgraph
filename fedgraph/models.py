@@ -1,9 +1,9 @@
 # under construction
+"""
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch
 from torch_geometric.nn import GCNConv
-
 
 
 class GCN(torch.nn.Module):
@@ -11,13 +11,10 @@ class GCN(torch.nn.Module):
         super(GCN, self).__init__()
 
         self.convs = torch.nn.ModuleList()
-        self.convs.append(
-            GCNConv(nfeat, nhid, normalize=True, cached=True))
+        self.convs.append(GCNConv(nfeat, nhid, normalize=True, cached=True))
         for _ in range(NumLayers - 2):
-            self.convs.append(
-                GCNConv(nhid, nhid, normalize=True, cached=True))
-        self.convs.append(
-            GCNConv(nhid, nclass, normalize=True, cached=True))
+            self.convs.append(GCNConv(nhid, nhid, normalize=True, cached=True))
+        self.convs.append(GCNConv(nhid, nclass, normalize=True, cached=True))
 
         self.dropout = dropout
 
@@ -32,3 +29,4 @@ class GCN(torch.nn.Module):
             x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.convs[-1](x, adj_t)
         return torch.log_softmax(x, dim=-1)
+"""
