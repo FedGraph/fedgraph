@@ -8,14 +8,16 @@
 
 It supports various federated training methods of graph neural networks under simulated and real federated environment and supports communication between clients and the central server for model update and information aggregation.
 
-It supports different training tasks:
-* Node classification (and link prediction) on a single large graph (Main focus). Our library recoveres information stored in other client without affecting the privacy of users.
-* Graph classification on multiple graphs.
+## Various Training Tasks
+* **Node classification (and link prediction) on a single large graph (Main focus)**:
+ Our library recoveres information stored in other client without affecting the privacy of users.
+ 
+* **Graph classification on multiple graphs**
 
-Should support different platform with pytorch
-* Computers (Linux, Mac OS, Windows)
-* Edge devices (Raspberry Pi, Jeston Nano)
-* Mobile Phone (Andriod, iOS)
+## Cross Platform Deployment
+* **Computers (Linux, Mac OS, Windows)**
+* **Edge devices (Raspberry Pi, Jeston Nano)**
+* **Mobile phones (Andriod, iOS)**
 
 
 ## Library Highlights
