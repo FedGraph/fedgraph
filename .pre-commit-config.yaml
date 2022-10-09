@@ -17,7 +17,6 @@ repos:
     rev: v0.981
     hooks:
       - id: mypy
-        args: [ --config-file=mypy.in ]
   - repo: https://github.com/psf/black
     rev: 22.8.0
     hooks:
