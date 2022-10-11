@@ -1,9 +1,8 @@
-# under construction
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 from torch_geometric.nn import GCNConv
+from torch_geometric.typing import Adj
 
 
 class GCN(torch.nn.Module):
@@ -24,7 +23,7 @@ class GCN(torch.nn.Module):
         for conv in self.convs:
             conv.reset_parameters()
 
-    def forward(self, x: Tensor, adj_t: int) -> Tensor:  # TODO: what type?
+    def forward(self, x: Tensor, adj_t: Adj) -> Tensor:
         for conv in self.convs[:-1]:
             x = conv(x, adj_t)
             x = F.relu(x)
