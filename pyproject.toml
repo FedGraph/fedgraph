@@ -25,10 +25,16 @@ keywords = ["Graph Neural Networks", "Federated Learning"]
 # "Homepage" = "https://github.com/FedGraph/fedgraph"
 # "Bug Tracker" = "https://github.com/FedGraph/fedgraph/issues"
 requires-python = ">=3.9"
-dependencies = []
+dependencies = [
+    "torch-scatter>=2.0.9",
+    "torch-sparse>=0.6.15",
+    "torch-cluster>=1.6.0",
+    "torch-spline-conv>=1.2.1",
+    "torch-geometric>=2.1.0.post1"
+]
 
 [project.optional-dependencies]
-dev = ["build", "mypy", "pre-commit"]
+dev = ["build", "mypy", "pre-commit", "pytest"]
 
 
 # third party tools
