@@ -1,9 +1,9 @@
 import torch
 import torch.nn.functional as F
-from sklearn import metrics
 
-def accuracy(output: torch.Tensor, labels: torch.Tensor) -> float:
-    '''
+
+def accuracy(output: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    """
     This function returns the accuracy of the output with respect to the ground truth given
 
     Arguments:
@@ -13,17 +13,24 @@ def accuracy(output: torch.Tensor, labels: torch.Tensor) -> float:
 
     Returns:
     The accuracy of the model (float)
-    '''
+    """
 
     preds = output.max(1)[1].type_as(labels)
     correct = preds.eq(labels).double()
     correct = correct.sum()
     return correct / len(labels)
 
-def test(model: torch.nn.Module, features: torch.Tensor, adj: torch.Tensor, labels: torch.Tensor, idx_test: torch.Tensor) -> tuple:
-    '''
-    This function tests the model and calculates the loss and accuracy 
-    
+
+def test(
+    model: torch.nn.Module,
+    features: torch.Tensor,
+    adj: torch.Tensor,
+    labels: torch.Tensor,
+    idx_test: torch.Tensor,
+) -> tuple:
+    """
+    This function tests the model and calculates the loss and accuracy
+
     Arguments:
     model: (torch.nn.Module) - Specific model passed
     features: (torch.Tensor) - Tensor representing the input features
@@ -33,22 +40,29 @@ def test(model: torch.nn.Module, features: torch.Tensor, adj: torch.Tensor, labe
 
     Returns:
     The loss and accuracy of the model
-    
-    '''
+
+    """
     model.eval()
     output = model(features, adj)
-    pred_labels=torch.argmax(output,axis=1)
+    pred_labels = torch.argmax(output, axis=1)
     loss_test = F.nll_loss(output[idx_test], labels[idx_test])
     acc_test = accuracy(output[idx_test], labels[idx_test])
-        
-    return loss_test.item(), acc_test.item()#, f1_test, auc_test
+
+    return loss_test.item(), acc_test.item()  # , f1_test, auc_test
 
 
+def train(
+    epoch: int,
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    features: torch.Tensor,
+    adj: torch.Tensor,
+    labels: torch.Tensor,
+    idx_train: torch.Tensor,
+) -> tuple:  # Centralized or new FL
+    """
+    This function trains the model and returns the loss and accuracy
 
-def train(epoch: int, model: torch.nn.Module, optimizer: torch.optim.Optimizer, features: torch.Tensor, adj: torch.Tensor, labels: torch.Tensor, idx_train: torch.Tensor) -> tuple:  #Centralized or new FL
-    '''
-    This function trains the model and returns the loss and accuracy 
-    
     Arguments:
     model: (torch.nn.Module) - Specific model passed
     features: (torch.FloatTensor) - Tensor representing the input features
@@ -60,24 +74,33 @@ def train(epoch: int, model: torch.nn.Module, optimizer: torch.optim.Optimizer, 
 
     Returns:
     The loss and accuracy of the model
-    
-    '''
-    
+
+    """
+
     model.train()
     optimizer.zero_grad()
-    
+
     output = model(features, adj)
     loss_train = F.nll_loss(output[idx_train], labels[idx_train])
     acc_train = accuracy(output[idx_train], labels[idx_train])
     loss_train.backward()
     optimizer.step()
     optimizer.zero_grad()
-    
+
     return loss_train.item(), acc_train.item()
 
 
-def Lhop_Block_matrix_train(epoch: int, model: torch.nn.Module, optimizer: torch.optim.Optimizer, features: torch.Tensor, adj: torch.Tensor, labels: torch.Tensor, communicate_index: torch.Tensor, in_com_train_data_index: torch.Tensor) -> tuple:
-    '''    
+def Lhop_Block_matrix_train(
+    epoch: int,
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    features: torch.Tensor,
+    adj: torch.Tensor,
+    labels: torch.Tensor,
+    communicate_index: torch.Tensor,
+    in_com_train_data_index: torch.Tensor,
+) -> tuple:
+    """
     Arguments:
     model: (model type) - Specific model passed
     features: (torch.FloatTensor) - Tensor representing the input features
@@ -90,30 +113,45 @@ def Lhop_Block_matrix_train(epoch: int, model: torch.nn.Module, optimizer: torch
 
     Returns:
     The loss and accuracy of the model
-    
-    '''
+
+    """
 
     model.train()
     optimizer.zero_grad()
 
-    output = model(features[communicate_index], adj[communicate_index][:,communicate_index])
-   
-    
-    loss_train = F.nll_loss(output[in_com_train_data_index], labels[communicate_index][in_com_train_data_index])
-    
-    
-    acc_train = accuracy(output[in_com_train_data_index], labels[communicate_index][in_com_train_data_index])
-    
+    output = model(
+        features[communicate_index], adj[communicate_index][:, communicate_index]
+    )
+
+    loss_train = F.nll_loss(
+        output[in_com_train_data_index],
+        labels[communicate_index][in_com_train_data_index],
+    )
+
+    acc_train = accuracy(
+        output[in_com_train_data_index],
+        labels[communicate_index][in_com_train_data_index],
+    )
 
     loss_train.backward()
     optimizer.step()
     optimizer.zero_grad()
     return loss_train.item(), acc_train.item()
 
-def FedSage_train(epoch: int, model: torch.nn.Module, optimizer: torch.optim.Optimizer, features: torch.Tensor, adj: torch.Tensor, labels: torch.Tensor, communicate_index: torch.Tensor, in_com_train_data_index: torch.Tensor) -> tuple:
-    '''
+
+def FedSage_train(
+    epoch: int,
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    features: torch.Tensor,
+    adj: torch.Tensor,
+    labels: torch.Tensor,
+    communicate_index: torch.Tensor,
+    in_com_train_data_index: torch.Tensor,
+) -> tuple:
+    """
     This function is to train the FedSage model
-    
+
     Arguments:
     model: (model type) - Specific model passed
     features: (torch.FloatTensor) - Tensor representing the input features
@@ -126,20 +164,24 @@ def FedSage_train(epoch: int, model: torch.nn.Module, optimizer: torch.optim.Opt
 
     Returns:
     The loss and accuracy of the model
-    
-    '''
-    
+
+    """
+
     model.train()
     optimizer.zero_grad()
-    #print(features.shape)   
-    
-    output = model(features, adj[communicate_index][:,communicate_index])
-   
-    loss_train = F.nll_loss(output[in_com_train_data_index], labels[communicate_index][in_com_train_data_index])
-    
-    
-    acc_train = accuracy(output[in_com_train_data_index], labels[communicate_index][in_com_train_data_index])
-    
+    # print(features.shape)
+
+    output = model(features, adj[communicate_index][:, communicate_index])
+
+    loss_train = F.nll_loss(
+        output[in_com_train_data_index],
+        labels[communicate_index][in_com_train_data_index],
+    )
+
+    acc_train = accuracy(
+        output[in_com_train_data_index],
+        labels[communicate_index][in_com_train_data_index],
+    )
 
     loss_train.backward()
     optimizer.step()
