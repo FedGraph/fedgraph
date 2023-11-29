@@ -61,7 +61,7 @@ def generate_data(
         j = labels[node_id]
         for l in label_node_dict:
             if l == j:  # same class
-                for z in label_node_dict[l]:  # z>node_id,  symmetrix matrix, no repeat
+                for z in label_node_dict[l]:  # z>node_id,  symmetric matrix, no repeat
                     if z > node_id and random.random() < link_inclass_prob:
                         adj[node_id, z] = 1
                         adj[z, node_id] = 1

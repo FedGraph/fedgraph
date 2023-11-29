@@ -23,7 +23,8 @@ ray.init()
 
 from data_process import generate_data, load_data
 from gnn_models import GCN, GCN_arxiv, SAGE_products
-from trainer import Trainer_General
+from server_class import Server
+from trainer_class import Trainer_General
 from utils import (
     get_in_comm_indexes,
     get_in_comm_indexes_BDS_GCN,
@@ -32,169 +33,6 @@ from utils import (
     parition_non_iid,
     setdiff1d,
 )
-
-
-class Server:
-    def __init__(self) -> None:
-        # server model on cpu
-        if args.dataset == "ogbn-arxiv":
-            self.model = GCN_arxiv(
-                nfeat=features.shape[1],
-                nhid=args_hidden,
-                nclass=class_num,
-                dropout=0.5,
-                NumLayers=args.num_layers,
-            )
-        elif args.dataset == "ogbn-products":
-            self.model = SAGE_products(
-                nfeat=features.shape[1],
-                nhid=args_hidden,
-                nclass=class_num,
-                dropout=0.5,
-                NumLayers=args.num_layers,
-            )
-        else:  # CORA, CITESEER, PUBMED, REDDIT
-            self.model = GCN(
-                nfeat=features.shape[1],
-                nhid=args_hidden,
-                nclass=class_num,
-                dropout=0.5,
-                NumLayers=args.num_layers,
-            )
-
-        if device.type == "cpu":
-            num_cpus = 0.1
-            num_gpus = 0.0
-        elif args.dataset == "ogbn-arxiv":
-            num_cpus = 5.0
-            num_gpus = 0.5
-        else:
-            num_cpus = 10
-            num_gpus = 1.0
-
-        @ray.remote(num_gpus=num_gpus, num_cpus=num_cpus, scheduling_strategy="SPREAD")
-        class Trainer(Trainer_General):
-            def __init__(
-                self,
-                rank: int,
-                adj: torch.Tensor,
-                labels: torch.Tensor,
-                features: torch.Tensor,
-                idx_train: torch.Tensor,
-                idx_test: torch.Tensor,
-                args_hidden: int,
-                class_num: int,
-                device: torch.device,
-                args: dict,
-            ):
-                super().__init__(
-                    rank,
-                    adj,
-                    labels,
-                    features,
-                    idx_train,
-                    idx_test,
-                    args_hidden,
-                    class_num,
-                    device,
-                    args,
-                )
-
-        if args.fedtype == "fedsage+":
-            print("running fedsage+")
-            features_in_clients = []
-            # assume the linear generator learnt the optimal (the average of features of neighbor nodes)
-            # gaussian noise
-
-            for i in range(args.n_trainer):
-                # original features of outside neighbors of nodes in client i
-                original_feature_i = features[
-                    setdiff1d(split_data_indexes[i], communicate_indexes[i])
-                ].clone()
-
-                # add gaussian noise to the communicated feature
-                gaussian_feature_i = (
-                    original_feature_i
-                    + torch.normal(0, 0.1, original_feature_i.shape).cpu()
-                )
-
-                copy_feature = features.clone()
-
-                copy_feature[
-                    setdiff1d(split_data_indexes[i], communicate_indexes[i])
-                ] = gaussian_feature_i
-
-                features_in_clients.append(copy_feature[communicate_indexes[i]])
-            self.trainers = []
-
-            for i in range(args.n_trainer):
-                self.trainers.append(
-                    Trainer.remote(
-                        i,
-                        edge_indexes_clients[i],
-                        labels[communicate_indexes[i]],
-                        features_in_clients[i],
-                        in_com_train_data_indexes[i],
-                        in_com_test_data_indexes[i],
-                        args_hidden,
-                        class_num,
-                        device,
-                        args,
-                    )
-                )
-
-        else:
-            self.trainers = []
-            for i in range(args.n_trainer):
-                self.trainers.append(
-                    Trainer.remote(
-                        i,
-                        edge_indexes_clients[i],
-                        labels[communicate_indexes[i]],
-                        features[communicate_indexes[i]],
-                        in_com_train_data_indexes[i],
-                        in_com_test_data_indexes[i],
-                        args_hidden,
-                        class_num,
-                        device,
-                        args,
-                    )
-                )
-
-        self.broadcast_params(-1)
-
-    @torch.no_grad()
-    def zero_params(self) -> None:
-        for p in self.model.parameters():
-            p.zero_()
-
-    @torch.no_grad()
-    def train(self, current_global_epoch: int) -> None:
-        for trainer in self.trainers:
-            trainer.train.remote(i)
-        params = [trainer.get_params.remote() for trainer in self.trainers]
-        self.zero_params()
-
-        while True:
-            ready, left = ray.wait(params, num_returns=1, timeout=None)
-            if ready:
-                for t in ready:
-                    for p, mp in zip(ray.get(t), self.model.parameters()):
-                        mp.data += p.cpu()
-            params = left
-            if not params:
-                break
-
-        for p in self.model.parameters():
-            p /= args.n_trainer
-        self.broadcast_params(current_global_epoch)
-
-    def broadcast_params(self, current_global_epoch: int) -> None:
-        for trainer in self.trainers:
-            trainer.update_params.remote(
-                tuple(self.model.parameters()), current_global_epoch
-            )  # run in submit order
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -255,6 +93,16 @@ if __name__ == "__main__":
     else:
         device = torch.device("cpu")
 
+    if device.type == "cpu":
+        num_cpus = 0.1
+        num_gpus = 0.0
+    elif args.dataset == "ogbn-arxiv":
+        num_cpus = 5.0
+        num_gpus = 0.5
+    else:
+        num_cpus = 10
+        num_gpus = 1.0
+
     # repeat experiments
     average_final_test_loss_repeats = []
     average_final_test_accuracy_repeats = []
@@ -262,7 +110,7 @@ if __name__ == "__main__":
     for repeat in range(args.repeat_time):
         # load data to cpu
 
-        # beta = 0.0001 extremly Non-IID, beta = 10000, IID
+        # beta = 0.0001 extremely Non-IID, beta = 10000, IID
         split_data_indexes = label_dirichlet_partition(
             labels, len(labels), class_num, args.n_trainer, beta=args.iid_beta
         )
@@ -298,6 +146,73 @@ if __name__ == "__main__":
                 idx_test,
             )
 
+        # determine the resources for each trainer
+        @ray.remote(
+            num_gpus=num_gpus,
+            num_cpus=num_cpus,
+            scheduling_strategy="SPREAD",
+        )
+        class Trainer(Trainer_General):
+            def __init__(self, *args, **kwds):
+                super().__init__(*args, **kwds)
+
+        if args.fedtype == "fedsage+":
+            print("running fedsage+")
+            features_in_clients = []
+            # assume the linear generator learnt the optimal (the average of features of neighbor nodes)
+            # gaussian noise
+
+            for i in range(args.n_trainer):
+                # original features of outside neighbors of nodes in client i
+                original_feature_i = features[
+                    setdiff1d(split_data_indexes[i], communicate_indexes[i])
+                ].clone()
+
+                # add gaussian noise to the communicated feature
+                gaussian_feature_i = (
+                    original_feature_i
+                    + torch.normal(0, 0.1, original_feature_i.shape).cpu()
+                )
+
+                copy_feature = features.clone()
+
+                copy_feature[
+                    setdiff1d(split_data_indexes[i], communicate_indexes[i])
+                ] = gaussian_feature_i
+
+                features_in_clients.append(copy_feature[communicate_indexes[i]])
+            trainers = [
+                Trainer.remote(
+                    i,
+                    edge_indexes_clients[i],
+                    labels[communicate_indexes[i]],
+                    features_in_clients[i],
+                    in_com_train_data_indexes[i],
+                    in_com_test_data_indexes[i],
+                    args_hidden,
+                    class_num,
+                    device,
+                    args,
+                )
+                for i in range(args.n_trainer)
+            ]
+        else:
+            trainers = [
+                Trainer.remote(
+                    i,
+                    edge_indexes_clients[i],
+                    labels[communicate_indexes[i]],
+                    features[communicate_indexes[i]],
+                    in_com_train_data_indexes[i],
+                    in_com_test_data_indexes[i],
+                    args_hidden,
+                    class_num,
+                    device,
+                    args,
+                )
+                for i in range(args.n_trainer)
+            ]
+
         args.log_dir = increment_dir(Path(args.logdir) / "exp")
         os.makedirs(args.log_dir)
         yaml_file = str(Path(args.log_dir) / "args.yaml")
@@ -307,7 +222,9 @@ if __name__ == "__main__":
         writer = SummaryWriter(args.log_dir)
         # clear cache
         torch.cuda.empty_cache()
-        server = Server()
+        server = Server(
+            features.shape[1], args_hidden, class_num, device, trainers, args
+        )
         print("global_rounds", args.global_rounds)
         for i in range(args.global_rounds):
             server.train(i)
@@ -342,7 +259,6 @@ if __name__ == "__main__":
                     iteration,
                 )
             client_id += 1
-        # print('finished')
 
         train_data_weights = [len(i) for i in in_com_train_data_indexes]
         test_data_weights = [len(i) for i in in_com_test_data_indexes]
@@ -433,5 +349,3 @@ if __name__ == "__main__":
     )
 
 ray.shutdown()
-
-# -
