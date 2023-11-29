@@ -32,6 +32,7 @@ setup(
         "torch-spline-conv>=1.2.1",
         "torch-geometric>=2.1.0.post1",
         "omegaconf>=2.3.0",
+        "ray>=2.6.3",
     ],
     extras_require={"dev": ["build", "mypy", "pre-commit", "pytest"]},
 )

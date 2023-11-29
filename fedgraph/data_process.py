@@ -76,7 +76,7 @@ def generate_data(
     # generate feature use eye matrix
     features = torch.eye(number_of_nodes, number_of_nodes)
 
-    # seprate train,val,test
+    # separate train,val,test
     idx_train = torch.LongTensor(range(number_of_nodes // 5))
     idx_val = torch.LongTensor(range(number_of_nodes // 5, number_of_nodes // 2))
     idx_test = torch.LongTensor(range(number_of_nodes // 2, number_of_nodes))
@@ -183,13 +183,9 @@ def load_data(dataset_str: str) -> tuple:
         labels = np.vstack((ally, ty))
         labels[test_idx_reorder, :] = labels[test_idx_range, :]
 
-        idx_test = test_idx_range.tolist()
-        idx_train = range(len(y))
-        idx_val = range(len(y), len(y) + 500)
-
-        idx_train = torch.LongTensor(idx_train)
-        idx_val = torch.LongTensor(idx_val)
-        idx_test = torch.LongTensor(idx_test)
+        idx_test = torch.LongTensor(test_idx_range.tolist())
+        idx_train = torch.LongTensor(range(len(y)))
+        idx_val = torch.LongTensor(range(len(y), len(y) + 500))
 
         # features = normalize(features)
         # adj = normalize(adj)    # no normalize adj here, normalize it in the training process

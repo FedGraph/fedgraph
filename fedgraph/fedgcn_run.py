@@ -2,23 +2,10 @@ import argparse
 import os
 from pathlib import Path
 
-import ray
-import yaml
-
-try:
-    import ogb
-except:
-    os.system("pip install ogb")
-
-try:
-    import tensorboard
-except:
-    os.system("pip install tensorboard")
-
-import os
-
 import numpy as np
+import ray
 import torch
+import yaml
 from torch.utils.tensorboard import SummaryWriter
 
 print(os.getcwd())
@@ -31,164 +18,24 @@ import sys
 sys.path.append(os.path.join(sys.path[0], "src", "utility"))
 sys.path.append(os.path.join(sys.path[0], "src", "data"))
 
-remote = False  # false for local simulation
 
-if remote:
-    print(os.listdir("modules"))
-    # GCN model
-    from data_process import generate_data, load_data
-    from gnn_models import GCN, GCN_arxiv, SAGE_products
-    from train import test, train
-    from utils import (
-        get_in_comm_indexes,
-        get_in_comm_indexes_BDS_GCN,
-        increment_dir,
-        label_dirichlet_partition,
-        parition_non_iid,
-        setdiff1d,
-    )
+ray.init()
 
-else:
-    from data_process import generate_data, load_data
-    from gnn_models import GCN, GCN_arxiv, SAGE_products
-    from train import test, train
-    from utils import (
-        get_in_comm_indexes,
-        get_in_comm_indexes_BDS_GCN,
-        increment_dir,
-        label_dirichlet_partition,
-        parition_non_iid,
-        setdiff1d,
-    )
-
-
-class Trainer_General:
-    def __init__(
-        self,
-        rank: int,
-        communicate_index: torch.Tensor,
-        adj: torch.Tensor,
-        labels: torch.Tensor,
-        features: torch.Tensor,
-        idx_train: torch.Tensor,
-        idx_test: torch.Tensor,
-        local_steps: int,
-        num_layers: int,
-        args_hidden: int,
-        class_num: int,
-        learning_rate: float,
-        device: torch.device,
-    ):
-        # from gnn_models import GCN_Graph_Classification
-        torch.manual_seed(rank)
-
-        # seems that new trainer process will not inherit sys.path from parent, need to reimport!
-        if args.dataset == "ogbn-arxiv":
-            self.model = GCN_arxiv(
-                nfeat=features.shape[1],
-                nhid=args_hidden,
-                nclass=class_num,
-                dropout=0.5,
-                NumLayers=args.num_layers,
-            ).to(device)
-        elif args.dataset == "ogbn-products":
-            self.model = SAGE_products(
-                nfeat=features.shape[1],
-                nhid=args_hidden,
-                nclass=class_num,
-                dropout=0.5,
-                NumLayers=args.num_layers,
-            ).to(device)
-        else:
-            self.model = GCN(
-                nfeat=in_feat,
-                nhid=args_hidden,
-                nclass=class_num,
-                dropout=0.5,
-                NumLayers=args.num_layers,
-            ).to(device)
-
-        self.rank = rank  # rank = client ID
-
-        self.device = device
-
-        self.optimizer = torch.optim.SGD(
-            self.model.parameters(), lr=learning_rate, weight_decay=5e-4
-        )
-
-        self.criterion = torch.nn.CrossEntropyLoss()
-
-        self.train_losses: list = []
-        self.train_accs: list = []
-
-        self.test_losses: list = []
-        self.test_accs: list = []
-
-        self.adj = adj.to(device)
-        self.labels = labels.to(device)
-        self.features = features.to(device)
-        self.idx_train = idx_train.to(device)
-        self.idx_test = idx_test.to(device)
-
-        self.local_steps = local_steps
-
-    @torch.no_grad()
-    def update_params(self, params: tuple, current_global_epoch: int):
-        # load global parameter from global server
-        self.model.to("cpu")
-        for (
-            p,
-            mp,
-        ) in zip(params, self.model.parameters()):
-            mp.data = p
-        self.model.to(self.device)
-
-    def train(self, current_global_round: int):
-        # clean cache
-        torch.cuda.empty_cache()
-        for iteration in range(self.local_steps):
-            self.model.train()
-
-            loss_train, acc_train = train(
-                iteration,
-                self.model,
-                self.optimizer,
-                self.features,
-                self.adj,
-                self.labels,
-                self.idx_train,
-            )
-            self.train_losses.append(loss_train)
-            self.train_accs.append(acc_train)
-
-            loss_test, acc_test = self.local_test()
-            self.test_losses.append(loss_test)
-            self.test_accs.append(acc_test)
-
-    def local_test(self) -> list:
-        local_test_loss, local_test_acc = test(
-            self.model, self.features, self.adj, self.labels, self.idx_test
-        )
-        return [local_test_loss, local_test_acc]
-
-    def get_params(self) -> tuple:
-        self.optimizer.zero_grad(set_to_none=True)
-        return tuple(self.model.parameters())
-
-    def get_all_loss_accuray(self) -> list:
-        return [
-            np.array(self.train_losses),
-            np.array(self.train_accs),
-            np.array(self.test_losses),
-            np.array(self.test_accs),
-        ]
-
-    def get_rank(self):
-        return self.rank
+from data_process import generate_data, load_data
+from gnn_models import GCN, GCN_arxiv, SAGE_products
+from trainer import Trainer_General
+from utils import (
+    get_in_comm_indexes,
+    get_in_comm_indexes_BDS_GCN,
+    increment_dir,
+    label_dirichlet_partition,
+    parition_non_iid,
+    setdiff1d,
+)
 
 
 class Server:
-    def __init__(self):
+    def __init__(self) -> None:
         # server model on cpu
         if args.dataset == "ogbn-arxiv":
             self.model = GCN_arxiv(
@@ -208,7 +55,7 @@ class Server:
             )
         else:  # CORA, CITESEER, PUBMED, REDDIT
             self.model = GCN(
-                nfeat=in_feat,
+                nfeat=features.shape[1],
                 nhid=args_hidden,
                 nclass=class_num,
                 dropout=0.5,
@@ -216,112 +63,42 @@ class Server:
             )
 
         if device.type == "cpu":
-
-            @ray.remote(num_cpus=0.1, scheduling_strategy="SPREAD")
-            class Trainer(Trainer_General):
-                def __init__(
-                    self,
-                    rank,
-                    communicate_index,
-                    adj,
-                    labels,
-                    features,
-                    idx_train,
-                    idx_test,
-                    local_step,
-                    num_layers,
-                    args_hidden,
-                    class_num,
-                    learning_rate,
-                    device,
-                ):
-                    super().__init__(
-                        rank,
-                        communicate_index,
-                        adj,
-                        labels,
-                        features,
-                        idx_train,
-                        idx_test,
-                        local_step,
-                        num_layers,
-                        args_hidden,
-                        class_num,
-                        learning_rate,
-                        device,
-                    )
-
+            num_cpus = 0.1
+            num_gpus = 0.0
         elif args.dataset == "ogbn-arxiv":
-
-            @ray.remote(num_gpus=0.5, num_cpus=5, scheduling_strategy="SPREAD")
-            class Trainer(Trainer_General):
-                def __init__(
-                    self,
-                    rank,
-                    communicate_index,
-                    adj,
-                    labels,
-                    features,
-                    idx_train,
-                    idx_test,
-                    local_step,
-                    num_layers,
-                    args_hidden,
-                    class_num,
-                    learning_rate,
-                    device,
-                ):
-                    super().__init__(
-                        rank,
-                        communicate_index,
-                        adj,
-                        labels,
-                        features,
-                        idx_train,
-                        idx_test,
-                        local_step,
-                        num_layers,
-                        args_hidden,
-                        class_num,
-                        learning_rate,
-                        device,
-                    )
-
+            num_cpus = 5.0
+            num_gpus = 0.5
         else:
+            num_cpus = 10
+            num_gpus = 1.0
 
-            @ray.remote(num_gpus=1, num_cpus=10, scheduling_strategy="SPREAD")
-            class Trainer(Trainer_General):
-                def __init__(
-                    self,
+        @ray.remote(num_gpus=num_gpus, num_cpus=num_cpus, scheduling_strategy="SPREAD")
+        class Trainer(Trainer_General):
+            def __init__(
+                self,
+                rank: int,
+                adj: torch.Tensor,
+                labels: torch.Tensor,
+                features: torch.Tensor,
+                idx_train: torch.Tensor,
+                idx_test: torch.Tensor,
+                args_hidden: int,
+                class_num: int,
+                device: torch.device,
+                args: dict,
+            ):
+                super().__init__(
                     rank,
-                    communicate_index,
                     adj,
                     labels,
                     features,
                     idx_train,
                     idx_test,
-                    local_step,
-                    num_layers,
                     args_hidden,
                     class_num,
-                    learning_rate,
                     device,
-                ):
-                    super().__init__(
-                        rank,
-                        communicate_index,
-                        adj,
-                        labels,
-                        features,
-                        idx_train,
-                        idx_test,
-                        local_step,
-                        num_layers,
-                        args_hidden,
-                        class_num,
-                        learning_rate,
-                        device,
-                    )
+                    args,
+                )
 
         if args.fedtype == "fedsage+":
             print("running fedsage+")
@@ -330,7 +107,7 @@ class Server:
             # gaussian noise
 
             for i in range(args.n_trainer):
-                # orignial features of outside neighbors of nodes in client i
+                # original features of outside neighbors of nodes in client i
                 original_feature_i = features[
                     setdiff1d(split_data_indexes[i], communicate_indexes[i])
                 ].clone()
@@ -348,56 +125,51 @@ class Server:
                 ] = gaussian_feature_i
 
                 features_in_clients.append(copy_feature[communicate_indexes[i]])
+            self.trainers = []
 
-            self.trainers = [
-                Trainer.remote(
-                    i,
-                    communicate_indexes[i],
-                    edge_indexes_clients[i],
-                    labels[communicate_indexes[i]],
-                    features_in_clients[i],
-                    in_com_train_data_indexes[i],
-                    in_com_test_data_indexes[i],
-                    args.local_step,
-                    args.num_layers,
-                    args_hidden,
-                    class_num,
-                    args.learning_rate,
-                    device,
+            for i in range(args.n_trainer):
+                self.trainers.append(
+                    Trainer.remote(
+                        i,
+                        edge_indexes_clients[i],
+                        labels[communicate_indexes[i]],
+                        features_in_clients[i],
+                        in_com_train_data_indexes[i],
+                        in_com_test_data_indexes[i],
+                        args_hidden,
+                        class_num,
+                        device,
+                        args,
+                    )
                 )
-                for i in range(args.n_trainer)
-            ]
 
         else:
-            self.trainers = [
-                Trainer.remote(
-                    i,
-                    communicate_indexes[i],
-                    edge_indexes_clients[i],
-                    labels[communicate_indexes[i]],
-                    features[communicate_indexes[i]],
-                    in_com_train_data_indexes[i],
-                    in_com_test_data_indexes[i],
-                    args.local_step,
-                    args.num_layers,
-                    args_hidden,
-                    class_num,
-                    args.learning_rate,
-                    device,
+            self.trainers = []
+            for i in range(args.n_trainer):
+                self.trainers.append(
+                    Trainer.remote(
+                        i,
+                        edge_indexes_clients[i],
+                        labels[communicate_indexes[i]],
+                        features[communicate_indexes[i]],
+                        in_com_train_data_indexes[i],
+                        in_com_test_data_indexes[i],
+                        args_hidden,
+                        class_num,
+                        device,
+                        args,
+                    )
                 )
-                for i in range(args.n_trainer)
-            ]
 
         self.broadcast_params(-1)
 
     @torch.no_grad()
-    def zero_params(self):
+    def zero_params(self) -> None:
         for p in self.model.parameters():
             p.zero_()
 
     @torch.no_grad()
-    def train(self, current_global_epoch):
-
+    def train(self, current_global_epoch: int) -> None:
         for trainer in self.trainers:
             trainer.train.remote(i)
         params = [trainer.get_params.remote() for trainer in self.trainers]
@@ -417,7 +189,7 @@ class Server:
             p /= args.n_trainer
         self.broadcast_params(current_global_epoch)
 
-    def broadcast_params(self, current_global_epoch):
+    def broadcast_params(self, current_global_epoch: int) -> None:
         for trainer in self.trainers:
             trainer.update_params.remote(
                 tuple(self.model.parameters()), current_global_epoch
@@ -464,7 +236,6 @@ if __name__ == "__main__":
         features, adj, labels, idx_train, idx_val, idx_test = load_data(args.dataset)
         class_num = labels.max().item() + 1
 
-    in_feat = features.shape[1]
     if args.dataset in ["simulate", "cora", "citeseer", "pubmed", "reddit"]:
         args_hidden = 16
     else:
@@ -489,7 +260,6 @@ if __name__ == "__main__":
     average_final_test_accuracy_repeats = []
 
     for repeat in range(args.repeat_time):
-
         # load data to cpu
 
         # beta = 0.0001 extremly Non-IID, beta = 10000, IID
