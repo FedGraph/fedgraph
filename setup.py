@@ -12,8 +12,8 @@ with open("README.md", "r") as f:
 setup(
     name="fedgraph",
     version=__version__,
-    author="Jiayu Chang, Yuhang Yao",
-    author_email="jiayuc@andrew.cmu.edu, yuhangya@andrew.cmu.edu",
+    author="Yuhang Yao, Jiayu Chang",
+    author_email="yuhangya@andrew.cmu.edu, jiayuc@andrew.cmu.edu",
     description="Federated Graph Learning",
     long_description=README,
     long_description_content_type="text/markdown",
@@ -33,6 +33,7 @@ setup(
         "torch-geometric>=2.1.0.post1",
         "omegaconf>=2.3.0",
         "ray>=2.6.3",
+        "yaml>=5.4.0",
     ],
     extras_require={"dev": ["build", "mypy", "pre-commit", "pytest"]},
 )

@@ -1,6 +1,7 @@
 import argparse
 import os
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import ray
@@ -153,7 +154,7 @@ if __name__ == "__main__":
             scheduling_strategy="SPREAD",
         )
         class Trainer(Trainer_General):
-            def __init__(self, *args, **kwds):
+            def __init__(self, *args: Any, **kwds: Any):
                 super().__init__(*args, **kwds)
 
         if args.fedtype == "fedsage+":
@@ -262,15 +263,18 @@ if __name__ == "__main__":
 
         train_data_weights = [len(i) for i in in_com_train_data_indexes]
         test_data_weights = [len(i) for i in in_com_test_data_indexes]
+
         average_train_loss = np.average(
-            results[:, 0], weights=train_data_weights, axis=0
+            [row[0] for row in results], weights=train_data_weights, axis=0
         )
         average_train_accuracy = np.average(
-            results[:, 1], weights=train_data_weights, axis=0
+            [row[1] for row in results], weights=train_data_weights, axis=0
         )
-        average_test_loss = np.average(results[:, 2], weights=test_data_weights, axis=0)
+        average_test_loss = np.average(
+            [row[2] for row in results], weights=test_data_weights, axis=0
+        )
         average_test_accuracy = np.average(
-            results[:, 3], weights=test_data_weights, axis=0
+            [row[3] for row in results], weights=test_data_weights, axis=0
         )
 
         for iteration in range(len(results[0][0])):
@@ -299,10 +303,10 @@ if __name__ == "__main__":
         results = np.array([ray.get(result) for result in results])
 
         average_final_test_loss = np.average(
-            results[:, 0], weights=test_data_weights, axis=0
+            [row[0] for row in results], weights=test_data_weights, axis=0
         )
         average_final_test_accuracy = np.average(
-            results[:, 1], weights=test_data_weights, axis=0
+            [row[1] for row in results], weights=test_data_weights, axis=0
         )
 
         print(average_final_test_loss, average_final_test_accuracy)

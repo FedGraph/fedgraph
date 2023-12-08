@@ -46,7 +46,7 @@ def generate_data(
     )  # assign random label with equal probability
     labels = labels.to(dtype=torch.long)
     # label_node, speed up the generation of edges
-    label_node_dict = dict()
+    label_node_dict: dict[int, list[int]] = dict()
 
     # Create an empty dictionary for the labels
     for j in range(class_num):
