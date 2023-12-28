@@ -154,7 +154,7 @@ if __name__ == "__main__":
                 local_node_index=split_node_indexes[i],
                 communicate_node_index=communicate_node_indexes[i],
                 adj=edge_indexes_clients[i],
-                labels=labels[split_node_indexes[i]],
+                labels=labels[communicate_node_indexes[i]], # need to change back to split_node_indexes[i] for privacy
                 features=features[split_node_indexes[i]],
                 idx_train=in_com_train_node_indexes[i],
                 idx_test=in_com_test_node_indexes[i],
@@ -194,8 +194,10 @@ if __name__ == "__main__":
                 break
         # test if aggregation is correct
         assert ((global_feature_sum != get_1hop_feature_sum(features, edge_index)).sum() == 0)
+        for i in range(args.n_trainer):
+            print(communicate_node_indexes[i].shape)
+            server.trainers[i].load_feature_aggregation.remote(global_feature_sum[communicate_node_indexes[i]])
 
-        [trainer.load_feature_aggregation.remote(global_feature_sum[communicate_node_indexes[i]]) for trainer in server.trainers]
         [trainer.relabel_adj.remote() for trainer in server.trainers]
 
         print("global_rounds", args.global_rounds)
@@ -234,8 +236,8 @@ if __name__ == "__main__":
                 )
             client_id += 1
 
-        train_data_weights = [len(i) for i in in_com_train_data_indexes]
-        test_data_weights = [len(i) for i in in_com_test_data_indexes]
+        train_data_weights = [len(i) for i in in_com_train_node_indexes]
+        test_data_weights = [len(i) for i in in_com_test_node_indexes]
 
         average_train_loss = np.average(
             [row[0] for row in results], weights=train_data_weights, axis=0

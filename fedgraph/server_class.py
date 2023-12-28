@@ -2,7 +2,7 @@ from typing import Any
 
 import ray
 import torch
-from gnn_models import GCN, GCN_arxiv, SAGE_products
+from gnn_models import GCN, GCN_arxiv, SAGE_products, AggreGCN
 from trainer_class import Trainer_General
 
 
@@ -17,30 +17,40 @@ class Server:
         args: Any,
     ) -> None:
         # server model on cpu
-        if args.dataset == "ogbn-arxiv":
-            self.model = GCN_arxiv(
+        if args.num_hops >= 1 and args.fedtype == "fedgcn":
+            print("AggreGCN")
+            self.model = AggreGCN(
                 nfeat=feature_dim,
                 nhid=args_hidden,
                 nclass=class_num,
                 dropout=0.5,
                 NumLayers=args.num_layers,
             )
-        elif args.dataset == "ogbn-products":
-            self.model = SAGE_products(
-                nfeat=feature_dim,
-                nhid=args_hidden,
-                nclass=class_num,
-                dropout=0.5,
-                NumLayers=args.num_layers,
-            )
-        else:  # CORA, CITESEER, PUBMED, REDDIT
-            self.model = GCN(
-                nfeat=feature_dim,
-                nhid=args_hidden,
-                nclass=class_num,
-                dropout=0.5,
-                NumLayers=args.num_layers,
-            )
+        else:
+            if args.dataset == "ogbn-arxiv":
+                self.model = GCN_arxiv(
+                    nfeat=feature_dim,
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=args.num_layers,
+                )
+            elif args.dataset == "ogbn-products":
+                self.model = SAGE_products(
+                    nfeat=feature_dim,
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=args.num_layers,
+                )
+            else:
+                self.model = GCN(
+                    nfeat=feature_dim,
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=args.num_layers,
+                )
 
         self.trainers = trainers
         self.num_of_trainers = len(trainers)

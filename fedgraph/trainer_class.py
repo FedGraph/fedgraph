@@ -3,7 +3,7 @@ from typing import Any
 import numpy as np
 import torch
 import torch_geometric
-from gnn_models import GCN, GCN_arxiv, SAGE_products
+from gnn_models import GCN, GCN_arxiv, SAGE_products, AggreGCN
 from train_func import test, train
 from utils import get_1hop_feature_sum
 
@@ -29,16 +29,8 @@ class Trainer_General:
         torch.manual_seed(rank)
 
         # seems that new trainer process will not inherit sys.path from parent, need to reimport!
-        if args.dataset == "ogbn-arxiv":
-            self.model = GCN_arxiv(
-                nfeat=features.shape[1],
-                nhid=args_hidden,
-                nclass=class_num,
-                dropout=0.5,
-                NumLayers=args.num_layers,
-            ).to(device)
-        elif args.dataset == "ogbn-products":
-            self.model = SAGE_products(
+        if args.num_hops >= 1 and args.fedtype == "fedgcn":
+            self.model = AggreGCN(
                 nfeat=features.shape[1],
                 nhid=args_hidden,
                 nclass=class_num,
@@ -46,13 +38,30 @@ class Trainer_General:
                 NumLayers=args.num_layers,
             ).to(device)
         else:
-            self.model = GCN(
-                nfeat=features.shape[1],
-                nhid=args_hidden,
-                nclass=class_num,
-                dropout=0.5,
-                NumLayers=args.num_layers,
-            ).to(device)
+            if args.dataset == "ogbn-arxiv":
+                self.model = GCN_arxiv(
+                    nfeat=features.shape[1],
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=args.num_layers,
+                ).to(device)
+            elif args.dataset == "ogbn-products":
+                self.model = SAGE_products(
+                    nfeat=features.shape[1],
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=args.num_layers,
+                ).to(device)
+            else:
+                self.model = GCN(
+                    nfeat=features.shape[1],
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=args.num_layers,
+                ).to(device)
 
         self.rank = rank  # rank = client ID
 
@@ -104,6 +113,7 @@ class Trainer_General:
 
     def load_feature_aggregation(self, feature_aggregation):
         self.feature_aggregation = feature_aggregation
+        self.features = self.feature_aggregation
     def relabel_adj(self):
         _, self.adj, __, ___ = torch_geometric.utils.k_hop_subgraph(
             self.communicate_node_index, 0, self.adj, relabel_nodes=True)
@@ -113,7 +123,7 @@ class Trainer_General:
         torch.cuda.empty_cache()
         for iteration in range(self.local_step):
             self.model.train()
-
+            print(self.features.shape)
             loss_train, acc_train = train(
                 iteration,
                 self.model,

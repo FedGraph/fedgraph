@@ -74,11 +74,11 @@ class AggreGCN(torch.nn.Module):
         for conv in self.convs:
             conv.reset_parameters()
 
-    def forward(self, x, adj_t, aggregated_dim):
+    def forward(self, aggregated_feature, adj_t):
         # x = torch.matmul(aggregated_dim, self.first_layer_weight)
         for i, conv in enumerate(self.convs[:-1]):
-            if i == 0 and aggregated_dim is not None:#check dimension of adj matrix
-                x = F.relu(self.convs[0](aggregated_dim))
+            if i == 0:#check dimension of adj matrix
+                x = F.relu(self.convs[0](aggregated_feature))
                 x = F.dropout(x, p=self.dropout, training=self.training)
             else:
                 x = conv(x, adj_t)
