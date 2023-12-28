@@ -33,6 +33,7 @@ from utils import (
     label_dirichlet_partition,
     parition_non_iid,
     setdiff1d,
+    get_1hop_feature_sum,
 )
 
 if __name__ == "__main__":
@@ -110,42 +111,16 @@ if __name__ == "__main__":
 
     for repeat in range(args.repeat_time):
         # load data to cpu
-
         # beta = 0.0001 extremely Non-IID, beta = 10000, IID
-        split_data_indexes = label_dirichlet_partition(
+        split_node_indexes = label_dirichlet_partition(
             labels, len(labels), class_num, args.n_trainer, beta=args.iid_beta
         )
 
         for i in range(args.n_trainer):
-            split_data_indexes[i] = np.array(split_data_indexes[i])
-            split_data_indexes[i].sort()
-            split_data_indexes[i] = torch.tensor(split_data_indexes[i])
+            split_node_indexes[i] = np.array(split_node_indexes[i])
+            split_node_indexes[i].sort()
+            split_node_indexes[i] = torch.tensor(split_node_indexes[i])
 
-        if args.fedtype == "bds-gcn":
-            print("running bds-gcn")
-            # No args.num_hops
-            (
-                communicate_indexes,
-                in_com_train_data_indexes,
-                in_com_test_data_indexes,
-                edge_indexes_clients,
-            ) = get_in_comm_indexes_BDS_GCN(
-                edge_index, split_data_indexes, args.n_trainer, idx_train, idx_test
-            )
-        else:
-            (
-                communicate_indexes,
-                in_com_train_data_indexes,
-                in_com_test_data_indexes,
-                edge_indexes_clients,
-            ) = get_in_comm_indexes(
-                edge_index,
-                split_data_indexes,
-                args.n_trainer,
-                args.num_hops,
-                idx_train,
-                idx_test,
-            )
 
         # determine the resources for each trainer
         @ray.remote(
@@ -157,62 +132,40 @@ if __name__ == "__main__":
             def __init__(self, *args: Any, **kwds: Any):
                 super().__init__(*args, **kwds)
 
-        if args.fedtype == "fedsage+":
-            print("running fedsage+")
-            features_in_clients = []
-            # assume the linear generator learnt the optimal (the average of features of neighbor nodes)
-            # gaussian noise
 
-            for i in range(args.n_trainer):
-                # original features of outside neighbors of nodes in client i
-                original_feature_i = features[
-                    setdiff1d(split_data_indexes[i], communicate_indexes[i])
-                ].clone()
+        (
+            communicate_node_indexes,
+            in_com_train_node_indexes,
+            in_com_test_node_indexes,
+            edge_indexes_clients,
+        ) = get_in_comm_indexes(
+            edge_index,
+            split_node_indexes,
+            args.n_trainer,
+            args.num_hops,
+            idx_train,
+            idx_test,
+        )
 
-                # add gaussian noise to the communicated feature
-                gaussian_feature_i = (
-                    original_feature_i
-                    + torch.normal(0, 0.1, original_feature_i.shape).cpu()
-                )
-
-                copy_feature = features.clone()
-
-                copy_feature[
-                    setdiff1d(split_data_indexes[i], communicate_indexes[i])
-                ] = gaussian_feature_i
-
-                features_in_clients.append(copy_feature[communicate_indexes[i]])
-            trainers = [
-                Trainer.remote(
-                    i,
-                    edge_indexes_clients[i],
-                    labels[communicate_indexes[i]],
-                    features_in_clients[i],
-                    in_com_train_data_indexes[i],
-                    in_com_test_data_indexes[i],
-                    args_hidden,
-                    class_num,
-                    device,
-                    args,
-                )
-                for i in range(args.n_trainer)
-            ]
-        else:
-            trainers = [
-                Trainer.remote(
-                    i,
-                    edge_indexes_clients[i],
-                    labels[communicate_indexes[i]],
-                    features[communicate_indexes[i]],
-                    in_com_train_data_indexes[i],
-                    in_com_test_data_indexes[i],
-                    args_hidden,
-                    class_num,
-                    device,
-                    args,
-                )
-                for i in range(args.n_trainer)
-            ]
+        # send data to each trainer
+        trainers = [
+            Trainer.remote(
+                rank=i,
+                local_node_index=split_node_indexes[i],
+                communicate_node_index=communicate_node_indexes[i],
+                adj=edge_indexes_clients[i],
+                labels=labels[split_node_indexes[i]],
+                features=features[split_node_indexes[i]],
+                idx_train=in_com_train_node_indexes[i],
+                idx_test=in_com_test_node_indexes[i],
+                args_hidden=args_hidden,
+                global_node_num=len(features),
+                class_num=class_num,
+                device=device,
+                args=args,
+            )
+            for i in range(args.n_trainer)
+        ]
 
         args.log_dir = increment_dir(Path(args.logdir) / "exp")
         os.makedirs(args.log_dir)
@@ -226,7 +179,27 @@ if __name__ == "__main__":
         server = Server(
             features.shape[1], args_hidden, class_num, device, trainers, args
         )
+
+        # pre-train communication
+        local_neighbor_feature_sums = [trainer.get_local_feature_sum.remote() for trainer in server.trainers]
+        global_feature_sum = torch.zeros_like(features)
+        while True:
+            ready, left = ray.wait(local_neighbor_feature_sums, num_returns=1, timeout=None)
+            if ready:
+                for t in ready:
+                    print(1)
+                    global_feature_sum += ray.get(t)
+            local_neighbor_feature_sums = left
+            if not local_neighbor_feature_sums:
+                break
+        # test if aggregation is correct
+        assert ((global_feature_sum != get_1hop_feature_sum(features, edge_index)).sum() == 0)
+
+        [trainer.load_feature_aggregation.remote(global_feature_sum[communicate_node_indexes[i]]) for trainer in server.trainers]
+        [trainer.relabel_adj.remote() for trainer in server.trainers]
+
         print("global_rounds", args.global_rounds)
+
         for i in range(args.global_rounds):
             server.train(i)
 

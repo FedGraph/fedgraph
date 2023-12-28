@@ -172,7 +172,7 @@ def parition_non_iid(
 
 def get_in_comm_indexes(
     edge_index: torch.Tensor,
-    split_data_indexes: list,
+    split_node_indexes: list,
     num_clients: int,
     L_hop: int,
     idx_train: torch.Tensor,
@@ -190,76 +190,60 @@ def get_in_comm_indexes(
     idx_test: (PyTorch tensor) - Indices of test data
 
     Returns:
-    communicate_indexes: (list) - A list of indices assigned to a particular client
-    in_com_train_data_indexes: (list) - A list of tensors where each tensor contains the indices of training data points available to each client
+    communicate_node_indexes: (list) - A list of indices assigned to a particular client
+    in_com_train_node_indexes: (list) - A list of tensors where each tensor contains the indices of training data points available to each client
     edge_indexes_clients: (list) - A list of edge tensors representing the edges between nodes within each client's subgraph
     """
-    communicate_indexes = []
-    in_com_train_data_indexes = []
+    communicate_node_indexes = []
+    in_com_train_node_indexes = []
     edge_indexes_clients = []
 
     for i in range(num_clients):
-        communicate_index = split_data_indexes[i]
-
+        communicate_node_index = split_node_indexes[i]
         if L_hop == 0:
-            (
-                communicate_index,
-                current_edge_index,
-                _,
-                __,
-            ) = torch_geometric.utils.k_hop_subgraph(
-                communicate_index, 0, edge_index, relabel_nodes=True
-            )
+            communicate_node_index, current_edge_index, _, __ = torch_geometric.utils.k_hop_subgraph(communicate_node_index, 0,
+                                                                                                edge_index,
+                                                                                                relabel_nodes=False)
+            del _
+            del __
+        elif L_hop == 1 or L_hop == 2:
+            communicate_node_index, current_edge_index, _, __ = torch_geometric.utils.k_hop_subgraph(communicate_node_index, 1,
+                                                                                                edge_index,
+                                                                                                relabel_nodes=False)
             del _
             del __
 
-        for hop in range(L_hop):
-            if hop != L_hop - 1:
-                communicate_index = torch_geometric.utils.k_hop_subgraph(
-                    communicate_index, 1, edge_index, relabel_nodes=True
-                )[0]
-            else:
-                (
-                    communicate_index,
-                    current_edge_index,
-                    _,
-                    __,
-                ) = torch_geometric.utils.k_hop_subgraph(
-                    communicate_index, 1, edge_index, relabel_nodes=True
-                )
-                del _
-                del __
-
-        communicate_index = communicate_index.to("cpu")
+        communicate_node_index = communicate_node_index.to("cpu")
         current_edge_index = current_edge_index.to("cpu")
-        communicate_indexes.append(communicate_index)
+        communicate_node_indexes.append(communicate_node_index)
 
+        '''
         current_edge_index = torch_sparse.SparseTensor(
             row=current_edge_index[0],
             col=current_edge_index[1],
-            sparse_sizes=(len(communicate_index), len(communicate_index)),
+            sparse_sizes=(len(communicate_node_index), len(communicate_node_index)),
         )
-
+        '''
         edge_indexes_clients.append(current_edge_index)
 
         inter = intersect1d(
-            split_data_indexes[i], idx_train
+            split_node_indexes[i], idx_train
         )  ###only count the train data of nodes in current server(not communicate nodes)
 
-        in_com_train_data_indexes.append(
-            torch.searchsorted(communicate_indexes[i], inter).clone()
+        in_com_train_node_indexes.append(
+            torch.searchsorted(communicate_node_indexes[i], inter).clone()
         )  # local id in block matrix
-
-    in_com_test_data_indexes = []
+        
+    in_com_test_node_indexes = []
     for i in range(num_clients):
-        inter = intersect1d(split_data_indexes[i], idx_test)
-        in_com_test_data_indexes.append(
-            torch.searchsorted(communicate_indexes[i], inter).clone()
+        inter = intersect1d(split_node_indexes[i], idx_test)
+        in_com_test_node_indexes.append(
+            torch.searchsorted(communicate_node_indexes[i], inter).clone()
         )
     return (
-        communicate_indexes,
-        in_com_train_data_indexes,
-        in_com_test_data_indexes,
+        communicate_node_indexes,
+        in_com_train_node_indexes,
+        in_com_test_node_indexes,
         edge_indexes_clients,
     )
 
@@ -360,3 +344,25 @@ def increment_dir(dir: str, comment: str = "") -> str:
         if idxs:
             n = max(idxs) + 1  # increment
     return dir + str(n) + ("_" + comment if comment else "")
+
+
+def get_1hop_feature_sum(node_features, edge_index, include_self=True):
+    source_nodes = edge_index[0]
+    target_nodes = edge_index[1]
+
+    num_nodes, num_features = node_features.shape
+    summed_features = torch.zeros((num_nodes, num_features))
+
+    # encryption
+    # encrypted_node_features = [ts.ckks_vector(context, node_features[i].tolist()) for i in range(num_nodes)]
+
+    for node in range(num_nodes):
+        if include_self:
+            neighbor_indices = torch.where(source_nodes == node)
+        else:
+            neighbor_indices = torch.where((source_nodes == node) & (target_nodes != node))  # exclude self-loop
+
+        neighbor_features = node_features[target_nodes[neighbor_indices]]
+        summed_features[node] = torch.sum(neighbor_features, dim=0)
+
+    return summed_features
