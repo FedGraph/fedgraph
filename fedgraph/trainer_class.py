@@ -123,7 +123,6 @@ class Trainer_General:
         torch.cuda.empty_cache()
         for iteration in range(self.local_step):
             self.model.train()
-            print(self.features.shape)
             loss_train, acc_train = train(
                 iteration,
                 self.model,

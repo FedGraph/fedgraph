@@ -43,9 +43,7 @@ def test(
 
     """
     model.eval()
-    print("test", features.shape)
     output = model(features, adj)
-    print("output", output.shape)
     pred_labels = torch.argmax(output, axis=1)
     loss_test = F.nll_loss(output[idx_test], labels[idx_test])
     acc_test = accuracy(output[idx_test], labels[idx_test])

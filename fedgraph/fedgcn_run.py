@@ -132,7 +132,6 @@ if __name__ == "__main__":
             def __init__(self, *args: Any, **kwds: Any):
                 super().__init__(*args, **kwds)
 
-
         (
             communicate_node_indexes,
             in_com_train_node_indexes,
@@ -187,17 +186,16 @@ if __name__ == "__main__":
             ready, left = ray.wait(local_neighbor_feature_sums, num_returns=1, timeout=None)
             if ready:
                 for t in ready:
-                    print(1)
                     global_feature_sum += ray.get(t)
             local_neighbor_feature_sums = left
             if not local_neighbor_feature_sums:
                 break
+        print("server aggregates all local neighbor feature sums")
         # test if aggregation is correct
         assert ((global_feature_sum != get_1hop_feature_sum(features, edge_index)).sum() == 0)
         for i in range(args.n_trainer):
-            print(communicate_node_indexes[i].shape)
             server.trainers[i].load_feature_aggregation.remote(global_feature_sum[communicate_node_indexes[i]])
-
+        print("clients received feature aggregation from server")
         [trainer.relabel_adj.remote() for trainer in server.trainers]
 
         print("global_rounds", args.global_rounds)
