@@ -26,6 +26,7 @@ setup(
     keywords=["Graph Neural Networks", "Federated Learning"],
     python_requires=">=3.9",
     install_requires=[
+        "torch>=2.0.0",
         "torch-scatter>=2.0.9",
         "torch-sparse>=0.6.15",
         "torch-cluster>=1.6.0",
@@ -33,7 +34,7 @@ setup(
         "torch-geometric>=2.1.0.post1",
         "omegaconf>=2.3.0",
         "ray>=2.6.3",
-        "yaml>=5.4.0",
+        "PyYAML>=5.4.0",
     ],
     extras_require={"dev": ["build", "mypy", "pre-commit", "pytest"]},
 )
