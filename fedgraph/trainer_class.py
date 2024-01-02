@@ -3,7 +3,7 @@ from typing import Any
 import numpy as np
 import torch
 import torch_geometric
-from gnn_models import GCN, GCN_arxiv, SAGE_products, AggreGCN
+from gnn_models import GCN, AggreGCN, GCN_arxiv, SAGE_products
 from train_func import test, train
 from utils import get_1hop_feature_sum
 
@@ -15,7 +15,8 @@ class Trainer_General:
         local_node_index: torch.Tensor,
         communicate_node_index: torch.Tensor,
         adj: torch.Tensor,
-        labels: torch.Tensor,
+        train_labels: torch.Tensor,
+        test_labels: torch.Tensor,
         features: torch.Tensor,
         idx_train: torch.Tensor,
         idx_test: torch.Tensor,
@@ -83,7 +84,8 @@ class Trainer_General:
         self.communicate_node_index = communicate_node_index.to(device)
 
         self.adj = adj.to(device)
-        self.labels = labels.to(device)
+        self.train_labels = train_labels.to(device)
+        self.test_labels = test_labels.to(device)
         self.features = features.to(device)
         self.idx_train = idx_train.to(device)
         self.idx_test = idx_test.to(device)
@@ -103,20 +105,25 @@ class Trainer_General:
             mp.data = p
         self.model.to(self.device)
 
-    def get_local_feature_sum(self):
+    def get_local_feature_sum(self) -> torch.Tensor:
         # create a large matrix with known local node features
-        new_feature_for_client = torch.zeros(self.global_node_num, self.features.shape[1])
+        new_feature_for_client = torch.zeros(
+            self.global_node_num, self.features.shape[1]
+        )
         new_feature_for_client[self.local_node_index] = self.features
         # sum of features of all 1-hop nodes for each node
-        one_hop_neighbor_feature_sum = get_1hop_feature_sum(new_feature_for_client, self.adj)
+        one_hop_neighbor_feature_sum = get_1hop_feature_sum(
+            new_feature_for_client, self.adj
+        )
         return one_hop_neighbor_feature_sum
 
-    def load_feature_aggregation(self, feature_aggregation):
+    def load_feature_aggregation(self, feature_aggregation: torch.Tensor) -> None:
         self.feature_aggregation = feature_aggregation
-        self.features = self.feature_aggregation
-    def relabel_adj(self):
+
+    def relabel_adj(self) -> None:
         _, self.adj, __, ___ = torch_geometric.utils.k_hop_subgraph(
-            self.communicate_node_index, 0, self.adj, relabel_nodes=True)
+            self.communicate_node_index, 0, self.adj, relabel_nodes=True
+        )
 
     def train(self, current_global_round: int) -> None:
         # clean cache
@@ -127,9 +134,9 @@ class Trainer_General:
                 iteration,
                 self.model,
                 self.optimizer,
-                self.features,
+                self.feature_aggregation,
                 self.adj,
-                self.labels,
+                self.train_labels,
                 self.idx_train,
             )
             self.train_losses.append(loss_train)
@@ -141,7 +148,11 @@ class Trainer_General:
 
     def local_test(self) -> list:
         local_test_loss, local_test_acc = test(
-            self.model, self.features, self.adj, self.labels, self.idx_test
+            self.model,
+            self.feature_aggregation,
+            self.adj,
+            self.test_labels,
+            self.idx_test,
         )
         return [local_test_loss, local_test_acc]
 

@@ -55,29 +55,32 @@ class GCN(torch.nn.Module):
         x = self.convs[-1](x, adj_t)
         return torch.log_softmax(x, dim=-1)
 
-#edited#
+
+# edited#
 class AggreGCN(torch.nn.Module):
-    def __init__(self, nfeat, nhid, nclass, dropout, NumLayers):
+    def __init__(
+        self, nfeat: int, nhid: int, nclass: int, dropout: float, NumLayers: int
+    ) -> None:
         super(AggreGCN, self).__init__()
 
         self.convs = torch.nn.ModuleList()
         self.convs.append(torch.nn.Linear(nfeat, nhid))
         for _ in range(NumLayers - 2):
-            self.convs.append(
-                GCNConv(nhid, nhid, normalize=True, cached=True))
-        self.convs.append(
-            GCNConv(nhid, nclass, normalize=True, cached=True))
+            self.convs.append(GCNConv(nhid, nhid, normalize=True, cached=True))
+        self.convs.append(GCNConv(nhid, nclass, normalize=True, cached=True))
 
         self.dropout = dropout
 
-    def reset_parameters(self):
+    def reset_parameters(self) -> None:
         for conv in self.convs:
             conv.reset_parameters()
 
-    def forward(self, aggregated_feature, adj_t):
+    def forward(
+        self, aggregated_feature: torch.Tensor, adj_t: torch.Tensor
+    ) -> torch.Tensor:
         # x = torch.matmul(aggregated_dim, self.first_layer_weight)
         for i, conv in enumerate(self.convs[:-1]):
-            if i == 0:#check dimension of adj matrix
+            if i == 0:  # check dimension of adj matrix
                 x = F.relu(self.convs[0](aggregated_feature))
                 x = F.dropout(x, p=self.dropout, training=self.training)
             else:
@@ -86,6 +89,7 @@ class AggreGCN(torch.nn.Module):
                 x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.convs[-1](x, adj_t)
         return torch.log_softmax(x, dim=-1)
+
 
 class GCN_products(torch.nn.Module):
     def __init__(

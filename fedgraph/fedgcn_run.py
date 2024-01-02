@@ -23,17 +23,13 @@ sys.path.append(os.path.join(sys.path[0], "src", "data"))
 ray.init()
 
 from data_process import generate_data, load_data
-from gnn_models import GCN, GCN_arxiv, SAGE_products
 from server_class import Server
 from trainer_class import Trainer_General
 from utils import (
+    get_1hop_feature_sum,
     get_in_comm_indexes,
-    get_in_comm_indexes_BDS_GCN,
     increment_dir,
     label_dirichlet_partition,
-    parition_non_iid,
-    setdiff1d,
-    get_1hop_feature_sum,
 )
 
 if __name__ == "__main__":
@@ -63,18 +59,8 @@ if __name__ == "__main__":
     np.random.seed(42)
     torch.manual_seed(42)
 
-    # load data to cpu
-    if args.dataset == "simulate":
-        number_of_nodes = 200
-        class_num = 3
-        link_inclass_prob = 10 / number_of_nodes
-        link_outclass_prob = link_inclass_prob / 20
-        features, adj, labels, idx_train, idx_val, idx_test = generate_data(
-            number_of_nodes, class_num, link_inclass_prob, link_outclass_prob
-        )
-    else:
-        features, adj, labels, idx_train, idx_val, idx_test = load_data(args.dataset)
-        class_num = labels.max().item() + 1
+    features, adj, labels, idx_train, idx_val, idx_test = load_data(args.dataset)
+    class_num = labels.max().item() + 1
 
     if args.dataset in ["simulate", "cora", "citeseer", "pubmed", "reddit"]:
         args_hidden = 16
@@ -121,7 +107,6 @@ if __name__ == "__main__":
             split_node_indexes[i].sort()
             split_node_indexes[i] = torch.tensor(split_node_indexes[i])
 
-
         # determine the resources for each trainer
         @ray.remote(
             num_gpus=num_gpus,
@@ -153,7 +138,12 @@ if __name__ == "__main__":
                 local_node_index=split_node_indexes[i],
                 communicate_node_index=communicate_node_indexes[i],
                 adj=edge_indexes_clients[i],
-                labels=labels[communicate_node_indexes[i]], # need to change back to split_node_indexes[i] for privacy
+                train_labels=labels[communicate_node_indexes[i]][
+                    in_com_train_node_indexes[i]
+                ],
+                test_labels=labels[communicate_node_indexes[i]][
+                    in_com_test_node_indexes[i]
+                ],
                 features=features[split_node_indexes[i]],
                 idx_train=in_com_train_node_indexes[i],
                 idx_test=in_com_test_node_indexes[i],
@@ -180,10 +170,14 @@ if __name__ == "__main__":
         )
 
         # pre-train communication
-        local_neighbor_feature_sums = [trainer.get_local_feature_sum.remote() for trainer in server.trainers]
+        local_neighbor_feature_sums = [
+            trainer.get_local_feature_sum.remote() for trainer in server.trainers
+        ]
         global_feature_sum = torch.zeros_like(features)
         while True:
-            ready, left = ray.wait(local_neighbor_feature_sums, num_returns=1, timeout=None)
+            ready, left = ray.wait(
+                local_neighbor_feature_sums, num_returns=1, timeout=None
+            )
             if ready:
                 for t in ready:
                     global_feature_sum += ray.get(t)
@@ -192,9 +186,14 @@ if __name__ == "__main__":
                 break
         print("server aggregates all local neighbor feature sums")
         # test if aggregation is correct
-        assert ((global_feature_sum != get_1hop_feature_sum(features, edge_index)).sum() == 0)
+        if args.num_hops != 0:
+            assert (
+                global_feature_sum != get_1hop_feature_sum(features, edge_index)
+            ).sum() == 0
         for i in range(args.n_trainer):
-            server.trainers[i].load_feature_aggregation.remote(global_feature_sum[communicate_node_indexes[i]])
+            server.trainers[i].load_feature_aggregation.remote(
+                global_feature_sum[communicate_node_indexes[i]]
+            )
         print("clients received feature aggregation from server")
         [trainer.relabel_adj.remote() for trainer in server.trainers]
 

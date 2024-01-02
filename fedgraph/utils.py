@@ -201,29 +201,39 @@ def get_in_comm_indexes(
     for i in range(num_clients):
         communicate_node_index = split_node_indexes[i]
         if L_hop == 0:
-            communicate_node_index, current_edge_index, _, __ = torch_geometric.utils.k_hop_subgraph(communicate_node_index, 0,
-                                                                                                edge_index,
-                                                                                                relabel_nodes=False)
+            (
+                communicate_node_index,
+                current_edge_index,
+                _,
+                __,
+            ) = torch_geometric.utils.k_hop_subgraph(
+                communicate_node_index, 0, edge_index, relabel_nodes=False
+            )
             del _
             del __
         elif L_hop == 1 or L_hop == 2:
-            communicate_node_index, current_edge_index, _, __ = torch_geometric.utils.k_hop_subgraph(communicate_node_index, 1,
-                                                                                                edge_index,
-                                                                                                relabel_nodes=False)
+            (
+                communicate_node_index,
+                current_edge_index,
+                _,
+                __,
+            ) = torch_geometric.utils.k_hop_subgraph(
+                communicate_node_index, 1, edge_index, relabel_nodes=False
+            )
             del _
             del __
 
         communicate_node_index = communicate_node_index.to("cpu")
         current_edge_index = current_edge_index.to("cpu")
         communicate_node_indexes.append(communicate_node_index)
-
-        '''
+        """
         current_edge_index = torch_sparse.SparseTensor(
             row=current_edge_index[0],
             col=current_edge_index[1],
             sparse_sizes=(len(communicate_node_index), len(communicate_node_index)),
         )
-        '''
+        """
+
         edge_indexes_clients.append(current_edge_index)
 
         inter = intersect1d(
@@ -233,7 +243,7 @@ def get_in_comm_indexes(
         in_com_train_node_indexes.append(
             torch.searchsorted(communicate_node_indexes[i], inter).clone()
         )  # local id in block matrix
-        
+
     in_com_test_node_indexes = []
     for i in range(num_clients):
         inter = intersect1d(split_node_indexes[i], idx_test)
@@ -248,78 +258,30 @@ def get_in_comm_indexes(
     )
 
 
-def get_in_comm_indexes_BDS_GCN(
-    edge_index: torch.Tensor,
-    split_data_indexes: list,
-    num_clients: int,
-    idx_train: torch.Tensor,
-    idx_test: torch.Tensor,
-    sample_rate: float = 0.5,
-) -> tuple:
-    communicate_indexes = []
-    in_com_train_data_indexes = []
-    edge_indexes_clients = []
+def get_1hop_feature_sum(
+    node_features: torch.Tensor, edge_index: torch.Tensor, include_self: bool = True
+) -> torch.Tensor:
+    source_nodes = edge_index[0]
+    target_nodes = edge_index[1]
 
-    for i in range(num_clients):
-        communicate_index = split_data_indexes[i]
+    num_nodes, num_features = node_features.shape
+    summed_features = torch.zeros((num_nodes, num_features))
 
-        communicate_index = torch_geometric.utils.k_hop_subgraph(
-            communicate_index, 1, edge_index
-        )[0].cpu()
+    # encryption
+    # encrypted_node_features = [ts.ckks_vector(context, node_features[i].tolist()) for i in range(num_nodes)]
 
-        diff = setdiff1d(split_data_indexes[i], communicate_index)
-        sample_index = torch.cat(
-            (
-                split_data_indexes[i],
-                diff[torch.randperm(len(diff))[: int(len(diff) * sample_rate)]],
-            )
-        ).clone()
-        sample_index = sample_index.sort()[0]
+    for node in range(num_nodes):
+        if include_self:
+            neighbor_indices = torch.where(source_nodes == node)
+        else:
+            neighbor_indices = torch.where(
+                (source_nodes == node) & (target_nodes != node)
+            )  # exclude self-loop
 
-        # get edge_index with relabel_nodes
-        (
-            communicate_index,
-            current_edge_index,
-            _,
-            __,
-        ) = torch_geometric.utils.k_hop_subgraph(
-            sample_index, 0, edge_index, relabel_nodes=True
-        )
-        del _
-        del __
+        neighbor_features = node_features[target_nodes[neighbor_indices]]
+        summed_features[node] = torch.sum(neighbor_features, dim=0)
 
-        communicate_index = communicate_index.to("cpu")
-        current_edge_index = current_edge_index.to("cpu")
-        communicate_indexes.append(communicate_index)
-
-        current_edge_index = torch_sparse.SparseTensor(
-            row=current_edge_index[0],
-            col=current_edge_index[1],
-            sparse_sizes=(len(communicate_index), len(communicate_index)),
-        )
-
-        edge_indexes_clients.append(current_edge_index)
-
-        inter = intersect1d(
-            split_data_indexes[i], idx_train
-        )  ###only count the train data of nodes in current server(not communicate nodes)
-
-        in_com_train_data_indexes.append(
-            torch.searchsorted(communicate_indexes[i], inter).clone()
-        )  # local id in block matrix
-
-    in_com_test_data_indexes = []
-    for i in range(num_clients):
-        inter = intersect1d(split_data_indexes[i], idx_test)
-        in_com_test_data_indexes.append(
-            torch.searchsorted(communicate_indexes[i], inter).clone()
-        )
-    return (
-        communicate_indexes,
-        in_com_train_data_indexes,
-        in_com_test_data_indexes,
-        edge_indexes_clients,
-    )
+    return summed_features
 
 
 def increment_dir(dir: str, comment: str = "") -> str:
@@ -344,25 +306,3 @@ def increment_dir(dir: str, comment: str = "") -> str:
         if idxs:
             n = max(idxs) + 1  # increment
     return dir + str(n) + ("_" + comment if comment else "")
-
-
-def get_1hop_feature_sum(node_features, edge_index, include_self=True):
-    source_nodes = edge_index[0]
-    target_nodes = edge_index[1]
-
-    num_nodes, num_features = node_features.shape
-    summed_features = torch.zeros((num_nodes, num_features))
-
-    # encryption
-    # encrypted_node_features = [ts.ckks_vector(context, node_features[i].tolist()) for i in range(num_nodes)]
-
-    for node in range(num_nodes):
-        if include_self:
-            neighbor_indices = torch.where(source_nodes == node)
-        else:
-            neighbor_indices = torch.where((source_nodes == node) & (target_nodes != node))  # exclude self-loop
-
-        neighbor_features = node_features[target_nodes[neighbor_indices]]
-        summed_features[node] = torch.sum(neighbor_features, dim=0)
-
-    return summed_features

@@ -2,7 +2,7 @@ from typing import Any
 
 import ray
 import torch
-from gnn_models import GCN, GCN_arxiv, SAGE_products, AggreGCN
+from gnn_models import GCN, AggreGCN, GCN_arxiv, SAGE_products
 from trainer_class import Trainer_General
 
 
