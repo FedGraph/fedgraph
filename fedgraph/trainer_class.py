@@ -1,11 +1,13 @@
 from typing import Any
 
 import numpy as np
+import ray
 import torch
 import torch_geometric
-from gnn_models import GCN, AggreGCN, GCN_arxiv, SAGE_products
-from train_func import test, train
-from utils import get_1hop_feature_sum
+
+from fedgraph.gnn_models import GCN, AggreGCN, GCN_arxiv, SAGE_products
+from fedgraph.train_func import test, train
+from fedgraph.utils import get_1hop_feature_sum
 
 
 class Trainer_General:

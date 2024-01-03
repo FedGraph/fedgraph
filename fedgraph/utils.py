@@ -5,7 +5,6 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch_geometric
-import torch_sparse
 
 
 def intersect1d(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:

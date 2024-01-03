@@ -22,10 +22,10 @@ sys.path.append(os.path.join(sys.path[0], "src", "data"))
 
 ray.init()
 
-from data_process import generate_data, load_data
-from server_class import Server
-from trainer_class import Trainer_General
-from utils import (
+from fedgraph.data_process import load_data
+from fedgraph.server_class import Server
+from fedgraph.trainer_class import Trainer_General
+from fedgraph.utils import (
     get_1hop_feature_sum,
     get_in_comm_indexes,
     increment_dir,

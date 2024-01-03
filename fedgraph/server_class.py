@@ -2,8 +2,9 @@ from typing import Any
 
 import ray
 import torch
-from gnn_models import GCN, AggreGCN, GCN_arxiv, SAGE_products
-from trainer_class import Trainer_General
+
+from fedgraph.gnn_models import GCN, AggreGCN, GCN_arxiv, SAGE_products
+from fedgraph.trainer_class import Trainer_General
 
 
 class Server:

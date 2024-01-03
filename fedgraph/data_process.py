@@ -1,7 +1,6 @@
 # setting of data generation
 
 import pickle as pkl
-import random
 import sys
 
 import networkx as nx
@@ -12,78 +11,6 @@ import torch_geometric
 import torch_sparse
 
 
-def generate_data(
-    number_of_nodes: int,
-    class_num: int,
-    link_inclass_prob: float,
-    link_outclass_prob: float,
-) -> tuple:
-    """
-    This function generates a synthetic graph dataset returns components of the graph dataset - features,
-    adjacency matrix, labels, and indices for training, validation, and testing.
-
-    Args:
-    number_of_nodes: (int) -  Total number of nodes in the graph
-    class_num: (int) - Number of different classes or labels
-    link_inclass_prob: (float) - probability of creating an edge between two nodes within the same class
-    link_outclass_prob: (float) - probability of creating an edge between two nodes of different classes
-
-    Return:
-    features: (torch.FloatTensor) - A matrix with the nodes in the graph
-    adj: (torch_sparse.tensor.SparseTensor) - The adjacency matrix (connections between the edges and nodes) of the graph
-    labels: (torch.LongTensor) - Labels for each node in the graph
-    idx_train: (torch.LongTensor) - Indices of nodes for the training dataset
-    idx_val: (torch.LongTensor) - Indices of nodes used for validation dataset
-    idx_test: (torch.LongTensor) - Indices of nodes used for test dataset
-
-    Notes:
-    """
-
-    adj = torch.zeros(number_of_nodes, number_of_nodes)  # n*n adj matrix
-
-    labels = torch.randint(
-        0, class_num, (number_of_nodes,)
-    )  # assign random label with equal probability
-    labels = labels.to(dtype=torch.long)
-    # label_node, speed up the generation of edges
-    label_node_dict: dict[int, list[int]] = dict()
-
-    # Create an empty dictionary for the labels
-    for j in range(class_num):
-        label_node_dict[j] = []
-
-    # Populating the above dictionary - for each label with a list of node indices having that label
-    for i in range(len(labels)):
-        label_node_dict[int(labels[i])] += [int(i)]
-
-    # generate graph
-    for node_id in range(number_of_nodes):
-        j = labels[node_id]
-        for l in label_node_dict:
-            if l == j:  # same class
-                for z in label_node_dict[l]:  # z>node_id,  symmetric matrix, no repeat
-                    if z > node_id and random.random() < link_inclass_prob:
-                        adj[node_id, z] = 1
-                        adj[z, node_id] = 1
-            else:  # different class
-                for z in label_node_dict[l]:
-                    if z > node_id and random.random() < link_outclass_prob:
-                        adj[node_id, z] = 1
-                        adj[z, node_id] = 1
-
-    adj = torch_sparse.tensor.SparseTensor.from_dense(adj.float())
-
-    # generate feature use eye matrix
-    features = torch.eye(number_of_nodes, number_of_nodes)
-
-    # separate train,val,test
-    idx_train = torch.LongTensor(range(number_of_nodes // 5))
-    idx_val = torch.LongTensor(range(number_of_nodes // 5, number_of_nodes // 2))
-    idx_test = torch.LongTensor(range(number_of_nodes // 2, number_of_nodes))
-
-    return features.float(), adj, labels, idx_train, idx_val, idx_test
-
-
 def parse_index_file(filename: str) -> list:
     """
     This function reads and parses an index file
@@ -92,7 +19,7 @@ def parse_index_file(filename: str) -> list:
     filename: (str) - name or path of the file to parse
 
     Return:
-    index: (list) - list of integers, each integer in the list represents int of the lines lines of the input file.
+    index: (list) - list of integers, each integer in the list represents int of the lines of the input file.
     """
     index = []
     for line in open(filename):
@@ -148,10 +75,14 @@ def load_data(dataset_str: str) -> tuple:
     """
 
     if dataset_str in ["cora", "citeseer", "pubmed"]:
+        # download dataset from torch_geometric
+        dataset = torch_geometric.datasets.Planetoid("./data", dataset_str)
         names = ["x", "y", "tx", "ty", "allx", "ally", "graph"]
         objects = []
         for i in range(len(names)):
-            with open("data/ind.{}.{}".format(dataset_str, names[i]), "rb") as f:
+            with open(
+                "data/{}/raw/ind.{}.{}".format(dataset_str, dataset_str, names[i]), "rb"
+            ) as f:
                 if sys.version_info > (3, 0):
                     objects.append(pkl.load(f, encoding="latin1"))
                 else:
