@@ -90,7 +90,7 @@ def load_data(dataset_str: str) -> tuple:
 
         x, y, tx, ty, allx, ally, graph = tuple(objects)
         test_idx_reorder = parse_index_file(
-            "data/ind.{}.test.index".format(dataset_str)
+            "data/{}/raw/ind.{}.test.index".format(dataset_str, dataset_str)
         )
         test_idx_range = np.sort(test_idx_reorder)
 
