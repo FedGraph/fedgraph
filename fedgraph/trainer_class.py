@@ -11,6 +11,62 @@ from fedgraph.utils import get_1hop_feature_sum
 
 
 class Trainer_General:
+    """
+    A general trainer class for training GCN in a federated learning setup, which includes functionalities 
+    required for training GCN models on a subset of a distributed dataset, handling local training and testing,
+    parameter updates, and feature aggregation.
+
+    Parameters
+    ----------
+    rank : int
+        Unique identifier for the training instance (typically representing a client in federated learning).
+    local_node_index : torch.Tensor
+        Indices of nodes local to this trainer.
+    communicate_node_index : torch.Tensor
+        Indices of nodes that participate in communication during training.
+    adj : torch.Tensor
+        The adjacency matrix representing the graph structure.
+    train_labels : torch.Tensor
+        Labels of the training data.
+    test_labels : torch.Tensor
+        Labels of the testing data.
+    features : torch.Tensor
+        Node features for the entire graph.
+    idx_train : torch.Tensor
+        Indices of training nodes.
+    idx_test : torch.Tensor
+        Indices of test nodes.
+    args_hidden : int
+        Number of hidden units in the GCN model.
+    global_node_num : int
+        Total number of nodes in the global graph.
+    class_num : int
+        Number of classes for classification.
+    device : torch.device
+        The device (CPU or GPU) on which the model will be trained.
+    args : Any
+        Additional arguments required for model initialization and training.
+
+    Attributes
+    ----------
+    model : GCN_Graph_Classification
+        The GCN model for graph classification.
+    optimizer : torch.optim
+        Optimizer for training the model.
+    criterion : torch.nn.Module
+        Loss function used during training.
+    train_losses : list
+        List to store training loss values.
+    train_accs : list
+        List to store training accuracy values.
+    test_losses : list
+        List to store testing loss values.
+    test_accs : list
+        List to store testing accuracy values.
+    feature_aggregation : torch.Tensor
+        Aggregated features for training the model.
+    """
+
     def __init__(
         self,
         rank: int,
@@ -98,6 +154,20 @@ class Trainer_General:
 
     @torch.no_grad()
     def update_params(self, params: tuple, current_global_epoch: int) -> None:
+        """
+        Updates the model parameters with global parameters received from the server.
+
+        Parameters
+        ----------
+        params : tuple
+            A tuple containing the global parameters from the server.
+        current_global_epoch : int
+            The current global epoch number.
+
+        Returns
+        -------
+        None
+        """
         # load global parameter from global server
         self.model.to("cpu")
         for (
@@ -108,6 +178,15 @@ class Trainer_General:
         self.model.to(self.device)
 
     def get_local_feature_sum(self) -> torch.Tensor:
+        """
+        Computes the sum of features of all 1-hop neighbors for each node.
+
+        Returns
+        -------
+        torch.Tensor
+            The sum of features of 1-hop neighbors for each node.
+        """
+
         # create a large matrix with known local node features
         new_feature_for_client = torch.zeros(
             self.global_node_num, self.features.shape[1]
@@ -120,14 +199,46 @@ class Trainer_General:
         return one_hop_neighbor_feature_sum
 
     def load_feature_aggregation(self, feature_aggregation: torch.Tensor) -> None:
+        """
+        Loads the aggregated features into the trainer.
+
+        Parameters
+        ----------
+        feature_aggregation : torch.Tensor
+            The aggregated features to be loaded.
+
+        Returns
+        -------
+        None
+        """
         self.feature_aggregation = feature_aggregation
 
     def relabel_adj(self) -> None:
+        """
+        Relabels the adjacency matrix based on the communication node index.
+
+        Returns
+        -------
+        None
+        """
         _, self.adj, __, ___ = torch_geometric.utils.k_hop_subgraph(
             self.communicate_node_index, 0, self.adj, relabel_nodes=True
         )
 
     def train(self, current_global_round: int) -> None:
+        """
+        Performs local training for a specified number of iterations. This method 
+        updates the model using the loaded feature aggregation and the adjacency matrix.
+
+        Parameters
+        ----------
+        current_global_round : int
+        The current global training round.
+
+        Returns
+        -------
+        None
+        """
         # clean cache
         torch.cuda.empty_cache()
         for iteration in range(self.local_step):
@@ -149,6 +260,18 @@ class Trainer_General:
             self.test_accs.append(acc_test)
 
     def local_test(self) -> list:
+        """
+        Evaluates the model on the local test dataset.
+
+        Returns
+        -------
+        list
+        A list containing the test loss and accuracy [local_test_loss, local_test_acc].
+
+        Notes
+        -----
+        This method is used to evaluate the performance of the model on the local test dataset.
+        """
         local_test_loss, local_test_acc = test(
             self.model,
             self.feature_aggregation,
@@ -159,10 +282,26 @@ class Trainer_General:
         return [local_test_loss, local_test_acc]
 
     def get_params(self) -> tuple:
+        """
+        Retrieves the current parameters of the model.
+
+        Returns
+        -------
+        tuple
+        A tuple containing the current parameters of the model.
+        """
         self.optimizer.zero_grad(set_to_none=True)
         return tuple(self.model.parameters())
 
     def get_all_loss_accuray(self) -> list:
+        """
+        Returns all recorded training and testing losses and accuracies.
+
+        Returns
+        -------
+        list
+        A list containing arrays of training losses, training accuracies, testing losses, and testing accuracies.
+        """
         return [
             np.array(self.train_losses),
             np.array(self.train_accs),
@@ -171,4 +310,12 @@ class Trainer_General:
         ]
 
     def get_rank(self) -> int:
+        """
+        Returns the rank (client ID) of the trainer.
+
+        Returns
+        -------
+        int
+        The rank (client ID) of this trainer instance.
+        """
         return self.rank

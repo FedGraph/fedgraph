@@ -6,12 +6,16 @@ def accuracy(output: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
     """
     This function returns the accuracy of the output with respect to the ground truth given
 
-    Arguments:
-    output: (torch.Tensor) - the output labels predicted by the model
+    Arguments
+    ----------
+    output: torch.Tensor
+        the output labels predicted by the model
 
-    labels: (torch.Tensor) - ground truth labels
+    labels: torch.Tensor
+        ground truth labels
 
-    Returns:
+    Returns
+    -------
     The accuracy of the model (float)
     """
 
@@ -31,14 +35,21 @@ def test(
     """
     This function tests the model and calculates the loss and accuracy
 
-    Arguments:
-    model: (torch.nn.Module) - Specific model passed
-    features: (torch.Tensor) - Tensor representing the input features
-    adj: (torch.Tensor) - Adjacency matrix
-    labels: (torch.Tensor) - Contains the ground truth labels for the data.
-    idx_test: (torch.Tensor) - Indices specifying the test data points
+    Arguments
+    ----------
+    model : torch.nn.Module
+        Specific model passed
+    features : torch.Tensor
+        Tensor representing the input features
+    adj : torch.Tensor
+        Adjacency matrix
+    labels : torch.Tensor
+        Contains the ground truth labels for the data.
+    idx_test : torch.Tensor
+        Indices specifying the test data points
 
-    Returns:
+    Returns
+    -------
     The loss and accuracy of the model
 
     """
@@ -60,19 +71,33 @@ def train(
     idx_train: torch.Tensor,
 ) -> tuple:  # Centralized or new FL
     """
-    This function trains the model and returns the loss and accuracy
+    Trains the model and calculates the loss and accuracy of the model on the training data,
+    performs backpropagation, and updates the model parameters.
 
-    Arguments:
-    model: (torch.nn.Module) - Specific model passed
-    features: (torch.FloatTensor) - Tensor representing the input features
-    adj: (torch_sparse.tensor.SparseTensor) - Adjacency matrix
-    labels: (torch.LongTensor) - Contains the ground truth labels for the data.
-    idx_train: (torch.LongTensor) - Indices specifying the test data points
-    epoch: (int) - specifies the number of epoch on
-    optimizer: (optimizer) - type of the optimizer used
+    Arguments
+    ----------
+    epoch : int
+        Specifies the number of epoch on which the model is trained
+    model : torch.nn.Module
+        Specific model to be trained
+    optimizer : optimizer
+        Type of the optimizer used for updating the model parameters
+    features : torch.FloatTensor
+        Tensor representing the input features
+    adj : torch_sparse.tensor.SparseTensor
+        Adjacency matrix
+    train_labels : torch.LongTensor
+        Contains the ground truth labels for the data.
+    idx_train : torch.LongTensor
+        Indices specifying the test data points
+   
 
-    Returns:
-    The loss and accuracy of the model
+    Returns
+    ----------
+    tuple
+        A tuple containing two elements:
+        - The training loss (float).
+        - The training accuracy (float).
 
     """
 

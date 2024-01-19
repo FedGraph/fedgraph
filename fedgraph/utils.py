@@ -9,14 +9,19 @@ import torch_geometric
 
 def intersect1d(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
     """
-    This function concatenates the two input tensors, finding common elements between these two
+    Concatenates the two input tensors, finding common elements between these two
 
-    Argument:
-    t1: (PyTorch tensor) - The first input tensor for the operation
-    t2: (PyTorch tensor) - The second input tensor for the operation
+    Arguments
+    ----------
+    t1 : torch.Tensor
+        The first input tensor for the operation
+    t2 : torch.Tensor
+        The second input tensor for the operation
 
-    Return:
-    intersection: (PyTorch tensor) - Intersection of the two input tensors
+    Returns
+    -------
+    intersection: torch.Tensor
+        Intersection of the two input tensors
     """
     combined = torch.cat((t1, t2))
     uniques, counts = combined.unique(return_counts=True)
@@ -26,14 +31,18 @@ def intersect1d(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
 
 def setdiff1d(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
     """
-    This function computes the set difference between the two input tensors
+    Computes the set difference between the two input tensors
 
-    Arguments:
-    t1: (PyTorch tensor) - The first input tensor for the operation
-    t2: (PyTorch tensor) - The second input tensor for the operation
+    Arguments
+    ----------
+    t1 : torch.Tensor
+        The first input tensor for the operation
+    t2 : torch.Tensor - The second input tensor for the operation
 
-    Return:
-    difference: (PyTorch tensor) - Difference in elements of the two input tensors
+    Returns
+    -------
+    difference : torch.Tensor
+        Difference in elements of the two input tensors
 
     """
 
@@ -47,17 +56,25 @@ def label_dirichlet_partition(
     labels: np.array, N: int, K: int, n_parties: int, beta: float
 ) -> list:
     """
-    This function partitions data based on labels by using the Dirichlet distribution, to ensure even distribution of samples
+    Partitions data based on labels by using the Dirichlet distribution, to ensure even distribution of samples
 
-    Arguments:
-    labels: (NumPy array) - An array with labels or categories for each data point
-    N: (int) - Total number of data points in the dataset
-    K: (int) - Total number of unique labels
-    n_parties: (int) - The number of groups into which the data should be partitioned
-    beta: (float) - Dirichlet distribution parameter value
+    Arguments
+    ----------
+    labels : NumPy array
+        An array with labels or categories for each data point
+    N : int
+        Total number of data points in the dataset
+    K : int
+        Total number of unique labels
+    n_parties : int
+        The number of groups into which the data should be partitioned
+    beta : float
+        Dirichlet distribution parameter value
 
-    Return:
-    split_data_indexes (list) - list indices of data points assigned into groups
+    Returns
+    -------
+    split_data_indexes : list
+        List indices of data points assigned into groups
 
     """
     min_size = 0
@@ -103,16 +120,25 @@ def parition_non_iid(
     args_cuda: bool,
 ) -> list:
     """
-    This function partitions data into non-IID subsets.
+    Partitions data into non-IID subsets. The function first randomly assigns data points to clients, and then
+    assigns non-IID data points to each client. The non-IID data points are randomly selected from the remaining
+    data points that are not assigned to any client.
 
-    Arguments:
-        non_iid_percent: (float) - The percentage of non-IID data in the partition
-        labels: (torch.Tensor) - Tensor with class labels
-        num_clients: (int) - Number of clients
-        nclass: (int) - Total number of classes in the dataset
-        args_cuda: (bool) - Flag indicating whether CUDA is enabled
+    Arguments
+    ----------
+        non_iid_percent : float
+            The percentage of non-IID data in the partition
+        labels : torch.Tensor
+            Tensor with class labels
+        num_clients : int
+            Number of clients
+        nclass : int
+            Total number of classes in the dataset
+        args_cuda : bool
+            Flag indicating whether CUDA is enabled
 
-    Returns:
+    Returns
+    -------
         A list containing indexes of data points assigned to each client.
     """
 
@@ -178,20 +204,35 @@ def get_in_comm_indexes(
     idx_test: torch.Tensor,
 ) -> tuple:
     """
-    This function is used to extract and preprocess data indices and edge information
+    Extract and preprocess data indices and edge information. It determines the nodes that each client 
+    will communicate with, based on the L-hop neighborhood, and aggregates the edge information accordingly. 
+    It also determines the indices of training and test data points that are available to each client.
 
-    Arguments:
-    edge_index: (PyTorch tensor) - Edge information (connection between nodes) of the graph dataset
-    split_data_indexes: (List) - A list of indices of data points assigned to a particular group post data partition
-    num_clients: (int) - Total number of clients
-    L_hop: (int) - Number of hops
-    idx_train: (PyTorch tensor) - Indices of training data
-    idx_test: (PyTorch tensor) - Indices of test data
+    Arguements
+    ----------
+    edge_index : torch.Tensor
+        A tensor representing the edge information (connections between nodes) of the graph dataset.
+    split_node_indexes : list
+        A list of node indices. Each list element corresponds to a subset of nodes assigned to a specific client 
+        after data partitioning.
+    num_clients : int
+        The total number of clients.
+    L_hop : int
+        The number of hops to consider when determining the neighborhood of each node. For example, if L_hop=1, 
+        the 1-hop neighborhood of a node includes the node itself and all of its immediate neighbors.
+    idx_train : torch.Tensor
+        Tensor containing indices of training data in the graph.
+    idx_test : torch.Tensor
+        Tensor containing indices of test data in the graph.
 
-    Returns:
-    communicate_node_indexes: (list) - A list of indices assigned to a particular client
-    in_com_train_node_indexes: (list) - A list of tensors where each tensor contains the indices of training data points available to each client
-    edge_indexes_clients: (list) - A list of edge tensors representing the edges between nodes within each client's subgraph
+    Returns
+    -------
+    tuple
+        A tuple containing the following elements:
+        - communicate_node_indexes (list): A list of node indices for each client, representing nodes involved in communication.
+        - in_com_train_node_indexes (list): A list of tensors, where each tensor contains the indices of training data points available to each client.
+        - in_com_test_node_indexes (list): A list of tensors, where each tensor contains the indices of test data points available to each client.
+        - edge_indexes_clients (list): A list of tensors representing the edges between nodes within each client's subgraph.
     """
     communicate_node_indexes = []
     in_com_train_node_indexes = []
@@ -260,6 +301,30 @@ def get_in_comm_indexes(
 def get_1hop_feature_sum(
     node_features: torch.Tensor, edge_index: torch.Tensor, include_self: bool = True
 ) -> torch.Tensor:
+    """
+    Computes the sum of features of 1-hop neighbors for each node in a graph. The function 
+    can be used to iterate over each node, identifying its neighbors based on the `edge_index`.
+
+
+    Parameters
+    ----------
+    node_features : torch.Tensor
+        A 2D tensor containing the features of each node in the graph. Each row corresponds to a node,
+        and each column corresponds to a feature.
+    edge_index : torch.Tensor
+        A 2D tensor representing the adjacency information of the graph which has the size of (2, num_edges),
+        where the first row represents the source node, and the second row represents the target node.
+    include_self : bool, optional (default=True)
+        A flag to include the node's own features in the sum. If True, the features of the node itself
+        are included in the summation. If False, only the features of the neighboring nodes are summed.
+
+    Returns
+    -------
+    torch.Tensor
+        A 2D tensor where each row represents the summed features of the 1-hop neighbors for each node.
+        The tensor has the same number of rows as `node_features` and the same number of columns as the
+        number of features per node.
+    """
     source_nodes = edge_index[0]
     target_nodes = edge_index[1]
 
@@ -285,13 +350,18 @@ def get_1hop_feature_sum(
 
 def increment_dir(dir: str, comment: str = "") -> str:
     """
-    This function is used to create a new directory path by incrementing a numeric suffix in the original directory path
+    This function is used to create a new directory path by incrementing a numeric suffix in the original 
+    directory path.
 
-    Arguments:
-    dir: (str) - The original directory path
-    comment: (str, optional) - An optional comment that can be appended to the directory name
+    Arguments
+    ----------
+    dir : str
+        The original directory path
+    comment : str, optional)
+        An optional comment that can be appended to the directory name
 
-    Returns:
+    Returns
+    -------
     Returns a string with the path of the new directory
 
     """
