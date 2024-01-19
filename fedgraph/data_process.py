@@ -15,7 +15,7 @@ def parse_index_file(filename: str) -> list:
     """
     Reads and parses an index file
 
-    Argument
+    Parameters
     ----------
     filename : str
         Name or path of the file to parse
@@ -35,7 +35,7 @@ def normalize(mx: sp.csc_matrix) -> sp.csr_matrix:
     """
     This function is to row-normalize sparse matrix for efficient computation of the graph
 
-    Argument
+    Parameters
     ----------
     mx : sparse matrix
         Input sparse matrix to row-normalize.
@@ -62,7 +62,7 @@ def load_data(dataset_str: str) -> tuple:
     Loads input data from 'gcn/data' directory and processes these datasets into a format 
     suitable for training GCN and similar models.
 
-    Argument
+    Parameters
     ----------
     dataset_str : Name of the dataset to be loaded
 

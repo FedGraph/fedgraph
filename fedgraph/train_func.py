@@ -6,7 +6,7 @@ def accuracy(output: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
     """
     This function returns the accuracy of the output with respect to the ground truth given
 
-    Arguments
+    Parameters
     ----------
     output: torch.Tensor
         the output labels predicted by the model
@@ -35,7 +35,7 @@ def test(
     """
     This function tests the model and calculates the loss and accuracy
 
-    Arguments
+    Parameters
     ----------
     model : torch.nn.Module
         Specific model passed
@@ -74,7 +74,7 @@ def train(
     Trains the model and calculates the loss and accuracy of the model on the training data,
     performs backpropagation, and updates the model parameters.
 
-    Arguments
+    Parameters
     ----------
     epoch : int
         Specifies the number of epoch on which the model is trained

@@ -11,7 +11,7 @@ def intersect1d(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
     """
     Concatenates the two input tensors, finding common elements between these two
 
-    Arguments
+    Parameters
     ----------
     t1 : torch.Tensor
         The first input tensor for the operation
@@ -33,7 +33,7 @@ def setdiff1d(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
     """
     Computes the set difference between the two input tensors
 
-    Arguments
+    Parameters
     ----------
     t1 : torch.Tensor
         The first input tensor for the operation
@@ -58,7 +58,7 @@ def label_dirichlet_partition(
     """
     Partitions data based on labels by using the Dirichlet distribution, to ensure even distribution of samples
 
-    Arguments
+    Parameters
     ----------
     labels : NumPy array
         An array with labels or categories for each data point
@@ -124,7 +124,7 @@ def parition_non_iid(
     assigns non-IID data points to each client. The non-IID data points are randomly selected from the remaining
     data points that are not assigned to any client.
 
-    Arguments
+    Parameters
     ----------
         non_iid_percent : float
             The percentage of non-IID data in the partition
@@ -208,7 +208,7 @@ def get_in_comm_indexes(
     will communicate with, based on the L-hop neighborhood, and aggregates the edge information accordingly. 
     It also determines the indices of training and test data points that are available to each client.
 
-    Arguements
+    Parameters
     ----------
     edge_index : torch.Tensor
         A tensor representing the edge information (connections between nodes) of the graph dataset.
@@ -353,7 +353,7 @@ def increment_dir(dir: str, comment: str = "") -> str:
     This function is used to create a new directory path by incrementing a numeric suffix in the original 
     directory path.
 
-    Arguments
+    Parameters
     ----------
     dir : str
         The original directory path
