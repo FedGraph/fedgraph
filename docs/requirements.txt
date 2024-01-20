@@ -11,3 +11,5 @@ setuptools
 sphinxcontrib-bibtex
 matplotlib
 sphinx_gallery
+ray
+tensorboard

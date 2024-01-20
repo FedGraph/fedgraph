@@ -75,7 +75,7 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 #
 html_theme = "furo"
 
-html_favicon = 'pygod.ico'
+# html_favicon = 'pygod.ico'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

@@ -15,7 +15,7 @@ It supports various federated training methods of graph neural networks under si
 * **Graph classification on multiple graphs**
 
 ## Cross Platform Deployment
-* **Computers (Linux, Mac OS, Windows)**
+* **Computers (Linux, macOS, Windows)**
 * **Edge devices (Raspberry Pi, Jeston Nano)**
 * **Mobile phones (Andriod, iOS)**
 

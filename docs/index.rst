@@ -3,83 +3,65 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
+FedGraph
+========
 
-.. figure:: pygod_logo.png
-    :scale: 30%
-    :alt: logo
-
-----
+`Documentation <https://docs.fedgraph.org>`__ \| `Paper <https://arxiv.org/abs/2201.12433>`__
 
 
-.. image:: https://img.shields.io/pypi/v/pygod.svg?color=brightgreen
-   :target: https://pypi.org/project/pygod/
-   :alt: PyPI version
+**FedGraph** *(Federated Graph)* is a library built upon
+`PyTorch <https://pytorch.org/>`__ to easily train Graph Neural Networks
+(GNNs) under federated (distributed) setting.
 
-.. image:: https://readthedocs.org/projects/pygod/badge/?version=latest
-   :target: https://docs.pygod.org/en/latest/?badge=latest
-   :alt: Documentation status
+It supports various federated training methods of graph neural networks
+under simulated and real federated environment and supports
+communication between clients and the central server for model update
+and information aggregation.
 
-.. image:: https://img.shields.io/github/stars/pygod-team/pygod.svg
-   :target: https://github.com/pygod-team/pygod/stargazers
-   :alt: GitHub stars
+Various Training Tasks
+----------------------
 
-.. image:: https://img.shields.io/github/forks/pygod-team/pygod.svg?color=blue
-   :target: https://github.com/pygod-team/pygod/network
-   :alt: GitHub forks
+-  **Node classification (and link prediction) on a single large graph
+   (Main focus)**: Our library recoveres information stored in other
+   client without affecting the privacy of users.
 
-.. image:: https://static.pepy.tech/personalized-badge/fedgraph?period=total&units=international_system&left_color=grey&right_color=blue&left_text=Downloads
-   :target: https://pepy.tech/project/fedgraph
-   :alt: PyPI downloads
+-  **Graph classification on multiple graphs**
 
-.. image:: https://github.com/pygod-team/pygod/actions/workflows/testing.yml/badge.svg
-   :target: https://github.com/pygod-team/pygod/actions/workflows/testing.yml
-   :alt: testing
+Cross Platform Deployment
+-------------------------
 
-.. image:: https://coveralls.io/repos/github/pygod-team/pygod/badge.svg?branch=main
-   :target: https://coveralls.io/github/pygod-team/pygod?branch=main
-   :alt: Coverage Status
+-  **Computers (Linux, Mac OS, Windows)**
+-  **Edge devices (Raspberry Pi, Jeston Nano)**
+-  **Mobile phones (Andriod, iOS)**
 
-.. image:: https://img.shields.io/github/license/pygod-team/pygod.svg
-   :target: https://github.com/pygod-team/pygod/blob/master/LICENSE
-   :alt: License
+Library Highlights
+------------------
 
-----
+Whether you are a federated (distributed) learning researcher or
+first-time user of federated (distributed) learning toolkits, here are
+some reasons to try out FedGraph for federated learning on
+graph-structured data.
 
-PyGOD is a **Python library** for **graph outlier detection** (anomaly detection).
-This exciting yet challenging field has many key applications, e.g., detecting
-suspicious activities in social networks :cite:`dou2020enhancing`  and security systems :cite:`cai2021structural`.
-
-PyGOD includes **10+** graph outlier detection algorithms.
-For consistency and accessibility, PyGOD is developed on top of `PyTorch Geometric (PyG) <https://www.pyg.org/>`_
-and `PyTorch <https://pytorch.org/>`_, and follows the API design of `PyOD <https://github.com/yzhao062/pyod>`_.
-See examples below for detecting outliers with PyGOD in 5 lines!
-
-
-**PyGOD is featured for**:
-
-* **Unified APIs, detailed documentation, and interactive examples** across various graph-based algorithms.
-* **Comprehensive coverage** of 10+ graph outlier detectors.
-* **Full support of detections at multiple levels**, such as node-, edge-, and graph-level tasks.
-* **Scalable design for processing large graphs** via mini-batch and sampling.
-* **Streamline data processing with PyG**--fully compatible with PyG data objects.
-
-**Outlier Detection Using PyGOD with 5 Lines of Code**\ :
-
-
-.. code-block:: python
-
-
-    # train a dominant detector
-    from pygod.detector import DOMINANT
-
-    model = DOMINANT(num_layers=4, epoch=20)  # hyperparameters can be set here
-    model.fit(train_data)  # input data is a PyG data object
-
-    # get outlier scores on the training data (transductive setting)
-    score = model.decision_score_
-
-    # predict labels and scores on the testing data (inductive setting)
-    pred, score = model.predict(test_data, return_score=True)
+-  **Easy-to-use and unified API**: All it takes is 10-20 lines of code
+   to get started with training a federated GNN model. FedGraph is
+   *PyTorch-on-the-rocks*: It utilizes a tensor-centric API and keeps
+   design principles close to vanilla PyTorch. If you are already
+   familiar with PyTorch, utilizing FedGraph is straightforward.
+-  **Comprehensive and well-maintained GNN models**: Most of the
+   state-of-the-art federated graph training methods have been
+   implemented by library developers or authors of research papers and
+   are ready to be applied.
+-  **Great flexibility**: Existing FedGraph models can easily be
+   extended for conducting your own research with GNNs. Making
+   modifications to existing models or creating new architectures is
+   simple, thanks to its easy-to-use message passing API, and a variety
+   of operators and utility functions.
+-  **Large-scale real-world GNN models**: We focus on the need of FedGNN
+   applications in challenging real-world scenarios, and support
+   learning on diverse types of graphs, including but not limited to:
+   scalable FedGNNs for graphs with millions of nodes; dynamic FedGNNs
+   for node predictions over time; heterogeneous FedGNNs with multiple
+   node types and edge types.
 
 ----
 
@@ -91,22 +73,18 @@ See examples below for detecting outliers with PyGOD in 5 lines!
 
    install
    tutorials/index
-   api_cc
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 2
    :hidden:
    :caption: API References
 
-   pygod.detector
-   pygod.generator
-   pygod.metric
-   pygod.nn
-   pygod.nn.conv
-   pygod.nn.encoder
-   pygod.nn.decoder
-   pygod.nn.functional
-   pygod.utils
+   fedgraph.data_process
+   fedgraph.gnn_models
+   fedgraph.server_class
+   fedgraph.train_func
+   fedgraph.trainer_class
+   fedgraph.utils
 
 .. toctree::
    :maxdepth: 2
@@ -114,5 +92,4 @@ See examples below for detecting outliers with PyGOD in 5 lines!
    :caption: Additional Information
 
    cite
-   team
    reference

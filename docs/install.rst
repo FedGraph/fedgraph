@@ -22,11 +22,8 @@ Alternatively, you could clone and run setup.py file:
 **Required Dependencies**\ :
 
 * python>=3.8
-* numpy>=1.24.3
-* scikit-learn>=1.2.2
-* scipy>=1.10.1
-* networkx>=3.1
-
+* ray
+* tensorboard
 
 **Note on PyG and PyTorch Installation**\ :
 FedGraph depends on `torch <https://https://pytorch.org/get-started/locally/>`_ and `torch_geometric (including its optional dependencies) <https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html#>`_.
