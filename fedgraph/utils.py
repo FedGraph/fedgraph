@@ -14,14 +14,14 @@ def intersect1d(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
     Parameters
     ----------
     t1 : torch.Tensor
-        The first input tensor for the operation
+        The first input tensor for the operation.
     t2 : torch.Tensor
-        The second input tensor for the operation
+        The second input tensor for the operation.
 
     Returns
     -------
     intersection : torch.Tensor
-        Intersection of the two input tensors
+        Intersection of the two input tensors.
     """
     combined = torch.cat((t1, t2))
     uniques, counts = combined.unique(return_counts=True)
@@ -36,14 +36,14 @@ def setdiff1d(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
     Parameters
     ----------
     t1 : torch.Tensor
-        The first input tensor for the operation
+        The first input tensor for the operation.
     t2 : torch.Tensor
-        The second input tensor for the operation
+        The second input tensor for the operation.
 
     Returns
     -------
     difference : torch.Tensor
-        Difference in elements of the two input tensors
+        Difference in elements of the two input tensors.
 
     """
 
@@ -62,20 +62,20 @@ def label_dirichlet_partition(
     Parameters
     ----------
     labels : NumPy array
-        An array with labels or categories for each data point
+        An array with labels or categories for each data point.
     N : int
-        Total number of data points in the dataset
+        Total number of data points in the dataset.
     K : int
-        Total number of unique labels
+        Total number of unique labels.
     n_parties : int
-        The number of groups into which the data should be partitioned
+        The number of groups into which the data should be partitioned.
     beta : float
-        Dirichlet distribution parameter value
+        Dirichlet distribution parameter value.
 
     Returns
     -------
     split_data_indexes : list
-        List indices of data points assigned into groups
+        List indices of data points assigned into groups.
 
     """
     min_size = 0
@@ -128,15 +128,15 @@ def parition_non_iid(
     Parameters
     ----------
         non_iid_percent : float
-            The percentage of non-IID data in the partition
+            The percentage of non-IID data in the partition.
         labels : torch.Tensor
-            Tensor with class labels
+            Tensor with class labels.
         num_clients : int
-            Number of clients
+            Number of clients.
         nclass : int
-            Total number of classes in the dataset
+            Total number of classes in the dataset.
         args_cuda : bool
-            Flag indicating whether CUDA is enabled
+            Flag indicating whether CUDA is enabled.
 
     Returns
     -------
@@ -360,14 +360,14 @@ def increment_dir(dir: str, comment: str = "") -> str:
     Parameters
     ----------
     dir : str
-        The original directory path
+        The original directory path.
     comment : str, optional)
-        An optional comment that can be appended to the directory name
+        An optional comment that can be appended to the directory name.
 
     Returns
     -------
     (str) : str
-        Returns a string with the path of the new directory
+        Returns a string with the path of the new directory.
 
     """
     # Increments a directory runs/exp1 --> runs/exp2_comment

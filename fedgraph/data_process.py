@@ -18,7 +18,7 @@ def parse_index_file(filename: str) -> list:
     Parameters
     ----------
     filename : str
-        Name or path of the file to parse
+        Name or path of the file to parse.
 
     Returns
     -------
@@ -43,12 +43,12 @@ def normalize(mx: sp.csc_matrix) -> sp.csr_matrix:
     Returns
     -------
     mx : sparse matrix
-        Returns the row-normalized sparse matrix.
+        Row-normalized sparse matrix.
 
     Note
     ----
     Row-normalizing is usually done in graph algorithms to enable equal node contributions 
-    regardless of the node's degree and to stabilize, ease numerical computations
+    regardless of the node's degree and to stabilize, ease numerical computations.
     """
     rowsum = np.array(mx.sum(1))
     r_inv = np.power(rowsum, -1).flatten()
@@ -65,7 +65,7 @@ def load_data(dataset_str: str) -> tuple:
 
     Parameters
     ----------
-    dataset_str : Name of the dataset to be loaded
+    dataset_str : Name of the dataset to be loaded.
 
     Returns
     -------

@@ -161,7 +161,7 @@ class Trainer_General:
         Returns
         -------
         one_hop_neighbor_feature_sum : torch.Tensor
-            The sum of features of 1-hop neighbors for each node.
+            The sum of features of 1-hop neighbors for each node
         """
 
         # create a large matrix with known local node features
@@ -230,7 +230,7 @@ class Trainer_General:
 
         Returns
         -------
-        (list): list    
+        (list) : list    
             A list containing the test loss and accuracy [local_test_loss, local_test_acc].
         """
         local_test_loss, local_test_acc = test(
@@ -261,7 +261,7 @@ class Trainer_General:
         Returns
         -------
         (list) : list
-        A list containing arrays of training losses, training accuracies, testing losses, and testing accuracies.
+            A list containing arrays of training losses, training accuracies, testing losses, and testing accuracies.
         """
         return [
             np.array(self.train_losses),

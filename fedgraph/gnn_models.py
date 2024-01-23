@@ -11,15 +11,15 @@ class GCN(torch.nn.Module):
     Parameters
     ----------
     nfeat : int
-        The number of input features.
+        The number of input features
     nhid : int
-        The number of hidden features in each layer of the network.
+        The number of hidden features in each layer of the network
     nclass : int
-        The number of output classes.
+        The number of output classes
     dropout : float
-        The dropout probability.
+        The dropout probability
     NumLayers : int
-        The number of layers in the GCN.
+        The number of layers in the GCN
     """
     def __init__(
         self, nfeat: int, nhid: int, nclass: int, dropout: float, NumLayers: int
@@ -49,9 +49,9 @@ class GCN(torch.nn.Module):
         Parameters
         ----------
         x : torch.Tensor
-            Input feature tensor for the graph nodes
-        adj_t : SparseTensor
-            Adjacency matrix of the graph
+            Input feature tensor for the graph nodes.
+        adj_t : torch.Tensor
+            Adjacency matrix of the graph.
 
         Returns
         -------
@@ -75,13 +75,13 @@ class AggreGCN(torch.nn.Module):
     Parameters
     ----------
     nfeat : int
-        Number of input features 
+        Number of input features.
     nhid : int
-        Number of hidden features in the hidden layers of the network
+        Number of hidden features in the hidden layers of the network.
     nclass : int
-        Number of output classes
+        Number of output classes.
     dropout : float
-        Dropout probability
+        Dropout probability.
     NumLayers : int
         Number of GCN layers in the network.
     """
@@ -113,14 +113,14 @@ class AggreGCN(torch.nn.Module):
         Parameters
         ----------
         x : torch.Tensor
-            Input feature tensor for the graph nodes aggregated by the aggregation method
-        adj_t : SparseTensor
-            Adjacency matrix of the graph 
+            Input feature tensor for the graph nodes aggregated by the aggregation method.
+        adj_t : torch.Tensor
+            Adjacency matrix of the graph.
 
         Returns
         -------
         (tensor) : torch.Tensor
-        The output of the forward pass as a PyTorch tensor which is the log softmax of the output of the last layer
+            The log softmax of the output of the last layer.
 
         """
         # x = torch.matmul(aggregated_dim, self.first_layer_weight)
@@ -143,13 +143,13 @@ class GCN_products(torch.nn.Module):
     Parameters
     ---------
     nfeat : int
-        Number of input features
+        Number of input features.
     nhid : int
-        Number of hidden features in the hidden layers of the network
+        Number of hidden features in the hidden layers of the network.
     nclass : int
-        Number of output classes
+        Number of output classes.
     dropout : float
-        Dropout probability
+        Dropout probability.
     NumLayers : int
         Number of GCN layers in the network.
     """
@@ -180,9 +180,9 @@ class GCN_products(torch.nn.Module):
         for the graph nodes on the first layer and the rest of the layers with GCNConv layers.
 
         x : torch.Tensor
-            Input feature tensor for the graph nodes
-        adj_t : SparseTensor
-            Adjacency matrix of the graph
+            Input feature tensor for the graph nodes.
+        adj_t : torch.Tensor
+            Adjacency matrix of the graph.
 
         Returns
         -------
@@ -204,15 +204,15 @@ class SAGE_products(torch.nn.Module):
     Parameters
     ---------
     nfeat : int
-        Number of input features
+        Number of input features.
     nhid : int
-        Number of hidden features in the hidden layers of the network
+        Number of hidden features in the hidden layers of the network.
     nclass : int
-        Number of output classes
+        Number of output classes.
     dropout : float
-        Dropout probability
+        Dropout probability.
     NumLayers : int
-        Number of Graph Sage layers in the network
+        Number of Graph Sage layers in the network.
     """
     def __init__(
         self, nfeat: int, nhid: int, nclass: int, dropout: float, NumLayers: int
@@ -242,9 +242,9 @@ class SAGE_products(torch.nn.Module):
         Parameters
         ---------
         x : torch.Tensor
-            Input feature tensor for the graph nodes
-        adj_t : SparseTensor
-            Adjacency matrix of the graph
+            Input feature tensor for the graph nodes.
+        adj_t : torch.Tensor
+            Adjacency matrix of the graph.
 
         Returns
         -------
@@ -267,13 +267,13 @@ class GCN_arxiv(torch.nn.Module):
     Parameters
     ---------
     nfeat: int
-        Number of input features
+        Number of input features.
     nhid: int
-        Number of hidden features in the hidden layers of the network
+        Number of hidden features in the hidden layers of the network.
     nclass: int
-        Number of output classes
+        Number of output classes.
     dropout: float 
-        Dropout probability
+        Dropout probability.
     NumLayers: int
         Number of GCN layers in the network.
     """
@@ -310,9 +310,9 @@ class GCN_arxiv(torch.nn.Module):
         Parameters
         ---------
         x: torch.Tensor 
-            Input feature tensor for the graph nodes
-        adj_t: SparseTensor
-            Adjacency matrix of the graph
+            Input feature tensor for the graph nodes.
+        adj_t: torch.Tensor
+            Adjacency matrix of the graph.
 
         Returns
         -------
