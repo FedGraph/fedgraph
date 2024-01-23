@@ -16,7 +16,8 @@ def accuracy(output: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
 
     Returns
     -------
-    The accuracy of the model (float)
+    (tensor): torch.Tensor
+        Accuracy of the output with respect to the ground truth given
     """
 
     preds = output.max(1)[1].type_as(labels)
@@ -50,7 +51,10 @@ def test(
 
     Returns
     -------
-    The loss and accuracy of the model
+    loss_test.item() : float
+        Loss of the model on the test data
+    acc_test.item() : float
+        Accuracy of the model on the test data
 
     """
     model.eval()
@@ -93,11 +97,11 @@ def train(
    
 
     Returns
-    ----------
-    tuple
-        A tuple containing two elements:
-        - The training loss (float).
-        - The training accuracy (float).
+    -------
+    loss_train.item() : float
+        Loss of the model on the training data
+    acc_train.item() : float
+        Accuracy of the model on the training data
 
     """
 

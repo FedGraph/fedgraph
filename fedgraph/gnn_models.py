@@ -8,7 +8,7 @@ class GCN(torch.nn.Module):
     A Graph Convolutional Network model implementation which creates a GCN with specified 
     numbers of features, hidden layers, and output classes.
 
-    Arguments
+    Parameters
     ----------
     nfeat : int
         The number of input features.
@@ -46,7 +46,7 @@ class GCN(torch.nn.Module):
         """
         Represents the forward pass computation of a GCN
 
-        Arguments
+        Parameters
         ----------
         x : torch.Tensor
             Input feature tensor for the graph nodes
@@ -56,8 +56,6 @@ class GCN(torch.nn.Module):
         Returns
         -------
         (tensor) : torch.Tensor
-        The output of the forward pass as a PyTorch tensor
-
         """
         for conv in self.convs[:-1]:
             x = conv(x, adj_t)
@@ -74,7 +72,8 @@ class AggreGCN(torch.nn.Module):
     the input features for the graph nodes on the first layer with a linear layer 
     and the rest of the layers with GCNConv layers.
 
-    Arguments:
+    Parameters
+    ----------
     nfeat : int
         Number of input features 
     nhid : int
@@ -111,7 +110,7 @@ class AggreGCN(torch.nn.Module):
         on the input features for the graph nodes on the first layer with a linear layer and the rest of the layers
         with GCNConv layers. 
 
-        Arguments
+        Parameters
         ----------
         x : torch.Tensor
             Input feature tensor for the graph nodes aggregated by the aggregation method
@@ -139,20 +138,21 @@ class AggreGCN(torch.nn.Module):
 
 class GCN_products(torch.nn.Module):
     """
-        A specialized GCN model implementation designed for product graphs. 
+    A specialized GCN model implementation designed for product graphs. 
 
-        Arguments:
-        nfeat : int
-            Number of input features
-        nhid : int
-            Number of hidden features in the hidden layers of the network
-        nclass : int
-            Number of output classes
-        dropout : float
-            Dropout probability
-        NumLayers : int
-            Number of GCN layers in the network.
-        """
+    Parameters
+    ---------
+    nfeat : int
+        Number of input features
+    nhid : int
+        Number of hidden features in the hidden layers of the network
+    nclass : int
+        Number of output classes
+    dropout : float
+        Dropout probability
+    NumLayers : int
+        Number of GCN layers in the network.
+    """
     def __init__(
         self, nfeat: int, nhid: int, nclass: int, dropout: float, NumLayers: int
     ):
@@ -179,14 +179,14 @@ class GCN_products(torch.nn.Module):
         This function represents the forward pass computation of a GCN with products as input features 
         for the graph nodes on the first layer and the rest of the layers with GCNConv layers.
 
-        Arguments
-        ---------
-        x: (torch.Tensor) - Input feature tensor for the graph nodes
-        adj_t: (SparseTensor) - Adjacency matrix of the graph 
+        x : torch.Tensor
+            Input feature tensor for the graph nodes
+        adj_t : SparseTensor
+            Adjacency matrix of the graph
 
         Returns
         -------
-        The output of the forward pass, a PyTorch tensor 
+        (tensor) : torch.Tensor
 
         """
         for conv in self.convs[:-1]:
@@ -201,7 +201,7 @@ class SAGE_products(torch.nn.Module):
     """
     A Graph SAGE model designed specifically for handling product graphs as another variant of GCN.
 
-    Arguments
+    Parameters
     ---------
     nfeat : int
         Number of input features
@@ -239,7 +239,7 @@ class SAGE_products(torch.nn.Module):
         """
         Represents the forward pass computation of a Graph Sage model
 
-        Arguments
+        Parameters
         ---------
         x : torch.Tensor
             Input feature tensor for the graph nodes
@@ -248,7 +248,7 @@ class SAGE_products(torch.nn.Module):
 
         Returns
         -------
-        The output of the forward pass, a PyTorch tensor
+        (tensor) : torch.Tensor
 
         """
         for conv in self.convs[:-1]:
@@ -264,7 +264,7 @@ class GCN_arxiv(torch.nn.Module):
     """
     A variant of the GCN model tailored for the arXiv dataset. 
 
-    Arguments
+    Parameters
     ---------
     nfeat: int
         Number of input features
@@ -307,7 +307,7 @@ class GCN_arxiv(torch.nn.Module):
         """
         Represents the forward pass computation of a GCN  
 
-        Arguments
+        Parameters
         ---------
         x: torch.Tensor 
             Input feature tensor for the graph nodes
@@ -316,7 +316,7 @@ class GCN_arxiv(torch.nn.Module):
 
         Returns
         -------
-        The output of the forward pass, a PyTorch tensor
+        (tensor) : torch.Tensor
 
         """
         for i, conv in enumerate(self.convs[:-1]):

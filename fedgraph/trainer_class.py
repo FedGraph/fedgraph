@@ -46,25 +46,6 @@ class Trainer_General:
         The device (CPU or GPU) on which the model will be trained.
     args : Any
         Additional arguments required for model initialization and training.
-
-    Attributes
-    ----------
-    model : GCN_Graph_Classification
-        The GCN model for graph classification.
-    optimizer : torch.optim
-        Optimizer for training the model.
-    criterion : torch.nn.Module
-        Loss function used during training.
-    train_losses : list
-        List to store training loss values.
-    train_accs : list
-        List to store training accuracy values.
-    test_losses : list
-        List to store testing loss values.
-    test_accs : list
-        List to store testing accuracy values.
-    feature_aggregation : torch.Tensor
-        Aggregated features for training the model.
     """
 
     def __init__(
@@ -163,10 +144,6 @@ class Trainer_General:
             A tuple containing the global parameters from the server.
         current_global_epoch : int
             The current global epoch number.
-
-        Returns
-        -------
-        None
         """
         # load global parameter from global server
         self.model.to("cpu")
@@ -183,7 +160,7 @@ class Trainer_General:
 
         Returns
         -------
-        torch.Tensor
+        one_hop_neighbor_feature_sum : torch.Tensor
             The sum of features of 1-hop neighbors for each node.
         """
 
@@ -206,20 +183,12 @@ class Trainer_General:
         ----------
         feature_aggregation : torch.Tensor
             The aggregated features to be loaded.
-
-        Returns
-        -------
-        None
         """
         self.feature_aggregation = feature_aggregation
 
     def relabel_adj(self) -> None:
         """
         Relabels the adjacency matrix based on the communication node index.
-
-        Returns
-        -------
-        None
         """
         _, self.adj, __, ___ = torch_geometric.utils.k_hop_subgraph(
             self.communicate_node_index, 0, self.adj, relabel_nodes=True
@@ -233,11 +202,7 @@ class Trainer_General:
         Parameters
         ----------
         current_global_round : int
-        The current global training round.
-
-        Returns
-        -------
-        None
+            The current global training round.
         """
         # clean cache
         torch.cuda.empty_cache()
@@ -265,12 +230,8 @@ class Trainer_General:
 
         Returns
         -------
-        list
-        A list containing the test loss and accuracy [local_test_loss, local_test_acc].
-
-        Notes
-        -----
-        This method is used to evaluate the performance of the model on the local test dataset.
+        (list): list    
+            A list containing the test loss and accuracy [local_test_loss, local_test_acc].
         """
         local_test_loss, local_test_acc = test(
             self.model,
@@ -287,8 +248,8 @@ class Trainer_General:
 
         Returns
         -------
-        tuple
-        A tuple containing the current parameters of the model.
+        (tuple) : tuple
+            A tuple containing the current parameters of the model.
         """
         self.optimizer.zero_grad(set_to_none=True)
         return tuple(self.model.parameters())
@@ -299,7 +260,7 @@ class Trainer_General:
 
         Returns
         -------
-        list
+        (list) : list
         A list containing arrays of training losses, training accuracies, testing losses, and testing accuracies.
         """
         return [
@@ -315,7 +276,7 @@ class Trainer_General:
 
         Returns
         -------
-        int
-        The rank (client ID) of this trainer instance.
+        (int) : int
+            The rank (client ID) of this trainer instance.
         """
         return self.rank

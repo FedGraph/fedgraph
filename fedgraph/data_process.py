@@ -45,7 +45,8 @@ def normalize(mx: sp.csc_matrix) -> sp.csr_matrix:
     mx : sparse matrix
         Returns the row-normalized sparse matrix.
 
-    Note:
+    Note
+    ----
     Row-normalizing is usually done in graph algorithms to enable equal node contributions 
     regardless of the node's degree and to stabilize, ease numerical computations
     """
@@ -68,16 +69,21 @@ def load_data(dataset_str: str) -> tuple:
 
     Returns
     -------
-    tuple
-        A tuple containing the following elements:
-        - features (torch.Tensor): Node feature matrix as a float tensor.
-        - adj (torch.Tensor or torch_sparse.tensor.SparseTensor): Adjacency matrix of the graph.
-        - labels (torch.Tensor): Labels of the nodes.
-        - idx_train (torch.LongTensor): Indices of training nodes.
-        - idx_val (torch.LongTensor): Indices of validation nodes.
-        - idx_test (torch.LongTensor): Indices of test nodes.
+    features : torch.Tensor
+        Node feature matrix as a float tensor.
+    adj : torch.Tensor or torch_sparse.tensor.SparseTensor
+        Adjacency matrix of the graph.
+    labels : torch.Tensor   
+        Labels of the nodes.
+    idx_train : torch.LongTensor    
+        Indices of training nodes.
+    idx_val : torch.LongTensor  
+        Indices of validation nodes.
+    idx_test : torch.LongTensor 
+        Indices of test nodes.
 
-    Note:
+    Note
+    ----
     ind.dataset_str.x => the feature vectors of the training instances as scipy.sparse.csr.csr_matrix object;
     ind.dataset_str.tx => the feature vectors of the test instances as scipy.sparse.csr.csr_matrix object;
     ind.dataset_str.allx => the feature vectors of both labeled and unlabeled training instances

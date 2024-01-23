@@ -89,10 +89,6 @@ class Server:
     def zero_params(self) -> None:
         """
         Zeros out the parameters of the central model.
-
-        Returns
-        -------
-        None
         """
         for p in self.model.parameters():
             p.zero_()
@@ -107,10 +103,6 @@ class Server:
         ----------
         current_global_epoch : int
             The current global epoch number during the federated learning process.
-
-        Returns
-        -------
-        None
         """
         for trainer in self.trainers:
             trainer.train.remote(current_global_epoch)
@@ -139,10 +131,6 @@ class Server:
         ----------
         current_global_epoch : int
             The current global epoch number during the federated learning process.
-
-        Returns
-        -------
-        None
         """
         for trainer in self.trainers:
             trainer.update_params.remote(

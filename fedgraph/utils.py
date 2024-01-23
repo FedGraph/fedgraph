@@ -20,7 +20,7 @@ def intersect1d(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
 
     Returns
     -------
-    intersection: torch.Tensor
+    intersection : torch.Tensor
         Intersection of the two input tensors
     """
     combined = torch.cat((t1, t2))
@@ -37,7 +37,8 @@ def setdiff1d(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
     ----------
     t1 : torch.Tensor
         The first input tensor for the operation
-    t2 : torch.Tensor - The second input tensor for the operation
+    t2 : torch.Tensor
+        The second input tensor for the operation
 
     Returns
     -------
@@ -139,6 +140,7 @@ def parition_non_iid(
 
     Returns
     -------
+    split_data_indexes : list    
         A list containing indexes of data points assigned to each client.
     """
 
@@ -227,12 +229,14 @@ def get_in_comm_indexes(
 
     Returns
     -------
-    tuple
-        A tuple containing the following elements:
-        - communicate_node_indexes (list): A list of node indices for each client, representing nodes involved in communication.
-        - in_com_train_node_indexes (list): A list of tensors, where each tensor contains the indices of training data points available to each client.
-        - in_com_test_node_indexes (list): A list of tensors, where each tensor contains the indices of test data points available to each client.
-        - edge_indexes_clients (list): A list of tensors representing the edges between nodes within each client's subgraph.
+    communicate_node_indexes : list
+        A list of node indices for each client, representing nodes involved in communication.
+    in_com_train_node_indexes : list
+        A list of tensors, where each tensor contains the indices of training data points available to each client.
+    in_com_test_node_indexes : list
+        A list of tensors, where each tensor contains the indices of test data points available to each client.
+    edge_indexes_clients : list
+        A list of tensors representing the edges between nodes within each client's subgraph.
     """
     communicate_node_indexes = []
     in_com_train_node_indexes = []
@@ -320,7 +324,7 @@ def get_1hop_feature_sum(
 
     Returns
     -------
-    torch.Tensor
+    (tensor) : torch.Tensor
         A 2D tensor where each row represents the summed features of the 1-hop neighbors for each node.
         The tensor has the same number of rows as `node_features` and the same number of columns as the
         number of features per node.
@@ -362,7 +366,8 @@ def increment_dir(dir: str, comment: str = "") -> str:
 
     Returns
     -------
-    Returns a string with the path of the new directory
+    (str) : str
+        Returns a string with the path of the new directory
 
     """
     # Increments a directory runs/exp1 --> runs/exp2_comment
