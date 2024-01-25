@@ -4,8 +4,6 @@
 
 **[Documentation](https://fedgraph.org)** | **[Paper](https://arxiv.org/abs/2201.12433)**
 
-**FedGraph** *(Federated Graph)* is a library built upon [PyG](https://pytorch-geometric.readthedocs.io) and [Ray](https://docs.ray.io/) to easily train Graph Neural Networks under federated or distributed setting.
-
 **FedGraph** *(Federated Graph)* is a library built on top of [PyTorch Geometric (PyG)](https://www.pyg.org/),
 [Ray](https://docs.ray.io/), and [PyTorch](https://pytorch.org/) to easily train Graph Neural Networks
 under federated or distributed settings.
