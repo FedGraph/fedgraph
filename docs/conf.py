@@ -155,13 +155,13 @@ from sphinx_gallery.sorting import FileNameSortKey
 
 html_static_path = []
 
-sphinx_gallery_conf = {
-    "examples_dirs": "examples/",
-    "gallery_dirs": "tutorials/",
-    "within_subsection_order": FileNameSortKey,
-    "filename_pattern": ".py",
-    "download_all_examples": False,
-}
+# sphinx_gallery_conf = {
+#     "examples_dirs": "examples/",
+#     "gallery_dirs": "tutorials/",
+#     "within_subsection_order": FileNameSortKey,
+#     "filename_pattern": ".py",
+#     "download_all_examples": False,
+# }
 # -- Options for intersphinx extension ---------------------------------------
 
 # Example configuration for intersphinx: refer to the Python standard library.
