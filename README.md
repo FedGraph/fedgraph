@@ -2,40 +2,38 @@
 
 [pypi-url]: https://pypi.python.org/pypi/fedgraph
 
-**[Documentation]()** | **[Paper](https://arxiv.org/abs/2201.12433)**
+**[Documentation](https://fedgraph.org)** | **[Paper](https://arxiv.org/abs/2201.12433)**
 
-**FedGraph** *(Federated Graph)* is a library built upon [PyTorch](https://pytorch.org/) to easily train Graph Neural Networks (GNNs) under federated (distributed) setting.
+**FedGraph** *(Federated Graph)* is a library built upon [PyG](https://pytorch-geometric.readthedocs.io) and [Ray](https://docs.ray.io/) to easily train Graph Neural Networks under federated or distributed setting.
 
 It supports various federated training methods of graph neural networks under simulated and real federated environment and supports communication between clients and the central server for model update and information aggregation.
 
-## Various Training Tasks
-* **Node classification (and link prediction) on a single large graph (Main focus)**:
- Our library recoveres information stored in other client without affecting the privacy of users.
+## Main Focus
+**Federated Node Classification with Cross-Client Edges**:
+ Our library supports communicating information stored in other client without affecting the privacy of users.
 
-* **Graph classification on multiple graphs**
+<!-- * **Federated Graph Classification**:
+ Our library supports federated graph classification with non-IID graphs. -->
 
-## Cross Platform Deployment
-* **Computers (Linux, Mac OS, Windows)**
-* **Edge devices (Raspberry Pi, Jeston Nano)**
-* **Mobile phones (Andriod, iOS)**
 
+## Cross Platform Training
+
+We support Linux, macOS and Windows operating systems.
 
 ## Library Highlights
 
-Whether you are a federated (distributed) learning researcher or first-time user of federated (distributed) learning toolkits, here are some reasons to try out FedGraph for federated learning on graph-structured data.
+Whether you are a federated learning researcher or first-time user of federated learning toolkits, here are some reasons to try out FedGraph for federated learning on graph-structured data.
 
 * **Easy-to-use and unified API**:
-  All it takes is 10-20 lines of code to get started with training a federated GNN model.
-  FedGraph is *PyTorch-on-the-rocks*: It utilizes a tensor-centric API and keeps design principles close to vanilla PyTorch.
-  If you are already familiar with PyTorch, utilizing FedGraph is straightforward.
-* **Comprehensive and well-maintained GNN models**:
-  Most of the state-of-the-art federated graph training methods have been implemented by library developers or authors of research papers and are ready to be applied.
+All it takes is 10-20 lines of code to get started with training a federated GNN model.
+GNN models are PyTorch models provided by PyG and DGL. The federated training process is handled by Ray.
+We abstract away the complexity of federated graph training and provide a unified API for training and evaluating FedGraph models.
+* **Various FedGraph methods**:
+Most of the state-of-the-art federated graph training methods have been implemented by library developers or authors of research papers and are ready to be applied.
 * **Great flexibility**:
-  Existing FedGraph models can easily be extended for conducting your own research with GNNs.
-  Making modifications to existing models or creating new architectures is simple, thanks to its easy-to-use message passing API, and a variety of operators and utility functions.
-* **Large-scale real-world GNN models**:
-  We focus on the need of FedGNN applications in challenging real-world scenarios, and support learning on diverse types of graphs, including but not limited to: scalable FedGNNs for graphs with millions of nodes; dynamic FedGNNs for node predictions over time; heterogeneous FedGNNs with multiple node types and edge types.
-
+Existing FedGraph models can easily be extended for conducting your own research. Simply inherit the base class of trainers and implement your own methods.
+* **Large-scale real-world FedGraph Training**:
+We focus on the need of FedGraph applications in challenging real-world scenarios with privacy preservation, and support learning on large-scale graphs across multiple clients.
 
 ## Installation
 ```python

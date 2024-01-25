@@ -4,19 +4,27 @@ from torch_geometric.nn import GCNConv, SAGEConv, global_mean_pool
 
 
 class GCN(torch.nn.Module):
+    """
+    A Graph Convolutional Network model implementation which creates a GCN with specified
+    numbers of features, hidden layers, and output classes.
+
+    Parameters
+    ----------
+    nfeat : int
+        The number of input features
+    nhid : int
+        The number of hidden features in each layer of the network
+    nclass : int
+        The number of output classes
+    dropout : float
+        The dropout probability
+    NumLayers : int
+        The number of layers in the GCN
+    """
+
     def __init__(
         self, nfeat: int, nhid: int, nclass: int, dropout: float, NumLayers: int
     ):
-        """
-        This constructor method initializes the GCN model
-
-        Arguments:
-        nfeat: (int) - Number of input features
-        nhid: (int) - Number of hidden features in the hidden layers of the network
-        nclass: (int) - Number of output classes
-        dropout: (float) - Dropout probability
-        NumLayers: (int) - Number of GCN layers in the network.
-        """
         super(GCN, self).__init__()
 
         self.convs = torch.nn.ModuleList()
@@ -29,7 +37,7 @@ class GCN(torch.nn.Module):
 
     def reset_parameters(self) -> None:
         """
-        This function is available to cater to weight initialization requirements as necessary.
+        Available to cater to weight initialization requirements as necessary.
         """
         for conv in self.convs:
             conv.reset_parameters()
@@ -37,15 +45,18 @@ class GCN(torch.nn.Module):
 
     def forward(self, x: torch.Tensor, adj_t: torch.Tensor) -> torch.Tensor:
         """
-        This function represents the forward pass computation of a GCN
+        Represents the forward pass computation of a GCN
 
-        Arguments:
-        x: (torch.Tensor) - Input feature tensor for the graph nodes
-        adj_t: (SparseTensor) - Adjacency matrix of the graph
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input feature tensor for the graph nodes.
+        adj_t : torch.Tensor
+            Adjacency matrix of the graph.
 
-        Returns:
-        The output of the forward pass, a PyTorch tensor
-
+        Returns
+        -------
+        (tensor) : torch.Tensor
         """
         for conv in self.convs[:-1]:
             x = conv(x, adj_t)
@@ -57,6 +68,25 @@ class GCN(torch.nn.Module):
 
 # edited#
 class AggreGCN(torch.nn.Module):
+    """
+    This class is an Aggregated GCN model with different methods of aggregation on
+    the input features for the graph nodes on the first layer with a linear layer
+    and the rest of the layers with GCNConv layers.
+
+    Parameters
+    ----------
+    nfeat : int
+        Number of input features.
+    nhid : int
+        Number of hidden features in the hidden layers of the network.
+    nclass : int
+        Number of output classes.
+    dropout : float
+        Dropout probability.
+    NumLayers : int
+        Number of GCN layers in the network.
+    """
+
     def __init__(
         self, nfeat: int, nhid: int, nclass: int, dropout: float, NumLayers: int
     ) -> None:
@@ -77,6 +107,24 @@ class AggreGCN(torch.nn.Module):
     def forward(
         self, aggregated_feature: torch.Tensor, adj_t: torch.Tensor
     ) -> torch.Tensor:
+        """
+        Represents the forward pass computation of a GCN with different methods of aggregation
+        on the input features for the graph nodes on the first layer with a linear layer and the rest of the layers
+        with GCNConv layers.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input feature tensor for the graph nodes aggregated by the aggregation method.
+        adj_t : torch.Tensor
+            Adjacency matrix of the graph.
+
+        Returns
+        -------
+        (tensor) : torch.Tensor
+            The log softmax of the output of the last layer.
+
+        """
         # x = torch.matmul(aggregated_dim, self.first_layer_weight)
         for i, conv in enumerate(self.convs[:-1]):
             if i == 0:  # check dimension of adj matrix
@@ -91,20 +139,26 @@ class AggreGCN(torch.nn.Module):
 
 
 class GCN_products(torch.nn.Module):
+    """
+    A specialized GCN model implementation designed for product graphs.
+
+    Parameters
+    ---------
+    nfeat : int
+        Number of input features.
+    nhid : int
+        Number of hidden features in the hidden layers of the network.
+    nclass : int
+        Number of output classes.
+    dropout : float
+        Dropout probability.
+    NumLayers : int
+        Number of GCN layers in the network.
+    """
+
     def __init__(
         self, nfeat: int, nhid: int, nclass: int, dropout: float, NumLayers: int
     ):
-        """
-        This constructor method initializes the GCN_products model
-
-        Arguments:
-        nfeat: (int) - Number of input features
-        nhid: (int) - Number of hidden features in the hidden layers of the network
-        nclass: (int) - Number of output classes
-        dropout: (float) - Dropout probability
-        NumLayers: (int) - Number of GCN layers in the network.
-        """
-
         super(GCN_products, self).__init__()
 
         self.convs = torch.nn.ModuleList()
@@ -125,14 +179,17 @@ class GCN_products(torch.nn.Module):
 
     def forward(self, x: torch.Tensor, adj_t: torch.Tensor) -> torch.Tensor:
         """
-        This function represents the forward pass computation of a GCN
+        This function represents the forward pass computation of a GCN with products as input features
+        for the graph nodes on the first layer and the rest of the layers with GCNConv layers.
 
-        Arguments:
-        x: (torch.Tensor) - Input feature tensor for the graph nodes
-        adj_t: (SparseTensor) - Adjacency matrix of the graph
+        x : torch.Tensor
+            Input feature tensor for the graph nodes.
+        adj_t : torch.Tensor
+            Adjacency matrix of the graph.
 
-        Returns:
-        The output of the forward pass, a PyTorch tensor
+        Returns
+        -------
+        (tensor) : torch.Tensor
 
         """
         for conv in self.convs[:-1]:
@@ -144,19 +201,26 @@ class GCN_products(torch.nn.Module):
 
 
 class SAGE_products(torch.nn.Module):
+    """
+    A Graph SAGE model designed specifically for handling product graphs as another variant of GCN.
+
+    Parameters
+    ---------
+    nfeat : int
+        Number of input features.
+    nhid : int
+        Number of hidden features in the hidden layers of the network.
+    nclass : int
+        Number of output classes.
+    dropout : float
+        Dropout probability.
+    NumLayers : int
+        Number of Graph Sage layers in the network.
+    """
+
     def __init__(
         self, nfeat: int, nhid: int, nclass: int, dropout: float, NumLayers: int
     ):
-        """
-        This constructor method initializes the Graph Sage model
-
-        Arguments:
-        nfeat: (int) - Number of input features
-        nhid: (int) - Number of hidden features in the hidden layers of the network
-        nclass: (int) - Number of output classes
-        dropout: (float) - Dropout probability
-        NumLayers: (int) - Number of Graph Sage layers in the network
-        """
         super(SAGE_products, self).__init__()
 
         self.convs = torch.nn.ModuleList()
@@ -169,7 +233,7 @@ class SAGE_products(torch.nn.Module):
 
     def reset_parameters(self) -> None:
         """
-        This function is available to cater to weight initialization requirements as necessary.
+        Available to cater to weight initialization requirements as necessary.
         """
         for conv in self.convs:
             conv.reset_parameters()
@@ -177,14 +241,18 @@ class SAGE_products(torch.nn.Module):
 
     def forward(self, x: torch.Tensor, adj_t: torch.Tensor) -> torch.Tensor:
         """
-        This function represents the forward pass computation of a GCN
+        Represents the forward pass computation of a Graph Sage model
 
-        Arguments:
-        x: (torch.Tensor) - Input feature tensor for the graph nodes
-        adj_t: (SparseTensor) - Adjacency matrix of the graph
+        Parameters
+        ---------
+        x : torch.Tensor
+            Input feature tensor for the graph nodes.
+        adj_t : torch.Tensor
+            Adjacency matrix of the graph.
 
-        Returns:
-        The output of the forward pass, a PyTorch tensor
+        Returns
+        -------
+        (tensor) : torch.Tensor
 
         """
         for conv in self.convs[:-1]:
@@ -197,19 +265,26 @@ class SAGE_products(torch.nn.Module):
 
 # +
 class GCN_arxiv(torch.nn.Module):
+    """
+    A variant of the GCN model tailored for the arXiv dataset.
+
+    Parameters
+    ---------
+    nfeat: int
+        Number of input features.
+    nhid: int
+        Number of hidden features in the hidden layers of the network.
+    nclass: int
+        Number of output classes.
+    dropout: float
+        Dropout probability.
+    NumLayers: int
+        Number of GCN layers in the network.
+    """
+
     def __init__(
         self, nfeat: int, nhid: int, nclass: int, dropout: float, NumLayers: int
     ):
-        """
-        This constructor method initializes the Graph Sage model
-
-        Arguments:
-        nfeat: (int) - Number of input features
-        nhid: (int) - Number of hidden features in the hidden layers of the network
-        nclass: (int) - Number of output classes
-        dropout: (float) - Dropout probability
-        NumLayers: (int) - Number of Graph Sage layers in the network
-        """
         super(GCN_arxiv, self).__init__()
 
         self.convs = torch.nn.ModuleList()
@@ -235,14 +310,18 @@ class GCN_arxiv(torch.nn.Module):
 
     def forward(self, x: torch.Tensor, adj_t: torch.Tensor) -> torch.Tensor:
         """
-        This function represents the forward pass computation of a GCN
+        Represents the forward pass computation of a GCN
 
-        Arguments:
-        x: (torch.Tensor) - Input feature tensor for the graph nodes
-        adj_t: (SparseTensor) - Adjacency matrix of the graph
+        Parameters
+        ---------
+        x: torch.Tensor
+            Input feature tensor for the graph nodes.
+        adj_t: torch.Tensor
+            Adjacency matrix of the graph.
 
-        Returns:
-        The output of the forward pass, a PyTorch tensor
+        Returns
+        -------
+        (tensor) : torch.Tensor
 
         """
         for i, conv in enumerate(self.convs[:-1]):

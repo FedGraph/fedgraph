@@ -13,13 +13,17 @@ import torch_sparse
 
 def parse_index_file(filename: str) -> list:
     """
-    This function reads and parses an index file
+    Reads and parses an index file
 
-    Args:
-    filename: (str) - name or path of the file to parse
+    Parameters
+    ----------
+    filename : str
+        Name or path of the file to parse.
 
-    Return:
-    index: (list) - list of integers, each integer in the list represents int of the lines of the input file.
+    Returns
+    -------
+    index : list
+        List of integers, each integer in the list represents int of the lines of the input file.
     """
     index = []
     for line in open(filename):
@@ -31,15 +35,20 @@ def normalize(mx: sp.csc_matrix) -> sp.csr_matrix:
     """
     This function is to row-normalize sparse matrix for efficient computation of the graph
 
-    Argument:
-    mx: (sparse matrix) - Input sparse matrix to row-normalize.
+    Parameters
+    ----------
+    mx : sparse matrix
+        Input sparse matrix to row-normalize.
 
-    Return:
-    mx: (sparse matrix) - Returns the row-normalized sparse matrix.
+    Returns
+    -------
+    mx : sparse matrix
+        Row-normalized sparse matrix.
 
-    Note:
-    Row-normalizing is usually done in graph algorithms to enable equal node contributions regardless of the node's degree
-    and to stabilize, ease numerical computations
+    Note
+    ----
+    Row-normalizing is usually done in graph algorithms to enable equal node contributions
+    regardless of the node's degree and to stabilize, ease numerical computations.
     """
     rowsum = np.array(mx.sum(1))
     r_inv = np.power(rowsum, -1).flatten()
@@ -51,29 +60,41 @@ def normalize(mx: sp.csc_matrix) -> sp.csr_matrix:
 
 def load_data(dataset_str: str) -> tuple:
     """
-    This function loads input data from gcn/data directory
+    Loads input data from 'gcn/data' directory and processes these datasets into a format
+    suitable for training GCN and similar models.
 
-    Argument:
-    dataset_str: Dataset name
+    Parameters
+    ----------
+    dataset_str : Name of the dataset to be loaded.
 
-    Return:
-    All data input files loaded (as well as the training/test data).
+    Returns
+    -------
+    features : torch.Tensor
+        Node feature matrix as a float tensor.
+    adj : torch.Tensor or torch_sparse.tensor.SparseTensor
+        Adjacency matrix of the graph.
+    labels : torch.Tensor
+        Labels of the nodes.
+    idx_train : torch.LongTensor
+        Indices of training nodes.
+    idx_val : torch.LongTensor
+        Indices of validation nodes.
+    idx_test : torch.LongTensor
+        Indices of test nodes.
 
-    Note:
+    Note
+    ----
     ind.dataset_str.x => the feature vectors of the training instances as scipy.sparse.csr.csr_matrix object;
     ind.dataset_str.tx => the feature vectors of the test instances as scipy.sparse.csr.csr_matrix object;
-    ind.dataset_str.allx => the feature vectors of both labeled and unlabeled training instances
-        (a superset of ind.dataset_str.x) as scipy.sparse.csr.csr_matrix object;
+    ind.dataset_str.allx => the feature vectors of both labeled and unlabeled training instances (a superset of ind.dataset_str.x) as scipy.sparse.csr.csr_matrix object;
     ind.dataset_str.y => the one-hot labels of the labeled training instances as numpy.ndarray object;
     ind.dataset_str.ty => the one-hot labels of the test instances as numpy.ndarray object;
     ind.dataset_str.ally => the labels for instances in ind.dataset_str.allx as numpy.ndarray object;
-    ind.dataset_str.graph => a dict in the format {index: [index_of_neighbor_nodes]} as collections.defaultdict
-        object;
+    ind.dataset_str.graph => a dict in the format {index: [index_of_neighbor_nodes]} as collections.defaultdict object;
     ind.dataset_str.test.index => the indices of test instances in graph, for the inductive setting as list object.
 
     All objects above must be saved using python pickle module.
     """
-
     if dataset_str in ["cora", "citeseer", "pubmed"]:
         # download dataset from torch_geometric
         dataset = torch_geometric.datasets.Planetoid("./data", dataset_str)
