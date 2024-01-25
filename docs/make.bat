@@ -9,7 +9,7 @@ if "%SPHINXBUILD%" == "" (
 )
 set SOURCEDIR=.
 set BUILDDIR=_build
-set SPHINXPROJ=pygod
+set SPHINXPROJ=fedgraph
 
 if "%1" == "" goto help
 
