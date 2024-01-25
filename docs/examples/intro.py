@@ -9,6 +9,9 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 (Time estimate: 15 minutes)
 """
 
+import fedgraph
+
+print(fedgraph.__version__)
 
 import argparse
 from typing import Any
@@ -16,8 +19,6 @@ from typing import Any
 import numpy as np
 import ray
 import torch
-
-ray.init()
 
 from fedgraph.data_process import load_data
 from fedgraph.server_class import Server
@@ -27,6 +28,8 @@ from fedgraph.utils import (
     get_in_comm_indexes,
     label_dirichlet_partition,
 )
+
+ray.init()
 
 np.random.seed(42)
 torch.manual_seed(42)
@@ -85,9 +88,10 @@ else:
 
 #######################################################################
 # Split Graph for Federated Learning
-# ------------
+# ----------------------------------
 # FedGraph currents has two partition methods: label_dirichlet_partition
 # and community_partition_non_iid to split the large graph into multiple trainers
+
 
 split_node_indexes = label_dirichlet_partition(
     labels, len(labels), class_num, args.n_trainer, beta=args.iid_beta
