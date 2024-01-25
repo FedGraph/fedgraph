@@ -58,4 +58,3 @@ Feel free to [email us](mailto:yuhangya@andrew.cmu.edu) if you wish your work to
 If you notice anything unexpected, please open an [issue]() and let us know.
 If you have any questions or are missing a specific feature, feel free [to discuss them with us]().
 We are motivated to constantly make FedGraph even better.
-
