@@ -44,7 +44,7 @@ class Server:
         args_hidden: int,
         class_num: int,
         device: torch.device,
-        trainers: list[ray.actor.ActorHandle],
+        trainers: list,
         args: Any,
     ) -> None:
         # server model on cpu
