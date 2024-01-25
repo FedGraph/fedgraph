@@ -13,4 +13,3 @@ matplotlib
 sphinx_gallery
 ray
 tensorboard
-fedgraph
