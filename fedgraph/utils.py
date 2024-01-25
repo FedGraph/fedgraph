@@ -140,7 +140,7 @@ def parition_non_iid(
 
     Returns
     -------
-    split_data_indexes : list    
+    split_data_indexes : list
         A list containing indexes of data points assigned to each client.
     """
 
@@ -206,8 +206,8 @@ def get_in_comm_indexes(
     idx_test: torch.Tensor,
 ) -> tuple:
     """
-    Extract and preprocess data indices and edge information. It determines the nodes that each client 
-    will communicate with, based on the L-hop neighborhood, and aggregates the edge information accordingly. 
+    Extract and preprocess data indices and edge information. It determines the nodes that each client
+    will communicate with, based on the L-hop neighborhood, and aggregates the edge information accordingly.
     It also determines the indices of training and test data points that are available to each client.
 
     Parameters
@@ -215,12 +215,12 @@ def get_in_comm_indexes(
     edge_index : torch.Tensor
         A tensor representing the edge information (connections between nodes) of the graph dataset.
     split_node_indexes : list
-        A list of node indices. Each list element corresponds to a subset of nodes assigned to a specific client 
+        A list of node indices. Each list element corresponds to a subset of nodes assigned to a specific client
         after data partitioning.
     num_clients : int
         The total number of clients.
     L_hop : int
-        The number of hops to consider when determining the neighborhood of each node. For example, if L_hop=1, 
+        The number of hops to consider when determining the neighborhood of each node. For example, if L_hop=1,
         the 1-hop neighborhood of a node includes the node itself and all of its immediate neighbors.
     idx_train : torch.Tensor
         Tensor containing indices of training data in the graph.
@@ -306,7 +306,7 @@ def get_1hop_feature_sum(
     node_features: torch.Tensor, edge_index: torch.Tensor, include_self: bool = True
 ) -> torch.Tensor:
     """
-    Computes the sum of features of 1-hop neighbors for each node in a graph. The function 
+    Computes the sum of features of 1-hop neighbors for each node in a graph. The function
     can be used to iterate over each node, identifying its neighbors based on the `edge_index`.
 
 
@@ -354,7 +354,7 @@ def get_1hop_feature_sum(
 
 def increment_dir(dir: str, comment: str = "") -> str:
     """
-    This function is used to create a new directory path by incrementing a numeric suffix in the original 
+    This function is used to create a new directory path by incrementing a numeric suffix in the original
     directory path.
 
     Parameters

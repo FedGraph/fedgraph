@@ -47,7 +47,7 @@ def normalize(mx: sp.csc_matrix) -> sp.csr_matrix:
 
     Note
     ----
-    Row-normalizing is usually done in graph algorithms to enable equal node contributions 
+    Row-normalizing is usually done in graph algorithms to enable equal node contributions
     regardless of the node's degree and to stabilize, ease numerical computations.
     """
     rowsum = np.array(mx.sum(1))
@@ -60,7 +60,7 @@ def normalize(mx: sp.csc_matrix) -> sp.csr_matrix:
 
 def load_data(dataset_str: str) -> tuple:
     """
-    Loads input data from 'gcn/data' directory and processes these datasets into a format 
+    Loads input data from 'gcn/data' directory and processes these datasets into a format
     suitable for training GCN and similar models.
 
     Parameters
@@ -73,13 +73,13 @@ def load_data(dataset_str: str) -> tuple:
         Node feature matrix as a float tensor.
     adj : torch.Tensor or torch_sparse.tensor.SparseTensor
         Adjacency matrix of the graph.
-    labels : torch.Tensor   
+    labels : torch.Tensor
         Labels of the nodes.
-    idx_train : torch.LongTensor    
+    idx_train : torch.LongTensor
         Indices of training nodes.
-    idx_val : torch.LongTensor  
+    idx_val : torch.LongTensor
         Indices of validation nodes.
-    idx_test : torch.LongTensor 
+    idx_test : torch.LongTensor
         Indices of test nodes.
 
     Note

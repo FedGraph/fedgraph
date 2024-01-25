@@ -12,7 +12,7 @@ from fedgraph.utils import get_1hop_feature_sum
 
 class Trainer_General:
     """
-    A general trainer class for training GCN in a federated learning setup, which includes functionalities 
+    A general trainer class for training GCN in a federated learning setup, which includes functionalities
     required for training GCN models on a subset of a distributed dataset, handling local training and testing,
     parameter updates, and feature aggregation.
 
@@ -196,7 +196,7 @@ class Trainer_General:
 
     def train(self, current_global_round: int) -> None:
         """
-        Performs local training for a specified number of iterations. This method 
+        Performs local training for a specified number of iterations. This method
         updates the model using the loaded feature aggregation and the adjacency matrix.
 
         Parameters
@@ -230,7 +230,7 @@ class Trainer_General:
 
         Returns
         -------
-        (list) : list    
+        (list) : list
             A list containing the test loss and accuracy [local_test_loss, local_test_acc].
         """
         local_test_loss, local_test_acc = test(

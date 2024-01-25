@@ -94,7 +94,7 @@ def train(
         Contains the ground truth labels for the data.
     idx_train : torch.LongTensor
         Indices specifying the test data points
-   
+
 
     Returns
     -------

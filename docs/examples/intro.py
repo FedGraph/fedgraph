@@ -74,8 +74,6 @@ if __name__ == "__main__":
         num_gpus_per_client = 0
 
     # repeat experiments
-    average_final_test_loss_repeats = []
-    average_final_test_accuracy_repeats = []
 
     for repeat in range(args.repeat_time):
         split_node_indexes = label_dirichlet_partition(
@@ -113,7 +111,7 @@ if __name__ == "__main__":
 
         # send data to each trainer
         trainers = [
-            Trainer.remote(
+            Trainer.remote(  # type: ignore
                 rank=i,
                 local_node_index=split_node_indexes[i],
                 communicate_node_index=communicate_node_indexes[i],

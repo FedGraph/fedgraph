@@ -5,7 +5,7 @@ from torch_geometric.nn import GCNConv, SAGEConv, global_mean_pool
 
 class GCN(torch.nn.Module):
     """
-    A Graph Convolutional Network model implementation which creates a GCN with specified 
+    A Graph Convolutional Network model implementation which creates a GCN with specified
     numbers of features, hidden layers, and output classes.
 
     Parameters
@@ -21,6 +21,7 @@ class GCN(torch.nn.Module):
     NumLayers : int
         The number of layers in the GCN
     """
+
     def __init__(
         self, nfeat: int, nhid: int, nclass: int, dropout: float, NumLayers: int
     ):
@@ -68,8 +69,8 @@ class GCN(torch.nn.Module):
 # edited#
 class AggreGCN(torch.nn.Module):
     """
-    This class is an Aggregated GCN model with different methods of aggregation on 
-    the input features for the graph nodes on the first layer with a linear layer 
+    This class is an Aggregated GCN model with different methods of aggregation on
+    the input features for the graph nodes on the first layer with a linear layer
     and the rest of the layers with GCNConv layers.
 
     Parameters
@@ -85,6 +86,7 @@ class AggreGCN(torch.nn.Module):
     NumLayers : int
         Number of GCN layers in the network.
     """
+
     def __init__(
         self, nfeat: int, nhid: int, nclass: int, dropout: float, NumLayers: int
     ) -> None:
@@ -108,7 +110,7 @@ class AggreGCN(torch.nn.Module):
         """
         Represents the forward pass computation of a GCN with different methods of aggregation
         on the input features for the graph nodes on the first layer with a linear layer and the rest of the layers
-        with GCNConv layers. 
+        with GCNConv layers.
 
         Parameters
         ----------
@@ -138,7 +140,7 @@ class AggreGCN(torch.nn.Module):
 
 class GCN_products(torch.nn.Module):
     """
-    A specialized GCN model implementation designed for product graphs. 
+    A specialized GCN model implementation designed for product graphs.
 
     Parameters
     ---------
@@ -153,6 +155,7 @@ class GCN_products(torch.nn.Module):
     NumLayers : int
         Number of GCN layers in the network.
     """
+
     def __init__(
         self, nfeat: int, nhid: int, nclass: int, dropout: float, NumLayers: int
     ):
@@ -176,7 +179,7 @@ class GCN_products(torch.nn.Module):
 
     def forward(self, x: torch.Tensor, adj_t: torch.Tensor) -> torch.Tensor:
         """
-        This function represents the forward pass computation of a GCN with products as input features 
+        This function represents the forward pass computation of a GCN with products as input features
         for the graph nodes on the first layer and the rest of the layers with GCNConv layers.
 
         x : torch.Tensor
@@ -214,6 +217,7 @@ class SAGE_products(torch.nn.Module):
     NumLayers : int
         Number of Graph Sage layers in the network.
     """
+
     def __init__(
         self, nfeat: int, nhid: int, nclass: int, dropout: float, NumLayers: int
     ):
@@ -262,7 +266,7 @@ class SAGE_products(torch.nn.Module):
 # +
 class GCN_arxiv(torch.nn.Module):
     """
-    A variant of the GCN model tailored for the arXiv dataset. 
+    A variant of the GCN model tailored for the arXiv dataset.
 
     Parameters
     ---------
@@ -272,11 +276,12 @@ class GCN_arxiv(torch.nn.Module):
         Number of hidden features in the hidden layers of the network.
     nclass: int
         Number of output classes.
-    dropout: float 
+    dropout: float
         Dropout probability.
     NumLayers: int
         Number of GCN layers in the network.
     """
+
     def __init__(
         self, nfeat: int, nhid: int, nclass: int, dropout: float, NumLayers: int
     ):
@@ -305,11 +310,11 @@ class GCN_arxiv(torch.nn.Module):
 
     def forward(self, x: torch.Tensor, adj_t: torch.Tensor) -> torch.Tensor:
         """
-        Represents the forward pass computation of a GCN  
+        Represents the forward pass computation of a GCN
 
         Parameters
         ---------
-        x: torch.Tensor 
+        x: torch.Tensor
             Input feature tensor for the graph nodes.
         adj_t: torch.Tensor
             Adjacency matrix of the graph.

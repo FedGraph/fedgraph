@@ -37,13 +37,14 @@ class Server:
     num_of_trainers : int
         The number of trainers.
     """
+
     def __init__(
         self,
         feature_dim: int,
         args_hidden: int,
         class_num: int,
         device: torch.device,
-        trainers: list[Trainer_General],
+        trainers: list[ray.actor.ActorHandle],
         args: Any,
     ) -> None:
         # server model on cpu

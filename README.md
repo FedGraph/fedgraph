@@ -26,14 +26,14 @@ Whether you are a federated learning researcher or first-time user of federated 
 
 * **Easy-to-use and unified API**:
 All it takes is 10-20 lines of code to get started with training a federated GNN model.
-GNN models are PyTorch models provided by PyG and DGL. The federated training process is handled by Ray. 
+GNN models are PyTorch models provided by PyG and DGL. The federated training process is handled by Ray.
 We abstract away the complexity of federated graph training and provide a unified API for training and evaluating FedGraph models.
 * **Various FedGraph methods**:
 Most of the state-of-the-art federated graph training methods have been implemented by library developers or authors of research papers and are ready to be applied.
 * **Great flexibility**:
 Existing FedGraph models can easily be extended for conducting your own research. Simply inherit the base class of trainers and implement your own methods.
 * **Large-scale real-world FedGraph Training**:
-We focus on the need of FedGraph applications in challenging real-world scenarios with privacy preservation, and support learning on large-scale graphs across multiple clients. 
+We focus on the need of FedGraph applications in challenging real-world scenarios with privacy preservation, and support learning on large-scale graphs across multiple clients.
 
 ## Installation
 ```python
