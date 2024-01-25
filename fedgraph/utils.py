@@ -113,7 +113,7 @@ def label_dirichlet_partition(
     return split_data_indexes
 
 
-def parition_non_iid(
+def community_partition_non_iid(
     non_iid_percent: float,
     labels: torch.Tensor,
     num_clients: int,
