@@ -43,7 +43,7 @@ parser.add_argument("-c", "--global_rounds", default=100, type=int)
 parser.add_argument("-i", "--local_step", default=3, type=int)
 parser.add_argument("-lr", "--learning_rate", default=0.5, type=float)
 
-parser.add_argument("-n", "--n_trainer", default=5, type=int)
+parser.add_argument("-n", "--n_trainer", default=2, type=int)
 parser.add_argument("-nl", "--num_layers", default=2, type=int)
 parser.add_argument("-nhop", "--num_hops", default=2, type=int)
 parser.add_argument("-g", "--gpu", action="store_true")  # if -g, use gpu
