@@ -23,11 +23,11 @@ project = "FedGraph"
 copyright = "2024 FedGraph Team"
 author = "FedGraph Team"
 
-# version_path = os.path.join(root_dir, "fedgraph")
-version_path = os.path.join(root_dir, "fedgraph", "version.py")
-# sys.path.append(version_path)
-exec(open(version_path).read())
-# from version import __version__
+version_path = os.path.join(root_dir, "fedgraph")
+# version_path = os.path.join(root_dir, "fedgraph", "version.py")
+sys.path.append(version_path)
+# exec(open(version_path).read())
+from version import __version__
 
 version = __version__
 release = __version__

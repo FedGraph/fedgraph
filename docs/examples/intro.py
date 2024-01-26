@@ -9,9 +9,6 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 (Time estimate: 15 minutes)
 """
 
-import fedgraph
-
-print(fedgraph.__version__)
 
 import argparse
 from typing import Any
@@ -19,6 +16,8 @@ from typing import Any
 import numpy as np
 import ray
 import torch
+
+ray.init()
 
 from fedgraph.data_process import load_data
 from fedgraph.server_class import Server
@@ -28,8 +27,6 @@ from fedgraph.utils import (
     get_in_comm_indexes,
     label_dirichlet_partition,
 )
-
-ray.init()
 
 np.random.seed(42)
 torch.manual_seed(42)
@@ -119,9 +116,10 @@ for i in range(args.n_trainer):
 
 #######################################################################
 # Define and Send Data to Trainers
-# ------------
+# --------------------------------
 # FedGraph first determines the resources for each trainer, then send
 # the data to each remote trainer.
+
 @ray.remote(
     num_gpus=num_gpus_per_client,
     num_cpus=num_cpus_per_client,
@@ -154,17 +152,19 @@ trainers = [
 
 #######################################################################
 # Define Server
-# ------------
+# -------------
 # Server class is defined for federated aggregation (e.g., FedAvg)
 # without knowing the local trainer data
+
 server = Server(features.shape[1], args_hidden, class_num, device, trainers, args)
 
 #######################################################################
 # Pre-Train Communication of FedGCN
-# ------------
+# ---------------------------------
 # Clients send their local feature sum to the server, and the server
 # aggregates all local feature sums and send the global feature sum
 # of specific nodes back to each client.
+
 local_neighbor_feature_sums = [
     trainer.get_local_feature_sum.remote() for trainer in server.trainers
 ]
@@ -191,7 +191,7 @@ print("clients received feature aggregation from server")
 
 #######################################################################
 # Federated Training
-# ------------
+# ------------------
 # The server start training of all clients and aggregate the parameters
 # at every global round.
 
@@ -202,9 +202,10 @@ for i in range(args.global_rounds):
 
 #######################################################################
 # Summarize Experiment Results
-# ------------
+# ----------------------------
 # The server collects the local test loss and accuracy from all clients
 # then calculate the overall test loss and accuracy.
+
 train_data_weights = [len(i) for i in in_com_train_node_indexes]
 test_data_weights = [len(i) for i in in_com_test_node_indexes]
 
