@@ -120,6 +120,7 @@ for i in range(args.n_trainer):
 # FedGraph first determines the resources for each trainer, then send
 # the data to each remote trainer.
 
+
 @ray.remote(
     num_gpus=num_gpus_per_client,
     num_cpus=num_cpus_per_client,
