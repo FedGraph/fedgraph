@@ -61,6 +61,7 @@ Whether you are a federated learning researcher or a first-time user of federate
    :caption: API References
 
    fedgraph.data_process
+   fedgraph.federated_methods
    fedgraph.gnn_models
    fedgraph.server_class
    fedgraph.train_func

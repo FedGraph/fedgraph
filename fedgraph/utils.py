@@ -5,9 +5,12 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch_geometric
+from attrdict import AttrDict
+
 from fedgraph.data_process import load_data
 
-def federated_data_loader(args):
+
+def federated_data_loader(args: AttrDict) -> tuple:
     #######################################################################
     # Data Loading
     # ------------
@@ -55,10 +58,20 @@ def federated_data_loader(args):
         idx_train,
         idx_test,
     )
-    return (edge_index, features, labels, idx_train, idx_test, class_num,
-            split_node_indexes, communicate_node_indexes,
-            in_com_train_node_indexes, in_com_test_node_indexes,
-            edge_indexes_clients)
+    return (
+        edge_index,
+        features,
+        labels,
+        idx_train,
+        idx_test,
+        class_num,
+        split_node_indexes,
+        communicate_node_indexes,
+        in_com_train_node_indexes,
+        in_com_test_node_indexes,
+        edge_indexes_clients,
+    )
+
 
 def intersect1d(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
     """

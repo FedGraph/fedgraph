@@ -35,6 +35,7 @@ setup(
         "omegaconf>=2.3.0",
         "ray>=2.6.3",
         "PyYAML>=5.4.0",
+        "attrdict>=2.0.1",
     ],
     extras_require={"dev": ["build", "mypy", "pre-commit", "pytest"]},
 )

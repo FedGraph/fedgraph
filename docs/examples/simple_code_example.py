@@ -1,12 +1,36 @@
-import sys
-sys.path.append('../fedgraph')
-from fedgraph.utils import federated_data_loader
-from fedgraph.FedGCN import FedGCN_Train
-from attrdict import AttrDict
-import yaml
+"""
+Simple FedGraph Example
+================
 
-with open('config_fedgcn.yaml', 'r') as f:
+Run a simple example of FedGraph.
+
+(Time estimate: 1 minutes)
+"""
+
+#######################################################################
+# Load libraries
+# ------------
+
+import sys
+
+sys.path.append("../fedgraph")
+import yaml
+from attrdict import AttrDict
+
+from fedgraph.federated_methods import FedGCN_Train
+from fedgraph.utils import federated_data_loader
+
+#######################################################################
+# Load configuration and federated data
+# ------------
+
+with open("config_fedgcn.yaml", "r") as f:
     config = AttrDict(yaml.safe_load(f))
 
 data = federated_data_loader(config)
+
+#######################################################################
+# Run FedGCN method
+# ------------
+
 FedGCN_Train(config, data)

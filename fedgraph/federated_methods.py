@@ -1,20 +1,40 @@
+from typing import Any
+
+import numpy as np
+import ray
+import torch
+from attrdict import AttrDict
+
 from fedgraph.server_class import Server
 from fedgraph.trainer_class import Trainer_General
-from fedgraph.utils import (
-    get_1hop_feature_sum,
-)
-from typing import Any
-import torch
-import ray
-import numpy as np
+from fedgraph.utils import get_1hop_feature_sum
 
-def FedGCN_Train(args, data):
+
+def FedGCN_Train(args: AttrDict, data: tuple) -> None:
+    """
+    Train a FedGCN model.
+
+    Parameters
+    ----------
+    args
+    data
+    """
+
     ray.init()
 
-    (edge_index, features, labels, idx_train, idx_test, class_num,
-     split_node_indexes, communicate_node_indexes,
-     in_com_train_node_indexes, in_com_test_node_indexes,
-     edge_indexes_clients) = data
+    (
+        edge_index,
+        features,
+        labels,
+        idx_train,
+        idx_test,
+        class_num,
+        split_node_indexes,
+        communicate_node_indexes,
+        in_com_train_node_indexes,
+        in_com_test_node_indexes,
+        edge_indexes_clients,
+    ) = data
 
     if args.dataset in ["simulate", "cora", "citeseer", "pubmed", "reddit"]:
         args_hidden = 16
@@ -51,8 +71,12 @@ def FedGCN_Train(args, data):
             local_node_index=split_node_indexes[i],
             communicate_node_index=communicate_node_indexes[i],
             adj=edge_indexes_clients[i],
-            train_labels=labels[communicate_node_indexes[i]][in_com_train_node_indexes[i]],
-            test_labels=labels[communicate_node_indexes[i]][in_com_test_node_indexes[i]],
+            train_labels=labels[communicate_node_indexes[i]][
+                in_com_train_node_indexes[i]
+            ],
+            test_labels=labels[communicate_node_indexes[i]][
+                in_com_test_node_indexes[i]
+            ],
             features=features[split_node_indexes[i]],
             idx_train=in_com_train_node_indexes[i],
             idx_test=in_com_test_node_indexes[i],
@@ -95,7 +119,9 @@ def FedGCN_Train(args, data):
     print("server aggregates all local neighbor feature sums")
     # test if aggregation is correct
     if args.num_hops != 0:
-        assert (global_feature_sum != get_1hop_feature_sum(features, edge_index)).sum() == 0
+        assert (
+            global_feature_sum != get_1hop_feature_sum(features, edge_index)
+        ).sum() == 0
     for i in range(args.n_trainer):
         server.trainers[i].load_feature_aggregation.remote(
             global_feature_sum[communicate_node_indexes[i]]
