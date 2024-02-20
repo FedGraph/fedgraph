@@ -1,78 +1,34 @@
-from fedgraph.data_process import load_data
 from fedgraph.server_class import Server
 from fedgraph.trainer_class import Trainer_General
 from fedgraph.utils import (
     get_1hop_feature_sum,
-    get_in_comm_indexes,
-    label_dirichlet_partition,
 )
 from typing import Any
 import torch
 import ray
 import numpy as np
 
-def FedGCN_Train(args):
+def FedGCN_Train(args, data):
     ray.init()
-    #######################################################################
-    # Data Loading
-    # ------------
-    # FedGraph use ``torch_geometric.data.Data`` to handle the data. Here, we
-    # use Cora, a PyG built-in dataset, as an example. To load your own
-    # dataset into FedGraph, you can simply load your data
-    # into "features, adj, labels, idx_train, idx_val, idx_test".
-    # Or you can create dataset in PyG. Please refer to `creating your own datasets
-    # tutorial <https://pytorch-geometric.readthedocs.io/en/latest/notes
-    # /create_dataset.html>`__ in PyG.
 
-    features, adj, labels, idx_train, idx_val, idx_test = load_data(args.dataset)
-    class_num = labels.max().item() + 1
+    (edge_index, features, labels, idx_train, idx_test, class_num,
+     split_node_indexes, communicate_node_indexes,
+     in_com_train_node_indexes, in_com_test_node_indexes,
+     edge_indexes_clients) = data
 
     if args.dataset in ["simulate", "cora", "citeseer", "pubmed", "reddit"]:
         args_hidden = 16
     else:
         args_hidden = 256
 
-    row, col, edge_attr = adj.coo()
-    edge_index = torch.stack([row, col], dim=0)
-
     num_cpus_per_client = 1
     # specifying a target GPU
     if args.gpu:
         device = torch.device("cuda")
-        edge_index = edge_index.to("cuda:0")
         num_gpus_per_client = 1
     else:
         device = torch.device("cpu")
         num_gpus_per_client = 0
-
-    #######################################################################
-    # Split Graph for Federated Learning
-    # ----------------------------------
-    # FedGraph currents has two partition methods: label_dirichlet_partition
-    # and community_partition_non_iid to split the large graph into multiple trainers
-
-    split_node_indexes = label_dirichlet_partition(
-        labels, len(labels), class_num, args.n_trainer, beta=args.iid_beta
-    )
-
-    for i in range(args.n_trainer):
-        split_node_indexes[i] = np.array(split_node_indexes[i])
-        split_node_indexes[i].sort()
-        split_node_indexes[i] = torch.tensor(split_node_indexes[i])
-
-    (
-        communicate_node_indexes,
-        in_com_train_node_indexes,
-        in_com_test_node_indexes,
-        edge_indexes_clients,
-    ) = get_in_comm_indexes(
-        edge_index,
-        split_node_indexes,
-        args.n_trainer,
-        args.num_hops,
-        idx_train,
-        idx_test,
-    )
 
     #######################################################################
     # Define and Send Data to Trainers
@@ -176,7 +132,6 @@ def FedGCN_Train(args):
     average_final_test_accuracy = np.average(
         [row[1] for row in results], weights=test_data_weights, axis=0
     )
-
-    print(average_final_test_loss, average_final_test_accuracy)
-
+    print(f"average_final_test_loss, {average_final_test_loss}")
+    print(f"average_final_test_accuracy, {average_final_test_accuracy}")
     ray.shutdown()

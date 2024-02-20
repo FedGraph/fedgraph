@@ -5,7 +5,60 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch_geometric
+from fedgraph.data_process import load_data
 
+def federated_data_loader(args):
+    #######################################################################
+    # Data Loading
+    # ------------
+    # FedGraph use ``torch_geometric.data.Data`` to handle the data. Here, we
+    # use Cora, a PyG built-in dataset, as an example. To load your own
+    # dataset into FedGraph, you can simply load your data
+    # into "features, adj, labels, idx_train, idx_val, idx_test".
+    # Or you can create dataset in PyG. Please refer to `creating your own datasets
+    # tutorial <https://pytorch-geometric.readthedocs.io/en/latest/notes
+    # /create_dataset.html>`__ in PyG.
+    print("config: ", args)
+    features, adj, labels, idx_train, idx_val, idx_test = load_data(args.dataset)
+    class_num = labels.max().item() + 1
+
+    row, col, edge_attr = adj.coo()
+    edge_index = torch.stack([row, col], dim=0)
+    if args.gpu:
+        edge_index = edge_index.to("cuda:0")
+
+    #######################################################################
+    # Split Graph for Federated Learning
+    # ----------------------------------
+    # FedGraph currents has two partition methods: label_dirichlet_partition
+    # and community_partition_non_iid to split the large graph into multiple trainers
+
+    split_node_indexes = label_dirichlet_partition(
+        labels, len(labels), class_num, args.n_trainer, beta=args.iid_beta
+    )
+
+    for i in range(args.n_trainer):
+        split_node_indexes[i] = np.array(split_node_indexes[i])
+        split_node_indexes[i].sort()
+        split_node_indexes[i] = torch.tensor(split_node_indexes[i])
+
+    (
+        communicate_node_indexes,
+        in_com_train_node_indexes,
+        in_com_test_node_indexes,
+        edge_indexes_clients,
+    ) = get_in_comm_indexes(
+        edge_index,
+        split_node_indexes,
+        args.n_trainer,
+        args.num_hops,
+        idx_train,
+        idx_test,
+    )
+    return (edge_index, features, labels, idx_train, idx_test, class_num,
+            split_node_indexes, communicate_node_indexes,
+            in_com_train_node_indexes, in_com_test_node_indexes,
+            edge_indexes_clients)
 
 def intersect1d(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
     """
