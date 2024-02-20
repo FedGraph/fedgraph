@@ -1,16 +1,16 @@
 from typing import Any
 
+import attridict
 import numpy as np
 import ray
 import torch
-from attrdict import AttrDict
 
 from fedgraph.server_class import Server
 from fedgraph.trainer_class import Trainer_General
 from fedgraph.utils import get_1hop_feature_sum
 
 
-def FedGCN_Train(args: AttrDict, data: tuple) -> None:
+def FedGCN_Train(args: attridict, data: tuple) -> None:
     """
     Train a FedGCN model.
 

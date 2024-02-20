@@ -13,5 +13,5 @@ matplotlib
 sphinx_gallery
 ray
 tensorboard
-attrdict
+attridict
 fedgraph

@@ -2,15 +2,15 @@ import glob
 import re
 from pathlib import Path
 
+import attridict
 import numpy as np
 import torch
 import torch_geometric
-from attrdict import AttrDict
 
 from fedgraph.data_process import load_data
 
 
-def federated_data_loader(args: AttrDict) -> tuple:
+def federated_data_loader(args: attridict) -> tuple:
     #######################################################################
     # Data Loading
     # ------------

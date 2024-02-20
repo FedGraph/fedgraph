@@ -14,8 +14,8 @@ Run a simple example of FedGraph.
 import sys
 
 sys.path.append("../fedgraph")
+import attridict
 import yaml
-from attrdict import AttrDict
 
 from fedgraph.federated_methods import FedGCN_Train
 from fedgraph.utils import federated_data_loader
@@ -25,7 +25,7 @@ from fedgraph.utils import federated_data_loader
 # ------------
 
 with open("config_fedgcn.yaml", "r") as f:
-    config = AttrDict(yaml.safe_load(f))
+    config = attridict(yaml.safe_load(f))
 
 data = federated_data_loader(config)
 
