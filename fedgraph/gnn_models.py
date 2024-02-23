@@ -333,7 +333,7 @@ class GCN_arxiv(torch.nn.Module):
         return x.log_softmax(dim=-1)
 
 
-class serverGIN(torch.nn.Module):
+class GIN_server(torch.nn.Module):
     '''
     This class defines the server model for the GIN model.
 
