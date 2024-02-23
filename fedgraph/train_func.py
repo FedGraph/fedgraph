@@ -490,7 +490,7 @@ def run_GC_gcfl_plus(
             client.local_train(local_epoch=local_epoch, train_option="gcfl")
             client.reset_params()
 
-            seqs_grads[client.id].append(client.convGradsNorm)
+            seqs_grads[client.id].append(client.conv_grads_norm)
 
         cluster_indices_new = []
         for idc in cluster_indices:
@@ -600,7 +600,7 @@ def run_GC_gcfl_plus_dWs(
             client.local_train(local_epoch=local_epoch, train_option="gcfl")
             client.reset_params()
 
-            seqs_grads[client.id].append(client.convDWsNorm)
+            seqs_grads[client.id].append(client.conv_dWs_norm)
 
         cluster_indices_new = []
         for idc in cluster_indices:
