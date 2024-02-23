@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+import torch_geometric
 from torch_geometric.nn import (
     GCNConv,
     GINConv,
@@ -361,7 +362,7 @@ class GIN_server(torch.nn.Module):
     """
 
     def __init__(self, nlayer: int, nhid: int) -> None:
-        super(serverGIN, self).__init__()
+        super(GIN_server, self).__init__()
         self.graph_convs = torch.nn.ModuleList()
         self.nn1 = torch.nn.Sequential(
             torch.nn.Linear(nhid, nhid), torch.nn.ReLU(), torch.nn.Linear(nhid, nhid)
@@ -437,7 +438,7 @@ class GIN(torch.nn.Module):
         self.post = torch.nn.Sequential(torch.nn.Linear(nhid, nhid), torch.nn.ReLU())
         self.readout = torch.nn.Sequential(torch.nn.Linear(nhid, nclass))
 
-    def forward(self, data) -> torch.Tensor:
+    def forward(self, data: torch_geometric.data.Data) -> torch.Tensor:
         """
         Forward pass of the GIN model, which takes in the input graph data and returns the
         model's prediction.

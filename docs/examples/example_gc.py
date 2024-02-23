@@ -216,5 +216,5 @@ else:
 # The output directory can be specified by the user.
 
 outdir_result = os.path.join(outdir, f"accuracy_seed{args.seed}.csv")
-output.to_csv(outdir_result)
+pd.DataFrame(output).to_csv(outdir_result)
 print(f"The output has been written to file: {outdir_result}")

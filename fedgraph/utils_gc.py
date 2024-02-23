@@ -1,4 +1,5 @@
 import argparse
+from typing import Any
 
 import pandas as pd
 import torch
@@ -11,7 +12,7 @@ from fedgraph.server_class import Server_GC
 from fedgraph.trainer_class import Trainer_GC
 
 
-def setup_clients(splited_data: dict, args: argparse.ArgumentParser = None) -> tuple:
+def setup_clients(splited_data: dict, args: argparse.Namespace) -> tuple:
     """
     Setup clients for graph classification.
 
@@ -70,7 +71,7 @@ def setup_clients(splited_data: dict, args: argparse.ArgumentParser = None) -> t
     return clients, idx_clients
 
 
-def setup_server(args: argparse.ArgumentParser = None) -> Server_GC:
+def setup_server(args: argparse.Namespace) -> Server_GC:
     """
     Setup server.
 
@@ -90,7 +91,7 @@ def setup_server(args: argparse.ArgumentParser = None) -> Server_GC:
     return server
 
 
-def get_max_degree(graphs) -> int:
+def get_max_degree(graphs: Any) -> int:
     """
     Get the maximum degree of the graphs in the dataset.
 
@@ -113,7 +114,7 @@ def get_max_degree(graphs) -> int:
     return max_degree
 
 
-def convert_to_node_attributes(graphs: list) -> list:
+def convert_to_node_attributes(graphs: Any) -> list:
     """
     Use only the node attributes of the graphs.
 
@@ -175,10 +176,10 @@ def convert_to_node_degree_features(graphs: list) -> list:
 
 def split_data(
     graphs: list,
-    train_size=None,
-    test_size=None,
+    train_size: float = 0.8,
+    test_size: float = 0.2,
     shuffle: bool = True,
-    seed: int = None,
+    seed: int = 42,
 ) -> tuple:
     """
     Split the dataset into training and test sets.
@@ -270,9 +271,9 @@ def get_avg_nodes_edges(graphs: list) -> tuple:
 def get_stats(
     df: pd.DataFrame,
     dataset: str,
-    graphs_train: list,
-    graphs_val: list = None,
-    graphs_test: list = None,
+    graphs_train: list = [],
+    graphs_val: list = [],
+    graphs_test: list = [],
 ) -> pd.DataFrame:
     """
     Calculate and store the statistics of the dataset, including the number of graphs, average number of nodes and edges

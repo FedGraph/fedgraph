@@ -1,7 +1,12 @@
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
+
+from fedgraph.server_class import Server_GC
+from fedgraph.trainer_class import Trainer_GC
 
 
 def accuracy(output: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
@@ -120,7 +125,7 @@ def train(
     return loss_train.item(), acc_train.item()
 
 
-def run_GC_selftrain(clients: list, server: object, local_epoch: int) -> dict:
+def run_GC_selftrain(clients: list, server: Server_GC, local_epoch: int) -> dict:
     """
     Run the training and testing process of self-training algorithm.
     It only trains the model locally, and does not perform weights aggregation.
@@ -160,10 +165,10 @@ def run_GC_selftrain(clients: list, server: object, local_epoch: int) -> dict:
 
 def run_GC_fedavg(
     clients: list,
-    server: object,
+    server: Server_GC,
     communication_rounds: int,
     local_epoch: int,
-    samp: str = None,
+    samp: object = None,
     frac: float = 1.0,
 ) -> pd.DataFrame:
     """
@@ -227,7 +232,7 @@ def run_GC_fedavg(
         _, acc = client.local_test()  # Final evaluation
         frame.loc[client.name, "test_acc"] = acc
 
-    def highlight_max(s):
+    def highlight_max(s: pd.Series) -> list:
         is_max = s == s.max()
         return ["background-color: yellow" if v else "" for v in is_max]
 
@@ -238,11 +243,11 @@ def run_GC_fedavg(
 
 def run_GC_fedprox(
     clients: list,
-    server: object,
+    server: Server_GC,
     communication_rounds: int,
     local_epoch: int,
     mu: float,
-    samp: str = None,
+    samp: object = None,
     frac: float = 1.0,
 ) -> pd.DataFrame:
     """
@@ -302,7 +307,7 @@ def run_GC_fedprox(
         _, acc = client.local_test()
         frame.loc[client.name, "test_acc"] = acc
 
-    def highlight_max(s):
+    def highlight_max(s: pd.Series) -> list:
         is_max = s == s.max()
         return ["background-color: yellow" if v else "" for v in is_max]
 
@@ -313,7 +318,7 @@ def run_GC_fedprox(
 
 def run_GC_gcfl(
     clients: list,
-    server: object,
+    server: Server_GC,
     communication_rounds: int,
     local_epoch: int,
     EPS_1: float,
@@ -353,6 +358,7 @@ def run_GC_gcfl(
         [clients[i] for i in idcs] for idcs in cluster_indices
     ]  # initially there is only one cluster
 
+    acc_clients: list = []
     ############### COMMUNICATION ROUNDS ###############
     for c_round in range(1, communication_rounds + 1):
         if (c_round) % 50 == 0:
@@ -427,7 +433,7 @@ def run_GC_gcfl(
 
 def run_GC_gcfl_plus(
     clients: list,
-    server: object,
+    server: Server_GC,
     communication_rounds: int,
     local_epoch: int,
     EPS_1: float,
@@ -465,10 +471,12 @@ def run_GC_gcfl_plus(
     cluster_indices = [np.arange(len(clients)).astype("int")]
     client_clusters = [[clients[i] for i in idcs] for idcs in cluster_indices]
 
-    seqs_grads = {c.id: [] for c in clients}
+    seqs_grads: Any = {c.id: [] for c in clients}
+
     for client in clients:
         client.update_params(server)
 
+    acc_clients: list = []
     for c_round in range(1, communication_rounds + 1):
         if (c_round) % 50 == 0:
             print(f"  > round {c_round}")
@@ -536,7 +544,7 @@ def run_GC_gcfl_plus(
 
 def run_GC_gcfl_plus_dWs(
     clients: list,
-    server: object,
+    server: Server_GC,
     communication_rounds: int,
     local_epoch: int,
     EPS_1: float,
@@ -574,10 +582,11 @@ def run_GC_gcfl_plus_dWs(
     cluster_indices = [np.arange(len(clients)).astype("int")]
     client_clusters = [[clients[i] for i in idcs] for idcs in cluster_indices]
 
-    seqs_grads = {c.id: [] for c in clients}
+    seqs_grads: Any = {c.id: [] for c in clients}
     for client in clients:
         client.update_params(server)
 
+    acc_clients: list = []
     for c_round in range(1, communication_rounds + 1):
         if (c_round) % 50 == 0:
             print(f"  > round {c_round}")

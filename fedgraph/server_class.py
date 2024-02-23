@@ -168,7 +168,7 @@ class Server_GC:
     def __init__(self, model: torch.nn.Module, device: torch.device) -> None:
         self.model = model.to(device)
         self.W = {key: value for key, value in self.model.named_parameters()}
-        self.model_cache = []
+        self.model_cache: Any = []
 
     ########### Public functions ###########
     def random_sample_clients(self, all_clients: list, frac: float) -> list:
@@ -256,7 +256,7 @@ class Server_GC:
         if standardize:
             # standardize to only focus on the trends
             seqs = np.array(seqs)
-            seqs = seqs / seqs.std(axis=1).reshape(-1, 1)
+            seqs = seqs / np.std(seqs, axis=1).reshape(-1, 1)
             distances = dtw.distance_matrix(seqs)
         else:
             distances = dtw.distance_matrix(seqs)

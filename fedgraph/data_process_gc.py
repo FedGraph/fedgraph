@@ -16,7 +16,7 @@ from fedgraph.utils_gc import (
 
 
 def rand_split_chunk(
-    graphs: list, num_client: int = 10, overlap: bool = False, seed: int = None
+    graphs: list, num_client: int = 10, overlap: bool = False, seed: int = 42
 ) -> list:
     """
     Randomly split graphs into chunks for each client.
@@ -62,7 +62,7 @@ def load_single_dataset(
     num_client: int = 10,
     batch_size: int = 128,
     convert_x: bool = False,
-    seed: int = None,
+    seed: int = 42,
     overlap: bool = False,
 ) -> tuple:
     """
@@ -171,7 +171,7 @@ def load_multiple_dataset(
     dataset_group: str = "small",
     batch_size: int = 32,
     convert_x: bool = False,
-    seed: int = None,
+    seed: int = 42,
 ) -> tuple:
     """
     Graph Classification: prepare data for a group of datasets to multiple clients.

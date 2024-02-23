@@ -171,7 +171,7 @@ def FedGCN_Train(args: attridict, data: tuple) -> None:
     ray.shutdown()
 
 
-def GC_Train(config: dict):
+def GC_Train(config: dict) -> None:
     """
     Entrance of the training process for graph classification.
 
@@ -316,9 +316,5 @@ def GC_Train(config: dict):
 
     #################### save the output ####################
     outdir_result = os.path.join(outdir, f"accuracy_seed{args.seed}.csv")
-    output.to_csv(outdir_result)
+    pd.DataFrame(output).to_csv(outdir_result)
     print(f"The output has been written to file: {outdir_result}")
-
-
-if __name__ == "__main__":
-    GC_Train(model="GCFL")

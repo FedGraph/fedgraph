@@ -15,7 +15,7 @@ import sys
 
 import yaml
 
-sys.append("../fedgraph")
+sys.path.append("../fedgraph")
 from fedgraph.federated_methods import GC_Train
 
 #######################################################################
