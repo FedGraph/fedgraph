@@ -39,7 +39,29 @@ Whether you are a federated learning researcher or a first-time user of federate
 pip install fedgraph
 ```
 
+## Quick Start
+```python
+from fedgraph.federated_methods import FedGCN_Train
+from fedgraph.utils import federated_data_loader
+import attridict
 
+config={'dataset': 'cora',
+        'fedtype': 'fedgcn',
+        'global_rounds': 100,
+        'local_step': 3,
+        'learning_rate': 0.5,
+        'n_trainer': 2,
+        'num_layers': 2,
+        'num_hops': 2,
+        'gpu': False,
+        'iid_beta': 10000,
+        'logdir': './runs'}
+
+config = attridict(config)
+
+data = federated_data_loader(config)
+FedGCN_Train(config, data)
+```
 
 ## Cite
 
