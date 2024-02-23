@@ -6,9 +6,9 @@ from torch_geometric.utils import to_networkx, degree
 import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 
-from .gnn_models import GIN, GIN_server
-from .server_class import Server_GC
-from .trainer_class import Trainer_GC
+from fedgraph.gnn_models import GIN, GIN_server
+from fedgraph.server_class import Server_GC
+from fedgraph.trainer_class import Trainer_GC
 
 
 def setup_clients(splited_data: dict, args: argparse.ArgumentParser=None) -> tuple:

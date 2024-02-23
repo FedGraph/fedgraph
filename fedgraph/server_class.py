@@ -143,7 +143,7 @@ class Server:
             )  # run in submit order
 
 
-class ServerGC():
+class Server_GC():
     '''
     This is a server class for federated graph classification which is responsible for aggregating model parameters from different clients, 
     updating the central model, and then broadcasting the updated model parameters back to the trainers.
