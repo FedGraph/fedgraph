@@ -11,8 +11,9 @@ Run a simple example of Federated Graph Classification.
 # Load libraries
 # ------------
 
-import yaml
 import sys
+
+import yaml
 
 sys.append("../fedgraph")
 from fedgraph.federated_methods import GC_Train
@@ -35,6 +36,12 @@ config["data_group"] = dataset
 #######################################################################
 # Run the designated method
 # ------------
-assert model in ["SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs"], \
-    f"Unknown model: {model}"
+assert model in [
+    "SelfTrain",
+    "FedAvg",
+    "FedProx",
+    "GCFL",
+    "GCFL+",
+    "GCFL+dWs",
+], f"Unknown model: {model}"
 GC_Train(config=config)

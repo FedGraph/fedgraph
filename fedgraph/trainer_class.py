@@ -282,11 +282,11 @@ class Trainer_General:
         return self.rank
 
 
-class Trainer_GC():
-    '''
+class Trainer_GC:
+    """
     A trainer class specified for graph classification tasks, which includes functionalities required
     for training GIN models on a subset of a distributed dataset, handling local training and testing, parameter updates, and feature aggregation.
-    
+
     Parameters
     ----------
     model: object
@@ -340,16 +340,17 @@ class Trainer_GC():
         The norm of the weights of the gconv layers.
     conv_dWs_norm: float
         The norm of the gradients of the gconv layers.
-    '''
+    """
+
     def __init__(
-            self, 
-            model: object, 
-            client_id: int, 
-            client_name: str, 
-            train_size: int, 
-            dataloader: dict, 
-            optimizer: object, 
-            args: object
+        self,
+        model: object,
+        client_id: int,
+        client_name: str,
+        train_size: int,
+        dataloader: dict,
+        optimizer: object,
+        args: object,
     ) -> None:
         self.model = model.to(args.device)
         self.id = client_id
@@ -360,54 +361,58 @@ class Trainer_GC():
         self.args = args
 
         self.W = {key: value for key, value in self.model.named_parameters()}
-        self.dW = {key: torch.zeros_like(value) for key, value in self.model.named_parameters()}
-        self.W_old = {key: value.data.clone() for key, value in self.model.named_parameters()}
+        self.dW = {
+            key: torch.zeros_like(value) for key, value in self.model.named_parameters()
+        }
+        self.W_old = {
+            key: value.data.clone() for key, value in self.model.named_parameters()
+        }
 
         self.gconv_names = None
 
         self.train_stats = ([0], [0], [0], [0])
-        self.weights_norm = 0.
-        self.grads_norm = 0.
-        self.conv_grads_norm = 0.
-        self.conv_weights_norm = 0.
-        self.conv_dWs_norm = 0.
+        self.weights_norm = 0.0
+        self.grads_norm = 0.0
+        self.conv_grads_norm = 0.0
+        self.conv_weights_norm = 0.0
+        self.conv_dWs_norm = 0.0
 
     ########### Public functions ###########
     def update_params(self, server: object) -> None:
-        '''
+        """
         Update the model parameters by downloading the global model weights from the server.
 
         Parameters
         ----------
         server: object
             The server object that contains the global model weights.
-        '''
-        self.gconv_names = server.W.keys()   # gconv layers
+        """
+        self.gconv_names = server.W.keys()  # gconv layers
         for k in server.W:
             self.W[k].data = server.W[k].data.clone()
 
     def reset_params(self) -> None:
-        '''
+        """
         Reset the weights of the model to the cached weights.
         The implementation is copying the cached weights (W_old) to the model weights (W).
 
-        '''
+        """
         self.__copy_weights(target=self.W, source=self.W_old, keys=self.gconv_names)
 
     def cache_weights(self) -> dict:
-        '''
+        """
         Cache the weights of the model.
 
         Returns
         -------
         (cached_weights): dict
             The cached weights of the model.
-        '''
+        """
         for name in self.W.keys():
             self.W_old[name].data = self.W[name].data.clone()
 
     def set_stats_norms(self, train_stats: dict, is_gcfl: bool = False) -> None:
-        '''
+        """
         Set the norms of the weights and gradients of the model, as well as the statistics of the training.
 
         Parameters
@@ -416,7 +421,7 @@ class Trainer_GC():
             The training statistics of the model.
         is_gcfl: bool, optional
             Whether the training is for GCFL. The default is False.
-        '''
+        """
         self.train_stats = train_stats
 
         self.weights_norm = torch.norm(self.__flatten(self.W)).item()
@@ -430,17 +435,14 @@ class Trainer_GC():
         grads_conv = {key: self.W[key].grad for key in self.gconv_names}
         self.conv_grads_norm = torch.norm(self.__flatten(grads_conv)).item()
 
-        if is_gcfl: # special case for GCFL
+        if is_gcfl:  # special case for GCFL
             dWs_conv = {key: self.dW[key] for key in self.gconv_names}
             self.conv_dWs_norm = torch.norm(self.__flatten(dWs_conv)).item()
 
     def local_train(
-            self, 
-            local_epoch: int, 
-            train_option: str = 'basic', 
-            mu: float = 1
+        self, local_epoch: int, train_option: str = "basic", mu: float = 1
     ) -> None:
-        """ 
+        """
         This function is a interface of the trainer class to train the model locally.
         It will call the train function specified for the training option, based on the args provided.
 
@@ -456,44 +458,42 @@ class Trainer_GC():
         mu: float, optional
             The proximal term. The default is 1.
         """
-        assert train_option in ['basic', 'prox', 'gcfl'], "Invalid training option."
+        assert train_option in ["basic", "prox", "gcfl"], "Invalid training option."
 
-        if train_option == 'gcfl':
+        if train_option == "gcfl":
             self.__copy_weights(target=self.W_old, source=self.W, keys=self.gconv_names)
 
-        if train_option in ['basic', 'prox']:
+        if train_option in ["basic", "prox"]:
             train_stats = self.__train(
-                model=self.model, 
-                dataloaders=self.dataloader, 
-                optimizer=self.optimizer, 
-                local_epoch=local_epoch, 
-                device=self.args.device
-            )
-        elif train_option == 'gcfl':
-            train_stats = self.__train(
-                model=self.model, 
-                dataloaders=self.dataloader, 
-                optimizer=self.optimizer, 
-                local_epoch=local_epoch, 
+                model=self.model,
+                dataloaders=self.dataloader,
+                optimizer=self.optimizer,
+                local_epoch=local_epoch,
                 device=self.args.device,
-                prox=True, 
-                gconv_names=self.gconv_names, 
-                Ws=self.W, 
-                Wt=self.W_old, 
-                mu=mu
+            )
+        elif train_option == "gcfl":
+            train_stats = self.__train(
+                model=self.model,
+                dataloaders=self.dataloader,
+                optimizer=self.optimizer,
+                local_epoch=local_epoch,
+                device=self.args.device,
+                prox=True,
+                gconv_names=self.gconv_names,
+                Ws=self.W,
+                Wt=self.W_old,
+                mu=mu,
             )
 
-        if train_option == 'gcfl':
-            self.__subtract_weights(target=self.dW, minuend=self.W, subtrahend=self.W_old)
+        if train_option == "gcfl":
+            self.__subtract_weights(
+                target=self.dW, minuend=self.W, subtrahend=self.W_old
+            )
 
         self.set_stats_norms(train_stats)
 
-    def local_test(
-            self, 
-            test_option: str = 'basic',
-            mu: float = 1
-    ) -> tuple:
-        '''
+    def local_test(self, test_option: str = "basic", mu: float = 1) -> tuple:
+        """
         Final test of the model on the test dataset based on the test option.
 
         Parameters
@@ -504,30 +504,41 @@ class Trainer_GC():
             'prox' - FedProx
         mu: float, optional
             The proximal term. The default is 1.
-        '''
-        assert test_option in ['basic', 'prox'], "Invalid test option."
+        """
+        assert test_option in ["basic", "prox"], "Invalid test option."
 
-        if test_option == 'basic':
-            return self.__eval(model=self.model, test_loader=self.dataloader['test'], device=self.args.device)
-        elif test_option == 'prox':
-            return self.__eval(model=self.model, test_loader=self.dataloader['test'], device=self.args.device,
-                                prox=True, gconv_names=self.gconv_names, mu=mu, Wt=self.W_old)
-    
+        if test_option == "basic":
+            return self.__eval(
+                model=self.model,
+                test_loader=self.dataloader["test"],
+                device=self.args.device,
+            )
+        elif test_option == "prox":
+            return self.__eval(
+                model=self.model,
+                test_loader=self.dataloader["test"],
+                device=self.args.device,
+                prox=True,
+                gconv_names=self.gconv_names,
+                mu=mu,
+                Wt=self.W_old,
+            )
+
     ########### Private functions ###########
     def __train(
         self,
-        model: object, 
-        dataloaders: dict, 
-        optimizer: object, 
-        local_epoch: int, 
+        model: object,
+        dataloaders: dict,
+        optimizer: object,
+        local_epoch: int,
         device: str,
         prox: bool = False,
         gconv_names: list = None,
         Ws: dict = None,
         Wt: dict = None,
-        mu: float = None
+        mu: float = None,
     ) -> dict:
-        '''
+        """
         Train the model on the local dataset.
 
         Parameters
@@ -547,19 +558,34 @@ class Trainer_GC():
         -------
         (results): dict
             The training statistics
-        '''
+        """
         if prox:
-            assert ((gconv_names is not None) and (Ws is not None) 
-                and (Wt is not None) and (mu is not None)), "Please provide the required arguments for the proximal term."
+            assert (
+                (gconv_names is not None)
+                and (Ws is not None)
+                and (Wt is not None)
+                and (mu is not None)
+            ), "Please provide the required arguments for the proximal term."
 
-        losses_train, accs_train, losses_val, accs_val, losses_test, accs_test = [], [], [], [], [], []
+        losses_train, accs_train, losses_val, accs_val, losses_test, accs_test = (
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+        )
         if prox:
             convGradsNorm = []
-        train_loader, val_loader, test_loader = dataloaders['train'], dataloaders['val'], dataloaders['test']
+        train_loader, val_loader, test_loader = (
+            dataloaders["train"],
+            dataloaders["val"],
+            dataloaders["test"],
+        )
 
         for _ in range(local_epoch):
             model.train()
-            loss_train, acc_train, num_graphs = 0., 0., 0
+            loss_train, acc_train, num_graphs = 0.0, 0.0, 0
 
             for _, batch in enumerate(train_loader):
                 batch.to(device)
@@ -567,14 +593,16 @@ class Trainer_GC():
                 pred = model(batch)
                 label = batch.y
                 loss = model.loss(pred, label)
-                loss += mu / 2. * self.__prox_term(model, gconv_names, Wt) if prox else 0.     # add the proximal term if required
+                loss += (
+                    mu / 2.0 * self.__prox_term(model, gconv_names, Wt) if prox else 0.0
+                )  # add the proximal term if required
                 loss.backward()
                 optimizer.step()
                 loss_train += loss.item() * batch.num_graphs
                 acc_train += pred.max(dim=1)[1].eq(label).sum().item()
                 num_graphs += batch.num_graphs
 
-            loss_train /= num_graphs    # get the average loss per graph
+            loss_train /= num_graphs  # get the average loss per graph
             acc_train /= num_graphs  # get the average average per graph
 
             loss_val, acc_val = self.__eval(model, val_loader, device)
@@ -591,25 +619,30 @@ class Trainer_GC():
                 convGradsNorm.append(self.__calc_grads_norm(gconv_names, Ws))
 
         # record the losses and accuracies for each epoch
-        res_dict = {'trainingLosses': losses_train, 'trainingAccs': accs_train,
-                    'valLosses': losses_val, 'valAccs': accs_val,
-                    'testLosses': losses_test, 'testAccs': accs_test}
+        res_dict = {
+            "trainingLosses": losses_train,
+            "trainingAccs": accs_train,
+            "valLosses": losses_val,
+            "valAccs": accs_val,
+            "testLosses": losses_test,
+            "testAccs": accs_test,
+        }
         if prox:
-            res_dict['convGradsNorm'] = convGradsNorm
+            res_dict["convGradsNorm"] = convGradsNorm
 
         return res_dict
-    
+
     def __eval(
-            self,
-            model: object,
-            test_loader: object,
-            device: str,
-            prox: bool = False,
-            gconv_names: list = None,
-            mu: float = None,
-            Wt: dict = None
+        self,
+        model: object,
+        test_loader: object,
+        device: str,
+        prox: bool = False,
+        gconv_names: list = None,
+        mu: float = None,
+        Wt: dict = None,
     ) -> tuple:
-        '''
+        """
         Validate and test the model on the local dataset.
 
         Parameters
@@ -633,13 +666,14 @@ class Trainer_GC():
         -------
         (test_loss, test_acc): tuple(float, float)
             The average loss and accuracy
-        '''
+        """
         if prox:
-            assert ((gconv_names is not None) and (mu is not None) 
-                    and (Wt is not None)), "Please provide the required arguments for the proximal term."
+            assert (
+                (gconv_names is not None) and (mu is not None) and (Wt is not None)
+            ), "Please provide the required arguments for the proximal term."
 
         model.eval()
-        total_loss, total_acc, num_graphs = 0., 0., 0
+        total_loss, total_acc, num_graphs = 0.0, 0.0, 0
 
         for batch in test_loader:
             batch.to(device)
@@ -647,7 +681,9 @@ class Trainer_GC():
                 pred = model(batch)
                 label = batch.y
                 loss = model.loss(pred, label)
-                loss += mu / 2. * self.__prox_term(model, gconv_names, Wt) if prox else 0.
+                loss += (
+                    mu / 2.0 * self.__prox_term(model, gconv_names, Wt) if prox else 0.0
+                )
 
             total_loss += loss.item() * batch.num_graphs
             total_acc += pred.max(dim=1)[1].eq(label).sum().item()
@@ -655,13 +691,8 @@ class Trainer_GC():
 
         return total_loss / num_graphs, total_acc / num_graphs
 
-    def __prox_term(
-            self, 
-            model: object, 
-            gconv_names: list, 
-            Wt: dict
-    ) -> torch.tensor:
-        '''
+    def __prox_term(self, model: object, gconv_names: list, Wt: dict) -> torch.tensor:
+        """
         Compute the proximal term.
 
         Args:
@@ -671,19 +702,17 @@ class Trainer_GC():
 
         Returns:
         - torch.tensor: the proximal term
-        '''
-        prox = torch.tensor(0., requires_grad=True)
+        """
+        prox = torch.tensor(0.0, requires_grad=True)
         for name, param in model.named_parameters():
-            if name in gconv_names:      # only add the prox term for sharing layers (gConv)
-                prox = prox + torch.norm(param - Wt[name]).pow(2)   # force the weights to be close to the old weights
+            if name in gconv_names:  # only add the prox term for sharing layers (gConv)
+                prox = prox + torch.norm(param - Wt[name]).pow(
+                    2
+                )  # force the weights to be close to the old weights
         return prox
-    
-    def __calc_grads_norm(
-            self, 
-            gconv_names: list, 
-            Ws: dict
-    ) -> float:
-        '''
+
+    def __calc_grads_norm(self, gconv_names: list, Ws: dict) -> float:
+        """
         Calculate the norm of the gradients of the gconv layers.
 
         Args:
@@ -692,50 +721,39 @@ class Trainer_GC():
 
         Returns:
         - float: the norm of the gradients of the gconv layers
-        '''
+        """
         grads_conv = {k: Ws[k].grad for k in gconv_names}
         convGradsNorm = torch.norm(self.__flatten(grads_conv)).item()
         return convGradsNorm
 
-
-    def __copy_weights(
-            self, 
-            target: dict, 
-            source: dict, 
-            keys: list
-    ) -> None:
-        '''
+    def __copy_weights(self, target: dict, source: dict, keys: list) -> None:
+        """
         Copy the source weights to the target weights.
 
         Args:
         - target: dict, the target weights
         - source: dict, the source weights
         - keys: list, the names of the layers
-        '''
+        """
         for name in keys:
             target[name].data = source[name].data.clone()
 
-
-    def __subtract_weights(
-            self, 
-            target: dict, 
-            minuend: dict, 
-            subtrahend: dict
-    ) -> None:
-        '''
+    def __subtract_weights(self, target: dict, minuend: dict, subtrahend: dict) -> None:
+        """
         Subtract the subtrahend from the minuend and store the result in the target.
 
         Args:
         - target: dict, the target weights
         - minuend: dict, the minuend weights
         - subtrahend: dict, the subtrahend weights
-        '''
+        """
         for name in target:
-            target[name].data = minuend[name].data.clone() - subtrahend[name].data.clone()
-
+            target[name].data = (
+                minuend[name].data.clone() - subtrahend[name].data.clone()
+            )
 
     def __flatten(self, w: dict) -> torch.tensor:
-        '''
+        """
         Flatten the gradients of a client into a 1D tensor.
 
         Args:
@@ -743,6 +761,5 @@ class Trainer_GC():
 
         Returns:
         - torch.tensor: the flattened gradients
-        '''
+        """
         return torch.cat([v.flatten() for v in w.values()])
-
