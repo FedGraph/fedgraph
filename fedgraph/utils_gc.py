@@ -54,7 +54,7 @@ def setup_clients(splited_data: dict, args: argparse.ArgumentParser=None) -> tup
             client_id=idx,                       # client id
             client_name=dataset_client_name,     # client name
             train_size=train_size,               # training size
-            dataLoader=dataloaders,              # data loader
+            dataloader=dataloaders,              # data loader
             optimizer=optimizer,                 # optimizer
             args=args
         )
