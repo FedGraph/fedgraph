@@ -199,28 +199,29 @@ def GC_Train(config: dict) -> None:
 
     #################### set output directory ####################
     # outdir_base = os.path.join(args.outbase, f'seqLen{args.seq_length}')
-    outdir_base = args.outbase + "/" + f"{args.model}"
-    outdir = os.path.join(outdir_base, f"oneDS-nonOverlap")
-    if args.model in ["SelfTrain"]:
-        outdir = os.path.join(outdir, f"{args.data_group}")
-    elif args.model in ["FedAvg", "FedProx"]:
-        outdir = os.path.join(outdir, f"{args.data_group}-{args.num_clients}clients")
-    elif args.model in ["GCFL"]:
-        outdir = os.path.join(
-            outdir,
-            f"{args.data_group}-{args.num_clients}clients",
-            f"eps_{args.epsilon1}_{args.epsilon2}",
-        )
-    elif args.model in ["GCFL+", "GCFL+dWs"]:
-        outdir = os.path.join(
-            outdir,
-            f"{args.data_group}-{args.num_clients}clients",
-            f"eps_{args.epsilon1}_{args.epsilon2}",
-            f"seqLen{args.seq_length}",
-        )
+    if args.save_files:
+        outdir_base = args.outbase + "/" + f"{args.model}"
+        outdir = os.path.join(outdir_base, f"oneDS-nonOverlap")
+        if args.model in ["SelfTrain"]:
+            outdir = os.path.join(outdir, f"{args.data_group}")
+        elif args.model in ["FedAvg", "FedProx"]:
+            outdir = os.path.join(outdir, f"{args.data_group}-{args.num_clients}clients")
+        elif args.model in ["GCFL"]:
+            outdir = os.path.join(
+                outdir,
+                f"{args.data_group}-{args.num_clients}clients",
+                f"eps_{args.epsilon1}_{args.epsilon2}",
+            )
+        elif args.model in ["GCFL+", "GCFL+dWs"]:
+            outdir = os.path.join(
+                outdir,
+                f"{args.data_group}-{args.num_clients}clients",
+                f"eps_{args.epsilon1}_{args.epsilon2}",
+                f"seqLen{args.seq_length}",
+            )
 
-    Path(outdir).mkdir(parents=True, exist_ok=True)
-    print(f"Output Path: {outdir}")
+        Path(outdir).mkdir(parents=True, exist_ok=True)
+        print(f"Output Path: {outdir}")
 
     #################### distributed one dataset to multiple clients ####################
     """ using original features """
@@ -238,16 +239,16 @@ def GC_Train(config: dict) -> None:
     print("Data prepared.")
 
     #################### save statistics of data on clients ####################
-    outdir_stats = os.path.join(outdir, f"stats_train_data.csv")
-    df_stats.to_csv(outdir_stats)
-    print(f"The statistics of the data are written to {outdir_stats}")
+    if args.save_files:
+        outdir_stats = os.path.join(outdir, f"stats_train_data.csv")
+        df_stats.to_csv(outdir_stats)
+        print(f"The statistics of the data are written to {outdir_stats}")
 
     #################### setup devices ####################
-    if args.model not in ["SelfTrain"]:
-        init_clients, _ = setup_clients(splited_data, args)
-        init_server = setup_server(args)
-        clients = copy.deepcopy(init_clients)
-        server = copy.deepcopy(init_server)
+    init_clients, _ = setup_clients(splited_data, args)
+    init_server = setup_server(args)
+    clients = copy.deepcopy(init_clients)
+    server = copy.deepcopy(init_server)
 
     print("\nDone setting up devices.")
 
@@ -315,6 +316,7 @@ def GC_Train(config: dict) -> None:
         raise ValueError(f"Unknown model: {args.model}")
 
     #################### save the output ####################
-    outdir_result = os.path.join(outdir, f"accuracy_seed{args.seed}.csv")
-    pd.DataFrame(output).to_csv(outdir_result)
-    print(f"The output has been written to file: {outdir_result}")
+    if args.save_files:
+        outdir_result = os.path.join(outdir, f"accuracy_seed{args.seed}.csv")
+        pd.DataFrame(output).to_csv(outdir_result)
+        print(f"The output has been written to file: {outdir_result}")

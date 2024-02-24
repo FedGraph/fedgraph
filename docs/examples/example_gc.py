@@ -9,9 +9,10 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 (Time estimate: 15 minutes)
 """
 
+import os
+import sys
 import argparse
 import copy
-import os
 import random
 from pathlib import Path
 
@@ -19,6 +20,7 @@ import numpy as np
 import torch
 import yaml
 
+sys.path.append("../fedgraph")
 from fedgraph.data_process_gc import *
 from fedgraph.train_func import *
 from fedgraph.utils_gc import *
@@ -35,8 +37,9 @@ from fedgraph.utils_gc import *
 
 model = "GCFL"
 dataset = "PROTEINS"
+save_files = False  # if True, save the statistics and prediction results into files
 
-config_file = f"src/configs/config_gc_{model}.yaml"
+config_file = f"docs/examples/configs/config_gc_{model}.yaml"
 with open(config_file, "r") as file:
     config = yaml.safe_load(file)
 
@@ -73,28 +76,30 @@ args.device = "cuda" if torch.cuda.is_available() else "cpu"
 # accuracy of the model on the test set.
 
 # outdir_base = os.path.join(args.outbase, f'seqLen{args.seq_length}')
-outdir_base = args.outbase + "/" + f"{args.model}"
-outdir = os.path.join(outdir_base, f"oneDS-nonOverlap")
-if args.model in ["SelfTrain"]:
-    outdir = os.path.join(outdir, f"{args.data_group}")
-elif args.model in ["FedAvg", "FedProx"]:
-    outdir = os.path.join(outdir, f"{args.data_group}-{args.num_clients}clients")
-elif args.model in ["GCFL"]:
-    outdir = os.path.join(
-        outdir,
-        f"{args.data_group}-{args.num_clients}clients",
-        f"eps_{args.epsilon1}_{args.epsilon2}",
-    )
-elif args.model in ["GCFL+", "GCFL+dWs"]:
-    outdir = os.path.join(
-        outdir,
-        f"{args.data_group}-{args.num_clients}clients",
-        f"eps_{args.epsilon1}_{args.epsilon2}",
-        f"seqLen{args.seq_length}",
-    )
 
-Path(outdir).mkdir(parents=True, exist_ok=True)
-print(f"Output Path: {outdir}")
+if save_files:
+    outdir_base = args.outbase + "/" + f"{args.model}"
+    outdir = os.path.join(outdir_base, f"oneDS-nonOverlap")
+    if args.model in ["SelfTrain"]:
+        outdir = os.path.join(outdir, f"{args.data_group}")
+    elif args.model in ["FedAvg", "FedProx"]:
+        outdir = os.path.join(outdir, f"{args.data_group}-{args.num_clients}clients")
+    elif args.model in ["GCFL"]:
+        outdir = os.path.join(
+            outdir,
+            f"{args.data_group}-{args.num_clients}clients",
+            f"eps_{args.epsilon1}_{args.epsilon2}",
+        )
+    elif args.model in ["GCFL+", "GCFL+dWs"]:
+        outdir = os.path.join(
+            outdir,
+            f"{args.data_group}-{args.num_clients}clients",
+            f"eps_{args.epsilon1}_{args.epsilon2}",
+            f"seqLen{args.seq_length}",
+        )
+
+    Path(outdir).mkdir(parents=True, exist_ok=True)
+    print(f"Output Path: {outdir}")
 
 
 #######################################################################
@@ -119,9 +124,10 @@ splited_data, df_stats = load_single_dataset(
 )
 print("Data prepared.")
 
-outdir_stats = os.path.join(outdir, f"stats_train_data.csv")
-df_stats.to_csv(outdir_stats)
-print(f"The statistics of the data are written to {outdir_stats}")
+if save_files:
+    outdir_stats = os.path.join(outdir, f"stats_train_data.csv")
+    df_stats.to_csv(outdir_stats)
+    print(f"The statistics of the data are written to {outdir_stats}")
 
 
 #######################################################################
@@ -212,9 +218,10 @@ else:
 #######################################################################
 # Save the output
 # ------------
-# Here we save the results to a file.
-# The output directory can be specified by the user.
+# Here we save the results to a file, and the output directory can be specified by the user.
+# If save_files == False, the output will not be saved and will only be printed in the console.
 
-outdir_result = os.path.join(outdir, f"accuracy_seed{args.seed}.csv")
-pd.DataFrame(output).to_csv(outdir_result)
-print(f"The output has been written to file: {outdir_result}")
+if save_files:
+    outdir_result = os.path.join(outdir, f"accuracy_seed{args.seed}.csv")
+    pd.DataFrame(output).to_csv(outdir_result)
+    print(f"The output has been written to file: {outdir_result}")

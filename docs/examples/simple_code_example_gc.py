@@ -21,17 +21,19 @@ from fedgraph.federated_methods import GC_Train
 #######################################################################
 # Choose the model and dataset
 # ------------
-model = "GCFL+"
+model = "FedAvg" # Select: "SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs
 dataset = "PROTEINS"
+save_files = False   # if True, save the statistics and prediction results into files
 
 #######################################################################
 # Load configuration
 # ------------
-config_file = f"src/configs/config_gc_{model}.yaml"
+config_file = f"docs/examples/configs/config_gc_{model}.yaml"
 with open(config_file, "r") as file:
     config = yaml.safe_load(file)
 
 config["data_group"] = dataset
+config["save_files"] = save_files
 
 #######################################################################
 # Run the designated method

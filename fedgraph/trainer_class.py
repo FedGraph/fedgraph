@@ -7,7 +7,6 @@ import torch
 import torch_geometric
 
 from fedgraph.gnn_models import GCN, GIN, AggreGCN, GCN_arxiv, SAGE_products
-from fedgraph.server_class import Server_GC
 from fedgraph.train_func import test, train
 from fedgraph.utils import get_1hop_feature_sum
 
@@ -380,13 +379,13 @@ class Trainer_GC:
         self.conv_dWs_norm = 0.0
 
     ########### Public functions ###########
-    def update_params(self, server: Server_GC) -> None:
+    def update_params(self, server: Any) -> None:
         """
         Update the model parameters by downloading the global model weights from the server.
 
         Parameters
         ----------
-        server: object
+        server: Server_GC
             The server object that contains the global model weights.
         """
         self.gconv_names = server.W.keys()  # gconv layers
@@ -495,9 +494,7 @@ class Trainer_GC:
 
         self.set_stats_norms(train_stats)
 
-    def local_test(
-        self, test_option: str = "basic", mu: float = 1
-    ) -> tuple[float, float]:
+    def local_test(self, test_option: str = "basic", mu: float = 1) -> tuple:
         """
         Final test of the model on the test dataset based on the test option.
 

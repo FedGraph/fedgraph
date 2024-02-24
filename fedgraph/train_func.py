@@ -5,9 +5,6 @@ import pandas as pd
 import torch
 import torch.nn.functional as F
 
-from fedgraph.server_class import Server_GC
-from fedgraph.trainer_class import Trainer_GC
-
 
 def accuracy(output: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
     """
@@ -31,6 +28,28 @@ def accuracy(output: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
     correct = preds.eq(labels).double()
     correct = correct.sum()
     return correct / len(labels)
+
+def gc_avg_accuracy(frame: pd.DataFrame, clients: list) -> float:
+    """
+    This function calculates the weighted average accuracy of the clients in the frame.
+
+    Parameters
+    ----------
+    frame: pd.DataFrame
+        The frame containing the accuracies of the clients
+    clients: list
+        List of clients
+
+    Returns
+    -------
+    (float): float
+        The average accuracy of the clients in the frame
+    """
+
+    # weighted average accuracy
+    accs = frame["test_acc"]
+    weights = [c.train_size for c in clients]
+    return np.average(accs, weights=weights)
 
 
 def test(
@@ -125,7 +144,7 @@ def train(
     return loss_train.item(), acc_train.item()
 
 
-def run_GC_selftrain(clients: list, server: Server_GC, local_epoch: int) -> dict:
+def run_GC_selftrain(clients: list, server: Any, local_epoch: int) -> dict:
     """
     Run the training and testing process of self-training algorithm.
     It only trains the model locally, and does not perform weights aggregation.
@@ -146,7 +165,7 @@ def run_GC_selftrain(clients: list, server: Server_GC, local_epoch: int) -> dict
     """
     # all clients are initialized with the same weights
     for client in clients:
-        client.download_from_server(server)
+        client.update_params(server)
 
     all_accs = {}
     for client in clients:
@@ -159,13 +178,17 @@ def run_GC_selftrain(clients: list, server: Server_GC, local_epoch: int) -> dict
             acc,
         ]
         print("  > {} done.".format(client.name))
-
-    return all_accs
+    
+    frame = pd.DataFrame(all_accs).T.iloc[:, [2]]
+    frame.columns = [ "test_acc"]
+    print(frame)
+    print(f"Average test accuracy: {gc_avg_accuracy(frame, clients)}")
+    return frame
 
 
 def run_GC_fedavg(
     clients: list,
-    server: Server_GC,
+    server: Any,
     communication_rounds: int,
     local_epoch: int,
     samp: object = None,
@@ -238,12 +261,13 @@ def run_GC_fedavg(
 
     fs = frame.style.apply(highlight_max).data
     print(fs)
+    print(f"Average test accuracy: {gc_avg_accuracy(frame, clients)}")
     return frame
 
 
 def run_GC_fedprox(
     clients: list,
-    server: Server_GC,
+    server: Any,
     communication_rounds: int,
     local_epoch: int,
     mu: float,
@@ -276,7 +300,7 @@ def run_GC_fedprox(
         Frame: pandas dataframe with test accuracies
     """
     for client in clients:
-        client.download_from_update_paramsserver(server)
+        client.update_params(server)
 
     if samp is None:
         frac = 1.0
@@ -313,12 +337,13 @@ def run_GC_fedprox(
 
     fs = frame.style.apply(highlight_max).data
     print(fs)
+    print(f"Average test accuracy: {gc_avg_accuracy(frame, clients)}")
     return frame
 
 
 def run_GC_gcfl(
     clients: list,
-    server: Server_GC,
+    server: Any,
     communication_rounds: int,
     local_epoch: int,
     EPS_1: float,
@@ -427,13 +452,13 @@ def run_GC_gcfl(
     frame.columns = ["test_acc"]
 
     print(frame)
-
+    print(f"Average test accuracy: {gc_avg_accuracy(frame, clients)}")
     return frame
 
 
 def run_GC_gcfl_plus(
     clients: list,
-    server: Server_GC,
+    server: Any,
     communication_rounds: int,
     local_epoch: int,
     EPS_1: float,
@@ -538,13 +563,14 @@ def run_GC_gcfl_plus(
     frame = pd.DataFrame(frame.max(axis=1))
     frame.columns = ["test_acc"]
     print(frame)
+    print(f"Average test accuracy: {gc_avg_accuracy(frame, clients)}")
 
     return frame
 
 
 def run_GC_gcfl_plus_dWs(
     clients: list,
-    server: Server_GC,
+    server: Any,
     communication_rounds: int,
     local_epoch: int,
     EPS_1: float,
@@ -647,5 +673,6 @@ def run_GC_gcfl_plus_dWs(
     frame = pd.DataFrame(frame.max(axis=1))
     frame.columns = ["test_acc"]
     print(frame)
+    print(f"Average test accuracy: {gc_avg_accuracy(frame, clients)}")
 
     return frame
