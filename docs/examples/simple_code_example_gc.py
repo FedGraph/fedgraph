@@ -21,9 +21,9 @@ from fedgraph.federated_methods import GC_Train
 #######################################################################
 # Choose the model and dataset
 # ------------
-model = "FedAvg" # Select: "SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs
+model = "FedAvg"  # Select: "SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs
 dataset = "PROTEINS"
-save_files = False   # if True, save the statistics and prediction results into files
+save_files = False  # if True, save the statistics and prediction results into files
 
 #######################################################################
 # Load configuration

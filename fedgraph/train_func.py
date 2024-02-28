@@ -29,6 +29,7 @@ def accuracy(output: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
     correct = correct.sum()
     return correct / len(labels)
 
+
 def gc_avg_accuracy(frame: pd.DataFrame, clients: list) -> float:
     """
     This function calculates the weighted average accuracy of the clients in the frame.
@@ -178,9 +179,9 @@ def run_GC_selftrain(clients: list, server: Any, local_epoch: int) -> dict:
             acc,
         ]
         print("  > {} done.".format(client.name))
-    
+
     frame = pd.DataFrame(all_accs).T.iloc[:, [2]]
-    frame.columns = [ "test_acc"]
+    frame.columns = ["test_acc"]
     print(frame)
     print(f"Average test accuracy: {gc_avg_accuracy(frame, clients)}")
     return frame

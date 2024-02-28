@@ -205,7 +205,9 @@ def GC_Train(config: dict) -> None:
         if args.model in ["SelfTrain"]:
             outdir = os.path.join(outdir, f"{args.data_group}")
         elif args.model in ["FedAvg", "FedProx"]:
-            outdir = os.path.join(outdir, f"{args.data_group}-{args.num_clients}clients")
+            outdir = os.path.join(
+                outdir, f"{args.data_group}-{args.num_clients}clients"
+            )
         elif args.model in ["GCFL"]:
             outdir = os.path.join(
                 outdir,
