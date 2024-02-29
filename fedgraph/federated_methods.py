@@ -9,13 +9,14 @@ import attridict
 import numpy as np
 import ray
 import torch
+import pandas as pd
 
-from fedgraph.data_process_gc import load_multiple_dataset, load_single_dataset
+from fedgraph.data_process_gc import load_single_dataset
 from fedgraph.server_class import Server
-from fedgraph.train_func import *
 from fedgraph.trainer_class import Trainer_General
 from fedgraph.utils import get_1hop_feature_sum
-from fedgraph.utils_gc import *
+from fedgraph.utils_gc import setup_clients, setup_server
+from fedgraph.train_func import gc_avg_accuracy
 
 
 def FedGCN_Train(args: attridict, data: tuple) -> None:
@@ -171,14 +172,16 @@ def FedGCN_Train(args: attridict, data: tuple) -> None:
     ray.shutdown()
 
 
-def GC_Train(config: dict) -> None:
+def GC_Train(config: dict, data: Any) -> None:
     """
     Entrance of the training process for graph classification.
 
     Parameters
     ----------
-    model: str
-        The model to run.
+    config: dict
+        Configuration.
+    data: Any
+        The splitted data.
     """
     # transfer the config to argparse
     parser = argparse.ArgumentParser()
@@ -225,29 +228,14 @@ def GC_Train(config: dict) -> None:
         Path(outdir).mkdir(parents=True, exist_ok=True)
         print(f"Output Path: {outdir}")
 
-    #################### distributed one dataset to multiple clients ####################
-    """ using original features """
-    print("Preparing data (original features) ...")
-
-    splited_data, df_stats = load_single_dataset(
-        args.datapath,
-        args.data_group,
-        num_client=args.num_clients,
-        batch_size=args.batch_size,
-        convert_x=args.convert_x,
-        seed=seed_split_data,
-        overlap=args.overlap,
-    )
-    print("Data prepared.")
-
     #################### save statistics of data on clients ####################
-    if args.save_files:
-        outdir_stats = os.path.join(outdir, f"stats_train_data.csv")
-        df_stats.to_csv(outdir_stats)
-        print(f"The statistics of the data are written to {outdir_stats}")
+    # if args.save_files and df_stats:
+    #     outdir_stats = os.path.join(outdir, f"stats_train_data.csv")
+    #     df_stats.to_csv(outdir_stats)
+    #     print(f"The statistics of the data are written to {outdir_stats}")
 
     #################### setup devices ####################
-    init_clients, _ = setup_clients(splited_data, args)
+    init_clients, _ = setup_clients(data, args)
     init_server = setup_server(args)
     clients = copy.deepcopy(init_clients)
     server = copy.deepcopy(init_server)
@@ -324,6 +312,7 @@ def GC_Train(config: dict) -> None:
         print(f"The output has been written to file: {outdir_result}")
 
 
+# The following code is the implementation of different federated graph classification methods.
 def run_GC_selftrain(clients: list, server: Any, local_epoch: int) -> dict:
     """
     Run the training and testing process of self-training algorithm.
@@ -333,7 +322,7 @@ def run_GC_selftrain(clients: list, server: Any, local_epoch: int) -> dict:
     ----------
     clients: list
         List of clients
-    server: object
+    server: Server
         Server object
     local_epoch: int
         Number of local epochs
