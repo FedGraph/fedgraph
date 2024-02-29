@@ -16,8 +16,8 @@ import sys
 import yaml
 
 sys.path.append("../fedgraph")
-from fedgraph.federated_methods import GC_Train
 from fedgraph.data_process_gc import load_single_dataset
+from fedgraph.federated_methods import GC_Train
 
 #######################################################################
 # Choose the model and dataset

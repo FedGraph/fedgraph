@@ -22,7 +22,14 @@ import yaml
 
 sys.path.append("../fedgraph")
 from fedgraph.data_process_gc import *
-from fedgraph.train_func import *
+from fedgraph.federated_methods import (
+    run_GC_fedavg,
+    run_GC_fedprox,
+    run_GC_gcfl,
+    run_GC_gcfl_plus,
+    run_GC_gcfl_plus_dWs,
+    run_GC_selftrain,
+)
 from fedgraph.utils_gc import *
 
 #######################################################################
@@ -201,7 +208,7 @@ elif args.model == "GCFL+":
     )
 
 elif args.model == "GCFL+dWs":
-    output = run_GC_gcfl_plus(
+    output = run_GC_gcfl_plus_dWs(
         clients=clients,
         server=server,
         communication_rounds=args.num_rounds,

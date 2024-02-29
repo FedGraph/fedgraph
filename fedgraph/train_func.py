@@ -143,4 +143,3 @@ def train(
     optimizer.zero_grad()
 
     return loss_train.item(), acc_train.item()
-

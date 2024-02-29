@@ -7,16 +7,16 @@ from typing import Any
 
 import attridict
 import numpy as np
+import pandas as pd
 import ray
 import torch
-import pandas as pd
 
 from fedgraph.data_process_gc import load_single_dataset
 from fedgraph.server_class import Server
+from fedgraph.train_func import gc_avg_accuracy
 from fedgraph.trainer_class import Trainer_General
 from fedgraph.utils import get_1hop_feature_sum
 from fedgraph.utils_gc import setup_clients, setup_server
-from fedgraph.train_func import gc_avg_accuracy
 
 
 def FedGCN_Train(args: attridict, data: tuple) -> None:
