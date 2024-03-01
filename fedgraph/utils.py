@@ -6,6 +6,7 @@ import attridict
 import numpy as np
 import torch
 import torch_geometric
+import tenseal as ts
 
 from fedgraph.data_process import load_data
 
@@ -367,6 +368,35 @@ def get_in_comm_indexes(
         edge_indexes_clients,
     )
 
+def create_context():
+    """
+    Creates a TenSEAL context for CKKS encryption.
+
+    Returns
+    -------
+    context : ts.context
+        The TenSEAL context with encryption parameters and keys.
+    """
+    # Define the polynomial modulus degree and the coefficient modulus size
+    poly_modulus_degree = 8192  # This is an example value; adjust based on your security/performance needs
+    coeff_mod_bit_sizes = [60, 40, 40, 60]  # Example bit sizes for the coefficient modulus
+
+    # Create the context
+    context = ts.context(
+        ts.SCHEME_TYPE.CKKS,
+        poly_modulus_degree=poly_modulus_degree,
+        coeff_mod_bit_sizes=coeff_mod_bit_sizes
+    )
+
+    # Generate the secret/public keys
+    context.generate_galois_keys()
+    context.generate_relin_keys()
+
+    # Optionally, set the global scale
+    # It's important to set the scale manually for CKKS to avoid precision issues
+    context.global_scale = 2**40
+
+    return context
 
 def get_1hop_feature_sum(
     node_features: torch.Tensor, edge_index: torch.Tensor, include_self: bool = True
@@ -417,6 +447,42 @@ def get_1hop_feature_sum(
 
     return summed_features
 
+def get_1hop_feature_avg(node_features: torch.Tensor, edge_index: torch.Tensor) -> torch.Tensor:
+    """
+    Computes the average of features of 1-hop neighbors for each node in a graph, including the node itself.
+
+    Parameters
+    ----------
+    node_features : torch.Tensor
+        A 2D tensor containing the features of each node in the graph.
+    edge_index : torch.Tensor
+        A 2D tensor representing the adjacency information of the graph.
+
+    Returns
+    -------
+    averaged_features : torch.Tensor
+        A 2D tensor where each row represents the averaged features of the 1-hop neighbors for each node.
+    """
+    num_nodes, num_features = node_features.shape
+    avg_features = torch.zeros((num_nodes, num_features))
+    counts = torch.zeros(num_nodes)
+
+    for source_node, target_node in zip(edge_index[0], edge_index[1]):
+        counts[target_node] += 1
+
+    counts = torch.where(counts == 0, torch.ones_like(counts), counts)
+
+    # aggregates from neighbors
+    for source_node, target_node in zip(edge_index[0], edge_index[1]):
+        avg_features[target_node] += node_features[source_node]
+
+    avg_features = torch.div(avg_features.transpose(0, 1), counts).transpose(0, 1)
+    
+    # encryption
+    #context = create_context()
+    #encrypted_avg_features = [ts.ckks_vector(context, node_features[i].tolist()) for i in range(num_nodes)]
+
+    return avg_features
 
 def increment_dir(dir: str, comment: str = "") -> str:
     """

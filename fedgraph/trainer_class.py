@@ -8,7 +8,7 @@ import torch_geometric
 
 from fedgraph.gnn_models import GCN, GIN, AggreGCN, GCN_arxiv, SAGE_products
 from fedgraph.train_func import test, train
-from fedgraph.utils import get_1hop_feature_sum
+from fedgraph.utils import get_1hop_feature_sum, get_1hop_feature_avg
 
 
 class Trainer_General:
@@ -175,8 +175,33 @@ class Trainer_General:
             new_feature_for_client, self.adj
         )
         return one_hop_neighbor_feature_sum
+    
+    def get_local_feature_avg(self) -> torch.Tensor:
+        """
+        Computes the average of features of all 1-hop neighbors for each node.
 
-    def load_feature_aggregation(self, feature_aggregation: torch.Tensor) -> None:
+        Returns
+        -------
+        one_hop_neighbor_feature_avg : torch.Tensor
+            The average of features of 1-hop neighbors for each node
+        """
+
+        new_feature_for_client = torch.zeros(
+            self.global_node_num, self.features.shape[1])
+        new_feature_for_client[self.local_node_index] = self.features
+
+        one_hop_neighbor_feature_avg = get_1hop_feature_avg(
+            new_feature_for_client, self.adj
+        )
+        return one_hop_neighbor_feature_avg
+    
+    def decrypt_and_use_feature_average(self, encrypted_feature_average):
+       
+        decrypted_feature_avg = encrypted_feature_average.decrypt(self.private_key)
+        decrypted_feature_average = torch.tensor(decrypted_feature_avg)
+        return decrypted_feature_average
+    
+    def load_feature_aggregation(self, aggregated_data: torch.Tensor) -> None:
         """
         Loads the aggregated features into the trainer.
 
@@ -185,7 +210,8 @@ class Trainer_General:
         feature_aggregation : torch.Tensor
             The aggregated features to be loaded.
         """
-        self.feature_aggregation = feature_aggregation
+        #decrypted_data = self.decrypt_and_use_feature_average(encrypted_aggregated_data)
+        self.feature_aggregation = aggregated_data
 
     def relabel_adj(self) -> None:
         """

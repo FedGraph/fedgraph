@@ -111,28 +111,51 @@ def FedGCN_Train(args: attridict, data: tuple) -> None:
     # Clients send their local feature sum to the server, and the server
     # aggregates all local feature sums and send the global feature sum
     # of specific nodes back to each client.
-
-    local_neighbor_feature_sums = [
-        trainer.get_local_feature_sum.remote() for trainer in server.trainers
+    
+    #changed from feature sum to feature average
+    local_neighbor_feature_averages = [
+        trainer.get_local_feature_avg.remote() for trainer in server.trainers
     ]
-    global_feature_sum = torch.zeros_like(features)
+    
+    # ********     commented out of feature sum calculation    ********
+    
+    # global_feature_sum = torch.zeros_like(features)
+    # while True:
+    #     ready, left = ray.wait(local_neighbor_feature_sums, num_returns=1, timeout=None)
+    #     if ready:
+    #         for t in ready:
+    #             global_feature_sum += ray.get(t)
+    #     local_neighbor_feature_sums = left
+    #     if not local_neighbor_feature_sums:
+    #         break
+    # print("server aggregates all local neighbor feature sums")
+    
+    # ********                                                 ********  
+    
+    global_feature_average = torch.zeros_like(features)
+    num_averages_received = 0
+
     while True:
-        ready, left = ray.wait(local_neighbor_feature_sums, num_returns=1, timeout=None)
+        ready, left = ray.wait(local_neighbor_feature_averages, num_returns=1, timeout=None)
         if ready:
             for t in ready:
-                global_feature_sum += ray.get(t)
-        local_neighbor_feature_sums = left
-        if not local_neighbor_feature_sums:
+                feature_average = ray.get(t)
+                # compute average
+                global_feature_average = (global_feature_average * num_averages_received + feature_average) / (num_averages_received + 1)
+                num_averages_received += 1
+        local_neighbor_feature_averages = left
+        if not local_neighbor_feature_averages:
             break
-    print("server aggregates all local neighbor feature sums")
+    print("server aggregates all local neighbor feature averages")
     # test if aggregation is correct
-    if args.num_hops != 0:
-        assert (
-            global_feature_sum != get_1hop_feature_sum(features, edge_index)
-        ).sum() == 0
+    # if args.num_hops != 0:
+    #     assert (
+    #         global_feature_sum != get_1hop_feature_sum(features, edge_index)
+    #     ).sum() == 0
+   
     for i in range(args.n_trainer):
         server.trainers[i].load_feature_aggregation.remote(
-            global_feature_sum[communicate_node_indexes[i]]
+            global_feature_average[communicate_node_indexes[i]]
         )
     print("clients received feature aggregation from server")
     [trainer.relabel_adj.remote() for trainer in server.trainers]
