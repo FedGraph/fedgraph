@@ -9,12 +9,13 @@ import attridict
 import numpy as np
 import ray
 import torch
+import tenseal as ts
 
 from fedgraph.data_process_gc import load_multiple_dataset, load_single_dataset
 from fedgraph.server_class import Server
 from fedgraph.train_func import *
 from fedgraph.trainer_class import Trainer_General
-from fedgraph.utils import get_1hop_feature_sum
+from fedgraph.utils import get_1hop_feature_sum, create_context
 from fedgraph.utils_gc import *
 
 
@@ -50,6 +51,7 @@ def FedGCN_Train(args: attridict, data: tuple) -> None:
         args_hidden = 256
 
     num_cpus_per_client = 1
+    global_context = create_context()
     # specifying a target GPU
     if args.gpu:
         device = torch.device("cuda")
@@ -92,7 +94,7 @@ def FedGCN_Train(args: attridict, data: tuple) -> None:
             global_node_num=len(features),
             class_num=class_num,
             device=device,
-            args=args,
+            args=args
         )
         for i in range(args.n_trainer)
     ]
@@ -133,16 +135,22 @@ def FedGCN_Train(args: attridict, data: tuple) -> None:
     # ********                                                 ********  
     
     global_feature_average = torch.zeros_like(features)
-    num_averages_received = 0
+    num_contributions = 0
+    server_context = create_context() 
+    encrypted_sum = None
+    #local_neighbor_feature_averages = ts.ckks_vector_from(server_context, local_neighbor_feature_averages)
 
     while True:
         ready, left = ray.wait(local_neighbor_feature_averages, num_returns=1, timeout=None)
         if ready:
             for t in ready:
-                feature_average = ray.get(t)
-                # compute average
-                global_feature_average = (global_feature_average * num_averages_received + feature_average) / (num_averages_received + 1)
-                num_averages_received += 1
+                serialized_feature_sum = ray.get(t)
+                encrypted_feature_sum = ts.ckks_vector_from(server_context, serialized_feature_sum)
+                if encrypted_sum is None:
+                    encrypted_sum = encrypted_feature_sum
+                else:
+                    encrypted_sum += encrypted_feature_sum  # Homomorphic addition
+                num_contributions += 1
         local_neighbor_feature_averages = left
         if not local_neighbor_feature_averages:
             break
@@ -152,10 +160,11 @@ def FedGCN_Train(args: attridict, data: tuple) -> None:
     #     assert (
     #         global_feature_sum != get_1hop_feature_sum(features, edge_index)
     #     ).sum() == 0
-   
+    serialized_encrypted_sum = encrypted_sum.serialize()
     for i in range(args.n_trainer):
+        #serialized_encrypted_sum = encrypted_sum.serialize()
         server.trainers[i].load_feature_aggregation.remote(
-            global_feature_average[communicate_node_indexes[i]]
+            serialized_encrypted_sum, num_contributions
         )
     print("clients received feature aggregation from server")
     [trainer.relabel_adj.remote() for trainer in server.trainers]

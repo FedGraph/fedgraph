@@ -5,10 +5,11 @@ import numpy as np
 import ray
 import torch
 import torch_geometric
+import tenseal as ts
 
 from fedgraph.gnn_models import GCN, GIN, AggreGCN, GCN_arxiv, SAGE_products
 from fedgraph.train_func import test, train
-from fedgraph.utils import get_1hop_feature_sum, get_1hop_feature_avg
+from fedgraph.utils import get_1hop_feature_sum, get_1hop_feature_avg, create_context
 
 
 class Trainer_General:
@@ -64,7 +65,7 @@ class Trainer_General:
         global_node_num: int,
         class_num: int,
         device: torch.device,
-        args: Any,
+        args: Any
     ):
         # from gnn_models import GCN_Graph_Classification
         torch.manual_seed(rank)
@@ -133,6 +134,8 @@ class Trainer_General:
         self.local_step = args.local_step
         self.global_node_num = global_node_num
         self.class_num = class_num
+        self.feature_aggregation = None 
+        self.context = self.create_context()
 
     @torch.no_grad()
     def update_params(self, params: tuple, current_global_epoch: int) -> None:
@@ -155,6 +158,32 @@ class Trainer_General:
             mp.data = p
         self.model.to(self.device)
 
+    def create_context(self):
+        """
+        Creates a TenSEAL context for CKKS encryption
+
+        Returns
+        -------
+        context : ts.context
+            The TenSEAL context with encryption parameters and keys.
+        """
+        poly_modulus_degree = 16384 
+        coeff_mod_bit_sizes = [60, 40, 40, 60] 
+
+        # create the context
+        context = ts.context(
+            ts.SCHEME_TYPE.CKKS,
+            poly_modulus_degree=poly_modulus_degree,
+            coeff_mod_bit_sizes=coeff_mod_bit_sizes
+        )
+
+        #generate the secret/public keys
+        context.generate_galois_keys()
+        #context.generate_relin_keys()
+
+        context.global_scale = 2**40
+
+        return context
     def get_local_feature_sum(self) -> torch.Tensor:
         """
         Computes the sum of features of all 1-hop neighbors for each node.
@@ -176,7 +205,7 @@ class Trainer_General:
         )
         return one_hop_neighbor_feature_sum
     
-    def get_local_feature_avg(self) -> torch.Tensor:
+    def get_local_feature_avg(self) -> bytes:
         """
         Computes the average of features of all 1-hop neighbors for each node.
 
@@ -189,29 +218,46 @@ class Trainer_General:
         new_feature_for_client = torch.zeros(
             self.global_node_num, self.features.shape[1])
         new_feature_for_client[self.local_node_index] = self.features
+        print(f"new_feature_for_client shape: {new_feature_for_client.shape}")
 
         one_hop_neighbor_feature_avg = get_1hop_feature_avg(
             new_feature_for_client, self.adj
         )
-        return one_hop_neighbor_feature_avg
+        print(f"one_hop_neighbor_feature_avg shape: {one_hop_neighbor_feature_avg.shape}")
+        #one_hop_neighbor_feature_avg = one_hop_neighbor_feature_avg.view(-1).tolist()
+        #client_context = create_context()
+        one_hop_neighbor_feature_avg = one_hop_neighbor_feature_avg.flatten().tolist()
+        one_hop_neighbor_feature_avg_enc = ts.ckks_vector(self.context, one_hop_neighbor_feature_avg)
+        
+        serialized_encrypted_avg = one_hop_neighbor_feature_avg_enc.serialize()
+        print(f"Serialized encrypted avg size: {len(serialized_encrypted_avg)} bytes")
+
+        return serialized_encrypted_avg
     
-    def decrypt_and_use_feature_average(self, encrypted_feature_average):
-       
-        decrypted_feature_avg = encrypted_feature_average.decrypt(self.private_key)
-        decrypted_feature_average = torch.tensor(decrypted_feature_avg)
-        return decrypted_feature_average
-    
-    def load_feature_aggregation(self, aggregated_data: torch.Tensor) -> None:
+    def load_feature_aggregation(self, serialized_encrypted_aggregated_data: bytes, num_contributions: int) -> None:
         """
         Loads the aggregated features into the trainer.
 
         Parameters
         ----------
-        feature_aggregation : torch.Tensor
-            The aggregated features to be loaded.
+        feature_aggregation : bytes
+            The serialized aggregated features to be loaded.
         """
-        #decrypted_data = self.decrypt_and_use_feature_average(encrypted_aggregated_data)
-        self.feature_aggregation = aggregated_data
+        encrypted_aggregated_data = ts.ckks_vector_from(self.context, serialized_encrypted_aggregated_data)
+        decrypted_feature_avg = encrypted_aggregated_data.decrypt()
+        original_shape = (self.global_node_num, self.features.shape[1])
+        average_feature = [val / num_contributions for val in decrypted_feature_avg]
+        
+        # Calculate the average feature per contribution before reshaping
+       
+        # Reshape the flattened list back to the original tensor shape
+        decrypted_feature_average = torch.tensor(average_feature).view(original_shape).to(self.device)
+
+        print(f"Decrypted and averaged feature length: {len(average_feature)}")
+        print(f"Sample of averaged features: {average_feature[:10]}")
+        #decrypted_feature_average = torch.tensor(average_feature).to(self.device)
+        print(f"Shape of loaded tensor: {decrypted_feature_average.shape}")
+        self.feature_aggregation = decrypted_feature_average
 
     def relabel_adj(self) -> None:
         """

@@ -368,35 +368,42 @@ def get_in_comm_indexes(
         edge_indexes_clients,
     )
 
+def encrypt_data(context, data):
+    # encrypts data using TenSEAL
+    encrypted_data = ts.ckks_vector(context, data.tolist())
+    return encrypted_data
+
+def decrypt_data(context, encrypted_data):
+    # decrypts data using TenSEAL 
+    decrypted_data_list = encrypted_data.decrypt()
+    decrypted_data = torch.tensor(decrypted_data_list)
+    return decrypted_data
 def create_context():
-    """
-    Creates a TenSEAL context for CKKS encryption.
+        """
+        Creates a TenSEAL context for CKKS encryption
 
-    Returns
-    -------
-    context : ts.context
-        The TenSEAL context with encryption parameters and keys.
-    """
-    # Define the polynomial modulus degree and the coefficient modulus size
-    poly_modulus_degree = 8192  # This is an example value; adjust based on your security/performance needs
-    coeff_mod_bit_sizes = [60, 40, 40, 60]  # Example bit sizes for the coefficient modulus
+        Returns
+        -------
+        context : ts.context
+            The TenSEAL context with encryption parameters and keys.
+        """
+        poly_modulus_degree = 16384 
+        coeff_mod_bit_sizes = [60, 40, 40, 60] 
 
-    # Create the context
-    context = ts.context(
-        ts.SCHEME_TYPE.CKKS,
-        poly_modulus_degree=poly_modulus_degree,
-        coeff_mod_bit_sizes=coeff_mod_bit_sizes
-    )
+        # create the context
+        context = ts.context(
+            ts.SCHEME_TYPE.CKKS,
+            poly_modulus_degree=poly_modulus_degree,
+            coeff_mod_bit_sizes=coeff_mod_bit_sizes
+        )
 
-    # Generate the secret/public keys
-    context.generate_galois_keys()
-    context.generate_relin_keys()
+        # Generate the secret/public keys
+        context.generate_galois_keys()
+        #context.generate_relin_keys()
 
-    # Optionally, set the global scale
-    # It's important to set the scale manually for CKKS to avoid precision issues
-    context.global_scale = 2**40
+        context.global_scale = 2**40
 
-    return context
+        return context
 
 def get_1hop_feature_sum(
     node_features: torch.Tensor, edge_index: torch.Tensor, include_self: bool = True
@@ -479,10 +486,21 @@ def get_1hop_feature_avg(node_features: torch.Tensor, edge_index: torch.Tensor) 
     avg_features = torch.div(avg_features.transpose(0, 1), counts).transpose(0, 1)
     
     # encryption
-    #context = create_context()
-    #encrypted_avg_features = [ts.ckks_vector(context, node_features[i].tolist()) for i in range(num_nodes)]
+    
 
     return avg_features
+
+def deserialize_feature_average(serialized_feature_average, context):
+    # Deserialize the bytes back to a TenSEAL CKKSVector
+    ckks_vector = ts.ckks_vector_from(context, serialized_feature_average)
+    
+    # Decrypt the CKKSVector to a list of floats
+    decrypted_list = ckks_vector.decrypt()
+    
+    # Convert the decrypted list to a PyTorch tensor
+    feature_average_tensor = torch.tensor(decrypted_list)
+    
+    return feature_average_tensor
 
 def increment_dir(dir: str, comment: str = "") -> str:
     """
