@@ -103,8 +103,8 @@ def get_max_degree(graphs: Any) -> int:
 
     Parameters
     ----------
-    graphs: list
-        List of graphs
+    graphs: Any
+        The object of graphs
 
     Returns
     -------
@@ -122,12 +122,12 @@ def get_max_degree(graphs: Any) -> int:
 
 def convert_to_node_attributes(graphs: Any) -> list:
     """
-    Use only the node attributes of the graphs.
+    Use only the node attributes of the graphs. This function will treat the graphs as callable objects.
 
     Parameters
     ----------
-    graphs: list
-        List of graphs
+    graphs: Any
+        The object of of graphs
 
     Returns
     -------

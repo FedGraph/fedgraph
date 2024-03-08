@@ -249,7 +249,7 @@ def GC_Train(
 
     print("\nDone setting up devices.")
 
-    ################ choose the model to run ################
+    ################ choose the algorithm to run ################
     print(f"Running {args.model} ...")
     if args.model == "SelfTrain":
         output = run_GC_selftrain(
