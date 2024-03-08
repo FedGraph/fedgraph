@@ -18,6 +18,7 @@ import yaml
 sys.path.append("../fedgraph")
 from fedgraph.data_process_gc import load_single_dataset
 from fedgraph.federated_methods import GC_Train
+from fedgraph.gnn_models import GIN, GIN_server
 
 #######################################################################
 # Choose the model and dataset
@@ -57,6 +58,17 @@ data, _ = load_single_dataset(
     seed=seed_split_data,
     overlap=config["overlap"],
 )
+
+#######################################################################
+# Designate the base model for the trainer and server
+# ------------
+# The base model for the trainer and server is `GIN` and `GIN_server` by default.
+# They can also be specified by the user, but the user needs to make sure the customized model should be compatible with the default trainer and server.
+# That is, `model_trainer` and `model_server` must have all the required methods and attributes as the default `GIN` and `GIN_server`.
+# For the detailed expected format of the model, please refer to the `fedgraph/gnn_models.py`
+model_trainer = GIN
+model_server = GIN_server
+
 #######################################################################
 # Run the designated method
 # ------------
@@ -68,4 +80,6 @@ assert model in [
     "GCFL+",
     "GCFL+dWs",
 ], f"Unknown model: {model}"
-GC_Train(config=config, data=data)
+GC_Train(
+    config=config, data=data, model_server=model_server, model_trainer=model_trainer
+)

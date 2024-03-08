@@ -12,6 +12,7 @@ import ray
 import torch
 
 from fedgraph.data_process_gc import load_single_dataset
+from fedgraph.gnn_models import GIN, GIN_server
 from fedgraph.server_class import Server
 from fedgraph.train_func import gc_avg_accuracy
 from fedgraph.trainer_class import Trainer_General
@@ -172,7 +173,9 @@ def FedGCN_Train(args: attridict, data: tuple) -> None:
     ray.shutdown()
 
 
-def GC_Train(config: dict, data: Any) -> None:
+def GC_Train(
+    config: dict, data: Any, model_server: Any = GIN_server, model_trainer: Any = GIN
+) -> None:
     """
     Entrance of the training process for graph classification.
 
@@ -182,6 +185,10 @@ def GC_Train(config: dict, data: Any) -> None:
         Configuration.
     data: Any
         The splitted data.
+    model_server: Any
+        The model which the server is built on.
+    model_trainer: Any
+        The model which the trainer is built on.
     """
     # transfer the config to argparse
     parser = argparse.ArgumentParser()
@@ -234,9 +241,9 @@ def GC_Train(config: dict, data: Any) -> None:
     #     df_stats.to_csv(outdir_stats)
     #     print(f"The statistics of the data are written to {outdir_stats}")
 
-    #################### setup devices ####################
-    init_clients, _ = setup_clients(data, args)
-    init_server = setup_server(args)
+    #################### setup server and clients ####################
+    init_clients, _ = setup_clients(data, model_trainer, args)
+    init_server = setup_server(model_server, args)
     clients = copy.deepcopy(init_clients)
     server = copy.deepcopy(init_server)
 

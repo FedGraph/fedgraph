@@ -30,6 +30,7 @@ from fedgraph.federated_methods import (
     run_GC_gcfl_plus_dWs,
     run_GC_selftrain,
 )
+from fedgraph.gnn_models import GIN, GIN_server
 from fedgraph.utils_gc import *
 
 #######################################################################
@@ -141,12 +142,17 @@ if save_files:
 # Setup server and clients (trainers)
 # ------------
 # Here we set up the server and clients (trainers) for the experiment.
-# The server is responsible for federated aggregation (e.g., FedAvg) without
-# knowing the local trainer data.
+# The server is responsible for federated aggregation (e.g., FedAvg) without knowing the local trainer data.
 # The clients (trainers) are responsible for local training and testing.
-
-init_clients, _ = setup_clients(splited_data, args)
-init_server = setup_server(args)
+# Before setting up those, the user has to specify the base models for the trainer and server separately, which are `GIN` and `GIN_server` by default.
+# They user can also use other models, but the customized model should be compatible with the default trainer and server.
+# That is, `model_trainer` and `model_server` must have all the required methods and attributes as the default `GIN` and `GIN_server`.
+# For the detailed expected format of the model, please refer to the `fedgraph/gnn_models.py`
+    
+model_trainer = GIN
+model_server = GIN_server
+init_clients, _ = setup_clients(splited_data, model_trainer, args)
+init_server = setup_server(model_server, args)
 clients = copy.deepcopy(init_clients)
 server = copy.deepcopy(init_server)
 

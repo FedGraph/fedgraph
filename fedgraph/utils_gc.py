@@ -12,14 +12,18 @@ from fedgraph.server_class import Server_GC
 from fedgraph.trainer_class import Trainer_GC
 
 
-def setup_clients(splited_data: dict, args: argparse.Namespace) -> tuple:
+def setup_clients(
+    splited_data: dict, base_model: Any, args: argparse.Namespace
+) -> tuple:
     """
     Setup clients for graph classification.
 
     Parameters
     ----------
-    splitedData: dict
+    splited_data: dict
         The data for each client.
+    base_model: Any
+        The base model for the trainer. The base model shown in the example is GIN.
     args: argparse.ArgumentParser
         The input arguments.
 
@@ -40,7 +44,7 @@ def setup_clients(splited_data: dict, args: argparse.Namespace) -> tuple:
         ]
 
         """build GIN model"""
-        cmodel_gc = GIN(
+        cmodel_gc = base_model(
             nfeat=num_node_features,
             nhid=args.hidden,
             nclass=num_graph_labels,
@@ -71,12 +75,14 @@ def setup_clients(splited_data: dict, args: argparse.Namespace) -> tuple:
     return clients, idx_clients
 
 
-def setup_server(args: argparse.Namespace) -> Server_GC:
+def setup_server(base_model: Any, args: argparse.Namespace) -> Server_GC:
     """
     Setup server.
 
     Parameters
     ----------
+    base_model: Any
+        The base model for the server. The base model shown in the example is GIN_server.
     args: argparse.ArgumentParser
         The input arguments.
 
@@ -86,7 +92,7 @@ def setup_server(args: argparse.Namespace) -> Server_GC:
         The server.
     """
 
-    smodel = GIN_server(nlayer=args.nlayer, nhid=args.hidden)
+    smodel = base_model(nlayer=args.nlayer, nhid=args.hidden)
     server = Server_GC(smodel, args.device)
     return server
 
