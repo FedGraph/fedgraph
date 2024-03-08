@@ -21,16 +21,18 @@ from fedgraph.federated_methods import GC_Train
 from fedgraph.gnn_models import GIN, GIN_server
 
 #######################################################################
-# Choose the model and dataset
+# Choose the algorithm and dataset
 # ------------
-model = "FedAvg"  # Select: "SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs
+algorithm = (
+    "FedAvg"  # Select: "SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs
+)
 dataset = "PROTEINS"
 save_files = False  # if True, save the statistics and prediction results into files
 
 #######################################################################
 # Load configuration
 # ------------
-config_file = f"docs/examples/configs/config_gc_{model}.yaml"
+config_file = f"docs/examples/configs/config_gc_{algorithm}.yaml"
 with open(config_file, "r") as file:
     config = yaml.safe_load(file)
 
@@ -72,14 +74,14 @@ model_server = GIN_server
 #######################################################################
 # Run the designated method
 # ------------
-assert model in [
+assert algorithm in [
     "SelfTrain",
     "FedAvg",
     "FedProx",
     "GCFL",
     "GCFL+",
     "GCFL+dWs",
-], f"Unknown model: {model}"
+], f"Unknown algorithm: {algorithm}"
 GC_Train(
     config=config, data=data, model_server=model_server, model_trainer=model_trainer
 )
