@@ -17,8 +17,8 @@ sys.path.append("../fedgraph")
 import attridict
 import yaml
 
-from fedgraph.federated_methods import FedGCN_Train
-from fedgraph.utils import federated_data_loader
+from src.federated_methods import FedGCN_Train
+from src.utils import federated_data_loader
 
 #######################################################################
 # Load configuration and federated data

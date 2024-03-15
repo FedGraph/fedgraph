@@ -7,9 +7,9 @@ import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 from torch_geometric.utils import degree, to_networkx
 
-from fedgraph.gnn_models import GIN, GIN_server
-from fedgraph.server_class import Server_GC
-from fedgraph.trainer_class import Trainer_GC
+from src.gnn_models import GIN, GIN_server
+from src.server_class import Server_GC
+from src.trainer_class import Trainer_GC
 
 
 def setup_clients(

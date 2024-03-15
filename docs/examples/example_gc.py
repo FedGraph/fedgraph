@@ -21,8 +21,8 @@ import torch
 import yaml
 
 sys.path.append("../fedgraph")
-from fedgraph.data_process_gc import *
-from fedgraph.federated_methods import (
+from src.data_process_gc import *
+from src.federated_methods import (
     run_GC_fedavg,
     run_GC_fedprox,
     run_GC_gcfl,
@@ -30,8 +30,8 @@ from fedgraph.federated_methods import (
     run_GC_gcfl_plus_dWs,
     run_GC_selftrain,
 )
-from fedgraph.gnn_models import GIN, GIN_server
-from fedgraph.utils_gc import *
+from src.gnn_models import GIN, GIN_server
+from src.utils_gc import *
 
 #######################################################################
 # Load configuration

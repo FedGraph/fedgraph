@@ -11,13 +11,13 @@ import pandas as pd
 import ray
 import torch
 
-from fedgraph.data_process_gc import load_single_dataset
-from fedgraph.gnn_models import GIN, GIN_server
-from fedgraph.server_class import Server
-from fedgraph.train_func import gc_avg_accuracy
-from fedgraph.trainer_class import Trainer_General
-from fedgraph.utils import get_1hop_feature_sum
-from fedgraph.utils_gc import setup_clients, setup_server
+from src.data_process_gc import load_single_dataset
+from src.gnn_models import GIN, GIN_server
+from src.server_class import Server
+from src.train_func import gc_avg_accuracy
+from src.trainer_class import Trainer_General
+from src.utils import get_1hop_feature_sum
+from src.utils_gc import setup_clients, setup_server
 
 
 def FedGCN_Train(args: attridict, data: tuple) -> None:

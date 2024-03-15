@@ -7,8 +7,8 @@ import ray
 import torch
 from dtaidistance import dtw
 
-from fedgraph.gnn_models import GCN, AggreGCN, GCN_arxiv, SAGE_products
-from fedgraph.trainer_class import Trainer_General
+from src.gnn_models import GCN, AggreGCN, GCN_arxiv, SAGE_products
+from src.trainer_class import Trainer_General
 
 
 class Server:

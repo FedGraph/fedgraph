@@ -6,9 +6,9 @@ import ray
 import torch
 import torch_geometric
 
-from fedgraph.gnn_models import GCN, GIN, AggreGCN, GCN_arxiv, SAGE_products
-from fedgraph.train_func import test, train
-from fedgraph.utils import get_1hop_feature_sum
+from src.gnn_models import GCN, GIN, AggreGCN, GCN_arxiv, SAGE_products
+from src.train_func import test, train
+from src.utils import get_1hop_feature_sum
 
 
 class Trainer_General:
