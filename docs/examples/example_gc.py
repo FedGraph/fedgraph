@@ -30,7 +30,7 @@ from src.federated_methods import (
     run_GC_gcfl_plus_dWs,
     run_GC_selftrain,
 )
-from src.gnn_models import GIN, GIN_server
+from src.gnn_models import GIN
 from src.utils_gc import *
 
 #######################################################################
@@ -149,7 +149,7 @@ if save_files:
 # That is, `model_trainer` and `model_server` must have all the required methods and attributes as the default `GIN` and `GIN_server`.
 # For the detailed expected format of the model, please refer to the `fedgraph/gnn_models.py`
 model_trainer = GIN
-model_server = GIN_server
+model_server = GIN
 init_clients, _ = setup_clients(splited_data, model_trainer, args)
 init_server = setup_server(model_server, args)
 clients = copy.deepcopy(init_clients)

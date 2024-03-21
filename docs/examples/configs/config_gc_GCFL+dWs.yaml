@@ -14,7 +14,7 @@ seed: 10
 datapath: './data'
 outbase: './outputs'
 convert_x: False
-num_clients: 10
+num_trainers: 10
 overlap: False
 standardize: False
 seq_length: 5

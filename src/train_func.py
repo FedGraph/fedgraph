@@ -30,26 +30,26 @@ def accuracy(output: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
     return correct / len(labels)
 
 
-def gc_avg_accuracy(frame: pd.DataFrame, clients: list) -> float:
+def gc_avg_accuracy(frame: pd.DataFrame, trainers: list) -> float:
     """
-    This function calculates the weighted average accuracy of the clients in the frame.
+    This function calculates the weighted average accuracy of the trainers in the frame.
 
     Parameters
     ----------
     frame: pd.DataFrame
-        The frame containing the accuracies of the clients
-    clients: list
-        List of clients
+        The frame containing the accuracies of the trainers
+    trainers: list
+        List of trainers
 
     Returns
     -------
     (float): float
-        The average accuracy of the clients in the frame
+        The average accuracy of the trainers in the frame
     """
 
     # weighted average accuracy
     accs = frame["test_acc"]
-    weights = [c.train_size for c in clients]
+    weights = [c.train_size for c in trainers]
     return np.average(accs, weights=weights)
 
 

@@ -20,7 +20,7 @@ class Trainer_General:
     Parameters
     ----------
     rank : int
-        Unique identifier for the training instance (typically representing a client in federated learning).
+        Unique identifier for the training instance (typically representing a trainer in federated learning).
     local_node_index : torch.Tensor
         Indices of nodes local to this trainer.
     communicate_node_index : torch.Tensor
@@ -104,7 +104,7 @@ class Trainer_General:
                     NumLayers=args.num_layers,
                 ).to(device)
 
-        self.rank = rank  # rank = client ID
+        self.rank = rank  # rank = trainer ID
 
         self.device = device
 
@@ -166,13 +166,13 @@ class Trainer_General:
         """
 
         # create a large matrix with known local node features
-        new_feature_for_client = torch.zeros(
+        new_feature_for_trainer = torch.zeros(
             self.global_node_num, self.features.shape[1]
         )
-        new_feature_for_client[self.local_node_index] = self.features
+        new_feature_for_trainer[self.local_node_index] = self.features
         # sum of features of all 1-hop nodes for each node
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
-            new_feature_for_client, self.adj
+            new_feature_for_trainer, self.adj
         )
         return one_hop_neighbor_feature_sum
 
@@ -273,12 +273,12 @@ class Trainer_General:
 
     def get_rank(self) -> int:
         """
-        Returns the rank (client ID) of the trainer.
+        Returns the rank (trainer ID) of the trainer.
 
         Returns
         -------
         (int) : int
-            The rank (client ID) of this trainer instance.
+            The rank (trainer ID) of this trainer instance.
         """
         return self.rank
 
@@ -292,10 +292,10 @@ class Trainer_GC:
     ----------
     model: object
         The model to be trained, which is based on the GIN model.
-    client_id: int
-        The ID of the client.
-    client_name: str
-        The name of the client.
+    trainer_id: int
+        The ID of the trainer.
+    trainer_name: str
+        The name of the trainer.
     train_size: int
         The size of the training dataset.
     dataLoader: dict
@@ -310,9 +310,9 @@ class Trainer_GC:
     model: object
         The model to be trained, which is based on the GIN model.
     id: int
-        The ID of the client.
+        The ID of the trainer.
     name: str
-        The name of the client.
+        The name of the trainer.
     train_size: int
         The size of the training dataset.
     dataloader: dict
@@ -346,16 +346,16 @@ class Trainer_GC:
     def __init__(
         self,
         model: Any,
-        client_id: int,
-        client_name: str,
+        trainer_id: int,
+        trainer_name: str,
         train_size: int,
         dataloader: dict,
         optimizer: object,
         args: Any,
     ) -> None:
         self.model = model.to(args.device)
-        self.id = client_id
-        self.name = client_name
+        self.id = trainer_id
+        self.name = trainer_name
         self.train_size = train_size
         self.dataloader = dataloader
         self.optimizer = optimizer
@@ -766,10 +766,10 @@ class Trainer_GC:
 
     def __flatten(self, w: dict) -> torch.tensor:
         """
-        Flatten the gradients of a client into a 1D tensor.
+        Flatten the gradients of a trainer into a 1D tensor.
 
         Args:
-        - w: dict, the gradients of a client
+        - w: dict, the gradients of a trainer
 
         Returns:
         - torch.tensor: the flattened gradients

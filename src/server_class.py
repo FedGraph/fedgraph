@@ -14,7 +14,7 @@ from src.trainer_class import Trainer_General
 class Server:
     """
     This is a server class for federated learning which is responsible for aggregating model parameters
-    from different clients, updating the central model, and then broadcasting the updated model parameters
+    from different trainers, updating the central model, and then broadcasting the updated model parameters
     back to the trainers.
 
     Parameters
@@ -145,7 +145,7 @@ class Server:
 
 class Server_GC:
     """
-    This is a server class for federated graph classification which is responsible for aggregating model parameters from different clients,
+    This is a server class for federated graph classification which is responsible for aggregating model parameters from different trainers,
     updating the central model, and then broadcasting the updated model parameters back to the trainers.
 
     Parameters
@@ -162,7 +162,7 @@ class Server_GC:
     W: dict
         Dictionary containing the model parameters.
     model_cache: list
-        List of tuples, where each tuple contains the model parameters and the accuracies of the clients.
+        List of tuples, where each tuple contains the model parameters and the accuracies of the trainers.
     """
 
     def __init__(self, model: torch.nn.Module, device: torch.device) -> None:
@@ -171,80 +171,80 @@ class Server_GC:
         self.model_cache: Any = []
 
     ########### Public functions ###########
-    def random_sample_clients(self, all_clients: list, frac: float) -> list:
+    def random_sample_trainers(self, all_trainers: list, frac: float) -> list:
         """
-        Randomly sample a fraction of clients.
+        Randomly sample a fraction of trainers.
 
         Parameters
         ----------
-        all_clients: list
+        all_trainers: list
             list of Client objects
         frac: float
-            fraction of clients to be sampled
+            fraction of trainers to be sampled
 
         Returns
         -------
-        (sampled_clients): list
+        (sampled_trainers): list
             list of Client objects
         """
-        return random.sample(all_clients, int(len(all_clients) * frac))
+        return random.sample(all_trainers, int(len(all_trainers) * frac))
 
-    def aggregate_weights(self, selected_clients: list) -> None:
+    def aggregate_weights(self, selected_trainers: list) -> None:
         """
-        Perform weighted aggregation among selected clients. The weights are the number of training samples.
+        Perform weighted aggregation among selected trainers. The weights are the number of training samples.
 
         Parameters
         ----------
-        selected_clients: list
+        selected_trainers: list
             list of Client objects
         """
         total_size = 0
-        for client in selected_clients:
-            total_size += client.train_size
+        for trainer in selected_trainers:
+            total_size += trainer.train_size
 
         for k in self.W.keys():
             # pass train_size, and weighted aggregate
             accumulate = torch.stack(
                 [
-                    torch.mul(client.W[k].data, client.train_size)
-                    for client in selected_clients
+                    torch.mul(trainer.W[k].data, trainer.train_size)
+                    for trainer in selected_trainers
                 ]
             )
             self.W[k].data = torch.div(torch.sum(accumulate, dim=0), total_size).clone()
 
-    def compute_pairwise_similarities(self, clients: list) -> np.ndarray:
+    def compute_pairwise_similarities(self, trainers: list) -> np.ndarray:
         """
-        This function computes the pairwise cosine similarities between the gradients of the clients.
+        This function computes the pairwise cosine similarities between the gradients of the trainers.
 
         Parameters
         ----------
-        clients: list
+        trainers: list
             list of Client objects
 
         Returns
         -------
         np.ndarray
-            2D np.ndarray of shape len(clients) * len(clients), which contains the pairwise cosine similarities
+            2D np.ndarray of shape len(trainers) * len(trainers), which contains the pairwise cosine similarities
         """
-        client_dWs = []
-        for client in clients:
+        trainer_dWs = []
+        for trainer in trainers:
             dW = {}
             for k in self.W.keys():
-                dW[k] = client.dW[k]
-            client_dWs.append(dW)
+                dW[k] = trainer.dW[k]
+            trainer_dWs.append(dW)
 
-        return self.__pairwise_angles(client_dWs)
+        return self.__pairwise_angles(trainer_dWs)
 
     def compute_pairwise_distances(
         self, seqs: list, standardize: bool = False
     ) -> np.ndarray:
         """
-        This function computes the pairwise distances between the gradient norm sequences of the clients.
+        This function computes the pairwise distances between the gradient norm sequences of the trainers.
 
         Parameters
         ----------
         seqs: list
-            list of 1D np.ndarray, where each 1D np.ndarray contains the gradient norm sequence of a client
+            list of 1D np.ndarray, where each 1D np.ndarray contains the gradient norm sequence of a trainer
         standardize: bool
             whether to standardize the distance matrix
 
@@ -269,14 +269,14 @@ class Server_GC:
         Parameters
         ----------
         similarity: np.ndarray
-            2D np.ndarray of shape len(clients) * len(clients), which contains the pairwise cosine similarities
+            2D np.ndarray of shape len(trainers) * len(trainers), which contains the pairwise cosine similarities
         idc: list
-            list of client indices
+            list of trainer indices
 
         Returns
         -------
         (c1, c2): tuple
-            tuple of two lists, where each list contains the indices of the clients in a cluster
+            tuple of two lists, where each list contains the indices of the trainers in a cluster
         """
         g = nx.Graph()
         for i in range(len(similarity)):
@@ -289,28 +289,28 @@ class Server_GC:
         c2 = np.array([idc[x] for x in partition[1]])
         return c1, c2
 
-    def aggregate_clusterwise(self, client_clusters: list) -> None:
+    def aggregate_clusterwise(self, trainer_clusters: list) -> None:
         """
-        Perform weighted aggregation among the clients in each cluster.
+        Perform weighted aggregation among the trainers in each cluster.
         The weights are the number of training samples.
 
         Parameters
         ----------
-        client_clusters: list
+        trainer_clusters: list
             list of lists, where each list contains the Client objects in a cluster
         """
-        for cluster in client_clusters:  # cluster is a list of Client objects
+        for cluster in trainer_clusters:  # cluster is a list of Client objects
             targs, sours = [], []
             total_size = 0
-            for client in cluster:
+            for trainer in cluster:
                 W = {}
                 dW = {}
                 for k in self.W.keys():
-                    W[k] = client.W[k]
-                    dW[k] = client.dW[k]
+                    W[k] = trainer.W[k]
+                    dW[k] = trainer.dW[k]
                 targs.append(W)
-                sours.append((dW, client.train_size))
-                total_size += client.train_size
+                sours.append((dW, trainer.train_size))
+                total_size += trainer.train_size
             # pass train_size, and weighted aggregate
             self.__reduce_add_average(
                 targets=targs, sources=sours, total_size=total_size
@@ -318,7 +318,7 @@ class Server_GC:
 
     def compute_max_update_norm(self, cluster: list) -> float:
         """
-        Compute the maximum update norm (i.e., dW) among the clients in the cluster.
+        Compute the maximum update norm (i.e., dW) among the trainers in the cluster.
         This function is used to determine whether the cluster is ready to be split.
 
         Parameters
@@ -327,10 +327,10 @@ class Server_GC:
             list of Client objects
         """
         max_dW = -np.inf
-        for client in cluster:
+        for trainer in cluster:
             dW = {}
             for k in self.W.keys():
-                dW[k] = client.dW[k]
+                dW[k] = trainer.dW[k]
             curr_dW = torch.norm(self.__flatten(dW)).item()
             max_dW = max(max_dW, curr_dW)
 
@@ -338,7 +338,7 @@ class Server_GC:
 
     def compute_mean_update_norm(self, cluster: list) -> float:
         """
-        Compute the mean update norm (i.e., dW) among the clients in the cluster.
+        Compute the mean update norm (i.e., dW) among the trainers in the cluster.
         This function is used to determine whether the cluster is ready to be split.
 
         Parameters
@@ -347,13 +347,13 @@ class Server_GC:
             list of Client objects
         """
         cluster_dWs = []
-        for client in cluster:
+        for trainer in cluster:
             dW = {}
             for k in self.W.keys():
-                # dW[k] = client.dW[k]
+                # dW[k] = trainer.dW[k]
                 dW[k] = (
-                    client.dW[k]
-                    * client.train_size
+                    trainer.dW[k]
+                    * trainer.train_size
                     / sum([c.train_size for c in cluster])
                 )
             cluster_dWs.append(self.__flatten(dW))
@@ -362,16 +362,16 @@ class Server_GC:
 
     def cache_model(self, idcs: list, params: dict, accuracies: list) -> None:
         """
-        Cache the model parameters and accuracies of the clients.
+        Cache the model parameters and accuracies of the trainers.
 
         Parameters
         ----------
         idcs: list
-            list of client indices
+            list of trainer indices
         params: dict
-            dictionary containing the model parameters of the clients
+            dictionary containing the model parameters of the trainers
         accuracies: list
-            list of accuracies of the clients
+            list of accuracies of the trainers
         """
         self.model_cache += [
             (
@@ -384,12 +384,12 @@ class Server_GC:
     ########### Private functions ###########
     def __pairwise_angles(self, sources: list) -> np.ndarray:
         """
-        Compute the pairwise cosine similarities between the gradients of the clients into a 2D matrix.
+        Compute the pairwise cosine similarities between the gradients of the trainers into a 2D matrix.
 
         Parameters
         ----------
         sources: list
-            list of dictionaries, where each dictionary contains the gradients of a client
+            list of dictionaries, where each dictionary contains the gradients of a trainer
 
         Returns
         -------
@@ -412,12 +412,12 @@ class Server_GC:
 
     def __flatten(self, source: dict) -> torch.Tensor:
         """
-        Flatten the gradients of a client into a 1D tensor.
+        Flatten the gradients of a trainer into a 1D tensor.
 
         Parameters
         ----------
         source: dict
-            dictionary containing the gradients of a client
+            dictionary containing the gradients of a trainer
 
         Returns
         -------
@@ -435,9 +435,9 @@ class Server_GC:
         Parameters
         ----------
         targets: list
-            list of dictionaries, where each dictionary contains the model parameters of a client
+            list of dictionaries, where each dictionary contains the model parameters of a trainer
         sources: list
-            list of tuples, where each tuple contains the gradients and the number of training samples of a client
+            list of tuples, where each tuple contains the gradients and the number of training samples of a trainer
         total_size: int
             total number of training samples
         """

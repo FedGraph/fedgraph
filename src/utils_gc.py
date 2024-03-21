@@ -7,21 +7,20 @@ import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 from torch_geometric.utils import degree, to_networkx
 
-from src.gnn_models import GIN, GIN_server
 from src.server_class import Server_GC
 from src.trainer_class import Trainer_GC
 
 
-def setup_clients(
+def setup_trainers(
     splited_data: dict, base_model: Any, args: argparse.Namespace
 ) -> tuple:
     """
-    Setup clients for graph classification.
+    Setup trainers for graph classification.
 
     Parameters
     ----------
     splited_data: dict
-        The data for each client.
+        The data for each trainer.
     base_model: Any
         The base model for the trainer. The base model shown in the example is GIN.
     args: argparse.ArgumentParser
@@ -29,18 +28,18 @@ def setup_clients(
 
     Returns
     -------
-    clients: list
-        List of clients.
-    idx_clients: dict
-        Dictionary of client indices.
+    trainers: list
+        List of trainers.
+    idx_trainers: dict
+        Dictionary of trainer indices.
     """
-    idx_clients = {}
-    clients = []
-    for idx, dataset_client_name in enumerate(splited_data.keys()):
-        idx_clients[idx] = dataset_client_name
+    idx_trainers = {}
+    trainers = []
+    for idx, dataset_trainer_name in enumerate(splited_data.keys()):
+        idx_trainers[idx] = dataset_trainer_name
         """acquire data"""
         dataloaders, num_node_features, num_graph_labels, train_size = splited_data[
-            dataset_client_name
+            dataset_trainer_name
         ]
 
         """build GIN model"""
@@ -59,20 +58,20 @@ def setup_clients(
             weight_decay=args.weight_decay,
         )
 
-        """build client"""
-        client = Trainer_GC(
+        """build trainer"""
+        trainer = Trainer_GC(
             model=cmodel_gc,  # GIN model
-            client_id=idx,  # client id
-            client_name=dataset_client_name,  # client name
+            trainer_id=idx,  # trainer id
+            trainer_name=dataset_trainer_name,  # trainer name
             train_size=train_size,  # training size
             dataloader=dataloaders,  # data loader
             optimizer=optimizer,  # optimizer
             args=args,
         )
 
-        clients.append(client)
+        trainers.append(trainer)
 
-    return clients, idx_clients
+    return trainers, idx_trainers
 
 
 def setup_server(base_model: Any, args: argparse.Namespace) -> Server_GC:

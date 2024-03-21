@@ -18,15 +18,15 @@ import yaml
 sys.path.append("../fedgraph")
 from src.data_process_gc import load_single_dataset
 from src.federated_methods import GC_Train
-from src.gnn_models import GIN, GIN_server
+from src.gnn_models import GIN
 
 #######################################################################
 # Choose the algorithm and dataset
 # ------------
 algorithm = (
-    "FedAvg"  # Select: "SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs
+    "GCFL+dWs"  # Select: "SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs
 )
-dataset = "PROTEINS"
+dataset = "IMDB-BINARY"
 save_files = False  # if True, save the statistics and prediction results into files
 
 #######################################################################
@@ -43,8 +43,8 @@ config["save_files"] = save_files
 # Load dataset
 # ------------
 # The user can also use their own dataset and dataloader.
-# The expected format of the dataset is a dictionary with the keys as the client names.
-# For each client, the value `data[client]` is a tuple with 4 elements: (dataloader, num_node_features, num_graph_labels, train_size)
+# The expected format of the dataset is a dictionary with the keys as the trainer names.
+# For each trainer, the value `data[trainer]` is a tuple with 4 elements: (dataloader, num_node_features, num_graph_labels, train_size)
 # - dataloader: a dictionary with keys "train", "val", "test" and values as the corresponding dataloaders
 # - num_node_features: number of node features
 # - num_graph_labels: number of graph labels
@@ -54,7 +54,7 @@ seed_split_data = 42
 data, _ = load_single_dataset(
     datapath=config["datapath"],
     dataset=config["data_group"],
-    num_client=config["num_clients"],
+    num_trainer=config["num_trainers"],
     batch_size=config["batch_size"],
     convert_x=config["convert_x"],
     seed=seed_split_data,
@@ -68,8 +68,7 @@ data, _ = load_single_dataset(
 # They can also be specified by the user, but the user needs to make sure the customized model should be compatible with the default trainer and server.
 # That is, `model_trainer` and `model_server` must have all the required methods and attributes as the default `GIN` and `GIN_server`.
 # For the detailed expected format of the model, please refer to the `fedgraph/gnn_models.py`
-model_trainer = GIN
-model_server = GIN_server
+base_model = GIN
 
 #######################################################################
 # Run the designated method
@@ -83,5 +82,5 @@ assert algorithm in [
     "GCFL+dWs",
 ], f"Unknown algorithm: {algorithm}"
 GC_Train(
-    config=config, data=data, model_server=model_server, model_trainer=model_trainer
+    config=config, data=data, base_model = base_model
 )
