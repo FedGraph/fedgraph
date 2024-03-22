@@ -144,14 +144,14 @@ if save_files:
 # Here we set up the server and trainers for the experiment.
 # The server is responsible for federated aggregation (e.g., FedAvg) without knowing the local trainer data.
 # The trainers are responsible for local training and testing.
-# Before setting up those, the user has to specify the base models for the trainer and server separately, which are `GIN` and `GIN_server` by default.
-# They user can also use other models, but the customized model should be compatible with the default trainer and server.
-# That is, `model_trainer` and `model_server` must have all the required methods and attributes as the default `GIN` and `GIN_server`.
+# Before setting up those, the user has to specify the base model for the federated learning that applies for both server and trainers.
+# The default model is `GIN` (Graph Isomorphism Network) for graph classification.
+# They user can also use other models, but the customized model should be compatible.
+# That is, `base_model` must have all the required methods and attributes as the default `GIN`
 # For the detailed expected format of the model, please refer to the `fedgraph/gnn_models.py`
-model_trainer = GIN
-model_server = GIN
-init_trainers, _ = setup_trainers(splited_data, model_trainer, args)
-init_server = setup_server(model_server, args)
+base_model = GIN
+init_trainers, _ = setup_trainers(splited_data, base_model, args)
+init_server = setup_server(base_model, args)
 trainers = copy.deepcopy(init_trainers)
 server = copy.deepcopy(init_server)
 
