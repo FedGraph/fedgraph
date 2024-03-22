@@ -17,7 +17,7 @@ from src.server_class import Server
 from src.train_func import gc_avg_accuracy
 from src.trainer_class import Trainer_General
 from src.utils import get_1hop_feature_sum
-from src.utils_gc import setup_trainers, setup_server
+from src.utils_gc import setup_server, setup_trainers
 
 
 def FedGCN_Train(args: attridict, data: tuple) -> None:
@@ -173,9 +173,7 @@ def FedGCN_Train(args: attridict, data: tuple) -> None:
     ray.shutdown()
 
 
-def GC_Train(
-    config: dict, data: Any, base_model: Any = GIN
-) -> None:
+def GC_Train(config: dict, data: Any, base_model: Any = GIN) -> None:
     """
     Entrance of the training process for graph classification.
 
@@ -185,10 +183,8 @@ def GC_Train(
         Configuration.
     data: Any
         The splitted data.
-    model_server: Any
-        The model which the server is built on.
-    model_trainer: Any
-        The model which the trainer is built on.
+    base_model: Any
+        The base model on which the federated learning is based. It applies for both the server and the trainers.
     """
     # transfer the config to argparse
     parser = argparse.ArgumentParser()
@@ -199,7 +195,6 @@ def GC_Train(
     print(args)
 
     #################### set seeds and devices ####################
-    seed_split_data = 42  # seed for splitting data must be fixed
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -262,7 +257,6 @@ def GC_Train(
             server=server,
             communication_rounds=args.num_rounds,
             local_epoch=args.local_epoch,
-            samp=None,
         )
 
     elif args.model == "FedProx":
@@ -272,7 +266,6 @@ def GC_Train(
             communication_rounds=args.num_rounds,
             local_epoch=args.local_epoch,
             mu=args.mu,
-            samp=None,
         )
 
     elif args.model == "GCFL":
@@ -328,9 +321,9 @@ def run_GC_selftrain(trainers: list, server: Any, local_epoch: int) -> dict:
     Parameters
     ----------
     trainers: list
-        List of trainers
-    server: Server
-        Server object
+        List of trainers, each of which is a Trainer_GC object
+    server: Any
+        Server_GC object
     local_epoch: int
         Number of local epochs
 
@@ -367,8 +360,7 @@ def run_GC_fedavg(
     server: Any,
     communication_rounds: int,
     local_epoch: int,
-    samp: object = None,
-    frac: float = 1.0,
+    sampling_frac: float = 1.0,
 ) -> pd.DataFrame:
     """
     Run the training and testing process of FedAvg algorithm.
@@ -378,15 +370,13 @@ def run_GC_fedavg(
     Parameters
     ----------
     trainers: list
-        List of trainers
-    server: object
-        Server object
+        List of trainers, each of which is a Trainer_GC object
+    server: Any
+        Server_GC object
     communication_rounds: int
         Number of communication rounds
     local_epoch: int
         Number of local epochs
-    samp: str
-        Sampling method
     frac: float
         Fraction of trainers to sample
 
@@ -398,9 +388,6 @@ def run_GC_fedavg(
 
     for trainer in trainers:
         trainer.update_params(server)  # download the global model
-
-    if samp is None:
-        frac = 1.0
 
     # Overall training architecture:
     # whole training => { communication rounds, communication rounds, ..., communication rounds }
@@ -414,8 +401,8 @@ def run_GC_fedavg(
         if c_round == 1:
             selected_trainers = trainers
         else:
-            selected_trainers = server.random_sample_trainers(trainers, frac)
-            # if samp = None, frac=1.0, then all trainers are selected
+            selected_trainers = server.random_sample_trainers(trainers, sampling_frac)
+            # if sampling_frac=1.0, then all trainers are selected
 
         for trainer in selected_trainers:  # only get weights of graphconv layers
             trainer.local_train(local_epoch=local_epoch)  # train the local model
@@ -447,8 +434,7 @@ def run_GC_fedprox(
     communication_rounds: int,
     local_epoch: int,
     mu: float,
-    samp: object = None,
-    frac: float = 1.0,
+    sampling_frac: float = 1.0,
 ) -> pd.DataFrame:
     """
     Run the training and testing process of FedProx algorithm.
@@ -458,17 +444,15 @@ def run_GC_fedprox(
     Parameters
     ----------
     trainers: list
-        List of trainers
-    server: object
-        Server object
+        List of trainers, each of which is a Trainer_GC object
+    server: Any
+        Server_GC object
     communication_rounds: int
         Number of communication rounds
     local_epoch: int
         Number of local epochs
     mu: float
         Proximal term
-    samp: str
-        Sampling method
     frac: float
         Fraction of trainers to sample
 
@@ -478,9 +462,6 @@ def run_GC_fedprox(
     for trainer in trainers:
         trainer.update_params(server)
 
-    if samp is None:
-        frac = 1.0
-
     for c_round in range(1, communication_rounds + 1):
         if (c_round) % 50 == 0:
             print(f"  > round {c_round}")
@@ -488,7 +469,7 @@ def run_GC_fedprox(
         if c_round == 1:
             selected_trainers = trainers
         else:
-            selected_trainers = server.random_sample_trainers(trainers, frac)
+            selected_trainers = server.random_sample_trainers(trainers, sampling_frac)
 
         for trainer in selected_trainers:
             trainer.local_train(
@@ -533,9 +514,9 @@ def run_GC_gcfl(
     Parameters
     ----------
     trainers: list
-        List of trainers
-    server: object
-        Server object
+        List of trainers, each of which is a Trainer_GC object
+    server: Any
+        Server_GC object
     communication_rounds: int
         Number of communication rounds
     local_epoch: int
@@ -648,9 +629,9 @@ def run_GC_gcfl_plus(
     Parameters
     ----------
     trainers: list
-        List of trainers
-    server: object
-        Server object
+        List of trainers, each of which is a Trainer_GC object
+    server: Any
+        Server_GC object
     communication_rounds: int
         Number of communication rounds
     local_epoch: int
@@ -760,9 +741,9 @@ def run_GC_gcfl_plus_dWs(
     Parameters
     ----------
     trainers: list
-        List of trainers
-    server: object
-        Server object
+        List of trainers, each of which is a Trainer_GC object
+    server: Any
+        Server_GC object
     communication_rounds: int
         Number of communication rounds
     local_epoch: int

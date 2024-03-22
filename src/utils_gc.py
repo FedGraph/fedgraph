@@ -28,10 +28,9 @@ def setup_trainers(
 
     Returns
     -------
-    trainers: list
-        List of trainers.
-    idx_trainers: dict
-        Dictionary of trainer indices.
+    (trainers, idx_trainers): tuple(list, dict)
+        trainers: List of trainers
+        idx_trainers: Dictionary with the index of the trainer as the key and the dataset name as the value
     """
     idx_trainers = {}
     trainers = []
@@ -83,12 +82,12 @@ def setup_server(base_model: Any, args: argparse.Namespace) -> Server_GC:
     base_model: Any
         The base model for the server. The base model shown in the example is GIN_server.
     args: argparse.ArgumentParser
-        The input arguments.
+        The input arguments
 
     Returns
     -------
-    server: ServerGC
-        The server.
+    server: Server_GC
+        The server object
     """
 
     smodel = base_model(nlayer=args.nlayer, nhid=args.hidden)

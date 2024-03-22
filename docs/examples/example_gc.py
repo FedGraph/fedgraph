@@ -80,7 +80,7 @@ args.device = "cuda" if torch.cuda.is_available() else "cpu"
 # Set output directory
 # ------------
 # Here we set the output directory for the results.
-# The output consists of the statistics of the data on clients and the
+# The output consists of the statistics of the data on trainers and the
 # accuracy of the model on the test set.
 
 # outdir_base = os.path.join(args.outbase, f'seqLen{args.seq_length}')
@@ -91,17 +91,17 @@ if save_files:
     if algorithm in ["SelfTrain"]:
         outdir = os.path.join(outdir, f"{args.data_group}")
     elif algorithm in ["FedAvg", "FedProx"]:
-        outdir = os.path.join(outdir, f"{args.data_group}-{args.num_clients}clients")
+        outdir = os.path.join(outdir, f"{args.data_group}-{args.num_trainers}trainers")
     elif algorithm in ["GCFL"]:
         outdir = os.path.join(
             outdir,
-            f"{args.data_group}-{args.num_clients}clients",
+            f"{args.data_group}-{args.num_trainers}trainers",
             f"eps_{args.epsilon1}_{args.epsilon2}",
         )
     elif algorithm in ["GCFL+", "GCFL+dWs"]:
         outdir = os.path.join(
             outdir,
-            f"{args.data_group}-{args.num_clients}clients",
+            f"{args.data_group}-{args.num_trainers}trainers",
             f"eps_{args.epsilon1}_{args.epsilon2}",
             f"seqLen{args.seq_length}",
         )
@@ -116,7 +116,7 @@ if save_files:
 # Here we prepare the data for the experiment.
 # The data is split into training and test sets, and then the training set
 # is further split into training and validation sets.
-# The statistics of the data on clients are also computed and saved.
+# The statistics of the data on trainers are also computed and saved.
 
 """ using original features """
 print("Preparing data (original features) ...")
@@ -124,7 +124,7 @@ print("Preparing data (original features) ...")
 splited_data, df_stats = load_single_dataset(
     args.datapath,
     args.data_group,
-    num_client=args.num_clients,
+    num_trainer=args.num_trainers,
     batch_size=args.batch_size,
     convert_x=args.convert_x,
     seed=seed_split_data,
@@ -139,20 +139,20 @@ if save_files:
 
 
 #######################################################################
-# Setup server and clients (trainers)
+# Setup server and trainers
 # ------------
-# Here we set up the server and clients (trainers) for the experiment.
+# Here we set up the server and trainers for the experiment.
 # The server is responsible for federated aggregation (e.g., FedAvg) without knowing the local trainer data.
-# The clients (trainers) are responsible for local training and testing.
+# The trainers are responsible for local training and testing.
 # Before setting up those, the user has to specify the base models for the trainer and server separately, which are `GIN` and `GIN_server` by default.
 # They user can also use other models, but the customized model should be compatible with the default trainer and server.
 # That is, `model_trainer` and `model_server` must have all the required methods and attributes as the default `GIN` and `GIN_server`.
 # For the detailed expected format of the model, please refer to the `fedgraph/gnn_models.py`
 model_trainer = GIN
 model_server = GIN
-init_clients, _ = setup_clients(splited_data, model_trainer, args)
+init_trainers, _ = setup_trainers(splited_data, model_trainer, args)
 init_server = setup_server(model_server, args)
-clients = copy.deepcopy(init_clients)
+trainers = copy.deepcopy(init_trainers)
 server = copy.deepcopy(init_server)
 
 print("\nDone setting up devices.")
@@ -162,36 +162,34 @@ print("\nDone setting up devices.")
 # Federated Training for Graph Classification
 # ------------
 # Here we run the federated training for graph classification.
-# The server starts training of all clients and aggregates the parameters.
+# The server starts training of all trainers and aggregates the parameters.
 # The output consists of the accuracy of the model on the test set.
 print(f"Running {algorithm} ...")
 if algorithm == "SelfTrain":
     output = run_GC_selftrain(
-        clients=clients, server=server, local_epoch=args.local_epoch
+        trainers=trainers, server=server, local_epoch=args.local_epoch
     )
 
 elif algorithm == "FedAvg":
     output = run_GC_fedavg(
-        clients=clients,
+        trainers=trainers,
         server=server,
         communication_rounds=args.num_rounds,
         local_epoch=args.local_epoch,
-        samp=None,
     )
 
 elif algorithm == "FedProx":
     output = run_GC_fedprox(
-        clients=clients,
+        trainers=trainers,
         server=server,
         communication_rounds=args.num_rounds,
         local_epoch=args.local_epoch,
         mu=args.mu,
-        samp=None,
     )
 
 elif algorithm == "GCFL":
     output = run_GC_gcfl(
-        clients=clients,
+        trainers=trainers,
         server=server,
         communication_rounds=args.num_rounds,
         local_epoch=args.local_epoch,
@@ -201,7 +199,7 @@ elif algorithm == "GCFL":
 
 elif algorithm == "GCFL+":
     output = run_GC_gcfl_plus(
-        clients=clients,
+        trainers=trainers,
         server=server,
         communication_rounds=args.num_rounds,
         local_epoch=args.local_epoch,
@@ -213,7 +211,7 @@ elif algorithm == "GCFL+":
 
 elif algorithm == "GCFL+dWs":
     output = run_GC_gcfl_plus_dWs(
-        clients=clients,
+        trainers=trainers,
         server=server,
         communication_rounds=args.num_rounds,
         local_epoch=args.local_epoch,

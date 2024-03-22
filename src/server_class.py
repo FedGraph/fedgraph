@@ -145,20 +145,21 @@ class Server:
 
 class Server_GC:
     """
-    This is a server class for federated graph classification which is responsible for aggregating model parameters from different trainers,
-    updating the central model, and then broadcasting the updated model parameters back to the trainers.
+    This is a server class for federated graph classification which is responsible for
+    aggregating model parameters from different trainers, updating the central model,
+    and then broadcasting the updated model parameters back to the trainers.
 
     Parameters
     ----------
     model: torch.nn.Module
-        The model to be trained.
+        The base model that the federated learning is performed on.
     device: torch.device
         The device to run the model on.
 
     Attributes
     ----------
-    model: serverGIN
-        The central GIN model to be trained.
+    model: torch.nn.Module
+        The base model for the server.
     W: dict
         Dictionary containing the model parameters.
     model_cache: list
@@ -178,14 +179,14 @@ class Server_GC:
         Parameters
         ----------
         all_trainers: list
-            list of Client objects
+            list of trainer objects
         frac: float
             fraction of trainers to be sampled
 
         Returns
         -------
         (sampled_trainers): list
-            list of Client objects
+            list of trainer objects
         """
         return random.sample(all_trainers, int(len(all_trainers) * frac))
 
@@ -196,7 +197,7 @@ class Server_GC:
         Parameters
         ----------
         selected_trainers: list
-            list of Client objects
+            list of trainer objects
         """
         total_size = 0
         for trainer in selected_trainers:
@@ -219,7 +220,7 @@ class Server_GC:
         Parameters
         ----------
         trainers: list
-            list of Client objects
+            list of trainer objects
 
         Returns
         -------
@@ -297,9 +298,9 @@ class Server_GC:
         Parameters
         ----------
         trainer_clusters: list
-            list of lists, where each list contains the Client objects in a cluster
+            list of cluster-specified trainer groups, where each group contains the trainer objects in a cluster
         """
-        for cluster in trainer_clusters:  # cluster is a list of Client objects
+        for cluster in trainer_clusters:  # cluster is a list of trainer objects
             targs, sours = [], []
             total_size = 0
             for trainer in cluster:
@@ -324,7 +325,7 @@ class Server_GC:
         Parameters
         ----------
         cluster: list
-            list of Client objects
+            list of trainer objects
         """
         max_dW = -np.inf
         for trainer in cluster:
@@ -344,7 +345,7 @@ class Server_GC:
         Parameters
         ----------
         cluster: list
-            list of Client objects
+            list of trainer objects
         """
         cluster_dWs = []
         for trainer in cluster:

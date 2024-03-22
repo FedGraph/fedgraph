@@ -24,7 +24,7 @@ from src.gnn_models import GIN
 # Choose the algorithm and dataset
 # ------------
 algorithm = (
-    "GCFL+dWs"  # Select: "SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs
+    "FedProx"  # Select: "SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs
 )
 dataset = "IMDB-BINARY"
 save_files = False  # if True, save the statistics and prediction results into files
@@ -81,6 +81,4 @@ assert algorithm in [
     "GCFL+",
     "GCFL+dWs",
 ], f"Unknown algorithm: {algorithm}"
-GC_Train(
-    config=config, data=data, base_model = base_model
-)
+GC_Train(config=config, data=data, base_model=base_model)

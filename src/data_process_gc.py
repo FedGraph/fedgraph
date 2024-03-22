@@ -3,8 +3,8 @@ from random import choices
 
 import numpy as np
 import pandas as pd
-from torch_geometric.loader import DataLoader
 from torch_geometric.datasets import TUDataset
+from torch_geometric.loader import DataLoader
 from torch_geometric.transforms import OneHotDegree
 
 from src.utils_gc import get_max_degree, get_num_graph_labels, get_stats, split_data
@@ -66,26 +66,26 @@ def load_single_dataset(
     Parameters
     ----------
     datapath: str
-        the input path of data.
+        The input path of data.
     dataset: str
-        the name of dataset.
+        The name of dataset that should be available in the TUDataset.
     num_trainer: int
-        the number of trainers.
+        The number of trainers.
     batch_size: int
-        the batch size for graph classification.
+        The batch size for graph classification.
     convert_x: bool
-        whether to convert node features to one-hot degree.
+        Whether to convert node features to one-hot degree.
     seed: int
-        seed for randomness.
+        Seed for randomness.
     overlap: bool
-        whether trainers have overlapped data.
+        Whether trainers have overlapped data.
 
     Returns
     -------
     splited_data: dict
-        the data for each trainer.
+        The data for each trainer.
     stats_df: pd.DataFrame
-        the statistics of data, including the number of graphs, the number of nodes, and the number of edges
+        The statistics of data, including the number of graphs, the number of nodes, and the number of edges
         for the training, validation, and testing sets.
     """
 
@@ -174,22 +174,22 @@ def load_multiple_dataset(
     Parameters
     ----------
     datapath: str
-        the input path of data.
+        The input path of data.
     dataset_group: str
-        the name of dataset group.
+        The name of dataset group.
     batch_size: int
-        the batch size for graph classification.
+        The batch size for graph classification.
     convert_x: bool
-        whether to convert node features to one-hot degree.
+        Whether to convert node features to one-hot degree.
     seed: int
-        seed for randomness.
+        Seed for randomness.
 
     Returns
     -------
     splited_data: dict
-        the data for each trainer.
+        The data for each trainer.
     stats_df: pd.DataFrame
-        the statistics of data, including the number of graphs, the number of nodes, and the number of edges
+        The statistics of data, including the number of graphs, the number of nodes, and the number of edges
         for the training, validation, and testing sets.
     """
     assert dataset_group in [

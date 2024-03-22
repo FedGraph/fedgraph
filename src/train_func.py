@@ -39,7 +39,7 @@ def gc_avg_accuracy(frame: pd.DataFrame, trainers: list) -> float:
     frame: pd.DataFrame
         The frame containing the accuracies of the trainers
     trainers: list
-        List of trainers
+        List of trainer objects
 
     Returns
     -------

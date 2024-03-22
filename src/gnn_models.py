@@ -345,7 +345,7 @@ class GCN_arxiv(torch.nn.Module):
 class GIN(torch.nn.Module):
     """
     A Graph Isomorphism Network (GIN) model implementation which creates a GIN with specified
-    numbers of features, hidden units, classes, layers, and dropout.  
+    numbers of features, hidden units, classes, layers, and dropout.
     The GIN model is a variant of the Graph Convolutional Network (GCN) model.
 
     Parameters
@@ -380,7 +380,7 @@ class GIN(torch.nn.Module):
 
     Note
     ----
-    This base model applies for both the server and the trainer. 
+    This base model applies for both the server and the trainer.
     When the model is used as a server, only `nhid`, and `nlayer` should be passed as arguments.
     When the model is used as a trainer, `nfeat`, `nclass`, and `dropout` should also be passed as arguments.
     """
