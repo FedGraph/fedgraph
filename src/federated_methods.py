@@ -396,7 +396,9 @@ def run_GC_fedavg(
     #                           training_stats
     for c_round in range(1, communication_rounds + 1):
         if (c_round) % 10 == 0:
-            print(f"  > Training round {c_round} finished.")  # print the current round every 10 rounds
+            print(
+                f"  > Training round {c_round} finished."
+            )  # print the current round every 10 rounds
 
         if c_round == 1:
             selected_trainers = trainers

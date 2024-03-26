@@ -16,7 +16,7 @@ import sys
 import yaml
 
 sys.path.append("../fedgraph")
-from src.data_process_gc import load_single_dataset, load_multiple_datasets
+from src.data_process_gc import load_multiple_datasets, load_single_dataset
 from src.federated_methods import GC_Train
 from src.gnn_models import GIN
 
@@ -26,8 +26,8 @@ from src.gnn_models import GIN
 algorithm = (
     "FedProx"  # Select: "SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs
 )
-dataset = "IMDB-BINARY" # Any dataset supplied in https://www.chrsmrrs.com/graphkerneldatasets/ (e.g., "IMDB-BINARY", "IMDB-MULTI", "PROTEINS") is valid
-dataset_group = 'biochem'  # Select: 'small', 'mix', 'mix_tiny', 'biochem', 'biochem_tiny', 'molecules', 'molecules_tiny'
+dataset = "IMDB-BINARY"  # Any dataset supplied in https://www.chrsmrrs.com/graphkerneldatasets/ (e.g., "IMDB-BINARY", "IMDB-MULTI", "PROTEINS") is valid
+dataset_group = "biochem"  # Select: 'small', 'mix', 'mix_tiny', 'biochem', 'biochem_tiny', 'molecules', 'molecules_tiny'
 save_files = False  # if True, save the statistics and prediction results into files
 
 #######################################################################
