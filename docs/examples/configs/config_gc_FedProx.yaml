@@ -1,7 +1,5 @@
 model: 'FedProx'
 device: 'cpu'
-num_repeat: 1
-repeat: None
 num_rounds: 200
 local_epoch: 1
 lr: 0.001

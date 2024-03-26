@@ -226,7 +226,7 @@ def GC_Train(config: dict, data: Any, base_model: Any = GIN) -> None:
                 f"eps_{args.epsilon1}_{args.epsilon2}",
                 f"seqLen{args.seq_length}",
             )
-
+        outdir = os.path.join(outdir, f"seed{args.seed}")
         Path(outdir).mkdir(parents=True, exist_ok=True)
         print(f"Output Path: {outdir}")
 

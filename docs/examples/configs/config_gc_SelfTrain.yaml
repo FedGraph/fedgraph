@@ -1,7 +1,5 @@
 model: 'SelfTrain'
 device: 'cpu'
-num_repeat: 1
-repeat: None
 local_epoch: 1
 lr: 0.001
 weight_decay: 0.0005

@@ -23,23 +23,33 @@ from src.gnn_models import GIN
 #######################################################################
 # Choose the algorithm and dataset
 # ------------
+# The user can choose the algorithm and dataset for the experiment.
+# The user can either use single or multiple datasets from TU Datasets, which is controlled by the `multiple_datasets` flag.
+# For single dataset, any dataset supplied in https://www.chrsmrrs.com/graphkerneldatasets/ (e.g., "IMDB-BINARY", "IMDB-MULTI", "PROTEINS") is valid
+# For multiple datasets, the user can choose from the following groups: 'small', 'mix', 'mix_tiny', 'biochem', 'biochem_tiny', 'molecules', 'molecules_tiny'
+# For the detailed content of each group, please refer to the `load_multiple_datasets` function in `src/data_process_gc.py`
 algorithm = (
     "FedProx"  # Select: "SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs
 )
-dataset = "IMDB-BINARY"  # Any dataset supplied in https://www.chrsmrrs.com/graphkerneldatasets/ (e.g., "IMDB-BINARY", "IMDB-MULTI", "PROTEINS") is valid
+dataset = "IMDB-BINARY"
 dataset_group = "biochem"  # Select: 'small', 'mix', 'mix_tiny', 'biochem', 'biochem_tiny', 'molecules', 'molecules_tiny'
+multiple_datasets = True
 save_files = False  # if True, save the statistics and prediction results into files
 
 #######################################################################
 # Load configuration
 # ------------
+# Here we load the configuration file for the experiment.
+# The field `data_group` will be updated based on the user's choice of `dataset` and `dataset_group`.
+# The field `seed` can be overwritten by the user to support repetitive experiments.
+# If the user want to run the same experiment multiple times, they can just set the seed to different values and run the script multiple times.
 config_file = f"docs/examples/configs/config_gc_{algorithm}.yaml"
 with open(config_file, "r") as file:
     config = yaml.safe_load(file)
 
-multiple_datasets = True
 config["data_group"] = dataset_group if multiple_datasets else dataset
 config["save_files"] = save_files
+config["seed"] = 42
 
 #######################################################################
 # Load dataset
