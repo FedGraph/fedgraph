@@ -88,12 +88,11 @@ def load_single_dataset(
         The statistics of data, including the number of graphs, the number of nodes, and the number of edges
         for the training, validation, and testing sets.
     """
-
-    if dataset == "COLLAB":
-        tudataset = TUDataset(
-            f"{datapath}/TUDataset", dataset, pre_transform=OneHotDegree(491, cat=False)
-        )
-    elif dataset == "IMDB-BINARY":
+    # if dataset == "COLLAB":
+    #     tudataset = TUDataset(
+    #         f"{datapath}/TUDataset", dataset, pre_transform=OneHotDegree(491, cat=False)
+    #     )
+    if dataset == "IMDB-BINARY":
         tudataset = TUDataset(
             f"{datapath}/TUDataset", dataset, pre_transform=OneHotDegree(135, cat=False)
         )
@@ -161,7 +160,7 @@ def load_single_dataset(
     return splited_data, stats_df
 
 
-def load_multiple_dataset(
+def load_multiple_datasets(
     datapath: str,
     dataset_group: str = "small",
     batch_size: int = 32,
@@ -227,7 +226,7 @@ def load_multiple_dataset(
             "ENZYMES",
             "DD",
             "PROTEINS",  # bioinformatics
-            "COLLAB",
+            # "COLLAB",
             "IMDB-BINARY",
             "IMDB-MULTI",
         ]  # social networks
@@ -249,13 +248,7 @@ def load_multiple_dataset(
     df = pd.DataFrame()
 
     for dataset in datasets:
-        if dataset == "COLLAB":
-            tudataset = TUDataset(
-                f"{datapath}/TUDataset",
-                dataset,
-                pre_transform=OneHotDegree(491, cat=False),
-            )
-        elif dataset == "IMDB-BINARY":
+        if dataset == "IMDB-BINARY":
             tudataset = TUDataset(
                 f"{datapath}/TUDataset",
                 dataset,

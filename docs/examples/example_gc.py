@@ -45,13 +45,15 @@ from src.utils_gc import *
 
 algorithm = "GCFL"
 dataset = "PROTEINS"
+dataset_group = "biochem"
+multiple_datasets = True # if True, load multiple datasets (dataset_group) instead of a single dataset (dataset)
 save_files = False  # if True, save the statistics and prediction results into files
 
 config_file = f"docs/examples/configs/config_gc_{algorithm}.yaml"
 with open(config_file, "r") as file:
     config = yaml.safe_load(file)
 
-config["data_group"] = dataset
+config["data_group"] = dataset_group if multiple_datasets else dataset
 
 parser = argparse.ArgumentParser()
 args = parser.parse_args()
@@ -121,15 +123,24 @@ if save_files:
 """ using original features """
 print("Preparing data (original features) ...")
 
-splited_data, df_stats = load_single_dataset(
-    args.datapath,
-    args.data_group,
-    num_trainer=args.num_trainers,
-    batch_size=args.batch_size,
-    convert_x=args.convert_x,
-    seed=seed_split_data,
-    overlap=args.overlap,
-)
+if multiple_datasets:
+    splited_data, df_stats = load_multiple_datasets(
+        datapath=args.datapath,
+        dataset_group=args.data_group,
+        batch_size=args.batch_size,
+        convert_x=args.convert_x,
+        seed=seed_split_data,
+    )
+else:
+    splited_data, df_stats = load_single_dataset(
+        args.datapath,
+        args.data_group,
+        num_trainer=args.num_trainers,
+        batch_size=args.batch_size,
+        convert_x=args.convert_x,
+        seed=seed_split_data,
+        overlap=args.overlap,
+    )
 print("Data prepared.")
 
 if save_files:

@@ -395,8 +395,8 @@ def run_GC_fedavg(
     #                                |
     #                           training_stats
     for c_round in range(1, communication_rounds + 1):
-        if (c_round) % 50 == 0:
-            print(f"  > round {c_round}")  # print the current round every 50 rounds
+        if (c_round) % 10 == 0:
+            print(f"  > Training round {c_round} finished.")  # print the current round every 10 rounds
 
         if c_round == 1:
             selected_trainers = trainers
@@ -463,8 +463,8 @@ def run_GC_fedprox(
         trainer.update_params(server)
 
     for c_round in range(1, communication_rounds + 1):
-        if (c_round) % 50 == 0:
-            print(f"  > round {c_round}")
+        if (c_round) % 10 == 0:
+            print(f"  > Training round {c_round} finished.")
 
         if c_round == 1:
             selected_trainers = trainers
@@ -543,8 +543,8 @@ def run_GC_gcfl(
     acc_trainers: list = []
     ############### COMMUNICATION ROUNDS ###############
     for c_round in range(1, communication_rounds + 1):
-        if (c_round) % 50 == 0:
-            print(f"  > round {c_round}")
+        if (c_round) % 10 == 0:
+            print(f"  > Training round {c_round} finished.")
         if c_round == 1:
             for trainer in trainers:
                 trainer.update_params(server)
@@ -660,8 +660,8 @@ def run_GC_gcfl_plus(
 
     acc_trainers: list = []
     for c_round in range(1, communication_rounds + 1):
-        if (c_round) % 50 == 0:
-            print(f"  > round {c_round}")
+        if (c_round) % 10 == 0:
+            print(f"  > Training round {c_round} finished.")
         if c_round == 1:
             for trainer in trainers:
                 trainer.update_params(server)
@@ -771,8 +771,8 @@ def run_GC_gcfl_plus_dWs(
 
     acc_trainers: list = []
     for c_round in range(1, communication_rounds + 1):
-        if (c_round) % 50 == 0:
-            print(f"  > round {c_round}")
+        if (c_round) % 10 == 0:
+            print(f"  > Training round {c_round} finished.")
         if c_round == 1:
             for trainer in trainers:
                 trainer.update_params(server)

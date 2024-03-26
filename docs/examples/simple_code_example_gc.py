@@ -16,7 +16,7 @@ import sys
 import yaml
 
 sys.path.append("../fedgraph")
-from src.data_process_gc import load_single_dataset
+from src.data_process_gc import load_single_dataset, load_multiple_datasets
 from src.federated_methods import GC_Train
 from src.gnn_models import GIN
 
@@ -26,7 +26,8 @@ from src.gnn_models import GIN
 algorithm = (
     "FedProx"  # Select: "SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs
 )
-dataset = "IMDB-BINARY"
+dataset = "IMDB-BINARY" # Any dataset supplied in https://www.chrsmrrs.com/graphkerneldatasets/ (e.g., "IMDB-BINARY", "IMDB-MULTI", "PROTEINS") is valid
+dataset_group = 'biochem'  # Select: 'small', 'mix', 'mix_tiny', 'biochem', 'biochem_tiny', 'molecules', 'molecules_tiny'
 save_files = False  # if True, save the statistics and prediction results into files
 
 #######################################################################
@@ -36,7 +37,8 @@ config_file = f"docs/examples/configs/config_gc_{algorithm}.yaml"
 with open(config_file, "r") as file:
     config = yaml.safe_load(file)
 
-config["data_group"] = dataset
+multiple_datasets = True
+config["data_group"] = dataset_group if multiple_datasets else dataset
 config["save_files"] = save_files
 
 #######################################################################
@@ -51,15 +53,24 @@ config["save_files"] = save_files
 # - train_size: number of training samples
 # For the detailed expected format of the data, please refer to the `load_single_dataset` function in `fedgraph/data_process_gc.py`
 seed_split_data = 42
-data, _ = load_single_dataset(
-    datapath=config["datapath"],
-    dataset=config["data_group"],
-    num_trainer=config["num_trainers"],
-    batch_size=config["batch_size"],
-    convert_x=config["convert_x"],
-    seed=seed_split_data,
-    overlap=config["overlap"],
-)
+if multiple_datasets:
+    data, _ = load_multiple_datasets(
+        datapath=config["datapath"],
+        dataset_group=config["data_group"],
+        batch_size=config["batch_size"],
+        convert_x=config["convert_x"],
+        seed=seed_split_data,
+    )
+else:
+    data, _ = load_single_dataset(
+        datapath=config["datapath"],
+        dataset=config["data_group"],
+        num_trainer=config["num_trainers"],
+        batch_size=config["batch_size"],
+        convert_x=config["convert_x"],
+        seed=seed_split_data,
+        overlap=config["overlap"],
+    )
 
 #######################################################################
 # Designate the base model for the trainer and server
