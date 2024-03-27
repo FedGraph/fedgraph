@@ -1,7 +1,5 @@
 model: 'FedAvg'
 device: 'cpu'
-num_repeat: 1
-repeat: None
 num_rounds: 200
 local_epoch: 1
 lr: 0.001
@@ -14,5 +12,5 @@ seed: 10
 datapath: './data'
 outbase: './outputs'
 convert_x: False
-num_clients: 10
+num_trainers: 10
 overlap: False

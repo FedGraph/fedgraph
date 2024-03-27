@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 import torch.nn.functional as F
 import torch_geometric
@@ -340,60 +342,23 @@ class GCN_arxiv(torch.nn.Module):
         return x.log_softmax(dim=-1)
 
 
-class GIN_server(torch.nn.Module):
-    """
-    This class defines the server model for the GIN model.
-
-    Parameters
-    ----------
-    nlayer: int
-        The number of layers in the GIN model.
-    nhid: int
-        The number of hidden units in the GIN model.
-
-    Attributes
-    ----------
-    graph_convs: torch.nn.ModuleList
-        The list of graph convolutional layers.
-    nn1: torch.nn.Sequential
-        The first neural network layer.
-    nnk: torch.nn.Sequential
-        The k-th neural network layer.
-    """
-
-    def __init__(self, nlayer: int, nhid: int) -> None:
-        super(GIN_server, self).__init__()
-        self.graph_convs = torch.nn.ModuleList()
-        self.nn1 = torch.nn.Sequential(
-            torch.nn.Linear(nhid, nhid), torch.nn.ReLU(), torch.nn.Linear(nhid, nhid)
-        )
-        self.graph_convs.append(GINConv(self.nn1))
-
-        for _ in range(nlayer - 1):
-            self.nnk = torch.nn.Sequential(
-                torch.nn.Linear(nhid, nhid),
-                torch.nn.ReLU(),
-                torch.nn.Linear(nhid, nhid),
-            )
-            self.graph_convs.append(GINConv(self.nnk))
-
-
 class GIN(torch.nn.Module):
     """
     A Graph Isomorphism Network (GIN) model implementation which creates a GIN with specified
     numbers of features, hidden units, classes, layers, and dropout.
+    The GIN model is a variant of the Graph Convolutional Network (GCN) model.
 
     Parameters
     ----------
-    nfeat: int
-        The number of input features.
     nhid: int
         The number of hidden features in each layer of the GIN model.
-    nclass: int
-        The number of output classes.
     nlayer: int
         The number of layers.
-    dropout: float
+    nfeat: int, optional
+        The number of input features.
+    nclass: int, optional
+        The number of output classes.
+    dropout: float, optional
         The dropout rate.
 
     Attributes
@@ -412,15 +377,30 @@ class GIN(torch.nn.Module):
         The k-th neural network layer.
     post: torch.nn.Sequential
         The post-neural network layer.
+
+    Note
+    ----
+    This base model applies for both the server and the trainer.
+    When the model is used as a server, only `nhid`, and `nlayer` should be passed as arguments.
+    When the model is used as a trainer, `nfeat`, `nclass`, and `dropout` should also be passed as arguments.
     """
 
     def __init__(
-        self, nfeat: int, nhid: int, nclass: int, nlayer: int, dropout: float
+        self,
+        nhid: int,
+        nlayer: int,
+        nfeat: Optional[int] = None,
+        nclass: Optional[int] = None,
+        dropout: Optional[float] = None,
     ) -> None:
         super(GIN, self).__init__()
         self.num_layers = nlayer
-        self.dropout = dropout
-        self.pre = torch.nn.Sequential(torch.nn.Linear(nfeat, nhid))
+        self.dropout = dropout if dropout is not None else 0.5
+        self.pre = (
+            torch.nn.Sequential(torch.nn.Linear(nfeat, nhid))
+            if nfeat is not None
+            else None
+        )
         self.graph_convs = torch.nn.ModuleList()
         self.nn1 = torch.nn.Sequential(
             torch.nn.Linear(nhid, nhid), torch.nn.ReLU(), torch.nn.Linear(nhid, nhid)
@@ -436,7 +416,11 @@ class GIN(torch.nn.Module):
             self.graph_convs.append(GINConv(self.nnk))
 
         self.post = torch.nn.Sequential(torch.nn.Linear(nhid, nhid), torch.nn.ReLU())
-        self.readout = torch.nn.Sequential(torch.nn.Linear(nhid, nclass))
+        self.readout = (
+            torch.nn.Sequential(torch.nn.Linear(nhid, nclass))
+            if nclass is not None
+            else None
+        )
 
     def forward(self, data: torch_geometric.data.Data) -> torch.Tensor:
         """

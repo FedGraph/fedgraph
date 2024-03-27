@@ -3,54 +3,49 @@ from random import choices
 
 import numpy as np
 import pandas as pd
-from torch_geometric.data import DataLoader
 from torch_geometric.datasets import TUDataset
+from torch_geometric.loader import DataLoader
 from torch_geometric.transforms import OneHotDegree
 
-from fedgraph.utils_gc import (
-    get_max_degree,
-    get_num_graph_labels,
-    get_stats,
-    split_data,
-)
+from src.utils_gc import get_max_degree, get_num_graph_labels, get_stats, split_data
 
 
 def rand_split_chunk(
-    graphs: list, num_client: int = 10, overlap: bool = False, seed: int = 42
+    graphs: list, num_trainer: int = 10, overlap: bool = False, seed: int = 42
 ) -> list:
     """
-    Randomly split graphs into chunks for each client.
+    Randomly split graphs into chunks for each trainer.
 
     Parameters
     ----------
     graphs: list
         The list of graphs.
-    num_client: int
-        The number of clients.
+    num_trainer: int
+        The number of trainers.
     overlap: bool
-        Whether clients have overlapped data.
+        Whether trainers have overlapped data.
     seed: int
         Seed for randomness.
 
     Returns
     -------
     graphs_chunks: list
-        The list of chunks for each client.
+        The list of chunks for each trainer.
     """
     random.seed(seed)
     np.random.seed(seed)
 
     totalNum = len(graphs)
-    minSize = min(50, int(totalNum / num_client))
+    minSize = min(50, int(totalNum / num_trainer))
     graphs_chunks = []
     if not overlap:  # non-overlapping
-        for i in range(num_client):
+        for i in range(num_trainer):
             graphs_chunks.append(graphs[i * minSize : (i + 1) * minSize])
-        for g in graphs[num_client * minSize :]:
-            idx_chunk = np.random.randint(low=0, high=num_client, size=1)[0]
+        for g in graphs[num_trainer * minSize :]:
+            idx_chunk = np.random.randint(low=0, high=num_trainer, size=1)[0]
             graphs_chunks[idx_chunk].append(g)
     else:
-        sizes = np.random.randint(low=50, high=150, size=num_client)
+        sizes = np.random.randint(low=50, high=150, size=num_trainer)
         for s in sizes:
             graphs_chunks.append(choices(graphs, k=s))
     return graphs_chunks
@@ -59,46 +54,45 @@ def rand_split_chunk(
 def load_single_dataset(
     datapath: str,
     dataset: str = "PROTEINS",
-    num_client: int = 10,
+    num_trainer: int = 10,
     batch_size: int = 128,
     convert_x: bool = False,
     seed: int = 42,
     overlap: bool = False,
 ) -> tuple:
     """
-    Graph Classification: prepare data for one dataset to multiple clients.
+    Graph Classification: prepare data for one dataset to multiple trainers.
 
     Parameters
     ----------
     datapath: str
-        the input path of data.
+        The input path of data.
     dataset: str
-        the name of dataset.
-    num_client: int
-        the number of clients.
+        The name of dataset that should be available in the TUDataset.
+    num_trainer: int
+        The number of trainers.
     batch_size: int
-        the batch size for graph classification.
+        The batch size for graph classification.
     convert_x: bool
-        whether to convert node features to one-hot degree.
+        Whether to convert node features to one-hot degree.
     seed: int
-        seed for randomness.
+        Seed for randomness.
     overlap: bool
-        whether clients have overlapped data.
+        Whether trainers have overlapped data.
 
     Returns
     -------
     splited_data: dict
-        the data for each client.
+        The data for each trainer.
     stats_df: pd.DataFrame
-        the statistics of data, including the number of graphs, the number of nodes, and the number of edges
+        The statistics of data, including the number of graphs, the number of nodes, and the number of edges
         for the training, validation, and testing sets.
     """
-
-    if dataset == "COLLAB":
-        tudataset = TUDataset(
-            f"{datapath}/TUDataset", dataset, pre_transform=OneHotDegree(491, cat=False)
-        )
-    elif dataset == "IMDB-BINARY":
+    # if dataset == "COLLAB":
+    #     tudataset = TUDataset(
+    #         f"{datapath}/TUDataset", dataset, pre_transform=OneHotDegree(491, cat=False)
+    #     )
+    if dataset == "IMDB-BINARY":
         tudataset = TUDataset(
             f"{datapath}/TUDataset", dataset, pre_transform=OneHotDegree(135, cat=False)
         )
@@ -119,9 +113,9 @@ def load_single_dataset(
     graphs = [x for x in tudataset]
     print("Dataset name: ", dataset, " Total number of graphs: ", len(graphs))
 
-    """ Split data into chunks for each client """
+    """ Split data into chunks for each trainer """
     graphs_chunks = rand_split_chunk(
-        graphs=graphs, num_client=num_client, overlap=overlap, seed=seed
+        graphs=graphs, num_trainer=num_trainer, overlap=overlap, seed=seed
     )
 
     splited_data = {}
@@ -129,7 +123,7 @@ def load_single_dataset(
     num_node_features = graphs[0].num_node_features
 
     for idx, chunks in enumerate(graphs_chunks):
-        ds = f"{idx}-{dataset}"  # client id
+        ds = f"{idx}-{dataset}"  # trainer id
 
         """Data split"""
         ds_whole = chunks
@@ -166,7 +160,7 @@ def load_single_dataset(
     return splited_data, stats_df
 
 
-def load_multiple_dataset(
+def load_multiple_datasets(
     datapath: str,
     dataset_group: str = "small",
     batch_size: int = 32,
@@ -174,27 +168,27 @@ def load_multiple_dataset(
     seed: int = 42,
 ) -> tuple:
     """
-    Graph Classification: prepare data for a group of datasets to multiple clients.
+    Graph Classification: prepare data for a group of datasets to multiple trainers.
 
     Parameters
     ----------
     datapath: str
-        the input path of data.
+        The input path of data.
     dataset_group: str
-        the name of dataset group.
+        The name of dataset group.
     batch_size: int
-        the batch size for graph classification.
+        The batch size for graph classification.
     convert_x: bool
-        whether to convert node features to one-hot degree.
+        Whether to convert node features to one-hot degree.
     seed: int
-        seed for randomness.
+        Seed for randomness.
 
     Returns
     -------
     splited_data: dict
-        the data for each client.
+        The data for each trainer.
     stats_df: pd.DataFrame
-        the statistics of data, including the number of graphs, the number of nodes, and the number of edges
+        The statistics of data, including the number of graphs, the number of nodes, and the number of edges
         for the training, validation, and testing sets.
     """
     assert dataset_group in [
@@ -232,7 +226,7 @@ def load_multiple_dataset(
             "ENZYMES",
             "DD",
             "PROTEINS",  # bioinformatics
-            "COLLAB",
+            # "COLLAB",
             "IMDB-BINARY",
             "IMDB-MULTI",
         ]  # social networks
@@ -254,13 +248,7 @@ def load_multiple_dataset(
     df = pd.DataFrame()
 
     for dataset in datasets:
-        if dataset == "COLLAB":
-            tudataset = TUDataset(
-                f"{datapath}/TUDataset",
-                dataset,
-                pre_transform=OneHotDegree(491, cat=False),
-            )
-        elif dataset == "IMDB-BINARY":
+        if dataset == "IMDB-BINARY":
             tudataset = TUDataset(
                 f"{datapath}/TUDataset",
                 dataset,

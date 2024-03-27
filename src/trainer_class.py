@@ -6,9 +6,9 @@ import ray
 import torch
 import torch_geometric
 
-from fedgraph.gnn_models import GCN, GIN, AggreGCN, GCN_arxiv, SAGE_products
-from fedgraph.train_func import test, train
-from fedgraph.utils import get_1hop_feature_sum
+from src.gnn_models import GCN, GIN, AggreGCN, GCN_arxiv, SAGE_products
+from src.train_func import test, train
+from src.utils import get_1hop_feature_sum
 
 
 class Trainer_General:
@@ -20,7 +20,7 @@ class Trainer_General:
     Parameters
     ----------
     rank : int
-        Unique identifier for the training instance (typically representing a client in federated learning).
+        Unique identifier for the training instance (typically representing a trainer in federated learning).
     local_node_index : torch.Tensor
         Indices of nodes local to this trainer.
     communicate_node_index : torch.Tensor
@@ -104,7 +104,7 @@ class Trainer_General:
                     NumLayers=args.num_layers,
                 ).to(device)
 
-        self.rank = rank  # rank = client ID
+        self.rank = rank  # rank = trainer ID
 
         self.device = device
 
@@ -166,13 +166,13 @@ class Trainer_General:
         """
 
         # create a large matrix with known local node features
-        new_feature_for_client = torch.zeros(
+        new_feature_for_trainer = torch.zeros(
             self.global_node_num, self.features.shape[1]
         )
-        new_feature_for_client[self.local_node_index] = self.features
+        new_feature_for_trainer[self.local_node_index] = self.features
         # sum of features of all 1-hop nodes for each node
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
-            new_feature_for_client, self.adj
+            new_feature_for_trainer, self.adj
         )
         return one_hop_neighbor_feature_sum
 
@@ -273,12 +273,12 @@ class Trainer_General:
 
     def get_rank(self) -> int:
         """
-        Returns the rank (client ID) of the trainer.
+        Returns the rank (trainer ID) of the trainer.
 
         Returns
         -------
         (int) : int
-            The rank (client ID) of this trainer instance.
+            The rank (trainer ID) of this trainer instance.
         """
         return self.rank
 
@@ -286,23 +286,24 @@ class Trainer_General:
 class Trainer_GC:
     """
     A trainer class specified for graph classification tasks, which includes functionalities required
-    for training GIN models on a subset of a distributed dataset, handling local training and testing, parameter updates, and feature aggregation.
+    for training GIN models on a subset of a distributed dataset, handling local training and testing,
+    parameter updates, and feature aggregation.
 
     Parameters
     ----------
     model: object
         The model to be trained, which is based on the GIN model.
-    client_id: int
-        The ID of the client.
-    client_name: str
-        The name of the client.
+    trainer_id: int
+        The ID of the trainer.
+    trainer_name: str
+        The name of the trainer.
     train_size: int
         The size of the training dataset.
     dataLoader: dict
         The dataloaders for training, validation, and testing.
     optimizer: object
         The optimizer for training.
-    args: object
+    args: Any
         The arguments for the training.
 
     Attributes
@@ -310,9 +311,9 @@ class Trainer_GC:
     model: object
         The model to be trained, which is based on the GIN model.
     id: int
-        The ID of the client.
+        The ID of the trainer.
     name: str
-        The name of the client.
+        The name of the trainer.
     train_size: int
         The size of the training dataset.
     dataloader: dict
@@ -329,7 +330,7 @@ class Trainer_GC:
         The cached weights of the model.
     gconv_names: list
         The names of the gconv layers.
-    train_stats: tuple
+    train_stats: Any
         The training statistics of the model.
     weights_norm: float
         The norm of the weights of the model.
@@ -346,16 +347,16 @@ class Trainer_GC:
     def __init__(
         self,
         model: Any,
-        client_id: int,
-        client_name: str,
+        trainer_id: int,
+        trainer_name: str,
         train_size: int,
         dataloader: dict,
         optimizer: object,
         args: Any,
     ) -> None:
         self.model = model.to(args.device)
-        self.id = client_id
-        self.name = client_name
+        self.id = trainer_id
+        self.name = trainer_name
         self.train_size = train_size
         self.dataloader = dataloader
         self.optimizer = optimizer
@@ -403,11 +404,7 @@ class Trainer_GC:
     def cache_weights(self) -> None:
         """
         Cache the weights of the model.
-
-        Returns
-        -------
-        (cached_weights): dict
-            The cached weights of the model.
+        The implementation is copying the model weights (W) to the cached weights (W_old).
         """
         for name in self.W.keys():
             self.W_old[name].data = self.W[name].data.clone()
@@ -455,7 +452,7 @@ class Trainer_GC:
         train_option: str, optional
             The training option. The possible values are 'basic', 'prox', and 'gcfl'. The default is 'basic'.
             'basic' - self-train and FedAvg
-            'prox' - FedProx
+            'prox' - FedProx that includes the proximal term
             'gcfl' - GCFL, GCFL+ and GCFL+dWs
         mu: float, optional
             The proximal term. The default is 1.
@@ -503,7 +500,7 @@ class Trainer_GC:
         test_option: str, optional
             The test option. The possible values are 'basic' and 'prox'. The default is 'basic'.
             'basic' - self-train, FedAvg, GCFL, GCFL+ and GCFL+dWs
-            'prox' - FedProx
+            'prox' - FedProx that includes the proximal term
         mu: float, optional
             The proximal term. The default is 1.
 
@@ -556,17 +553,32 @@ class Trainer_GC:
             The model to be trained
         dataloaders: dict
             The dataloaders for training, validation, and testing
-        optimizer: object
+        optimizer: Any
             The optimizer for training
         local_epoch: int
             The number of local epochs
         device: str
             The device to run the training
+        prox: bool, optional
+            Whether to add the proximal term. The default is False.
+        gconv_names: Any, optional
+            The names of the gconv layers. The default is None.
+        Ws: Any, optional
+            The weights of the model. The default is None.
+        Wt: Any, optional
+            The target weights. The default is None.
+        mu: float, optional
+            The proximal term. The default is 0.
 
         Returns
         -------
         (results): dict
             The training statistics
+
+        Note
+        ----
+        If prox is True, the function will add the proximal term to the loss function.
+        Make sure to provide the required arguments `gconv_names`, `Ws`, `Wt`, and `mu` for the proximal term.
         """
         if prox:
             assert (
@@ -664,17 +676,22 @@ class Trainer_GC:
             The device to run the testing
         prox: bool, optional
             Whether to add the proximal term. The default is False.
-        gconv_names: list, optional
+        gconv_names: Any, optional
             The names of the gconv layers. The default is None.
         mu: float, optional
             The proximal term. The default is None.
-        Wt: dict, optional
+        Wt: Any, optional
             The target weights. The default is None.
 
         Returns
         -------
         (test_loss, test_acc): tuple(float, float)
             The average loss and accuracy
+
+        Note
+        ----
+        If prox is True, the function will add the proximal term to the loss function.
+        Make sure to provide the required arguments `gconv_names`, `Ws`, `Wt`, and `mu` for the proximal term.
         """
         if prox:
             assert (
@@ -700,17 +717,23 @@ class Trainer_GC:
 
         return total_loss / num_graphs, total_acc / num_graphs
 
-    def __prox_term(self, model: GIN, gconv_names: list, Wt: dict) -> torch.tensor:
+    def __prox_term(self, model: Any, gconv_names: Any, Wt: Any) -> torch.tensor:
         """
         Compute the proximal term.
 
-        Args:
-        - model: object, the model to be trained
-        - gconvNames: list, the names of the gconv layers
-        - Wt: dict, the target weights
+        Parameters
+        ----------
+        model: Any
+            The model to be trained
+        gconv_names: Any
+            The names of the gconv layers
+        Wt: Any
+            The target weights
 
-        Returns:
-        - torch.tensor: the proximal term
+        Returns
+        -------
+        prox: torch.tensor
+            The proximal term
         """
         prox = torch.tensor(0.0, requires_grad=True)
         for name, param in model.named_parameters():
@@ -720,16 +743,23 @@ class Trainer_GC:
                 )  # force the weights to be close to the old weights
         return prox
 
-    def __calc_grads_norm(self, gconv_names: list, Ws: dict) -> float:
+    def __calc_grads_norm(self, gconv_names: Any, Ws: Any) -> float:
         """
         Calculate the norm of the gradients of the gconv layers.
 
-        Args:
-        - gconvNames: list, the names of the gconv layers
-        - Ws: dict, the weights of the model
+        Parameters
+        ----------
+        model: Any
+            The model to be trained
+        gconv_names: Any
+            The names of the gconv layers
+        Wt: Any
+            The target weights
 
-        Returns:
-        - float: the norm of the gradients of the gconv layers
+        Returns
+        -------
+        convGradsNorm: float
+            The norm of the gradients of the gconv layers
         """
         grads_conv = {k: Ws[k].grad for k in gconv_names}
         convGradsNorm = torch.norm(self.__flatten(grads_conv)).item()
@@ -741,10 +771,14 @@ class Trainer_GC:
         """
         Copy the source weights to the target weights.
 
-        Args:
-        - target: dict, the target weights
-        - source: dict, the source weights
-        - keys: list, the names of the layers
+        Parameters
+        ----------
+        target: dict
+            The target weights
+        source: dict
+            The source weights
+        keys: list, optional
+            The keys to be copied. The default is None.
         """
         if keys is not None:
             for name in keys:
@@ -754,10 +788,14 @@ class Trainer_GC:
         """
         Subtract the subtrahend from the minuend and store the result in the target.
 
-        Args:
-        - target: dict, the target weights
-        - minuend: dict, the minuend weights
-        - subtrahend: dict, the subtrahend weights
+        Parameters
+        ----------
+        target: dict
+            The target weights
+        minuend: dict
+            The minuend
+        subtrahend: dict
+            The subtrahend
         """
         for name in target:
             target[name].data = (
@@ -766,12 +804,11 @@ class Trainer_GC:
 
     def __flatten(self, w: dict) -> torch.tensor:
         """
-        Flatten the gradients of a client into a 1D tensor.
+        Flatten the gradients of a trainer into a 1D tensor.
 
-        Args:
-        - w: dict, the gradients of a client
-
-        Returns:
-        - torch.tensor: the flattened gradients
+        Parameters
+        ----------
+        w: dict
+            The gradients of a trainer
         """
         return torch.cat([v.flatten() for v in w.values()])

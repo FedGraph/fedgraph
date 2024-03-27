@@ -15,3 +15,4 @@ ray
 tensorboard
 attridict
 fedgraph
+dtaidistance

@@ -7,40 +7,42 @@ import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 from torch_geometric.utils import degree, to_networkx
 
-from fedgraph.gnn_models import GIN, GIN_server
-from fedgraph.server_class import Server_GC
-from fedgraph.trainer_class import Trainer_GC
+from src.server_class import Server_GC
+from src.trainer_class import Trainer_GC
 
 
-def setup_clients(splited_data: dict, args: argparse.Namespace) -> tuple:
+def setup_trainers(
+    splited_data: dict, base_model: Any, args: argparse.Namespace
+) -> tuple:
     """
-    Setup clients for graph classification.
+    Setup trainers for graph classification.
 
     Parameters
     ----------
-    splitedData: dict
-        The data for each client.
+    splited_data: dict
+        The data for each trainer.
+    base_model: Any
+        The base model for the trainer. The base model shown in the example is GIN.
     args: argparse.ArgumentParser
         The input arguments.
 
     Returns
     -------
-    clients: list
-        List of clients.
-    idx_clients: dict
-        Dictionary of client indices.
+    (trainers, idx_trainers): tuple(list, dict)
+        trainers: List of trainers
+        idx_trainers: Dictionary with the index of the trainer as the key and the dataset name as the value
     """
-    idx_clients = {}
-    clients = []
-    for idx, dataset_client_name in enumerate(splited_data.keys()):
-        idx_clients[idx] = dataset_client_name
+    idx_trainers = {}
+    trainers = []
+    for idx, dataset_trainer_name in enumerate(splited_data.keys()):
+        idx_trainers[idx] = dataset_trainer_name
         """acquire data"""
         dataloaders, num_node_features, num_graph_labels, train_size = splited_data[
-            dataset_client_name
+            dataset_trainer_name
         ]
 
         """build GIN model"""
-        cmodel_gc = GIN(
+        cmodel_gc = base_model(
             nfeat=num_node_features,
             nhid=args.hidden,
             nclass=num_graph_labels,
@@ -55,38 +57,40 @@ def setup_clients(splited_data: dict, args: argparse.Namespace) -> tuple:
             weight_decay=args.weight_decay,
         )
 
-        """build client"""
-        client = Trainer_GC(
+        """build trainer"""
+        trainer = Trainer_GC(
             model=cmodel_gc,  # GIN model
-            client_id=idx,  # client id
-            client_name=dataset_client_name,  # client name
+            trainer_id=idx,  # trainer id
+            trainer_name=dataset_trainer_name,  # trainer name
             train_size=train_size,  # training size
             dataloader=dataloaders,  # data loader
             optimizer=optimizer,  # optimizer
             args=args,
         )
 
-        clients.append(client)
+        trainers.append(trainer)
 
-    return clients, idx_clients
+    return trainers, idx_trainers
 
 
-def setup_server(args: argparse.Namespace) -> Server_GC:
+def setup_server(base_model: Any, args: argparse.Namespace) -> Server_GC:
     """
     Setup server.
 
     Parameters
     ----------
+    base_model: Any
+        The base model for the server. The base model shown in the example is GIN_server.
     args: argparse.ArgumentParser
-        The input arguments.
+        The input arguments
 
     Returns
     -------
-    server: ServerGC
-        The server.
+    server: Server_GC
+        The server object
     """
 
-    smodel = GIN_server(nlayer=args.nlayer, nhid=args.hidden)
+    smodel = base_model(nlayer=args.nlayer, nhid=args.hidden)
     server = Server_GC(smodel, args.device)
     return server
 
@@ -97,8 +101,8 @@ def get_max_degree(graphs: Any) -> int:
 
     Parameters
     ----------
-    graphs: list
-        List of graphs
+    graphs: Any
+        The object of graphs
 
     Returns
     -------
@@ -116,12 +120,12 @@ def get_max_degree(graphs: Any) -> int:
 
 def convert_to_node_attributes(graphs: Any) -> list:
     """
-    Use only the node attributes of the graphs.
+    Use only the node attributes of the graphs. This function will treat the graphs as callable objects.
 
     Parameters
     ----------
-    graphs: list
-        List of graphs
+    graphs: Any
+        The object of of graphs
 
     Returns
     -------
