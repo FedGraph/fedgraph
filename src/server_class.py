@@ -9,6 +9,7 @@ from dtaidistance import dtw
 
 from src.gnn_models import GCN, AggreGCN, GCN_arxiv, SAGE_products
 from src.trainer_class import Trainer_General
+from src.gnn_models import GNN_LP
 
 
 class Server:
@@ -449,3 +450,43 @@ class Server_GC:
                 )
                 tmp = torch.div(torch.sum(weighted_stack, dim=0), total_size).clone()
                 target[name].data += tmp
+
+class Server_LP:
+    # for link prediction
+    def __init__(self, number_of_users, number_of_items, meta_data, args_cuda=False):
+
+        self.global_model = GNN_LP(number_of_users, number_of_items, meta_data, hidden_channels=64)
+
+        if args_cuda:
+            self.global_model = self.global_model.cuda()
+
+    def average_parameter(self, states):
+        global_state = dict()
+        # Average all parameters
+        for key in states[0]:
+            global_state[key] = states[0][key]
+            for i in range(1, len(states)):
+                global_state[key] += states[i][key]
+            global_state[key] /= len(states)
+        return global_state
+
+    def fedavg(self, available_clients, gnn_only=False):
+        model_states = []
+        for i in range(len(available_clients)):
+            local_model_parameter = available_clients[i].get_model_parameter(gnn_only)
+            model_states.append(local_model_parameter)
+
+        model_avg_parameter = self.average_parameter(model_states)
+        return model_avg_parameter
+
+    def load_model_parameter(self, model_state_dict, gnn_only=False):
+        if gnn_only:
+            self.global_model.gnn.load_state_dict(model_state_dict)
+        else:
+            self.global_model.load_state_dict(model_state_dict)
+
+    def get_model_parameter(self, gnn_only=False):
+        if gnn_only:
+            return self.global_model.gnn.state_dict()
+        else:
+            return self.global_model.state_dict()

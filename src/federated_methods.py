@@ -16,7 +16,7 @@ from src.gnn_models import GIN
 from src.server_class import Server
 from src.train_func import gc_avg_accuracy
 from src.trainer_class import Trainer_General
-from src.utils import get_1hop_feature_sum
+from src.utils_nc import get_1hop_feature_sum
 from src.utils_gc import setup_server, setup_trainers
 
 
