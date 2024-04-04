@@ -1,6 +1,6 @@
+import argparse
 import sys
 
-import argparse
 import torch_geometric
 
 sys.path.append("../fedgraph")
@@ -34,10 +34,15 @@ if __name__ == "__main__":
         "--repeat_time", type=int, default=10, help="Specify repeat time"
     )
     parser.add_argument(
-        "--global_file_path", type=str, default="data_seperated_by_country/raw_Checkins_anonymized_five_countries.txt"
+        "--global_file_path",
+        type=str,
+        default="data_seperated_by_country/raw_Checkins_anonymized_five_countries.txt",
     )
     parser.add_argument(
-        "traveled_file_path", type=str, default="traveled_users.txt", help="Specify traveled file path"
+        "traveled_file_path",
+        type=str,
+        default="traveled_users.txt",
+        help="Specify traveled file path",
     )
     parser.add_argument(
         "--record_results",
