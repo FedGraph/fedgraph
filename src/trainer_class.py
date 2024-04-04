@@ -1,21 +1,24 @@
 import argparse
-from typing import Any, Union
-import time
 import random
+import time
+from typing import Any, Union
 
 import numpy as np
 import ray
 import torch
-import torch_geometric
 import torch.nn.functional as F
+import torch_geometric
 from torchmetrics.functional.retrieval import retrieval_auroc
 from torchmetrics.retrieval import RetrievalHitRate
 
-from src.gnn_models import GCN, GIN, AggreGCN, GCN_arxiv, SAGE_products
+from src.gnn_models import GCN, GIN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
 from src.train_func import test, train
+from src.utils_lp import (
+    get_data,
+    get_data_loaders_per_time_step,
+    get_global_user_item_mapping,
+)
 from src.utils_nc import get_1hop_feature_sum
-from src.utils_lp import get_data, get_data_loaders_per_time_step, get_global_user_item_mapping
-from src.gnn_models import GNN_LP
 
 
 class Trainer_General:
@@ -819,19 +822,44 @@ class Trainer_GC:
             The gradients of a trainer
         """
         return torch.cat([v.flatten() for v in w.values()])
-    
+
 
 class Trainer_LP:
-    # for link prediction
+    """
+    A trainer class specified for graph link prediction tasks, which includes functionalities required
+    for training GNN models on a subset of a distributed dataset, handling local training and testing,
+    parameter updates, and feature aggregation.
+
+    Parameters
+    ----------
+    client_id : int
+        The ID of the client.
+    country_code : str
+        The country code of the client. Each client is associated with one country code.
+    user_id_mapping : dict
+        The mapping of user IDs.
+    item_id_mapping : dict
+        The mapping of item IDs.
+    number_of_users : int
+        The number of users.
+    number_of_items : int
+        The number of items.
+    meta_data : tuple
+        The metadata of the dataset.
+    hidden_channels : int, optional
+        The number of hidden channels in the GNN model. The default is 64.
+    """
+
     def __init__(
-            self, 
-            client_id, 
-            country_code, 
-            user_id_mapping, 
-            item_id_mapping, 
-            number_of_users, 
-            number_of_items, 
-            meta_data
+        self,
+        client_id: int,
+        country_code: str,
+        user_id_mapping: dict,
+        item_id_mapping: dict,
+        number_of_users: int,
+        number_of_items: int,
+        meta_data: tuple,
+        hidden_channels: int = 64,
     ):
         self.client_id = client_id
         self.country_code = country_code
@@ -839,60 +867,121 @@ class Trainer_LP:
         # global user_id and item_id
         self.data = get_data(self.country_code, user_id_mapping, item_id_mapping)
 
-        self.model = GNN_LP(number_of_users, number_of_items, meta_data, hidden_channels=64)
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model = GNN_LP(
+            number_of_users, number_of_items, meta_data, hidden_channels
+        )
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Device: '{self.device}'")
         self.model = self.model.to(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
 
-    def get_train_test_data_at_current_time_step(self, start_time_int_format, end_time_int_format, use_buffer=False, buffer_size=10):
-        if not use_buffer:
-            self.train_data, self.test_data = get_data_loaders_per_time_step(self.data, start_time_int_format,
-                                                                             end_time_int_format)
-        else:
-            print("loading buffer_train_data_list")
-            self.global_train_data, self.test_data, self.buffer_train_data_list = get_data_loaders_per_time_step(
-                self.data, start_time_int_format, end_time_int_format, use_buffer, buffer_size)
+    def get_train_test_data_at_current_time_step(
+        self,
+        start_time_float_format: float,
+        end_time_float_format: float,
+        use_buffer: bool = False,
+        buffer_size: int = 10,
+    ) -> None:
+        """
+        Get the training and testing data at the current time step.
 
-    def train(self, local_updates, use_buffer=False):
-        if not use_buffer:
-            train_finish_times = []
-            self.train_data.to(self.device)
-            for i in range(local_updates):
-                start_train_time = time.time()
-                self.optimizer.zero_grad()
-                pred = self.model(self.train_data)
-                ground_truth = self.train_data["user", "select", "item"].edge_label
-                loss = F.binary_cross_entropy_with_logits(pred, ground_truth)
-                loss.backward()
-                self.optimizer.step()
-                train_finish_time = time.time() - start_train_time
-                train_finish_times.append(train_finish_time)
-                print(f"client {self.client_id} local update {i} loss {loss:.4f} train time {train_finish_time:.4f}")
-            return loss, train_finish_times
-            #print(f"Epoch: {epoch:03d}, Loss: {loss}")
-        else:
-            train_finish_times = []
-            probabilities = [1 / len(self.buffer_train_data_list)] * len(self.buffer_train_data_list)
-            for i in range(local_updates):
-                buffer_train_data = random.choices(self.buffer_train_data_list, weights=probabilities, k=1)[0]
-                buffer_train_data.to(self.device)
-                start_train_time = time.time()
-                self.optimizer.zero_grad()
-                pred = self.model(buffer_train_data)
-                ground_truth = buffer_train_data["user", "select", "item"].edge_label
-                loss = F.binary_cross_entropy_with_logits(pred, ground_truth)
-                loss.backward()
-                self.optimizer.step()
-                train_finish_time = time.time() - start_train_time
-                train_finish_times.append(train_finish_time)
-                print(f"client {self.client_id} local update {i} loss {loss:.4f} train time {train_finish_time:.4f}")
-            return loss, train_finish_times
-            #print(f"Epoch: {epoch:03d}, Loss: {loss}")
+        Parameters
+        ----------
+        start_time_float_format : float
+            The start time in float format.
+        end_time_float_format : float
+            The end time in float format.
+        use_buffer : bool, optional
+            Whether to use the buffer. The default is False.
+        buffer_size : int, optional
+            The size of the buffer. The default is 10.
+        """
+        print("loading buffer_train_data_list") if use_buffer else print(
+            "loading train_data and test_data"
+        )
 
-    def test(self, use_buffer=False):
-        preds = []
-        ground_truths = []
+        load_res = get_data_loaders_per_time_step(
+            self.data,
+            start_time_float_format,
+            end_time_float_format,
+            use_buffer,
+            buffer_size,
+        )
+
+        if use_buffer:
+            (
+                self.global_train_data,
+                self.test_data,
+                self.buffer_train_data_list,
+            ) = load_res
+        else:
+            self.train_data, self.test_data = load_res
+
+    def train(self, local_updates: int, use_buffer: bool = False) -> tuple:
+        """
+        Perform local training for a specified number of iterations.
+
+        Parameters
+        ----------
+        local_updates : int
+            The number of local updates.
+        use_buffer : bool, optional
+            Whether to use the buffer. The default is False.
+
+        Returns
+        -------
+        (loss, train_finish_times) : tuple
+            [0] The loss of the model
+            [1] The time taken for each local update
+        """
+        train_finish_times = []
+        if use_buffer:
+            probabilities = [1 / len(self.buffer_train_data_list)] * len(
+                self.buffer_train_data_list
+            )
+
+        for i in range(local_updates):
+            if use_buffer:
+                train_data = random.choices(
+                    self.buffer_train_data_list, weights=probabilities, k=1
+                )[0].to(self.device)
+            else:
+                train_data = self.train_data.to(self.device)
+
+            start_train_time = time.time()
+
+            self.optimizer.zero_grad()
+            pred = self.model(train_data)
+            ground_truth = train_data["user", "select", "item"].edge_label
+            loss = F.binary_cross_entropy_with_logits(pred, ground_truth)
+            loss.backward()
+            self.optimizer.step()
+
+            train_finish_time = time.time() - start_train_time
+            train_finish_times.append(train_finish_time)
+            print(
+                f"client {self.client_id} local update {i} loss {loss:.4f} train time {train_finish_time:.4f}"
+            )
+
+        return loss, train_finish_times
+
+    def test(self, use_buffer: bool = False) -> tuple:
+        """
+        Test the model on the test data.
+
+        Parameters
+        ----------
+        use_buffer : bool, optional
+            Whether to use the buffer. The default is False.
+
+        Returns
+        -------
+        (auc, hit_rate_at_2, traveled_user_hit_rate_at_2) : tuple
+            [0] The AUC score
+            [1] The hit rate at 2
+            [2] The hit rate at 2 for traveled users
+        """
+        preds, ground_truths = [], []
         self.test_data.to(self.device)
         with torch.no_grad():
             if not use_buffer:
@@ -907,27 +996,75 @@ class Trainer_LP:
         ground_truth = torch.cat(ground_truths, dim=0)
         auc = retrieval_auroc(pred, ground_truth)
         hit_rate_evaluator = RetrievalHitRate(top_k=2)
-        hit_rate_at_2 = hit_rate_evaluator(pred, ground_truth, indexes=self.test_data["user", "select", "item"].edge_label_index[0])
-        traveled_user_hit_rate_at_2 = hit_rate_evaluator(pred[self.traveled_user_edge_indices], ground_truth[self.traveled_user_edge_indices],
-                                                         indexes=self.test_data["user", "select", "item"].edge_label_index[0][self.traveled_user_edge_indices])
+        hit_rate_at_2 = hit_rate_evaluator(
+            pred,
+            ground_truth,
+            indexes=self.test_data["user", "select", "item"].edge_label_index[0],
+        )
+        traveled_user_hit_rate_at_2 = hit_rate_evaluator(
+            pred[self.traveled_user_edge_indices],
+            ground_truth[self.traveled_user_edge_indices],
+            indexes=self.test_data["user", "select", "item"].edge_label_index[0][
+                self.traveled_user_edge_indices
+            ],
+        )
         print(f"Test AUC: {auc:.4f}")
         print(f"Test Hit Rate at 2: {hit_rate_at_2:.4f}")
         print(f"Test Traveled User Hit Rate at 2: {traveled_user_hit_rate_at_2:.4f}")
         return auc, hit_rate_at_2, traveled_user_hit_rate_at_2
 
-    def calculate_traveled_user_edge_indices(self):
-        with open("traveled_users.txt", "r") as a:
-            traveled_users = torch.tensor([int(line.split('\t')[0]) for line in a])
-        mask = torch.isin(self.test_data['user', 'select', 'item'].edge_label_index[0], traveled_users)
-        self.traveled_user_edge_indices = torch.where(mask)[0]
+    def calculate_traveled_user_edge_indices(self, file_path: str) -> None:
+        """
+        Calculate the indices of the edges of the traveled users.
 
-    def load_model_parameter(self, model_state_dict, gnn_only=False):
+        Parameters
+        ----------
+        file_path : str
+            The path to the file containing the traveled users.
+        """
+        with open(file_path, "r") as a:
+            traveled_users = torch.tensor(
+                [int(line.split("\t")[0]) for line in a]
+            )  # read the user IDs of the traveled users
+        mask = torch.isin(
+            self.test_data["user", "select", "item"].edge_label_index[0], traveled_users
+        )  # mark the indices of the edges of the traveled users as True or False
+        self.traveled_user_edge_indices = torch.where(mask)[
+            0
+        ]  # get the indices of the edges of the traveled users
+
+    def set_model_parameter(
+        self, model_state_dict: dict, gnn_only: bool = False
+    ) -> None:
+        """
+        Load the model parameters from the global server.
+
+        Parameters
+        ----------
+        model_state_dict : dict
+            The model parameters to be loaded.
+        gnn_only : bool, optional
+            Whether to load only the GNN parameters. The default is False.
+        """
         if gnn_only:
             self.model.gnn.load_state_dict(model_state_dict)
         else:
             self.model.load_state_dict(model_state_dict)
 
-    def get_model_parameter(self, gnn_only=False):
+    def get_model_parameter(self, gnn_only: bool = False) -> dict:
+        """
+        Get the model parameters.
+
+        Parameters
+        ----------
+        gnn_only : bool, optional
+            Whether to get only the GNN parameters. The default is False.
+
+        Returns
+        -------
+        dict
+            The model parameters.
+        """
         if gnn_only:
             return self.model.gnn.state_dict()
         else:

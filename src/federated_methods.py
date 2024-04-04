@@ -1,7 +1,9 @@
 import argparse
 import copy
+import datetime
 import os
 import random
+import time
 from pathlib import Path
 from typing import Any
 
@@ -13,11 +15,17 @@ import torch
 
 from src.data_process_gc import load_single_dataset
 from src.gnn_models import GIN
-from src.server_class import Server
-from src.train_func import gc_avg_accuracy
-from src.trainer_class import Trainer_General
-from src.utils_nc import get_1hop_feature_sum
+from src.server_class import Server, Server_LP
+from src.train_func import LP_train_global_round, gc_avg_accuracy
+from src.trainer_class import Trainer_General, Trainer_LP
 from src.utils_gc import setup_server, setup_trainers
+from src.utils_lp import (
+    get_global_user_item_mapping,
+    get_start_end_time,
+    setup_trainer_server,
+    to_next_day,
+)
+from src.utils_nc import get_1hop_feature_sum
 
 
 def FedGCN_Train(args: attridict, data: tuple) -> None:
@@ -835,3 +843,130 @@ def run_GC_gcfl_plus_dWs(
     print(f"Average test accuracy: {gc_avg_accuracy(frame, trainers)}")
 
     return frame
+
+
+def run_LP(args: attridict, country_codes: list) -> None:
+    """
+    Run the training process for link prediction.
+
+    Parameters
+    ----------
+    args: attridict
+        Configuration.
+    country_codes: list
+        List of country codes.
+
+    """
+    method = args.method
+    use_buffer = args.use_buffer
+    buffer_size = args.buffer_size
+    online_learning = args.online_learning
+    repeat_time = args.repeat_time
+    global_rounds = args.global_rounds
+    local_steps = args.local_steps
+    hidden_channels = args.hidden_channels
+    device = (
+        torch.device(args.device) if torch.cuda.is_available() else torch.device("cpu")
+    )
+
+    # get global user and item mapping
+    user_id_mapping, item_id_mapping = get_global_user_item_mapping(
+        global_file_path=args.global_file_path
+    )
+
+    meta_data = (
+        ["user", "item"],
+        [("user", "select", "item"), ("item", "rev_select", "user")],
+    )
+
+    # 'STFL', 'StaticGNN', '4D-FED-GNN+', 'FedLink'
+    for _ in range(repeat_time):
+        number_of_clients = len(country_codes)  # each country is a client
+        clients, server = setup_trainer_server(
+            country_codes=country_codes,
+            user_id_mapping=user_id_mapping,
+            item_id_mapping=item_id_mapping,
+            meta_data=meta_data,
+            hidden_channels=hidden_channels,
+        )
+
+        """Broadcast the global model parameter to all clients"""
+        global_model_parameter = (
+            server.get_model_parameter()
+        )  # fetch the global model parameter
+        for i in range(number_of_clients):
+            clients[i].set_model_parameter(
+                global_model_parameter
+            )  # broadcast the global model parameter to all clients
+
+        """Determine the start and end time of the conditional information"""
+        (
+            start_time,
+            end_time,
+            prediction_days,
+            start_time_float_format,
+            end_time_float_format,
+        ) = get_start_end_time(args.online_learning, args.method)
+
+        if args.record_results:
+            file_name = f"{method}_buffer_{use_buffer}_{buffer_size}_online_{online_learning}.txt"
+            result_writer = open(file_name, "a+")
+            time_writer = open("train_time_" + file_name, "a+")
+
+        # from 2012-04-03 to 2012-04-13
+        for day in range(prediction_days):  # make predictions for each day
+            # get the train and test data for each client at the current time step
+            for i in range(number_of_clients):
+                clients[i].get_train_test_data_at_current_time_step(
+                    start_time_float_format,
+                    end_time_float_format,
+                    use_buffer=use_buffer,
+                    buffer_size=buffer_size,
+                )
+                clients[i].calculate_traveled_user_edge_indices(args.traveled_file_path)
+
+            if online_learning:
+                print(f"start training for day {day + 1}")
+            else:
+                print(f"start training")
+
+            for iteration in range(global_rounds):
+                # each client train on local graph
+                print(iteration)
+                current_loss = LP_train_global_round(
+                    clients=clients,
+                    server=server,
+                    local_steps=local_steps,
+                    use_buffer=use_buffer,
+                    method=method,
+                    online_learning=online_learning,
+                    prediction_day=day,
+                    curr_iteration=iteration,
+                    global_rounds=global_rounds,
+                    record_results=args.record_results,
+                    result_writer=result_writer,
+                    time_writer=time_writer,
+                )
+
+            if current_loss >= 0.01:
+                print("training is not complete")
+
+            # go to next day
+            (
+                start_time,
+                end_time,
+                start_time_float_format,
+                end_time_float_format,
+            ) = to_next_day(start_time=start_time, end_time=end_time, method=method)
+
+            # delete the train and test data of each client
+            client_id = number_of_clients - 1
+            if not use_buffer:
+                del clients[client_id].train_data
+            else:
+                del clients[client_id].global_train_data
+            del clients[client_id].test_data
+
+        if args.record_results:
+            result_writer.close()
+            time_writer.close()

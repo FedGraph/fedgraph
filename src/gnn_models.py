@@ -11,8 +11,7 @@ from torch_geometric.nn import (
     SAGEConv,
     global_add_pool,
     global_mean_pool,
-    SAGEConv, 
-    to_hetero
+    to_hetero,
 )
 
 
@@ -473,87 +472,112 @@ class GIN(torch.nn.Module):
         return F.nll_loss(pred, label)
 
 
-class MFAdvanced(nn.Module):
-    """ Matrix factorization + user & item bias, weight init., sigmoid_range """
-    def __init__(self, num_users, num_items, emb_dim, init, bias, sigmoid, item_x_dim = None):
-        super().__init__()
-        self.bias = bias
-        self.sigmoid = sigmoid
-        self.user_emb = nn.Embedding(num_users, emb_dim)
-        self.item_emb = nn.Embedding(num_items, emb_dim)
-        if item_x_dim is not None:
-            self.item_lin = torch.nn.Linear(item_x_dim, emb_dim)
-        if bias:
-            self.user_bias = nn.Parameter(torch.zeros(num_users))
-            self.item_bias = nn.Parameter(torch.zeros(num_items))
-            self.offset = nn.Parameter(torch.zeros(1))
-        if init:
-            self.user_emb.weight.data.uniform_(0., 0.05)
-            self.item_emb.weight.data.uniform_(0., 0.05)
+class GNN_base(torch.nn.Module):
+    """
+    A base Graph Neural Network model implementation which creates a GNN with two convolutional layers.
 
-    def forward(self, user, item, item_x = None):
-        user_emb = self.user_emb(user)
-        item_emb = self.item_emb(item)
-        if item_x is not None:
-            item_emb += self.item_lin(item_x)
-        element_product = (user_emb*item_emb).sum(1)
-        if self.bias:
-            user_b = self.user_bias[user]
-            item_b = self.item_bias[item]
-            element_product += user_b + item_b + self.offset
-        if self.sigmoid:
-            return self.__sigmoid_range(element_product, 0, 1)
-        return element_product
-    
-    def __sigmoid_range(self, x, low, high):
-        """ Sigmoid function with range (low, high) """
-        return torch.sigmoid(x) * (high-low) + low
+    Parameters
+    ----------
+    hidden_channels: int
+        The number of hidden features in each layer of the GNN model.
 
+    Attributes
+    ----------
+    conv1: torch_geometric.nn.conv.MessagePassing
+        The first convolutional layer.
+    conv2: torch_geometric.nn.conv.MessagePassing
+        The second convolutional layer.
+    """
 
-class GNN(torch.nn.Module):
-    def __init__(self, hidden_channels):
+    def __init__(self, hidden_channels: int) -> None:
         super().__init__()
         self.conv1 = SAGEConv(hidden_channels, hidden_channels)
         self.conv2 = SAGEConv(hidden_channels, hidden_channels)
 
     def forward(self, x: torch.Tensor, edge_index: torch.Tensor) -> torch.Tensor:
+        """
+        Represents the forward pass computation
+
+        Parameters
+        ----------
+        x: torch.Tensor
+            Input feature tensor for the graph nodes.
+        edge_index: torch.Tensor
+            Edge index tensor of the graph.
+
+        Returns
+        -------
+        (tensor) : torch.Tensor
+        """
         x = F.relu(self.conv1(x, edge_index))
         x = self.conv2(x, edge_index)
         return x
 
 
-# Our final classifier applies the dot-product between source and destination
-# node embeddings to derive edge-level predictions:
-class Classifier_LP(torch.nn.Module):
-    def forward(self, x_user: torch.Tensor, x_item: torch.Tensor, edge_label_index: torch.Tensor) -> torch.Tensor:
-        # Convert node embeddings to edge-level representations:
-        edge_feat_user = x_user[edge_label_index[0]]
-        edge_feat_item = x_item[edge_label_index[1]]
-        # Apply dot-product to get a prediction per supervision edge:
-        return (edge_feat_user * edge_feat_item).sum(dim=-1)
-
-
 class GNN_LP(torch.nn.Module):
-    def __init__(self, user_nums, item_nums, data_meta_data, hidden_channels):
+    """
+    A Graph Nerual Network (GNN) model implementation used for link prediction tasks, which creates a GNN with specified
+    numbers of user and item nodes, hidden channels, and data metadata.
+
+    Parameters
+    ----------
+    user_nums: int
+        The number of user nodes.
+    item_nums: int
+        The number of item nodes.
+    data_meta_data: tuple
+        The meta data.
+    hidden_channels: int
+        The number of hidden features in each layer of the GNN model.
+
+    Attributes
+    ----------
+    user_emb: torch.nn.Embedding
+        The user embedding layer.
+    item_emb: torch.nn.Embedding
+        The item embedding layer.
+    gnn: GNN_base
+        The base GNN model.
+    """
+
+    def __init__(
+        self,
+        user_nums: int,
+        item_nums: int,
+        data_meta_data: tuple,
+        hidden_channels: int,
+    ) -> None:
         super().__init__()
         # Since the dataset does not come with rich features, we also learn two
         # embedding matrices for users and items:
         self.user_emb = torch.nn.Embedding(user_nums, hidden_channels)
         self.item_emb = torch.nn.Embedding(item_nums, hidden_channels)
         # Instantiate homogeneous GNN:
-        self.gnn = GNN(hidden_channels)
+        self.gnn = GNN_base(hidden_channels)
         # Convert GNN model into a heterogeneous variant:
         self.gnn = to_hetero(self.gnn, metadata=data_meta_data)
-        self.classifier = Classifier_LP()
 
     def forward(self, data: HeteroData) -> torch.Tensor:
+        """
+        Represents the forward pass computation that is used in the training stage.
+
+        Parameters
+        ----------
+        data: HeteroData
+            The input graph data.
+
+        Returns
+        -------
+        (tensor) : torch.Tensor
+            The prediction output of the model.
+        """
         x_dict = {
             "user": self.user_emb(data["user"].node_id),
             "item": self.item_emb(data["item"].node_id),
         }
         # `edge_index_dict` holds all edge indices of all edge types
         x_dict = self.gnn(x_dict, data.edge_index_dict)
-        pred = self.classifier(
+        pred = self.__classify(
             x_dict["user"],
             x_dict["item"],
             data["user", "select", "item"].edge_label_index,
@@ -561,6 +585,21 @@ class GNN_LP(torch.nn.Module):
         return pred
 
     def pred(self, train_data: HeteroData, test_data: HeteroData) -> torch.Tensor:
+        """
+        Represents the prediction computation that is used in the test stage.
+
+        Parameters
+        ----------
+        train_data: HeteroData
+            The training graph data.
+        test_data: HeteroData
+            The testing graph data.
+
+        Returns
+        -------
+        (tensor) : torch.Tensor
+            The prediction output of the model.
+        """
         x_dict = {
             "user": self.user_emb(train_data["user"].node_id),
             "item": self.item_emb(train_data["item"].node_id),
@@ -569,15 +608,42 @@ class GNN_LP(torch.nn.Module):
         x_dict = self.gnn(x_dict, train_data.edge_index_dict)
         # if does not have negative edges
         if "edge_label_index" not in test_data["user", "select", "item"]:
-            pred = self.classifier(
+            pred = self.__classify(
                 x_dict["user"],
                 x_dict["item"],
                 test_data["user", "select", "item"].edge_index,
             )
         else:
-            pred = self.classifier(
+            pred = self.__classify(
                 x_dict["user"],
                 x_dict["item"],
                 test_data["user", "select", "item"].edge_label_index,
             )
         return pred
+
+    # Private methods
+    def __classify(
+        self, x_user: torch.Tensor, x_item: torch.Tensor, edge_label_index: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        A private method to classify the user and item embeddings
+
+        Parameters
+        ----------
+        x_user: torch.Tensor
+            The user embeddings.
+        x_item: torch.Tensor
+            The item embeddings.
+        edge_label_index: torch.Tensor
+            The edge label index.
+
+        Returns
+        -------
+        (tensor) : torch.Tensor
+            The prediction output of the model.
+        """
+        # Convert node embeddings to edge-level representations:
+        edge_feat_user = x_user[edge_label_index[0]]
+        edge_feat_item = x_item[edge_label_index[1]]
+        # Apply dot-product to get a prediction per supervision edge:
+        return (edge_feat_user * edge_feat_item).sum(dim=-1)

@@ -19,7 +19,7 @@ import torch
 
 ray.init()
 
-from src.data_process import load_data
+from src.data_process_nc import load_data
 from src.server_class import Server
 from src.trainer_class import Trainer_General
 from src.utils_nc import (
