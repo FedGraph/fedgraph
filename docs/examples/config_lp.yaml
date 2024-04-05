@@ -13,6 +13,3 @@ dataset_path: data/LPDataset
 global_file_path: data/LPDataset/data_five_countries.txt
 traveled_file_path: data/LPDataset/traveled_users.txt
 record_results: false
-
-
-
