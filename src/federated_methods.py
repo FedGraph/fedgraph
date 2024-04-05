@@ -16,13 +16,13 @@ import torch
 from src.data_process_gc import load_single_dataset
 from src.gnn_models import GIN
 from src.server_class import Server, Server_LP
-from src.train_func import LP_train_global_round, gc_avg_accuracy
+from src.train_func import gc_avg_accuracy
 from src.trainer_class import Trainer_General, Trainer_LP
 from src.utils_gc import setup_server, setup_trainers
 from src.utils_lp import (
+    check_data_files_existance,
     get_global_user_item_mapping,
     get_start_end_time,
-    setup_trainer_server,
     to_next_day,
 )
 from src.utils_nc import get_1hop_feature_sum
@@ -845,41 +845,110 @@ def run_GC_gcfl_plus_dWs(
     return frame
 
 
-def run_LP(args: attridict, country_codes: list) -> None:
+def run_LP(config: dict, country_codes: list) -> None:
     """
     Run the training process for link prediction.
 
     Parameters
     ----------
-    args: attridict
+    config: dict
         Configuration.
     country_codes: list
         List of country codes.
 
     """
-    method = args.method
-    use_buffer = args.use_buffer
-    buffer_size = args.buffer_size
-    online_learning = args.online_learning
-    repeat_time = args.repeat_time
-    global_rounds = args.global_rounds
-    local_steps = args.local_steps
-    hidden_channels = args.hidden_channels
-    device = (
-        torch.device(args.device) if torch.cuda.is_available() else torch.device("cpu")
-    )
+
+    def setup_trainer_server(
+        country_codes: list,
+        user_id_mapping: Any,
+        item_id_mapping: Any,
+        meta_data: tuple,
+        hidden_channels: int = 64,
+    ) -> tuple:
+        """
+        Setup the trainer and server
+
+        Parameters
+        ----------
+        country_codes: list
+            The list of country codes
+        user_id_mapping: Any
+            The user id mapping
+        item_id_mapping: Any
+            The item id mapping
+        meta_data: tuple
+            The meta data
+        hidden_channels: int, optional
+            The number of hidden channels
+
+        Returns
+        -------
+        (list, Server_LP): tuple
+            [0]: The list of clients
+            [1]: The server
+        """
+        number_of_clients = len(country_codes)
+        number_of_users, number_of_items = len(user_id_mapping.keys()), len(
+            item_id_mapping.keys()
+        )
+        clients = []
+        for i in range(number_of_clients):
+            client = Trainer_LP(
+                i,
+                country_code=country_codes[i],
+                user_id_mapping=user_id_mapping,
+                item_id_mapping=item_id_mapping,
+                number_of_users=number_of_users,
+                number_of_items=number_of_items,
+                meta_data=meta_data,
+                hidden_channels=hidden_channels,
+            )
+            clients.append(client)
+
+        server = Server_LP(  # the concrete information of users and items is not available in the server
+            number_of_users=number_of_users,
+            number_of_items=number_of_items,
+            meta_data=meta_data,
+        )
+
+        return clients, server
+
+    method = config["method"]
+    use_buffer = config["use_buffer"]
+    buffer_size = config["buffer_size"]
+    online_learning = config["online_learning"]
+    repeat_time = config["repeat_time"]
+    global_rounds = config["global_rounds"]
+    local_steps = config["local_steps"]
+    hidden_channels = config["hidden_channels"]
+    record_results = config["record_results"]
+
+    dataset_path = config["dataset_path"]
+    global_file_path = os.path.join(dataset_path, "data_global.txt")
+    traveled_file_path = os.path.join(dataset_path, "traveled_users.txt")
+
+    # check the validity of the input
+    assert method in ["STFL", "StaticGNN", "4D-FED-GNN+", "FedLink"], "Invalid method."
+    assert all(
+        code in ["US", "BR", "ID", "TR", "JP"] for code in country_codes
+    ), "The country codes should be in 'US', 'BR', 'ID', 'TR', 'JP'"
+    if use_buffer:
+        assert buffer_size > 0, "The buffer size should be greater than 0."
+
+    check_data_files_existance(country_codes, dataset_path)
 
     # get global user and item mapping
     user_id_mapping, item_id_mapping = get_global_user_item_mapping(
-        global_file_path=args.global_file_path
+        global_file_path=global_file_path
     )
 
+    # set meta_data
     meta_data = (
         ["user", "item"],
         [("user", "select", "item"), ("item", "rev_select", "user")],
     )
 
-    # 'STFL', 'StaticGNN', '4D-FED-GNN+', 'FedLink'
+    # repeat the training process
     for _ in range(repeat_time):
         number_of_clients = len(country_codes)  # each country is a client
         clients, server = setup_trainer_server(
@@ -906,12 +975,15 @@ def run_LP(args: attridict, country_codes: list) -> None:
             prediction_days,
             start_time_float_format,
             end_time_float_format,
-        ) = get_start_end_time(args.online_learning, args.method)
+        ) = get_start_end_time(online_learning=online_learning, method=method)
 
-        if args.record_results:
+        if record_results:
             file_name = f"{method}_buffer_{use_buffer}_{buffer_size}_online_{online_learning}.txt"
             result_writer = open(file_name, "a+")
             time_writer = open("train_time_" + file_name, "a+")
+        else:
+            result_writer = None
+            time_writer = None
 
         # from 2012-04-03 to 2012-04-13
         for day in range(prediction_days):  # make predictions for each day
@@ -923,7 +995,9 @@ def run_LP(args: attridict, country_codes: list) -> None:
                     use_buffer=use_buffer,
                     buffer_size=buffer_size,
                 )
-                clients[i].calculate_traveled_user_edge_indices(args.traveled_file_path)
+                clients[i].calculate_traveled_user_edge_indices(
+                    file_path=traveled_file_path
+                )
 
             if online_learning:
                 print(f"start training for day {day + 1}")
@@ -943,7 +1017,7 @@ def run_LP(args: attridict, country_codes: list) -> None:
                     prediction_day=day,
                     curr_iteration=iteration,
                     global_rounds=global_rounds,
-                    record_results=args.record_results,
+                    record_results=record_results,
                     result_writer=result_writer,
                     time_writer=time_writer,
                 )
@@ -967,6 +1041,109 @@ def run_LP(args: attridict, country_codes: list) -> None:
                 del clients[client_id].global_train_data
             del clients[client_id].test_data
 
-        if args.record_results:
+        if result_writer is not None and time_writer is not None:
             result_writer.close()
             time_writer.close()
+
+
+def LP_train_global_round(
+    clients: list,
+    server: Any,
+    local_steps: int,
+    use_buffer: bool,
+    method: str,
+    online_learning: bool,
+    prediction_day: int,
+    curr_iteration: int,
+    global_rounds: int,
+    record_results: bool = False,
+    result_writer: Any = None,
+    time_writer: Any = None,
+) -> float:
+    """
+    This function trains the clients for a global round and updates the server model with the average of the client models.
+
+    Parameters
+    ----------
+    clients : list
+        List of client objects
+    server : Any
+        Server object
+    local_steps : int
+        Number of local steps
+    use_buffer : bool
+        Specifies whether to use buffer
+    method : str
+        Specifies the method
+    online_learning : bool
+        Specifies online learning
+    prediction_day : int
+        Prediction day
+    curr_iteration : int
+        Current iteration
+    global_rounds : int
+        Global rounds
+    record_results : bool, optional
+        Record model AUC and Running time
+    result_writer : Any, optional
+        File writer object
+    time_writer : Any, optional
+        File writer object
+
+    Returns
+    -------
+    current_loss : float
+        Loss of the model on the training data
+    """
+    if record_results:
+        assert result_writer is not None and time_writer is not None
+
+    # local training
+    number_of_clients = len(clients)
+    for client_id in range(number_of_clients):
+        current_loss, train_finish_times = clients[client_id].train(
+            local_updates=local_steps, use_buffer=use_buffer
+        )  # local training
+        if record_results:
+            for train_finish_time in train_finish_times:
+                time_writer.write(
+                    f"client {str(client_id)} train time {str(train_finish_time)}\n"
+                )
+
+    # aggregate the parameters and broadcast to the clients
+    gnn_only = True if method == "FedLink (OnlyAvgGNN)" else False
+    if method != "StaticGNN":
+        model_avg_parameter = server.fedavg(clients, gnn_only)
+        server.set_model_parameter(model_avg_parameter, gnn_only)
+        for client_id in range(number_of_clients):
+            clients[client_id].load_model_parameter(model_avg_parameter, gnn_only)
+
+    # test the model
+    avg_auc, avg_hit_rate, avg_traveled_user_hit_rate = 0.0, 0.0, 0.0
+    for client_id in range(number_of_clients):
+        auc_score, hit_rate, traveled_user_hit_rate = clients[client_id].test(
+            use_buffer=use_buffer
+        )  # local testing
+        avg_auc += auc_score
+        avg_hit_rate += hit_rate
+        avg_traveled_user_hit_rate += traveled_user_hit_rate
+        print(
+            f"Day {prediction_day} client {client_id} auc score: {auc_score} hit rate: {hit_rate} traveled user hit rate: {traveled_user_hit_rate}"
+        )
+        # write final test_auc
+        if curr_iteration + 1 == global_rounds and record_results:
+            result_writer.write(
+                f"Day {prediction_day} client {client_id} final auc score: {auc_score} hit rate: {hit_rate} traveled user hit rate: {traveled_user_hit_rate}\n"
+            )
+
+    avg_auc /= number_of_clients
+    avg_hit_rate /= number_of_clients
+
+    if online_learning:
+        print(
+            f"Predict Day {prediction_day + 1} average auc score: {avg_auc} hit rate: {avg_hit_rate}"
+        )
+    else:
+        print(f"Predict Day 20 average auc score: {avg_auc} hit rate: {avg_hit_rate}")
+
+    return current_loss

@@ -1,0 +1,18 @@
+method: FedLink
+
+use_buffer: false
+buffer_size: 300000
+online_learning: false
+global_rounds: 20
+local_steps: 3
+repeat_time: 10
+hidden_channels: 64
+device: cuda
+
+dataset_path: data/LPDataset
+global_file_path: data/LPDataset/data_five_countries.txt
+traveled_file_path: data/LPDataset/traveled_users.txt
+record_results: false
+
+
+

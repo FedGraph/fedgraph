@@ -1,15 +1,15 @@
 import datetime
+import os
 import time
+import urllib.request
 from typing import Any
 
+import gdown
 import numpy as np
 import pandas as pd
 import torch
 import torch_geometric
 from torch_geometric.data import HeteroData
-
-from src.server_class import Server_LP
-from src.trainer_class import Trainer_LP
 
 
 def convert_time(time_string: str) -> float:
@@ -157,7 +157,7 @@ def get_data(
     - `edge_label_index` (torch.Tensor): The edge label indices.
     - `edge_label` (torch.Tensor): The edge labels.
     """
-    file_name = f"data_seperated_by_country/raw_Checkins_anonymized_{country_code}_100day_20day_with_name_location.txt"
+    file_name = f"data/LPDataset/data_{country_code}.txt"
 
     if user_id_mapping is None and item_id_mapping is None:
         # use local client mapping
@@ -446,57 +446,75 @@ def to_next_day(
     return start_time, end_time, start_time_float_format, end_time_float_format
 
 
-def setup_trainer_server(
+def check_data_files_existance(
     country_codes: list,
-    user_id_mapping: Any,
-    item_id_mapping: Any,
-    meta_data: tuple,
-    hidden_channels: int = 64,
-) -> tuple:
+    dataset_dir_path: str = "data/LPDataset",
+) -> None:
     """
-    Setup the trainer and server
+    Check if the data files exist
 
     Parameters
     ----------
     country_codes: list
         The list of country codes
-    user_id_mapping: Any
-        The user id mapping
-    item_id_mapping: Any
-        The item id mapping
-    meta_data: tuple
-        The meta data
-    hidden_channels: int, optional
-        The number of hidden channels
-
-    Returns
-    -------
-    (list, Server_LP): tuple
-        [0]: The list of clients
-        [1]: The server
+    dataset_dir_path: str, optional
+        The directory path of the dataset
     """
-    number_of_clients = len(country_codes)
-    number_of_users, number_of_items = len(user_id_mapping.keys()), len(
-        item_id_mapping.keys()
-    )
-    clients = []
-    for i in range(number_of_clients):
-        client = Trainer_LP(
-            i,
-            country_code=country_codes[i],
-            user_id_mapping=user_id_mapping,
-            item_id_mapping=item_id_mapping,
-            number_of_users=number_of_users,
-            number_of_items=number_of_items,
-            meta_data=meta_data,
-            hidden_channels=hidden_channels,
-        )
-        clients.append(client)
+    if not os.path.exists(dataset_dir_path):
+        os.makedirs(dataset_dir_path)
 
-    server = Server_LP(  # the concrete information of users and items is not available in the server
-        number_of_users=number_of_users,
-        number_of_items=number_of_items,
-        meta_data=meta_data,
-    )
+    all_files_list = ["traveled_users", "data_global"]
+    assert len(country_codes) > 0, "No country codes specified"
+    assert all(
+        country_code in ["US", "BR", "ID", "TR", "JP"] for country_code in country_codes
+    ), "Invalid country code"
 
-    return clients, server
+    all_files_list += [f"data_{country_code}" for country_code in country_codes]
+
+    for file_name in all_files_list:
+        if not os.path.exists(f"{dataset_dir_path}/{file_name}.txt"):
+            download_LPDataset(file_name, dataset_dir_path)
+
+
+def download_LPDataset(file_name: str, dir_path: str = "data/LPDataset") -> None:
+    """
+    Download the data files
+
+    Parameters
+    ----------
+    dir_path: str
+        The directory path
+    file_name: str
+        The file name
+    """
+    assert file_name in [
+        "traveled_users",
+        "data_US",
+        "data_BR",
+        "data_ID",
+        "data_TR",
+        "data_JP",
+        "data_global",
+    ], "Invalid file name"
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+
+    out_file_name = f"{dir_path}/{file_name}.txt"
+    if file_name == "traveled_users":
+        url = "https://drive.google.com/uc?id=1RUsyGrsz4hmY3OA3b-oqyh5yqlks02-p"
+    elif file_name == "data_US":
+        url = "https://drive.google.com/uc?id=1g3nH-UovAFwj4wKLTr4rBP18hlBtVJLd"
+    elif file_name == "data_BR":
+        url = "https://drive.google.com/uc?id=1tg69D1-NSTrKvaAGZELBeECsPh6MAnaS"
+    elif file_name == "data_ID":
+        url = "https://drive.google.com/uc?id=17EIuBl6rI3LNByamO8Dd-yNMUtIJw4xW"
+    elif file_name == "data_TR":
+        url = "https://drive.google.com/uc?id=1Tz2ckCrEHy0wn075JRYtKE9MNIyd6nTx"
+    elif file_name == "data_JP":
+        url = "https://drive.google.com/uc?id=1IPBW4dRYk52x8TahfBqFOh3GdxoYafJ2"
+    else:
+        url = "https://drive.google.com/uc?id=1CnBlVXqCbfjSswagTci5D7nAqO7laU_J"
+
+    print(f"Downloading {file_name} from {url}...")
+    gdown.download(url, out_file_name, quiet=False)
+    print(f"Downloaded {file_name} to {out_file_name}")

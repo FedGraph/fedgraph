@@ -10,7 +10,6 @@ Run a simple example of Federated Graph Classification.
 #######################################################################
 # Load libraries
 # ------------
-
 import sys
 
 import yaml

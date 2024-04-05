@@ -1,67 +1,57 @@
-import argparse
+"""
+Simple Federated Link Prediction Example
+================
+
+Run a simple example of Federated Link Prediction.
+
+(Time estimate: 1 minutes)
+"""
+
+#######################################################################
+# Load libraries
+# ------------
 import sys
 
 import torch_geometric
+import yaml
 
 sys.path.append("../fedgraph")
 from src.federated_methods import run_LP
 
 torch_geometric.seed.seed_everything(42)
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Parsing arguments")
+#######################################################################
+# Load configuration
+# ------------
+# Here we load the configuration file for the experiment.
+# The configuration file specifies the hyperparameters for the experiment.
+# The user can modify the configuration file to specify the hyperparameters for the experiment.
+# In the default configuration file, `method` is used to specify the federated method.
+# The user can specify the federated method by setting `method` to one of the following values:
+# `FedLink`, `STFL`, `StaticGNN`, `4D-FED-GNN+`.
 
-    # Add arguments
-    parser.add_argument(
-        "--method", type=str, default="FedLink", help="Specify the method"
-    )
-    parser.add_argument(
-        "--use_buffer", type=bool, default=False, help="Specify whether to use buffer"
-    )
-    parser.add_argument(
-        "--buffer_size", type=int, default=300000, help="Specify buffer size"
-    )
-    parser.add_argument(
-        "--online_learning", type=bool, default=False, help="Specify online learning"
-    )
-    parser.add_argument(
-        "--global_rounds", type=int, default=20, help="Specify global rounds"
-    )
-    parser.add_argument(
-        "--local_steps", type=int, default=3, help="Specify local steps"
-    )
-    parser.add_argument(
-        "--repeat_time", type=int, default=10, help="Specify repeat time"
-    )
-    parser.add_argument(
-        "--global_file_path",
-        type=str,
-        default="data_seperated_by_country/raw_Checkins_anonymized_five_countries.txt",
-    )
-    parser.add_argument(
-        "traveled_file_path",
-        type=str,
-        default="traveled_users.txt",
-        help="Specify traveled file path",
-    )
-    parser.add_argument(
-        "--record_results",
-        type=bool,
-        default=False,
-        help="Record model AUC and Running time",
-    )
-    parser.add_argument("--device", type=str, default="cuda", help="Specify device")
+config_file = "docs/examples/config_lp.yaml"
+with open(config_file, "r") as file:
+    config = yaml.safe_load(file)
 
-    # Parse the arguments
-    args = parser.parse_args()
-    print(args)
+print(config)
 
-    country_codes = [
-        # "US",
-        # "BR",
-        # "ID",
-        "TR",
-        # "JP",
-    ]  # top 5 biggest country , 'US', 'BR', 'ID', 'TR',
 
-    run_LP(args=args, country_codes=country_codes)
+#######################################################################
+# Specify the country codes
+# ------------
+# The user can specify the country codes for the experiment.
+# Each country code corresponds to a country in the dataset, and a client will be created for each country code.
+country_codes = [
+    # "US",
+    # "BR",
+    # "ID",
+    # "TR",
+    "JP",
+]  # top 5 biggest country , 'US', 'BR', 'ID', 'TR',
+
+#######################################################################
+# Run the experiment
+# ------------
+# The user can run the experiment with the specified configuration.
+run_LP(config=config, country_codes=country_codes)
