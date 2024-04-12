@@ -19,10 +19,10 @@ import torch
 
 ray.init()
 
-from src.data_process_nc import load_data
-from src.server_class import Server
-from src.trainer_class import Trainer_General
-from src.utils_nc import (
+from fedgraph.data_process_nc import load_data
+from fedgraph.server_class import Server
+from fedgraph.trainer_class import Trainer_General
+from fedgraph.utils_nc import (
     get_1hop_feature_sum,
     get_in_comm_indexes,
     label_dirichlet_partition,

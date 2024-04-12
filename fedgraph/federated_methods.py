@@ -13,18 +13,18 @@ import pandas as pd
 import ray
 import torch
 
-from src.gnn_models import GIN
-from src.server_class import Server, Server_LP
-from src.train_func import gc_avg_accuracy
-from src.trainer_class import Trainer_General, Trainer_LP
-from src.utils_gc import setup_server, setup_trainers
-from src.utils_lp import (
+from fedgraph.gnn_models import GIN
+from fedgraph.server_class import Server, Server_LP
+from fedgraph.train_func import gc_avg_accuracy
+from fedgraph.trainer_class import Trainer_General, Trainer_LP
+from fedgraph.utils_gc import setup_server, setup_trainers
+from fedgraph.utils_lp import (
     check_data_files_existance,
     get_global_user_item_mapping,
     get_start_end_time,
     to_next_day,
 )
-from src.utils_nc import get_1hop_feature_sum
+from fedgraph.utils_nc import get_1hop_feature_sum
 
 
 def run_FedGCN(args: attridict, data: tuple) -> None:

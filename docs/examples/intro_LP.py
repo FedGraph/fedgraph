@@ -23,10 +23,10 @@ import yaml
 
 sys.path.append("../fedgraph")
 sys.path.append("../../")
-from src.federated_methods import LP_train_global_round
-from src.server_class import Server_LP
-from src.trainer_class import Trainer_LP
-from src.utils_lp import *
+from fedgraph.federated_methods import LP_train_global_round
+from fedgraph.server_class import Server_LP
+from fedgraph.trainer_class import Trainer_LP
+from fedgraph.utils_lp import *
 
 #######################################################################
 # Load configuration and check arguments

@@ -15,7 +15,7 @@ import sys
 import torch_geometric
 import yaml
 
-from src.federated_methods import run_LP
+from fedgraph.federated_methods import run_LP
 
 torch_geometric.seed.seed_everything(42)
 

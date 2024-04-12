@@ -11,14 +11,14 @@ import torch_geometric
 from torchmetrics.functional.retrieval import retrieval_auroc
 from torchmetrics.retrieval import RetrievalHitRate
 
-from src.gnn_models import GCN, GIN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
-from src.train_func import test, train
-from src.utils_lp import (
+from fedgraph.gnn_models import GCN, GIN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
+from fedgraph.train_func import test, train
+from fedgraph.utils_lp import (
     get_data,
     get_data_loaders_per_time_step,
     get_global_user_item_mapping,
 )
-from src.utils_nc import get_1hop_feature_sum
+from fedgraph.utils_nc import get_1hop_feature_sum
 
 
 class Trainer_General:

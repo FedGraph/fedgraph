@@ -12,6 +12,7 @@ device: cuda
 use_buffer: false
 buffer_size: 300000
 online_learning: false
+seed: 10
 
 # model_parameters:
 global_rounds: 20

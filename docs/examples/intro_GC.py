@@ -23,8 +23,8 @@ import yaml
 
 sys.path.append("../fedgraph")
 sys.path.append("../../")
-from src.data_process_gc import *
-from src.federated_methods import (
+from fedgraph.data_process_gc import *
+from fedgraph.federated_methods import (
     run_GC_fedavg,
     run_GC_fedprox,
     run_GC_gcfl,
@@ -32,8 +32,8 @@ from src.federated_methods import (
     run_GC_gcfl_plus_dWs,
     run_GC_selftrain,
 )
-from src.gnn_models import GIN
-from src.utils_gc import *
+from fedgraph.gnn_models import GIN
+from fedgraph.utils_gc import *
 
 #######################################################################
 # Load configuration

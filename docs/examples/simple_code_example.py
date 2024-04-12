@@ -4,7 +4,7 @@ Simple FedGraph Example
 
 Run a simple example of FedGraph.
 
-(Time estimate: 1 minutes)
+(Time estimate: 3 minutes)
 """
 
 #######################################################################
@@ -18,15 +18,15 @@ sys.path.append("../../")
 import attridict
 import yaml
 
-from src.data_process_gc import load_single_dataset
-from src.federated_methods import run_FedGCN, run_GC, run_LP
-from src.utils_nc import federated_data_loader
+from fedgraph.data_process_gc import load_single_dataset
+from fedgraph.federated_methods import run_FedGCN, run_GC, run_LP
+from fedgraph.utils_nc import federated_data_loader
 
 #######################################################################
 # Specify the task
 # ------------
 
-fedgraph_task = "GC"
+fedgraph_task = "LP"
 assert fedgraph_task in ["FedGCN", "GC", "LP"]
 
 GC_algorithm = "GCFL"  # For GC task, the user must specify the GC algorithm
@@ -49,13 +49,14 @@ print(config)
 if fedgraph_task == "FedGCN":
     data = federated_data_loader(config)
 elif fedgraph_task == "GC":
+    seed_split_data = 42  # seed for splitting data must be fixed
     data, _ = load_single_dataset(
         config.datapath,
         dataset=config.dataset,
         num_trainer=config.num_trainers,
         batch_size=config.batch_size,
         convert_x=config.convert_x,
-        seed=config.seed,
+        seed=seed_split_data,
         overlap=config.overlap,
     )
 
