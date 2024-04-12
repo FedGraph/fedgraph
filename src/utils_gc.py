@@ -7,8 +7,13 @@ import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 from torch_geometric.utils import degree, to_networkx
 
+<<<<<<< HEAD:fedgraph/utils_gc.py
 from fedgraph.server_class import Server_GC
 from fedgraph.trainer_class import Trainer_GC
+=======
+from src.server_class import Server_GC
+from src.trainer_class import Trainer_GC
+>>>>>>> main:src/utils_gc.py
 
 
 def setup_trainers(

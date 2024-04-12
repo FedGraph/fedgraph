@@ -32,6 +32,8 @@ assert fedgraph_task in ["FedGCN", "GC", "LP"]
 GC_algorithm = "GCFL"  # For GC task, the user must specify the GC algorithm
 if fedgraph_task == "GC":
     assert GC_algorithm in ["SelfTrain", "FedAvg", "FedProx", "GCFL"]
+from src.federated_methods import FedGCN_Train
+from src.utils import federated_data_loader
 
 #######################################################################
 # Load configuration and federated data

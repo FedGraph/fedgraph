@@ -7,7 +7,7 @@ from torch_geometric.datasets import TUDataset
 from torch_geometric.loader import DataLoader
 from torch_geometric.transforms import OneHotDegree
 
-from fedgraph.utils_gc import get_max_degree, get_num_graph_labels, get_stats, split_data
+from src.utils_gc import get_max_degree, get_num_graph_labels, get_stats, split_data
 
 
 def rand_split_chunk(
@@ -82,12 +82,11 @@ def load_single_dataset(
 
     Returns
     -------
-    (splited_data, stats_df): tuple
-        [0] splited_data: dict
-            The data for each trainer.
-        [1] stats_df: pd.DataFrame
-            The statistics of data, including the number of graphs, the number of nodes, and the number of edges
-            for the training, validation, and testing sets.
+    splited_data: dict
+        The data for each trainer.
+    stats_df: pd.DataFrame
+        The statistics of data, including the number of graphs, the number of nodes, and the number of edges
+        for the training, validation, and testing sets.
     """
     # if dataset == "COLLAB":
     #     tudataset = TUDataset(
