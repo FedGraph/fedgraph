@@ -44,6 +44,10 @@ from src.utils_gc import *
 # file is stored in the `fedgraph/configs` directory.
 # Once specified the algorithm, the corresponding configuration file will be loaded.
 # Feel free to modify the configuration file to suit your needs.
+# For `dataset`, the user can either use single or multiple datasets from TU Datasets, which is controlled by the `is_multiple_dataset` flag.
+# For single dataset, any dataset supplied in https://www.chrsmrrs.com/graphkerneldatasets/ (e.g., "IMDB-BINARY", "IMDB-MULTI", "PROTEINS") is valid
+# For multiple datasets, the user can choose from the following groups: 'small', 'mix', 'mix_tiny', 'biochem', 'biochem_tiny', 'molecules', 'molecules_tiny'
+# For the detailed content of each group, please refer to the `load_multiple_datasets` function in `src/data_process_gc.py`
 
 algorithm = "GCFL"
 
@@ -110,6 +114,14 @@ if args.save_files:
 # The data is split into training and test sets, and then the training set
 # is further split into training and validation sets.
 # The statistics of the data on trainers are also computed and saved.
+# The user can also use their own dataset and dataloader.
+# The expected format of the dataset is a dictionary with the keys as the trainer names.
+# For each trainer, the value `data[trainer]` is a tuple with 4 elements: (dataloader, num_node_features, num_graph_labels, train_size)
+# - dataloader: a dictionary with keys "train", "val", "test" and values as the corresponding dataloaders
+# - num_node_features: number of node features
+# - num_graph_labels: number of graph labels
+# - train_size: number of training samples
+# For the detailed expected format of the data, please refer to the `load_single_dataset` function in `fedgraph/data_process_gc.py`
 
 """ using original features """
 print("Preparing data (original features) ...")
@@ -151,6 +163,7 @@ if args.save_files:
 # They user can also use other models, but the customized model should be compatible.
 # That is, `base_model` must have all the required methods and attributes as the default `GIN`
 # For the detailed expected format of the model, please refer to the `fedgraph/gnn_models.py`
+
 base_model = GIN
 init_trainers, _ = setup_trainers(splited_data, base_model, args)
 init_server = setup_server(base_model, args)
