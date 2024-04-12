@@ -7,8 +7,7 @@ import ray
 import torch
 from dtaidistance import dtw
 
-from src.gnn_models import GCN, AggreGCN, GCN_arxiv, SAGE_products
-from src.trainer_class import Trainer_General
+from fedgraph.gnn_models import GCN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
 
 
 class Server:
@@ -449,3 +448,121 @@ class Server_GC:
                 )
                 tmp = torch.div(torch.sum(weighted_stack, dim=0), total_size).clone()
                 target[name].data += tmp
+
+
+class Server_LP:
+    """
+    This is a server class for federated graph link prediction which is responsible for aggregating model parameters
+    from different trainers, updating the central model, and then broadcasting the updated model parameters
+    back to the trainers.
+
+    Parameters
+    ----------
+    number_of_users: int
+        The number of users in the dataset.
+    number_of_items: int
+        The number of items in the dataset.
+    meta_data: dict
+        Dictionary containing the meta data of the dataset.
+    args_cuda: bool
+        Whether to run the model on GPU.
+    """
+
+    def __init__(
+        self,
+        number_of_users: int,
+        number_of_items: int,
+        meta_data: tuple,
+        args_cuda: bool = False,
+    ) -> None:
+        self.global_model = GNN_LP(
+            number_of_users, number_of_items, meta_data, hidden_channels=64
+        )  # create the base model
+
+        self.global_model = self.global_model.cuda() if args_cuda else self.global_model
+
+    def fedavg(self, clients: list, gnn_only: bool = False) -> dict:
+        """
+        This function performs federated averaging on the model parameters of the clients.
+
+        Parameters
+        ----------
+        clients: list
+            List of client objects
+        gnn_only: bool, optional
+            Whether to get only the GNN parameters
+
+        Returns
+        -------
+        model_avg_parameter: dict
+            The averaged model parameters
+        """
+        model_states = []
+        for i in range(len(clients)):
+            local_model_parameter = clients[i].get_model_parameter(gnn_only)
+            model_states.append(local_model_parameter)
+
+        model_avg_parameter = self.__average_parameter(model_states)
+        return model_avg_parameter
+
+    def set_model_parameter(
+        self, model_state_dict: dict, gnn_only: bool = False
+    ) -> None:
+        """
+        Set the model parameters
+
+        Parameters
+        ----------
+        model_state_dict: dict
+            The model parameters
+        gnn_only: bool, optional
+            Whether to set only the GNN parameters
+        """
+        if gnn_only:
+            self.global_model.gnn.load_state_dict(model_state_dict)
+        else:
+            self.global_model.load_state_dict(model_state_dict)
+
+    def get_model_parameter(self, gnn_only: bool = False) -> dict:
+        """
+        Get the model parameters
+
+        Parameters
+        ----------
+        gnn_only: bool
+            Whether to get only the GNN parameters
+
+        Returns
+        -------
+        dict
+            The model parameters
+        """
+        return (
+            self.global_model.gnn.state_dict()
+            if gnn_only
+            else self.global_model.state_dict()
+        )
+
+    # Private functions
+    def __average_parameter(self, states: list) -> dict:
+        """
+        This function averages the model parameters of the clients.
+
+        Parameters
+        ----------
+        states: list
+            List of model parameters
+
+        Returns
+        -------
+        global_state: dict
+            The averaged model parameters
+        """
+        global_state = dict()
+        # Average all parameters
+        for key in states[0]:
+            global_state[key] = states[0][key]  # for the first client
+            for i in range(1, len(states)):
+                global_state[key] += states[i][key]
+            global_state[key] /= len(states)  # average
+        return global_state

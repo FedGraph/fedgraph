@@ -1,4 +1,4 @@
-Utility Functions (GC)
+Utility Functions for Graph Classification
 =================
 
 .. automodule:: fedgraph.utils_gc

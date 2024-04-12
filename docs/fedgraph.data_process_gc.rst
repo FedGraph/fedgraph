@@ -1,4 +1,4 @@
-Data Process (GC)
+Data Process for Graph Classification
 ============
 
 .. automodule:: fedgraph.data_process_gc

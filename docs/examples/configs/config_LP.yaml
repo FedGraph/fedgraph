@@ -1,0 +1,24 @@
+# general:
+method: FedLink
+
+# dataset:
+country_codes: ['JP'] # country_codes = ['US', 'BR', 'ID', 'TR', 'JP']
+dataset_path: data/LPDataset
+global_file_path: data/LPDataset/data_five_countries.txt
+traveled_file_path: data/LPDataset/traveled_users.txt
+
+# setup:
+device: cuda
+use_buffer: false
+buffer_size: 300000
+online_learning: false
+seed: 10
+
+# model_parameters:
+global_rounds: 20
+local_steps: 3
+repeat_time: 10
+hidden_channels: 64
+
+# output:
+record_results: false

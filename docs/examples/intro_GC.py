@@ -16,13 +16,15 @@ import random
 import sys
 from pathlib import Path
 
+import attridict
 import numpy as np
 import torch
 import yaml
 
 sys.path.append("../fedgraph")
-from src.data_process_gc import *
-from src.federated_methods import (
+sys.path.append("../../")
+from fedgraph.data_process_gc import *
+from fedgraph.federated_methods import (
     run_GC_fedavg,
     run_GC_fedprox,
     run_GC_gcfl,
@@ -30,8 +32,8 @@ from src.federated_methods import (
     run_GC_gcfl_plus_dWs,
     run_GC_selftrain,
 )
-from src.gnn_models import GIN
-from src.utils_gc import *
+from fedgraph.gnn_models import GIN
+from fedgraph.utils_gc import *
 
 #######################################################################
 # Load configuration
@@ -42,23 +44,16 @@ from src.utils_gc import *
 # file is stored in the `fedgraph/configs` directory.
 # Once specified the algorithm, the corresponding configuration file will be loaded.
 # Feel free to modify the configuration file to suit your needs.
+# For `dataset`, the user can either use single or multiple datasets from TU Datasets, which is controlled by the `is_multiple_dataset` flag.
+# For single dataset, any dataset supplied in https://www.chrsmrrs.com/graphkerneldatasets/ (e.g., "IMDB-BINARY", "IMDB-MULTI", "PROTEINS") is valid
+# For multiple datasets, the user can choose from the following groups: 'small', 'mix', 'mix_tiny', 'biochem', 'biochem_tiny', 'molecules', 'molecules_tiny'
+# For the detailed content of each group, please refer to the `load_multiple_datasets` function in `src/data_process_gc.py`
 
 algorithm = "GCFL"
-dataset = "PROTEINS"
-dataset_group = "biochem"
-multiple_datasets = True  # if True, load multiple datasets (dataset_group) instead of a single dataset (dataset)
-save_files = False  # if True, save the statistics and prediction results into files
 
-config_file = f"docs/examples/configs/config_gc_{algorithm}.yaml"
+config_file = f"configs/config_GC_{algorithm}.yaml"
 with open(config_file, "r") as file:
-    config = yaml.safe_load(file)
-
-config["data_group"] = dataset_group if multiple_datasets else dataset
-
-parser = argparse.ArgumentParser()
-args = parser.parse_args()
-for key, value in config.items():
-    setattr(args, key, value)
+    args = attridict(yaml.safe_load(file))
 
 print(args)
 
@@ -87,23 +82,23 @@ args.device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # outdir_base = os.path.join(args.outbase, f'seqLen{args.seq_length}')
 
-if save_files:
+if args.save_files:
     outdir_base = args.outbase + "/" + f"{args.model}"
     outdir = os.path.join(outdir_base, f"oneDS-nonOverlap")
     if algorithm in ["SelfTrain"]:
-        outdir = os.path.join(outdir, f"{args.data_group}")
+        outdir = os.path.join(outdir, f"{args.dataset}")
     elif algorithm in ["FedAvg", "FedProx"]:
-        outdir = os.path.join(outdir, f"{args.data_group}-{args.num_trainers}trainers")
+        outdir = os.path.join(outdir, f"{args.dataset}-{args.num_trainers}trainers")
     elif algorithm in ["GCFL"]:
         outdir = os.path.join(
             outdir,
-            f"{args.data_group}-{args.num_trainers}trainers",
+            f"{args.dataset}-{args.num_trainers}trainers",
             f"eps_{args.epsilon1}_{args.epsilon2}",
         )
     elif algorithm in ["GCFL+", "GCFL+dWs"]:
         outdir = os.path.join(
             outdir,
-            f"{args.data_group}-{args.num_trainers}trainers",
+            f"{args.dataset}-{args.num_trainers}trainers",
             f"eps_{args.epsilon1}_{args.epsilon2}",
             f"seqLen{args.seq_length}",
         )
@@ -119,14 +114,22 @@ if save_files:
 # The data is split into training and test sets, and then the training set
 # is further split into training and validation sets.
 # The statistics of the data on trainers are also computed and saved.
+# The user can also use their own dataset and dataloader.
+# The expected format of the dataset is a dictionary with the keys as the trainer names.
+# For each trainer, the value `data[trainer]` is a tuple with 4 elements: (dataloader, num_node_features, num_graph_labels, train_size)
+# - dataloader: a dictionary with keys "train", "val", "test" and values as the corresponding dataloaders
+# - num_node_features: number of node features
+# - num_graph_labels: number of graph labels
+# - train_size: number of training samples
+# For the detailed expected format of the data, please refer to the `load_single_dataset` function in `fedgraph/data_process_gc.py`
 
 """ using original features """
 print("Preparing data (original features) ...")
 
-if multiple_datasets:
+if args.is_multiple_dataset:
     splited_data, df_stats = load_multiple_datasets(
         datapath=args.datapath,
-        dataset_group=args.data_group,
+        dataset_group=args.dataset,
         batch_size=args.batch_size,
         convert_x=args.convert_x,
         seed=seed_split_data,
@@ -134,7 +137,7 @@ if multiple_datasets:
 else:
     splited_data, df_stats = load_single_dataset(
         args.datapath,
-        args.data_group,
+        args.dataset,
         num_trainer=args.num_trainers,
         batch_size=args.batch_size,
         convert_x=args.convert_x,
@@ -143,7 +146,7 @@ else:
     )
 print("Data prepared.")
 
-if save_files:
+if args.save_files:
     outdir_stats = os.path.join(outdir, f"stats_train_data.csv")
     df_stats.to_csv(outdir_stats)
     print(f"The statistics of the data are written to {outdir_stats}")
@@ -160,6 +163,7 @@ if save_files:
 # They user can also use other models, but the customized model should be compatible.
 # That is, `base_model` must have all the required methods and attributes as the default `GIN`
 # For the detailed expected format of the model, please refer to the `fedgraph/gnn_models.py`
+
 base_model = GIN
 init_trainers, _ = setup_trainers(splited_data, base_model, args)
 init_server = setup_server(base_model, args)
@@ -240,7 +244,7 @@ else:
 # ------------
 # Here we save the results to a file, and the output directory can be specified by the user.
 # If save_files == False, the output will not be saved and will only be printed in the console.
-if save_files:
+if args.save_files:
     outdir_result = os.path.join(outdir, f"accuracy_seed{args.seed}.csv")
     pd.DataFrame(output).to_csv(outdir_result)
     print(f"The output has been written to file: {outdir_result}")

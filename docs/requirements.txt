@@ -7,6 +7,7 @@ https://data.pyg.org/whl/torch-2.0.0%2Bcpu/torch_cluster-1.6.1%2Bpt20cpu-cp310-c
 https://data.pyg.org/whl/torch-2.0.0%2Bcpu/torch_scatter-2.1.1%2Bpt20cpu-cp310-cp310-linux_x86_64.whl
 https://data.pyg.org/whl/torch-2.0.0%2Bcpu/torch_sparse-0.6.17%2Bpt20cpu-cp310-cp310-linux_x86_64.whl
 https://data.pyg.org/whl/torch-2.0.0%2Bcpu/torch_spline_conv-1.2.2%2Bpt20cpu-cp310-cp310-linux_x86_64.whl
+torchmetrics
 setuptools
 sphinxcontrib-bibtex
 matplotlib
@@ -16,3 +17,4 @@ tensorboard
 attridict
 fedgraph
 dtaidistance
+gdown
