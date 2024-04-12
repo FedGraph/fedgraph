@@ -12,6 +12,7 @@ Run a simple example of FedGraph.
 # ------------
 
 import sys
+
 import attridict
 import yaml
 

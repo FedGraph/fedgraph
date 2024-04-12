@@ -7,7 +7,12 @@ from torch_geometric.datasets import TUDataset
 from torch_geometric.loader import DataLoader
 from torch_geometric.transforms import OneHotDegree
 
-from fedgraph.utils_gc import get_max_degree, get_num_graph_labels, get_stats, split_data
+from fedgraph.utils_gc import (
+    get_max_degree,
+    get_num_graph_labels,
+    get_stats,
+    split_data,
+)
 
 
 def rand_split_chunk(
