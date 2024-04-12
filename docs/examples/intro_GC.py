@@ -15,11 +15,11 @@ import os
 import random
 import sys
 from pathlib import Path
-import attridict
-import yaml
 
+import attridict
 import numpy as np
 import torch
+import yaml
 
 sys.path.append("../fedgraph")
 sys.path.append("../../")

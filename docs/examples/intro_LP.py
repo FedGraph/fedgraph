@@ -15,17 +15,17 @@ import os
 import random
 import sys
 from pathlib import Path
-import attridict
-import yaml
 
+import attridict
 import numpy as np
 import torch
+import yaml
 
 sys.path.append("../fedgraph")
 sys.path.append("../../")
 from src.federated_methods import LP_train_global_round
-from src.trainer_class import Trainer_LP
 from src.server_class import Server_LP
+from src.trainer_class import Trainer_LP
 from src.utils_lp import *
 
 #######################################################################
@@ -62,14 +62,17 @@ if args.use_buffer:
 
 check_data_files_existance(args.country_codes, args.dataset_path)
 
-user_id_mapping, item_id_mapping = get_global_user_item_mapping( # get global user and item mapping
+(
+    user_id_mapping,
+    item_id_mapping,
+) = get_global_user_item_mapping(  # get global user and item mapping
     global_file_path=global_file_path
 )
 
 meta_data = (
     ["user", "item"],
     [("user", "select", "item"), ("item", "rev_select", "user")],
-) # set meta_data
+)  # set meta_data
 
 
 #######################################################################
@@ -129,13 +132,14 @@ for i in range(number_of_clients):
     end_time_float_format,
 ) = get_start_end_time(online_learning=args.online_learning, method=args.method)
 
-if args.record_results:
+if not args.record_results:
+    result_writer = None
+    time_writer = None
+else:
     file_name = f"{args.method}_buffer_{args.use_buffer}_{args.buffer_size}_online_{args.online_learning}.txt"
     result_writer = open(file_name, "a+")
     time_writer = open("train_time_" + file_name, "a+")
-else:
-    result_writer = None
-    time_writer = None
+
 
 #######################################################################
 # Train the model
@@ -153,9 +157,7 @@ for day in range(prediction_days):  # make predictions for each day
             use_buffer=args.use_buffer,
             buffer_size=args.buffer_size,
         )
-        clients[i].calculate_traveled_user_edge_indices(
-            file_path=traveled_file_path
-        )
+        clients[i].calculate_traveled_user_edge_indices(file_path=traveled_file_path)
 
     if args.online_learning:
         print(f"start training for day {day + 1}")
