@@ -1,19 +1,29 @@
-model: 'FedProx'
-dataset: "IMDB-BINARY"
-is_multiple_dataset: False
-device: 'cpu'
-num_rounds: 200
-local_epoch: 1
-lr: 0.001
-weight_decay: 0.0005
-nlayer: 3
-hidden: 64
-dropout: 0.5
-batch_size: 128
-seed: 10
-datapath: './data'
-outbase: './outputs'
-convert_x: False
-num_trainers: 10
-overlap: False
-mu: 0.01
+# general:
+  model: 'FedAvg'
+
+# dataset:
+  dataset: "IMDB-BINARY"
+  is_multiple_dataset: False
+  datapath: './data'
+  convert_x: False
+  overlap: False
+
+# setup:
+  device: 'cpu'
+  seed: 10
+
+# model_parameters:
+  num_trainers: 10
+  num_rounds: 200
+  local_epoch: 1
+  lr: 0.001
+  weight_decay: 0.0005
+  nlayer: 3
+  hidden: 64
+  dropout: 0.5
+  batch_size: 128
+  mu: 0.01
+
+# output:
+  outbase: './outputs'
+  save_files: False

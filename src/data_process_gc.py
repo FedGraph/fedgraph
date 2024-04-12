@@ -82,11 +82,12 @@ def load_single_dataset(
 
     Returns
     -------
-    splited_data: dict
-        The data for each trainer.
-    stats_df: pd.DataFrame
-        The statistics of data, including the number of graphs, the number of nodes, and the number of edges
-        for the training, validation, and testing sets.
+    (splited_data, stats_df): tuple
+        [0] splited_data: dict
+            The data for each trainer.
+        [1] stats_df: pd.DataFrame
+            The statistics of data, including the number of graphs, the number of nodes, and the number of edges
+            for the training, validation, and testing sets.
     """
     # if dataset == "COLLAB":
     #     tudataset = TUDataset(
