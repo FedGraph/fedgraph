@@ -1,4 +1,6 @@
-model: 'FedAvg'
+model: 'GCFL+dWs'
+dataset: "IMDB-BINARY"
+is_multiple_dataset: False
 device: 'cpu'
 num_rounds: 200
 local_epoch: 1
@@ -14,3 +16,7 @@ outbase: './outputs'
 convert_x: False
 num_trainers: 10
 overlap: False
+standardize: False
+seq_length: 5
+epsilon1: 0.05
+epsilon2: 0.1

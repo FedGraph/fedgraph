@@ -16,7 +16,7 @@ import yaml
 
 sys.path.append("../fedgraph")
 from src.data_process_gc import load_multiple_datasets, load_single_dataset
-from src.federated_methods import GC_Train
+from src.federated_methods import run_GC
 from src.gnn_models import GIN
 
 #######################################################################
@@ -101,4 +101,4 @@ assert algorithm in [
     "GCFL+",
     "GCFL+dWs",
 ], f"Unknown algorithm: {algorithm}"
-GC_Train(config=config, data=data, base_model=base_model)
+run_GC(args=config, data=data, base_model=base_model)

@@ -15,7 +15,6 @@ import sys
 import torch_geometric
 import yaml
 
-sys.path.append("../fedgraph")
 from src.federated_methods import run_LP
 
 torch_geometric.seed.seed_everything(42)
@@ -36,22 +35,8 @@ with open(config_file, "r") as file:
 
 print(config)
 
-
-#######################################################################
-# Specify the country codes
-# ------------
-# The user can specify the country codes for the experiment.
-# Each country code corresponds to a country in the dataset, and a client will be created for each country code.
-country_codes = [
-    # "US",
-    # "BR",
-    # "ID",
-    # "TR",
-    "JP",
-]  # top 5 biggest country , 'US', 'BR', 'ID', 'TR',
-
 #######################################################################
 # Run the experiment
 # ------------
 # The user can run the experiment with the specified configuration.
-run_LP(config=config, country_codes=country_codes)
+run_LP(config)

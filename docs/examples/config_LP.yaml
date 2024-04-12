@@ -1,4 +1,6 @@
 method: FedLink
+country_codes: ['JP']
+# country_codes = ['US', 'BR', 'ID', 'TR', 'JP']
 
 use_buffer: false
 buffer_size: 300000

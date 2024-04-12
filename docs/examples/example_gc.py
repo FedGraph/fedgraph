@@ -49,7 +49,7 @@ dataset_group = "biochem"
 multiple_datasets = True  # if True, load multiple datasets (dataset_group) instead of a single dataset (dataset)
 save_files = False  # if True, save the statistics and prediction results into files
 
-config_file = f"docs/examples/configs/config_gc_{algorithm}.yaml"
+config_file = f"config_GC_{algorithm}.yaml"
 with open(config_file, "r") as file:
     config = yaml.safe_load(file)
 

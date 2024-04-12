@@ -13,7 +13,6 @@ import pandas as pd
 import ray
 import torch
 
-from src.data_process_gc import load_single_dataset
 from src.gnn_models import GIN
 from src.server_class import Server, Server_LP
 from src.train_func import gc_avg_accuracy
@@ -28,7 +27,7 @@ from src.utils_lp import (
 from src.utils_nc import get_1hop_feature_sum
 
 
-def FedGCN_Train(args: attridict, data: tuple) -> None:
+def run_FedGCN(args: attridict, data: tuple) -> None:
     """
     Train a FedGCN model.
 
@@ -181,26 +180,20 @@ def FedGCN_Train(args: attridict, data: tuple) -> None:
     ray.shutdown()
 
 
-def GC_Train(config: dict, data: Any, base_model: Any = GIN) -> None:
+def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
     """
     Entrance of the training process for graph classification.
 
     Parameters
     ----------
-    config: dict
-        Configuration.
+    args: attridict
+        The arguments.
     data: Any
         The splitted data.
     base_model: Any
         The base model on which the federated learning is based. It applies for both the server and the trainers.
     """
     # transfer the config to argparse
-    parser = argparse.ArgumentParser()
-    args = parser.parse_args()
-    for key, value in config.items():
-        setattr(args, key, value)
-
-    print(args)
 
     #################### set seeds and devices ####################
     random.seed(args.seed)
@@ -845,17 +838,14 @@ def run_GC_gcfl_plus_dWs(
     return frame
 
 
-def run_LP(config: dict, country_codes: list) -> None:
+def run_LP(args: attridict) -> None:
     """
     Run the training process for link prediction.
 
     Parameters
     ----------
-    config: dict
-        Configuration.
-    country_codes: list
-        List of country codes.
-
+    args: attridict
+        The arguments.
     """
 
     def setup_trainer_server(
@@ -913,17 +903,18 @@ def run_LP(config: dict, country_codes: list) -> None:
 
         return clients, server
 
-    method = config["method"]
-    use_buffer = config["use_buffer"]
-    buffer_size = config["buffer_size"]
-    online_learning = config["online_learning"]
-    repeat_time = config["repeat_time"]
-    global_rounds = config["global_rounds"]
-    local_steps = config["local_steps"]
-    hidden_channels = config["hidden_channels"]
-    record_results = config["record_results"]
+    method = args.method
+    use_buffer = args.use_buffer
+    buffer_size = args.buffer_size
+    online_learning = args.online_learning
+    repeat_time = args.repeat_time
+    global_rounds = args.global_rounds
+    local_steps = args.local_steps
+    hidden_channels = args.hidden_channels
+    record_results = args.record_results
+    country_codes = args.country_codes
 
-    dataset_path = config["dataset_path"]
+    dataset_path = args.dataset_path
     global_file_path = os.path.join(dataset_path, "data_global.txt")
     traveled_file_path = os.path.join(dataset_path, "traveled_users.txt")
 
@@ -1116,7 +1107,7 @@ def LP_train_global_round(
         model_avg_parameter = server.fedavg(clients, gnn_only)
         server.set_model_parameter(model_avg_parameter, gnn_only)
         for client_id in range(number_of_clients):
-            clients[client_id].load_model_parameter(model_avg_parameter, gnn_only)
+            clients[client_id].set_model_parameter(model_avg_parameter, gnn_only)
 
     # test the model
     avg_auc, avg_hit_rate, avg_traveled_user_hit_rate = 0.0, 0.0, 0.0

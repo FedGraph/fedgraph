@@ -1,6 +1,7 @@
-model: 'FedProx'
+model: 'SelfTrain'
+dataset: "IMDB-BINARY"
+is_multiple_dataset: False
 device: 'cpu'
-num_rounds: 200
 local_epoch: 1
 lr: 0.001
 weight_decay: 0.0005
@@ -14,4 +15,3 @@ outbase: './outputs'
 convert_x: False
 num_trainers: 10
 overlap: False
-mu: 0.01
