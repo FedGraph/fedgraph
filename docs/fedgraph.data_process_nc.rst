@@ -1,4 +1,4 @@
-Data Process for Node Classification
+Data Process
 ============
 
 .. automodule:: fedgraph.data_process

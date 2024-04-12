@@ -19,7 +19,7 @@ import torch
 
 ray.init()
 
-from fedgraph.data_process_nc import load_data
+from fedgraph.data_process import FedGCN_load_data
 from fedgraph.server_class import Server
 from fedgraph.trainer_class import Trainer_General
 from fedgraph.utils_nc import (
@@ -62,7 +62,7 @@ args = parser.parse_args()
 # tutorial <https://pytorch-geometric.readthedocs.io/en/latest/notes
 # /create_dataset.html>`__ in PyG.
 
-features, adj, labels, idx_train, idx_val, idx_test = load_data(args.dataset)
+features, adj, labels, idx_train, idx_val, idx_test = FedGCN_load_data(args.dataset)
 class_num = labels.max().item() + 1
 
 if args.dataset in ["simulate", "cora", "citeseer", "pubmed", "reddit"]:

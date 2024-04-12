@@ -23,7 +23,7 @@ import yaml
 
 sys.path.append("../fedgraph")
 sys.path.append("../../")
-from fedgraph.data_process_gc import *
+from fedgraph.data_process import data_loader_GC
 from fedgraph.federated_methods import (
     run_GC_fedavg,
     run_GC_fedprox,
@@ -113,7 +113,6 @@ if args.save_files:
 # Here we prepare the data for the experiment.
 # The data is split into training and test sets, and then the training set
 # is further split into training and validation sets.
-# The statistics of the data on trainers are also computed and saved.
 # The user can also use their own dataset and dataloader.
 # The expected format of the dataset is a dictionary with the keys as the trainer names.
 # For each trainer, the value `data[trainer]` is a tuple with 4 elements: (dataloader, num_node_features, num_graph_labels, train_size)
@@ -126,31 +125,8 @@ if args.save_files:
 """ using original features """
 print("Preparing data (original features) ...")
 
-if args.is_multiple_dataset:
-    splited_data, df_stats = load_multiple_datasets(
-        datapath=args.datapath,
-        dataset_group=args.dataset,
-        batch_size=args.batch_size,
-        convert_x=args.convert_x,
-        seed=seed_split_data,
-    )
-else:
-    splited_data, df_stats = load_single_dataset(
-        args.datapath,
-        args.dataset,
-        num_trainer=args.num_trainers,
-        batch_size=args.batch_size,
-        convert_x=args.convert_x,
-        seed=seed_split_data,
-        overlap=args.overlap,
-    )
+splited_data = data_loader_GC(args)
 print("Data prepared.")
-
-if args.save_files:
-    outdir_stats = os.path.join(outdir, f"stats_train_data.csv")
-    df_stats.to_csv(outdir_stats)
-    print(f"The statistics of the data are written to {outdir_stats}")
-
 
 #######################################################################
 # Setup server and trainers
