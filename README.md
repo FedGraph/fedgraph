@@ -12,7 +12,7 @@ It supports various federated training methods of graph neural networks under si
 
 ## Main Focus
 - **Federated Node Classification with Cross-Client Edges**: Our library supports communicating information stored in other clients without affecting the privacy of users.
-
+- **Federated Link Prediction on Dynamic Graphs**: Our library supports balancing temporal heterogenity across clients with privacy preservation.
 - **Federated Graph Classification**: Our library supports federated graph classification with non-IID graphs.
 
 
