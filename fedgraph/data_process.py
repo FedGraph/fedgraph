@@ -1,12 +1,12 @@
 # setting of data generation
 
 import pickle as pkl
-import sys
-import attridict
-from typing import Any
 import random
+import sys
 from random import choices
+from typing import Any
 
+import attridict
 import networkx as nx
 import numpy as np
 import pandas as pd
@@ -18,17 +18,14 @@ from torch_geometric.datasets import TUDataset
 from torch_geometric.loader import DataLoader
 from torch_geometric.transforms import OneHotDegree
 
-from fedgraph.utils_nc import (
-    get_in_comm_indexes,
-    label_dirichlet_partition,
-)
-
 from fedgraph.utils_gc import (
     get_max_degree,
     get_num_graph_labels,
     get_stats,
     split_data,
 )
+from fedgraph.utils_nc import get_in_comm_indexes, label_dirichlet_partition
+
 
 def data_loader(args: attridict) -> Any:
     """
@@ -122,6 +119,7 @@ def data_loader_FedGCN(args: attridict) -> tuple:
         in_com_test_node_indexes,
         edge_indexes_clients,
     )
+
 
 def data_loader_GC(args: attridict) -> dict:
     """
