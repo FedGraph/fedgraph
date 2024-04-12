@@ -7,11 +7,7 @@ import numpy as np
 import torch
 import torch_geometric
 
-<<<<<<<< HEAD:src/utils_nc.py
 from fedgraph.data_process_nc import load_data
-========
-from src.data_process import load_data
->>>>>>>> main:src/utils.py
 
 
 def federated_data_loader(args: attridict) -> tuple:

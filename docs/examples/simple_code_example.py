@@ -12,12 +12,11 @@ Run a simple example of FedGraph.
 # ------------
 
 import sys
-
-sys.path.append("../fedgraph")
-sys.path.append("../../")
 import attridict
 import yaml
 
+sys.path.append("../fedgraph")
+sys.path.append("../../")
 from fedgraph.data_process_gc import load_single_dataset
 from fedgraph.federated_methods import run_FedGCN, run_GC, run_LP
 from fedgraph.utils_nc import federated_data_loader
@@ -26,14 +25,12 @@ from fedgraph.utils_nc import federated_data_loader
 # Specify the task
 # ------------
 
-fedgraph_task = "LP"
+fedgraph_task = "GC"
 assert fedgraph_task in ["FedGCN", "GC", "LP"]
 
 GC_algorithm = "GCFL"  # For GC task, the user must specify the GC algorithm
 if fedgraph_task == "GC":
     assert GC_algorithm in ["SelfTrain", "FedAvg", "FedProx", "GCFL"]
-from src.federated_methods import FedGCN_Train
-from src.utils import federated_data_loader
 
 #######################################################################
 # Load configuration and federated data
@@ -41,8 +38,9 @@ from src.utils import federated_data_loader
 config_file_path = (
     f"configs/config_{fedgraph_task}_{GC_algorithm}.yaml"
     if fedgraph_task == "GC"
-    else f"config_{fedgraph_task}.yaml"
+    else f"configs/config_{fedgraph_task}.yaml"
 )
+
 with open(config_file_path, "r") as f:
     config = attridict(yaml.safe_load(f))
 
