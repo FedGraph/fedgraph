@@ -15,12 +15,14 @@ import os
 import random
 import sys
 from pathlib import Path
+import attridict
+import yaml
 
 import numpy as np
 import torch
-import yaml
 
 sys.path.append("../fedgraph")
+sys.path.append("../../")
 from src.data_process_gc import *
 from src.federated_methods import (
     run_GC_fedavg,
@@ -44,21 +46,10 @@ from src.utils_gc import *
 # Feel free to modify the configuration file to suit your needs.
 
 algorithm = "GCFL"
-dataset = "PROTEINS"
-dataset_group = "biochem"
-multiple_datasets = True  # if True, load multiple datasets (dataset_group) instead of a single dataset (dataset)
-save_files = False  # if True, save the statistics and prediction results into files
 
-config_file = f"config_GC_{algorithm}.yaml"
+config_file = f"configs/config_GC_{algorithm}.yaml"
 with open(config_file, "r") as file:
-    config = yaml.safe_load(file)
-
-config["data_group"] = dataset_group if multiple_datasets else dataset
-
-parser = argparse.ArgumentParser()
-args = parser.parse_args()
-for key, value in config.items():
-    setattr(args, key, value)
+    args = attridict(yaml.safe_load(file))
 
 print(args)
 
@@ -87,23 +78,23 @@ args.device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # outdir_base = os.path.join(args.outbase, f'seqLen{args.seq_length}')
 
-if save_files:
+if args.save_files:
     outdir_base = args.outbase + "/" + f"{args.model}"
     outdir = os.path.join(outdir_base, f"oneDS-nonOverlap")
     if algorithm in ["SelfTrain"]:
-        outdir = os.path.join(outdir, f"{args.data_group}")
+        outdir = os.path.join(outdir, f"{args.dataset}")
     elif algorithm in ["FedAvg", "FedProx"]:
-        outdir = os.path.join(outdir, f"{args.data_group}-{args.num_trainers}trainers")
+        outdir = os.path.join(outdir, f"{args.dataset}-{args.num_trainers}trainers")
     elif algorithm in ["GCFL"]:
         outdir = os.path.join(
             outdir,
-            f"{args.data_group}-{args.num_trainers}trainers",
+            f"{args.dataset}-{args.num_trainers}trainers",
             f"eps_{args.epsilon1}_{args.epsilon2}",
         )
     elif algorithm in ["GCFL+", "GCFL+dWs"]:
         outdir = os.path.join(
             outdir,
-            f"{args.data_group}-{args.num_trainers}trainers",
+            f"{args.dataset}-{args.num_trainers}trainers",
             f"eps_{args.epsilon1}_{args.epsilon2}",
             f"seqLen{args.seq_length}",
         )
@@ -123,10 +114,10 @@ if save_files:
 """ using original features """
 print("Preparing data (original features) ...")
 
-if multiple_datasets:
+if args.is_multiple_dataset:
     splited_data, df_stats = load_multiple_datasets(
         datapath=args.datapath,
-        dataset_group=args.data_group,
+        dataset_group=args.dataset,
         batch_size=args.batch_size,
         convert_x=args.convert_x,
         seed=seed_split_data,
@@ -134,7 +125,7 @@ if multiple_datasets:
 else:
     splited_data, df_stats = load_single_dataset(
         args.datapath,
-        args.data_group,
+        args.dataset,
         num_trainer=args.num_trainers,
         batch_size=args.batch_size,
         convert_x=args.convert_x,
@@ -143,7 +134,7 @@ else:
     )
 print("Data prepared.")
 
-if save_files:
+if args.save_files:
     outdir_stats = os.path.join(outdir, f"stats_train_data.csv")
     df_stats.to_csv(outdir_stats)
     print(f"The statistics of the data are written to {outdir_stats}")
@@ -240,7 +231,7 @@ else:
 # ------------
 # Here we save the results to a file, and the output directory can be specified by the user.
 # If save_files == False, the output will not be saved and will only be printed in the console.
-if save_files:
+if args.save_files:
     outdir_result = os.path.join(outdir, f"accuracy_seed{args.seed}.csv")
     pd.DataFrame(output).to_csv(outdir_result)
     print(f"The output has been written to file: {outdir_result}")
