@@ -18,3 +18,4 @@ attridict
 fedgraph
 dtaidistance
 gdown
+pandas
