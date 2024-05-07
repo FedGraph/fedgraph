@@ -27,6 +27,25 @@ from fedgraph.utils_lp import (
 from fedgraph.utils_nc import get_1hop_feature_sum
 
 
+def run_fedgraph(args: attridict, data: Any) -> None:
+    """
+    Run the training process for the specified task.
+
+    Parameters
+    ----------
+    args: attridict
+        The arguments.
+    data: Any
+        The data.
+    """
+    if args.fedgraph_task == "FedGCN":
+        run_FedGCN(args, data)
+    elif args.fedgraph_task == "GC":
+        run_GC(args, data)
+    elif args.fedgraph_task == "LP":
+        run_LP(args)
+
+
 def run_FedGCN(args: attridict, data: tuple) -> None:
     """
     Train a FedGCN model.

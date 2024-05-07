@@ -1,6 +1,5 @@
 from . import (
-    data_process_gc,
-    data_process_nc,
+    data_process,
     federated_methods,
     gnn_models,
     server_class,

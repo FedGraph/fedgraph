@@ -11,6 +11,7 @@
 # setup
   device: 'cpu'
   seed: 10
+  seed_split_data: 42
 
 # model_parameters
   num_trainers: 10
