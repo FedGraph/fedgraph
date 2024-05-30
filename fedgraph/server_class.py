@@ -210,7 +210,8 @@ class Server_GC:
                     for trainer in selected_trainers
                 ]
             )
-            self.W[k].data = torch.div(torch.sum(accumulate, dim=0), total_size).clone()
+            self.W[k].data = torch.div(
+                torch.sum(accumulate, dim=0), total_size).clone()
 
     def compute_pairwise_similarities(self, trainers: list) -> np.ndarray:
         """
@@ -403,7 +404,8 @@ class Server_GC:
                 s2 = self.__flatten(source2)
                 angles[i, j] = (
                     torch.true_divide(
-                        torch.sum(s1 * s2), max(torch.norm(s1) * torch.norm(s2), 1e-12)
+                        torch.sum(s1 * s2), max(torch.norm(s1)
+                                                * torch.norm(s2), 1e-12)
                     )
                     + 1
                 )
@@ -444,9 +446,11 @@ class Server_GC:
         for target in targets:
             for name in target:
                 weighted_stack = torch.stack(
-                    [torch.mul(source[0][name].data, source[1]) for source in sources]
+                    [torch.mul(source[0][name].data, source[1])
+                     for source in sources]
                 )
-                tmp = torch.div(torch.sum(weighted_stack, dim=0), total_size).clone()
+                tmp = torch.div(
+                    torch.sum(weighted_stack, dim=0), total_size).clone()
                 target[name].data += tmp
 
 
@@ -473,6 +477,7 @@ class Server_LP:
         number_of_users: int,
         number_of_items: int,
         meta_data: tuple,
+        trainers: list,
         args_cuda: bool = False,
     ) -> None:
         self.global_model = GNN_LP(
@@ -480,8 +485,9 @@ class Server_LP:
         )  # create the base model
 
         self.global_model = self.global_model.cuda() if args_cuda else self.global_model
+        self.clients = trainers
 
-    def fedavg(self, clients: list, gnn_only: bool = False) -> dict:
+    def fedavg(self, gnn_only: bool = False) -> dict:
         """
         This function performs federated averaging on the model parameters of the clients.
 
@@ -497,10 +503,19 @@ class Server_LP:
         model_avg_parameter: dict
             The averaged model parameters
         """
+        local_model_parameters = [
+            trainer.get_model_parameter.remote(gnn_only) for trainer in self.clients]
+        # Initialize an empty list to collect the results
         model_states = []
-        for i in range(len(clients)):
-            local_model_parameter = clients[i].get_model_parameter(gnn_only)
-            model_states.append(local_model_parameter)
+
+        # Collect the model parameters as they become ready
+        while local_model_parameters:
+            ready, left = ray.wait(
+                local_model_parameters, num_returns=1, timeout=None)
+            if ready:
+                for t in ready:
+                    model_states.append(ray.get(t))
+            local_model_parameters = left
 
         model_avg_parameter = self.__average_parameter(model_states)
         return model_avg_parameter
