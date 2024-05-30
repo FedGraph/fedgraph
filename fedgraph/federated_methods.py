@@ -427,7 +427,8 @@ def run_GC_fedavg(
             # if sampling_frac=1.0, then all trainers are selected
 
         for trainer in selected_trainers:  # only get weights of graphconv layers
-            trainer.local_train(local_epoch=local_epoch)  # train the local model
+            # train the local model
+            trainer.local_train(local_epoch=local_epoch)
 
         server.aggregate_weights(
             selected_trainers
@@ -896,28 +897,43 @@ def run_LP(args: attridict) -> None:
             [0]: The list of clients
             [1]: The server
         """
+        ray.init()
         number_of_clients = len(country_codes)
         number_of_users, number_of_items = len(user_id_mapping.keys()), len(
             item_id_mapping.keys()
         )
-        clients = []
-        for i in range(number_of_clients):
-            client = Trainer_LP(
+        num_cpus_per_client = 1
+        device = torch.device("cpu")
+        num_gpus_per_client = 0
+
+        @ray.remote(
+            num_gpus=num_gpus_per_client,
+            num_cpus=num_cpus_per_client,
+            scheduling_strategy="SPREAD",
+        )
+        class Trainer(Trainer_LP):
+            def __init__(self, *args, **kwargs):  # type: ignore
+                super().__init__(*args, **kwargs)
+
+        clients = [
+            Trainer.remote(  # type: ignore
                 i,
-                country_code=country_codes[i],
+                country_code=args.country_codes[i],
                 user_id_mapping=user_id_mapping,
                 item_id_mapping=item_id_mapping,
                 number_of_users=number_of_users,
                 number_of_items=number_of_items,
                 meta_data=meta_data,
-                hidden_channels=hidden_channels,
+                hidden_channels=args.hidden_channels,
             )
-            clients.append(client)
+            for i in range(number_of_clients)
+        ]
 
         server = Server_LP(  # the concrete information of users and items is not available in the server
             number_of_users=number_of_users,
             number_of_items=number_of_items,
             meta_data=meta_data,
+            trainers=clients,
         )
 
         return clients, server
@@ -959,7 +975,7 @@ def run_LP(args: attridict) -> None:
     )
 
     # repeat the training process
-    for _ in range(repeat_time):
+    for current_training_process in range(repeat_time):
         number_of_clients = len(country_codes)  # each country is a client
         clients, server = setup_trainer_server(
             country_codes=country_codes,
@@ -974,7 +990,7 @@ def run_LP(args: attridict) -> None:
             server.get_model_parameter()
         )  # fetch the global model parameter
         for i in range(number_of_clients):
-            clients[i].set_model_parameter(
+            clients[i].set_model_parameter.remote(
                 global_model_parameter
             )  # broadcast the global model parameter to all clients
 
@@ -999,13 +1015,13 @@ def run_LP(args: attridict) -> None:
         for day in range(prediction_days):  # make predictions for each day
             # get the train and test data for each client at the current time step
             for i in range(number_of_clients):
-                clients[i].get_train_test_data_at_current_time_step(
+                clients[i].get_train_test_data_at_current_time_step.remote(
                     start_time_float_format,
                     end_time_float_format,
                     use_buffer=use_buffer,
                     buffer_size=buffer_size,
                 )
-                clients[i].calculate_traveled_user_edge_indices(
+                clients[i].calculate_traveled_user_edge_indices.remote(
                     file_path=traveled_file_path
                 )
 
@@ -1016,9 +1032,8 @@ def run_LP(args: attridict) -> None:
 
             for iteration in range(global_rounds):
                 # each client train on local graph
-                print(iteration)
+                print(f"global rounds: {iteration}")
                 current_loss = LP_train_global_round(
-                    clients=clients,
                     server=server,
                     local_steps=local_steps,
                     use_buffer=use_buffer,
@@ -1032,7 +1047,7 @@ def run_LP(args: attridict) -> None:
                     time_writer=time_writer,
                 )
 
-            if current_loss >= 0.01:
+            if current_loss >= 0.5:
                 print("training is not complete")
 
             # go to next day
@@ -1043,21 +1058,14 @@ def run_LP(args: attridict) -> None:
                 end_time_float_format,
             ) = to_next_day(start_time=start_time, end_time=end_time, method=method)
 
-            # delete the train and test data of each client
-            client_id = number_of_clients - 1
-            if not use_buffer:
-                del clients[client_id].train_data
-            else:
-                del clients[client_id].global_train_data
-            del clients[client_id].test_data
-
         if result_writer is not None and time_writer is not None:
             result_writer.close()
             time_writer.close()
+        print(f"Training round {current_training_process} success")
+        ray.shutdown()
 
 
 def LP_train_global_round(
-    clients: list,
     server: Any,
     local_steps: int,
     use_buffer: bool,
@@ -1109,42 +1117,89 @@ def LP_train_global_round(
         assert result_writer is not None and time_writer is not None
 
     # local training
-    number_of_clients = len(clients)
+    number_of_clients = len(server.clients)
+    print(f"Training in LP_train_global_round, number of clients: {number_of_clients}")
+    local_training_results = []
     for client_id in range(number_of_clients):
-        current_loss, train_finish_times = clients[client_id].train(
-            local_updates=local_steps, use_buffer=use_buffer
+        # current_loss, train_finish_times
+        local_training_result_ref = server.clients[client_id].train.remote(
+            client_id=client_id, local_updates=local_steps, use_buffer=use_buffer
         )  # local training
-        if record_results:
-            for train_finish_time in train_finish_times:
-                time_writer.write(
-                    f"client {str(client_id)} train time {str(train_finish_time)}\n"
+        local_training_results.append(local_training_result_ref)
+    while True:
+        ready, left = ray.wait(local_training_results, num_returns=1, timeout=None)
+        if ready:
+            for t in ready:
+                client_id, current_loss, train_finish_times = ray.get(t)
+                print(
+                    f"clientId: {client_id} current_loss: {current_loss} train_finish_times: {train_finish_times}"
                 )
+                if record_results:
+                    for train_finish_time in train_finish_times:
+                        time_writer.write(
+                            f"client {str(client_id)} train time {str(train_finish_time)}\n"
+                        )
+                        print(
+                            f"client {str(client_id)} train time {str(train_finish_time)}\n"
+                        )
+        local_training_results = left
+        if not local_training_results:
+            break
 
     # aggregate the parameters and broadcast to the clients
     gnn_only = True if method == "FedLink (OnlyAvgGNN)" else False
     if method != "StaticGNN":
-        model_avg_parameter = server.fedavg(clients, gnn_only)
+        model_avg_parameter = server.fedavg(gnn_only)
         server.set_model_parameter(model_avg_parameter, gnn_only)
         for client_id in range(number_of_clients):
-            clients[client_id].set_model_parameter(model_avg_parameter, gnn_only)
+            server.clients[client_id].set_model_parameter.remote(
+                model_avg_parameter, gnn_only
+            )
 
     # test the model
+    test_results = [
+        server.clients[client_id].test.remote(server.clients[client_id], use_buffer)
+        for client_id in range(number_of_clients)
+    ]
     avg_auc, avg_hit_rate, avg_traveled_user_hit_rate = 0.0, 0.0, 0.0
-    for client_id in range(number_of_clients):
-        auc_score, hit_rate, traveled_user_hit_rate = clients[client_id].test(
-            use_buffer=use_buffer
-        )  # local testing
-        avg_auc += auc_score
-        avg_hit_rate += hit_rate
-        avg_traveled_user_hit_rate += traveled_user_hit_rate
-        print(
-            f"Day {prediction_day} client {client_id} auc score: {auc_score} hit rate: {hit_rate} traveled user hit rate: {traveled_user_hit_rate}"
-        )
-        # write final test_auc
-        if curr_iteration + 1 == global_rounds and record_results:
-            result_writer.write(
-                f"Day {prediction_day} client {client_id} final auc score: {auc_score} hit rate: {hit_rate} traveled user hit rate: {traveled_user_hit_rate}\n"
-            )
+    # for client_id in range(number_of_clients):
+    #     auc_score, hit_rate, traveled_user_hit_rate = server.clients[client_id].test(
+    #         use_buffer=use_buffer
+    #     )  # local testing
+    #     avg_auc += auc_score
+    #     avg_hit_rate += hit_rate
+    #     avg_traveled_user_hit_rate += traveled_user_hit_rate
+    #     print(
+    #         f"Day {prediction_day} client {client_id} auc score: {auc_score} hit rate: {
+    #             hit_rate} traveled user hit rate: {traveled_user_hit_rate}"
+    #     )
+    #     # write final test_auc
+    #     if curr_iteration + 1 == global_rounds and record_results:
+    #         result_writer.write(
+    #             f"Day {prediction_day} client {client_id} final auc score: {auc_score} hit rate: {
+    #                 hit_rate} traveled user hit rate: {traveled_user_hit_rate}\n"
+    #         )
+    while test_results:
+        ready, left = ray.wait(test_results, num_returns=1, timeout=None)
+        if ready:
+            for t in ready:
+                client_id, auc_score, hit_rate, traveled_user_hit_rate = ray.get(t)
+                avg_auc += auc_score
+                avg_hit_rate += hit_rate
+                avg_traveled_user_hit_rate += traveled_user_hit_rate
+                print(
+                    f"Day {prediction_day} client {client_id} auc score: {auc_score} hit rate: {hit_rate} traveled user hit rate: {traveled_user_hit_rate}"
+                )
+                # write final test_auc
+                if curr_iteration + 1 == global_rounds and record_results:
+                    result_writer.write(
+                        f"Day {prediction_day} client {client_id} final auc score: {auc_score} hit rate: {hit_rate} traveled user hit rate: {traveled_user_hit_rate}\n"
+                    )
+                print(
+                    f"Day {prediction_day} client {client_id} final auc score: {auc_score} hit rate: {hit_rate} traveled user hit rate: {traveled_user_hit_rate}\n"
+                )
+
+        test_results = left
 
     avg_auc /= number_of_clients
     avg_hit_rate /= number_of_clients

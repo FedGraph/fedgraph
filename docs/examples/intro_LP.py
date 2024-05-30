@@ -18,16 +18,19 @@ from pathlib import Path
 
 import attridict
 import numpy as np
+import ray
 import torch
 import yaml
+from ray.util.metrics import Counter, Gauge, Histogram
 
-sys.path.append("../fedgraph")
-sys.path.append("../../")
 from fedgraph.federated_methods import LP_train_global_round
 from fedgraph.server_class import Server_LP
 from fedgraph.trainer_class import Trainer_LP
 from fedgraph.utils_lp import *
 
+sys.path.append("../fedgraph")
+sys.path.append("../../")
+ray.init()
 #######################################################################
 # Load configuration and check arguments
 # ------------
@@ -86,9 +89,33 @@ number_of_clients = len(args.country_codes)
 number_of_users, number_of_items = len(user_id_mapping.keys()), len(
     item_id_mapping.keys()
 )
-clients = []
-for i in range(number_of_clients):
-    client = Trainer_LP(
+num_cpus_per_client = 2
+# TODO: add gpu check
+# # specifying a target GPU
+# if args.device:
+#     device = torch.device("cuda")
+#     # TODO: move data to cuda
+#     # edge_index = edge_index.to("cuda:0")
+#     num_gpus_per_client = 1
+# else:
+#     device = torch.device("cpu")
+#     num_gpus_per_client = 0
+device = torch.device("cpu")
+num_gpus_per_client = 0
+
+
+@ray.remote(
+    num_gpus=num_gpus_per_client,
+    num_cpus=num_cpus_per_client,
+    scheduling_strategy="SPREAD",
+)
+class Trainer(Trainer_LP):
+    def __init__(self, *args, **kwargs):  # type: ignore
+        super().__init__(*args, **kwargs)
+
+
+clients = [
+    Trainer.remote(  # type: ignore
         i,
         country_code=args.country_codes[i],
         user_id_mapping=user_id_mapping,
@@ -98,12 +125,14 @@ for i in range(number_of_clients):
         meta_data=meta_data,
         hidden_channels=args.hidden_channels,
     )
-    clients.append(client)
+    for i in range(number_of_clients)
+]
 
 server = Server_LP(  # the concrete information of users and items is not available in the server
     number_of_users=number_of_users,
     number_of_items=number_of_items,
     meta_data=meta_data,
+    trainers=clients,
 )
 
 #######################################################################
@@ -119,9 +148,9 @@ global_model_parameter = (
     server.get_model_parameter()
 )  # fetch the global model parameter
 for i in range(number_of_clients):
-    clients[i].set_model_parameter(
-        global_model_parameter
-    )  # broadcast the global model parameter to all clients
+    # broadcast the global model parameter to all clients
+    clients[i].set_model_parameter.remote(global_model_parameter)
+
 
 """Determine the start and end time of the conditional information"""
 (
@@ -147,28 +176,27 @@ else:
 # Here we train the model for the experiment.
 # For each prediction day, we train the model for each client.
 # We also record the results if the user wants to record the results.
-
 for day in range(prediction_days):  # make predictions for each day
     # get the train and test data for each client at the current time step
     for i in range(number_of_clients):
-        clients[i].get_train_test_data_at_current_time_step(
+        clients[i].get_train_test_data_at_current_time_step.remote(
             start_time_float_format,
             end_time_float_format,
             use_buffer=args.use_buffer,
             buffer_size=args.buffer_size,
         )
-        clients[i].calculate_traveled_user_edge_indices(file_path=traveled_file_path)
+        clients[i].calculate_traveled_user_edge_indices.remote(
+            file_path=traveled_file_path
+        )
 
     if args.online_learning:
         print(f"start training for day {day + 1}")
     else:
         print(f"start training")
-
     for iteration in range(args.global_rounds):
         # each client train on local graph
         print(iteration)
         current_loss = LP_train_global_round(
-            clients=clients,
             server=server,
             local_steps=args.local_steps,
             use_buffer=args.use_buffer,
@@ -182,7 +210,7 @@ for day in range(prediction_days):  # make predictions for each day
             time_writer=time_writer,
         )
 
-    if current_loss >= 0.01:
+    if current_loss >= 0.3:
         print("training is not complete")
 
     # go to next day
@@ -193,14 +221,10 @@ for day in range(prediction_days):  # make predictions for each day
         end_time_float_format,
     ) = to_next_day(start_time=start_time, end_time=end_time, method=args.method)
 
-    # delete the train and test data of each client
-    client_id = number_of_clients - 1
-    if not args.use_buffer:
-        del clients[client_id].train_data
-    else:
-        del clients[client_id].global_train_data
-    del clients[client_id].test_data
 
 if result_writer is not None and time_writer is not None:
     result_writer.close()
     time_writer.close()
+
+print("The whole process has ended")
+ray.shutdown()

@@ -473,6 +473,7 @@ class Server_LP:
         number_of_users: int,
         number_of_items: int,
         meta_data: tuple,
+        trainers: list,
         args_cuda: bool = False,
     ) -> None:
         self.global_model = GNN_LP(
@@ -480,8 +481,9 @@ class Server_LP:
         )  # create the base model
 
         self.global_model = self.global_model.cuda() if args_cuda else self.global_model
+        self.clients = trainers
 
-    def fedavg(self, clients: list, gnn_only: bool = False) -> dict:
+    def fedavg(self, gnn_only: bool = False) -> dict:
         """
         This function performs federated averaging on the model parameters of the clients.
 
@@ -497,10 +499,19 @@ class Server_LP:
         model_avg_parameter: dict
             The averaged model parameters
         """
+        local_model_parameters = [
+            trainer.get_model_parameter.remote(gnn_only) for trainer in self.clients
+        ]
+        # Initialize an empty list to collect the results
         model_states = []
-        for i in range(len(clients)):
-            local_model_parameter = clients[i].get_model_parameter(gnn_only)
-            model_states.append(local_model_parameter)
+
+        # Collect the model parameters as they become ready
+        while local_model_parameters:
+            ready, left = ray.wait(local_model_parameters, num_returns=1, timeout=None)
+            if ready:
+                for t in ready:
+                    model_states.append(ray.get(t))
+            local_model_parameters = left
 
         model_avg_parameter = self.__average_parameter(model_states)
         return model_avg_parameter
