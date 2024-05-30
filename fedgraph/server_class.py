@@ -210,8 +210,7 @@ class Server_GC:
                     for trainer in selected_trainers
                 ]
             )
-            self.W[k].data = torch.div(
-                torch.sum(accumulate, dim=0), total_size).clone()
+            self.W[k].data = torch.div(torch.sum(accumulate, dim=0), total_size).clone()
 
     def compute_pairwise_similarities(self, trainers: list) -> np.ndarray:
         """
@@ -404,8 +403,7 @@ class Server_GC:
                 s2 = self.__flatten(source2)
                 angles[i, j] = (
                     torch.true_divide(
-                        torch.sum(s1 * s2), max(torch.norm(s1)
-                                                * torch.norm(s2), 1e-12)
+                        torch.sum(s1 * s2), max(torch.norm(s1) * torch.norm(s2), 1e-12)
                     )
                     + 1
                 )
@@ -446,11 +444,9 @@ class Server_GC:
         for target in targets:
             for name in target:
                 weighted_stack = torch.stack(
-                    [torch.mul(source[0][name].data, source[1])
-                     for source in sources]
+                    [torch.mul(source[0][name].data, source[1]) for source in sources]
                 )
-                tmp = torch.div(
-                    torch.sum(weighted_stack, dim=0), total_size).clone()
+                tmp = torch.div(torch.sum(weighted_stack, dim=0), total_size).clone()
                 target[name].data += tmp
 
 
@@ -504,14 +500,14 @@ class Server_LP:
             The averaged model parameters
         """
         local_model_parameters = [
-            trainer.get_model_parameter.remote(gnn_only) for trainer in self.clients]
+            trainer.get_model_parameter.remote(gnn_only) for trainer in self.clients
+        ]
         # Initialize an empty list to collect the results
         model_states = []
 
         # Collect the model parameters as they become ready
         while local_model_parameters:
-            ready, left = ray.wait(
-                local_model_parameters, num_returns=1, timeout=None)
+            ready, left = ray.wait(local_model_parameters, num_returns=1, timeout=None)
             if ready:
                 for t in ready:
                     model_states.append(ray.get(t))

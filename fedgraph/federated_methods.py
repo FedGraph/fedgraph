@@ -131,8 +131,7 @@ def run_FedGCN(args: attridict, data: tuple) -> None:
     # Server class is defined for federated aggregation (e.g., FedAvg)
     # without knowing the local trainer data
 
-    server = Server(features.shape[1], args_hidden,
-                    class_num, device, trainers, args)
+    server = Server(features.shape[1], args_hidden, class_num, device, trainers, args)
 
     #######################################################################
     # Pre-Train Communication of FedGCN
@@ -146,8 +145,7 @@ def run_FedGCN(args: attridict, data: tuple) -> None:
     ]
     global_feature_sum = torch.zeros_like(features)
     while True:
-        ready, left = ray.wait(local_neighbor_feature_sums,
-                               num_returns=1, timeout=None)
+        ready, left = ray.wait(local_neighbor_feature_sums, num_returns=1, timeout=None)
         if ready:
             for t in ready:
                 global_feature_sum += ray.get(t)
@@ -425,8 +423,7 @@ def run_GC_fedavg(
         if c_round == 1:
             selected_trainers = trainers
         else:
-            selected_trainers = server.random_sample_trainers(
-                trainers, sampling_frac)
+            selected_trainers = server.random_sample_trainers(trainers, sampling_frac)
             # if sampling_frac=1.0, then all trainers are selected
 
         for trainer in selected_trainers:  # only get weights of graphconv layers
@@ -495,8 +492,7 @@ def run_GC_fedprox(
         if c_round == 1:
             selected_trainers = trainers
         else:
-            selected_trainers = server.random_sample_trainers(
-                trainers, sampling_frac)
+            selected_trainers = server.random_sample_trainers(trainers, sampling_frac)
 
         for trainer in selected_trainers:
             trainer.local_train(
@@ -576,8 +572,7 @@ def run_GC_gcfl(
             for trainer in trainers:
                 trainer.update_params(server)
 
-        participating_trainers = server.random_sample_trainers(
-            trainers, frac=1.0)
+        participating_trainers = server.random_sample_trainers(trainers, frac=1.0)
         for trainer in participating_trainers:
             trainer.local_train(
                 local_epoch=local_epoch, train_option="gcfl"
@@ -595,8 +590,7 @@ def run_GC_gcfl(
                 [trainers[i] for i in idc]
             )  # DELTA_MEAN
             if (
-                mean_norm < EPS_1 and max_norm > EPS_2 and len(
-                    idc) > 2 and c_round > 20
+                mean_norm < EPS_1 and max_norm > EPS_2 and len(idc) > 2 and c_round > 20
             ):  # stopping condition
                 server.cache_model(idc, trainers[idc[0]].W, acc_trainers)
                 c1, c2 = server.min_cut(similarities[idc][:, idc], idc)
@@ -680,8 +674,7 @@ def run_GC_gcfl_plus(
         Pandas dataframe with test accuracies
     """
     cluster_indices = [np.arange(len(trainers)).astype("int")]
-    trainer_clusters = [[trainers[i] for i in idcs]
-                        for idcs in cluster_indices]
+    trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
 
     seqs_grads: Any = {c.id: [] for c in trainers}
 
@@ -696,8 +689,7 @@ def run_GC_gcfl_plus(
             for trainer in trainers:
                 trainer.update_params(server)
 
-        participating_trainers = server.random_sample_trainers(
-            trainers, frac=1.0)
+        participating_trainers = server.random_sample_trainers(trainers, frac=1.0)
 
         for trainer in participating_trainers:
             trainer.local_train(local_epoch=local_epoch, train_option="gcfl")
@@ -707,10 +699,8 @@ def run_GC_gcfl_plus(
 
         cluster_indices_new = []
         for idc in cluster_indices:
-            max_norm = server.compute_max_update_norm(
-                [trainers[i] for i in idc])
-            mean_norm = server.compute_mean_update_norm(
-                [trainers[i] for i in idc])
+            max_norm = server.compute_max_update_norm([trainers[i] for i in idc])
+            mean_norm = server.compute_mean_update_norm([trainers[i] for i in idc])
             if (
                 mean_norm < EPS_1
                 and max_norm > EPS_2
@@ -721,10 +711,8 @@ def run_GC_gcfl_plus(
                 server.cache_model(idc, trainers[idc[0]].W, acc_trainers)
 
                 tmp = [seqs_grads[id][-seq_length:] for id in idc]
-                dtw_distances = server.compute_pairwise_distances(
-                    tmp, standardize)
-                c1, c2 = server.min_cut(
-                    np.max(dtw_distances) - dtw_distances, idc)
+                dtw_distances = server.compute_pairwise_distances(tmp, standardize)
+                c1, c2 = server.min_cut(np.max(dtw_distances) - dtw_distances, idc)
                 cluster_indices_new += [c1, c2]
 
                 seqs_grads = {c.id: [] for c in trainers}
@@ -732,8 +720,7 @@ def run_GC_gcfl_plus(
                 cluster_indices_new += [idc]
 
         cluster_indices = cluster_indices_new
-        trainer_clusters = [[trainers[i] for i in idcs]
-                            for idcs in cluster_indices]
+        trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
 
         server.aggregate_clusterwise(trainer_clusters)
 
@@ -799,8 +786,7 @@ def run_GC_gcfl_plus_dWs(
         Pandas dataframe with test accuracies
     """
     cluster_indices = [np.arange(len(trainers)).astype("int")]
-    trainer_clusters = [[trainers[i] for i in idcs]
-                        for idcs in cluster_indices]
+    trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
 
     seqs_grads: Any = {c.id: [] for c in trainers}
     for trainer in trainers:
@@ -814,8 +800,7 @@ def run_GC_gcfl_plus_dWs(
             for trainer in trainers:
                 trainer.update_params(server)
 
-        participating_trainers = server.random_sample_trainers(
-            trainers, frac=1.0)
+        participating_trainers = server.random_sample_trainers(trainers, frac=1.0)
 
         for trainer in participating_trainers:
             trainer.local_train(local_epoch=local_epoch, train_option="gcfl")
@@ -825,10 +810,8 @@ def run_GC_gcfl_plus_dWs(
 
         cluster_indices_new = []
         for idc in cluster_indices:
-            max_norm = server.compute_max_update_norm(
-                [trainers[i] for i in idc])
-            mean_norm = server.compute_mean_update_norm(
-                [trainers[i] for i in idc])
+            max_norm = server.compute_max_update_norm([trainers[i] for i in idc])
+            mean_norm = server.compute_mean_update_norm([trainers[i] for i in idc])
             if (
                 mean_norm < EPS_1
                 and max_norm > EPS_2
@@ -839,10 +822,8 @@ def run_GC_gcfl_plus_dWs(
                 server.cache_model(idc, trainers[idc[0]].W, acc_trainers)
 
                 tmp = [seqs_grads[id][-seq_length:] for id in idc]
-                dtw_distances = server.compute_pairwise_distances(
-                    tmp, standardize)
-                c1, c2 = server.min_cut(
-                    np.max(dtw_distances) - dtw_distances, idc)
+                dtw_distances = server.compute_pairwise_distances(tmp, standardize)
+                c1, c2 = server.min_cut(np.max(dtw_distances) - dtw_distances, idc)
                 cluster_indices_new += [c1, c2]
 
                 seqs_grads = {c.id: [] for c in trainers}
@@ -850,8 +831,7 @@ def run_GC_gcfl_plus_dWs(
                 cluster_indices_new += [idc]
 
         cluster_indices = cluster_indices_new
-        trainer_clusters = [[trainers[i] for i in idcs]
-                            for idcs in cluster_indices]
+        trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
 
         server.aggregate_clusterwise(trainer_clusters)
 
@@ -932,11 +912,11 @@ def run_LP(args: attridict) -> None:
             scheduling_strategy="SPREAD",
         )
         class Trainer(Trainer_LP):
-            def __init__(self, *args, **kwargs):
+            def __init__(self, *args, **kwargs):  # type: ignore
                 super().__init__(*args, **kwargs)
 
         clients = [
-            Trainer.remote(
+            Trainer.remote(  # type: ignore
                 i,
                 country_code=args.country_codes[i],
                 user_id_mapping=user_id_mapping,
@@ -974,8 +954,7 @@ def run_LP(args: attridict) -> None:
     traveled_file_path = os.path.join(dataset_path, "traveled_users.txt")
 
     # check the validity of the input
-    assert method in ["STFL", "StaticGNN",
-                      "4D-FED-GNN+", "FedLink"], "Invalid method."
+    assert method in ["STFL", "StaticGNN", "4D-FED-GNN+", "FedLink"], "Invalid method."
     assert all(
         code in ["US", "BR", "ID", "TR", "JP"] for code in country_codes
     ), "The country codes should be in 'US', 'BR', 'ID', 'TR', 'JP'"
@@ -1053,7 +1032,7 @@ def run_LP(args: attridict) -> None:
 
             for iteration in range(global_rounds):
                 # each client train on local graph
-                print(f'global rounds: {iteration}')
+                print(f"global rounds: {iteration}")
                 current_loss = LP_train_global_round(
                     server=server,
                     local_steps=local_steps,
@@ -1139,31 +1118,30 @@ def LP_train_global_round(
 
     # local training
     number_of_clients = len(server.clients)
-    print(
-        f"Training in LP_train_global_round, number of clients: {number_of_clients}")
+    print(f"Training in LP_train_global_round, number of clients: {number_of_clients}")
     local_training_results = []
     for client_id in range(number_of_clients):
         # current_loss, train_finish_times
         local_training_result_ref = server.clients[client_id].train.remote(
-            client_id=client_id,
-            local_updates=local_steps, use_buffer=use_buffer
+            client_id=client_id, local_updates=local_steps, use_buffer=use_buffer
         )  # local training
         local_training_results.append(local_training_result_ref)
     while True:
-        ready, left = ray.wait(local_training_results,
-                               num_returns=1, timeout=None)
+        ready, left = ray.wait(local_training_results, num_returns=1, timeout=None)
         if ready:
             for t in ready:
                 client_id, current_loss, train_finish_times = ray.get(t)
                 print(
-                    f"clientId: {client_id} current_loss: {current_loss} train_finish_times: {train_finish_times}")
+                    f"clientId: {client_id} current_loss: {current_loss} train_finish_times: {train_finish_times}"
+                )
                 if record_results:
                     for train_finish_time in train_finish_times:
                         time_writer.write(
                             f"client {str(client_id)} train time {str(train_finish_time)}\n"
                         )
                         print(
-                            f"client {str(client_id)} train time {str(train_finish_time)}\n")
+                            f"client {str(client_id)} train time {str(train_finish_time)}\n"
+                        )
         local_training_results = left
         if not local_training_results:
             break
@@ -1175,11 +1153,13 @@ def LP_train_global_round(
         server.set_model_parameter(model_avg_parameter, gnn_only)
         for client_id in range(number_of_clients):
             server.clients[client_id].set_model_parameter.remote(
-                model_avg_parameter, gnn_only)
+                model_avg_parameter, gnn_only
+            )
 
     # test the model
     test_results = [
-        server.clients[client_id].test.remote(server.clients[client_id], use_buffer) for client_id in range(number_of_clients)
+        server.clients[client_id].test.remote(server.clients[client_id], use_buffer)
+        for client_id in range(number_of_clients)
     ]
     avg_auc, avg_hit_rate, avg_traveled_user_hit_rate = 0.0, 0.0, 0.0
     # for client_id in range(number_of_clients):
@@ -1203,8 +1183,7 @@ def LP_train_global_round(
         ready, left = ray.wait(test_results, num_returns=1, timeout=None)
         if ready:
             for t in ready:
-                client_id, auc_score, hit_rate, traveled_user_hit_rate = ray.get(
-                    t)
+                client_id, auc_score, hit_rate, traveled_user_hit_rate = ray.get(t)
                 avg_auc += auc_score
                 avg_hit_rate += hit_rate
                 avg_traveled_user_hit_rate += traveled_user_hit_rate
@@ -1216,7 +1195,9 @@ def LP_train_global_round(
                     result_writer.write(
                         f"Day {prediction_day} client {client_id} final auc score: {auc_score} hit rate: {hit_rate} traveled user hit rate: {traveled_user_hit_rate}\n"
                     )
-                print(f"Day {prediction_day} client {client_id} final auc score: {auc_score} hit rate: {hit_rate} traveled user hit rate: {traveled_user_hit_rate}\n")
+                print(
+                    f"Day {prediction_day} client {client_id} final auc score: {auc_score} hit rate: {hit_rate} traveled user hit rate: {traveled_user_hit_rate}\n"
+                )
 
         test_results = left
 
@@ -1228,7 +1209,6 @@ def LP_train_global_round(
             f"Predict Day {prediction_day + 1} average auc score: {avg_auc} hit rate: {avg_hit_rate}"
         )
     else:
-        print(
-            f"Predict Day 20 average auc score: {avg_auc} hit rate: {avg_hit_rate}")
+        print(f"Predict Day 20 average auc score: {avg_auc} hit rate: {avg_hit_rate}")
 
     return current_loss

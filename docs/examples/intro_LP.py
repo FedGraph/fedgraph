@@ -9,10 +9,6 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 (Time estimate: 20 minutes)
 """
 
-from fedgraph.utils_lp import *
-from fedgraph.trainer_class import Trainer_LP
-from fedgraph.server_class import Server_LP
-from fedgraph.federated_methods import LP_train_global_round
 import argparse
 import copy
 import os
@@ -22,10 +18,16 @@ from pathlib import Path
 
 import attridict
 import numpy as np
+import ray
 import torch
 import yaml
-import ray
 from ray.util.metrics import Counter, Gauge, Histogram
+
+from fedgraph.federated_methods import LP_train_global_round
+from fedgraph.server_class import Server_LP
+from fedgraph.trainer_class import Trainer_LP
+from fedgraph.utils_lp import *
+
 sys.path.append("../fedgraph")
 sys.path.append("../../")
 ray.init()
@@ -46,8 +48,7 @@ print(args)
 global_file_path = os.path.join(args.dataset_path, "data_global.txt")
 traveled_file_path = os.path.join(args.dataset_path, "traveled_users.txt")
 
-assert args.method in ["STFL", "StaticGNN",
-                       "4D-FED-GNN+", "FedLink"], "Invalid method."
+assert args.method in ["STFL", "StaticGNN", "4D-FED-GNN+", "FedLink"], "Invalid method."
 assert all(
     code in ["US", "BR", "ID", "TR", "JP"] for code in args.country_codes
 ), "The country codes should be in 'US', 'BR', 'ID', 'TR', 'JP'"
@@ -109,12 +110,12 @@ num_gpus_per_client = 0
     scheduling_strategy="SPREAD",
 )
 class Trainer(Trainer_LP):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):  # type: ignore
         super().__init__(*args, **kwargs)
 
 
 clients = [
-    Trainer.remote(
+    Trainer.remote(  # type: ignore
         i,
         country_code=args.country_codes[i],
         user_id_mapping=user_id_mapping,
@@ -148,8 +149,7 @@ global_model_parameter = (
 )  # fetch the global model parameter
 for i in range(number_of_clients):
     # broadcast the global model parameter to all clients
-    clients[i].set_model_parameter.remote(
-        global_model_parameter)
+    clients[i].set_model_parameter.remote(global_model_parameter)
 
 
 """Determine the start and end time of the conditional information"""
@@ -186,7 +186,8 @@ for day in range(prediction_days):  # make predictions for each day
             buffer_size=args.buffer_size,
         )
         clients[i].calculate_traveled_user_edge_indices.remote(
-            file_path=traveled_file_path)
+            file_path=traveled_file_path
+        )
 
     if args.online_learning:
         print(f"start training for day {day + 1}")

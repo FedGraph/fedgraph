@@ -9,10 +9,6 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 (Time estimate: 20 minutes)
 """
 
-from fedgraph.utils_lp import *
-from fedgraph.trainer_class import Trainer_LP
-from fedgraph.server_class import Server_LP
-from fedgraph.federated_methods import LP_train_global_round, run_fedgraph
 import argparse
 import copy
 import os
@@ -22,10 +18,16 @@ from pathlib import Path
 
 import attridict
 import numpy as np
+import ray
 import torch
 import yaml
-import ray
 from ray.util.metrics import Counter, Gauge, Histogram
+
+from fedgraph.federated_methods import LP_train_global_round, run_fedgraph
+from fedgraph.server_class import Server_LP
+from fedgraph.trainer_class import Trainer_LP
+from fedgraph.utils_lp import *
+
 sys.path.append("../fedgraph")
 sys.path.append("../../")
 #######################################################################
