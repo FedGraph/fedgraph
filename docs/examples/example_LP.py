@@ -34,6 +34,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 # Append paths relative to the current script's directory
 sys.path.append(os.path.join(current_dir, "../fedgraph"))
 sys.path.append(os.path.join(current_dir, "../../"))
+
 #######################################################################
 # Load configuration and check arguments
 # ------------
@@ -42,7 +43,9 @@ sys.path.append(os.path.join(current_dir, "../../"))
 # The algorithm and dataset (represented by the country code) are specified by the user here.
 # We also specify some prechecks to ensure the validity of the arguments.
 
+
 config_file = os.path.join(current_dir, "configs/config_LP.yaml")
+
 with open(config_file, "r") as file:
     args = attridict(yaml.safe_load(file))
 

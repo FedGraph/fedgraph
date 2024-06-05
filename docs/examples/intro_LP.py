@@ -36,6 +36,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(current_dir, "../fedgraph"))
 sys.path.append(os.path.join(current_dir, "../../"))
 ray.init(address="auto", namespace="default")
+
 #######################################################################
 # Load configuration and check arguments
 # ------------
@@ -191,7 +192,6 @@ pretrain_time_costs_gauge.set(
 # Here we train the model for the experiment.
 # For each prediction day, we train the model for each client.
 # We also record the results if the user wants to record the results.
-
 for day in range(prediction_days):  # make predictions for each day
     # get the train and test data for each client at the current time step
     for i in range(number_of_clients):
@@ -209,7 +209,6 @@ for day in range(prediction_days):  # make predictions for each day
         print(f"start training for day {day + 1}")
     else:
         print(f"start training")
-
     for iteration in range(args.global_rounds):
         # each client train on local graph
         print(iteration)
