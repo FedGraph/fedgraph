@@ -11,6 +11,7 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 
 import argparse
 import copy
+import datetime
 import os
 import random
 import sys
@@ -23,7 +24,6 @@ import torch
 import yaml
 from ray.util.metrics import Counter, Gauge, Histogram
 
-import datetime
 from fedgraph.federated_methods import LP_train_global_round
 from fedgraph.server_class import Server_LP
 from fedgraph.trainer_class import Trainer_LP
@@ -35,7 +35,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 # Append paths relative to the current script's directory
 sys.path.append(os.path.join(current_dir, "../fedgraph"))
 sys.path.append(os.path.join(current_dir, "../../"))
-ray.init(address="auto", namespace='default')
+ray.init(address="auto", namespace="default")
 #######################################################################
 # Load configuration and check arguments
 # ------------
@@ -53,8 +53,7 @@ print(args)
 global_file_path = os.path.join(args.dataset_path, "data_global.txt")
 traveled_file_path = os.path.join(args.dataset_path, "traveled_users.txt")
 
-assert args.method in ["STFL", "StaticGNN",
-                       "4D-FED-GNN+", "FedLink"], "Invalid method."
+assert args.method in ["STFL", "StaticGNN", "4D-FED-GNN+", "FedLink"], "Invalid method."
 assert all(
     code in ["US", "BR", "ID", "TR", "JP"] for code in args.country_codes
 ), "The country codes should be in 'US', 'BR', 'ID', 'TR', 'JP'"
@@ -141,12 +140,10 @@ server = Server_LP(  # the concrete information of users and items is not availa
     trainers=clients,
 )
 pretrain_time_costs_gauge = Gauge(
-    "pretrain_time_cost",
-    description="Latencies of pretrain_time_costs in ms."
+    "pretrain_time_cost", description="Latencies of pretrain_time_costs in ms."
 )
 train_time_costs_gauge = Gauge(
-    "train_time_cost",
-    description="Latencies of train_time_costs in ms."
+    "train_time_cost", description="Latencies of train_time_costs in ms."
 )
 
 #######################################################################
@@ -185,8 +182,9 @@ else:
     time_writer = open("train_time_" + file_name, "a+")
 
 
-pretrain_time_costs_gauge.set((datetime.datetime.now()
-                               - pretrain_start_time).total_seconds() * 1000)
+pretrain_time_costs_gauge.set(
+    (datetime.datetime.now() - pretrain_start_time).total_seconds() * 1000
+)
 #######################################################################
 # Train the model
 # ------------
@@ -229,8 +227,9 @@ for day in range(prediction_days):  # make predictions for each day
             result_writer=result_writer,
             time_writer=time_writer,
         )
-        train_time_costs_gauge.set((datetime.datetime.now()
-                                    - train_start_time).total_seconds() * 1000)
+        train_time_costs_gauge.set(
+            (datetime.datetime.now() - train_start_time).total_seconds() * 1000
+        )
 
     if current_loss >= 0.3:
         print("training is not complete")

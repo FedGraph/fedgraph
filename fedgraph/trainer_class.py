@@ -409,8 +409,7 @@ class Trainer_GC:
         The implementation is copying the cached weights (W_old) to the model weights (W).
 
         """
-        self.__copy_weights(target=self.W, source=self.W_old,
-                            keys=self.gconv_names)
+        self.__copy_weights(target=self.W, source=self.W_old, keys=self.gconv_names)
 
     def cache_weights(self) -> None:
         """
@@ -437,12 +436,10 @@ class Trainer_GC:
 
         if self.gconv_names is not None:
             weights_conv = {key: self.W[key] for key in self.gconv_names}
-            self.conv_weights_norm = torch.norm(
-                self.__flatten(weights_conv)).item()
+            self.conv_weights_norm = torch.norm(self.__flatten(weights_conv)).item()
 
             grads_conv = {key: self.W[key].grad for key in self.gconv_names}
-            self.conv_grads_norm = torch.norm(
-                self.__flatten(grads_conv)).item()
+            self.conv_grads_norm = torch.norm(self.__flatten(grads_conv)).item()
 
         grads = {key: value.grad for key, value in self.W.items()}
         self.grads_norm = torch.norm(self.__flatten(grads)).item()
@@ -470,12 +467,10 @@ class Trainer_GC:
         mu: float, optional
             The proximal term. The default is 1.
         """
-        assert train_option in ["basic", "prox",
-                                "gcfl"], "Invalid training option."
+        assert train_option in ["basic", "prox", "gcfl"], "Invalid training option."
 
         if train_option == "gcfl":
-            self.__copy_weights(target=self.W_old,
-                                source=self.W, keys=self.gconv_names)
+            self.__copy_weights(target=self.W_old, source=self.W, keys=self.gconv_names)
 
         if train_option in ["basic", "prox"]:
             train_stats = self.__train(
@@ -630,8 +625,7 @@ class Trainer_GC:
                 label = batch.y
                 loss = model.loss(pred, label)
                 loss += (
-                    mu / 2.0 *
-                    self.__prox_term(model, gconv_names, Wt) if prox else 0.0
+                    mu / 2.0 * self.__prox_term(model, gconv_names, Wt) if prox else 0.0
                 )  # add the proximal term if required
                 loss.backward()
                 optimizer.step()
@@ -724,8 +718,7 @@ class Trainer_GC:
                 label = batch.y
                 loss = model.loss(pred, label)
                 loss += (
-                    mu / 2.0 *
-                    self.__prox_term(model, gconv_names, Wt) if prox else 0.0
+                    mu / 2.0 * self.__prox_term(model, gconv_names, Wt) if prox else 0.0
                 )
 
             total_loss += loss.item() * batch.num_graphs
@@ -873,14 +866,12 @@ class Trainer_LP:
         self.country_code = country_code
 
         # global user_id and item_id
-        self.data = get_data(
-            self.country_code, user_id_mapping, item_id_mapping)
+        self.data = get_data(self.country_code, user_id_mapping, item_id_mapping)
 
         self.model = GNN_LP(
             number_of_users, number_of_items, meta_data, hidden_channels
         )
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Device: '{self.device}'")
         self.model = self.model.to(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
@@ -927,7 +918,9 @@ class Trainer_LP:
         else:
             self.train_data, self.test_data = load_res
 
-    def train(self, client_id, local_updates: int, use_buffer: bool = False) -> tuple:
+    def train(
+        self, client_id: int, local_updates: int, use_buffer: bool = False
+    ) -> tuple:
         """
         Perform local training for a specified number of iterations.
 
@@ -999,10 +992,8 @@ class Trainer_LP:
                 preds.append(self.model.pred(self.train_data, self.test_data))
             else:
                 self.global_train_data.to(self.device)
-                preds.append(self.model.pred(
-                    self.global_train_data, self.test_data))
-            ground_truths.append(
-                self.test_data["user", "select", "item"].edge_label)
+                preds.append(self.model.pred(self.global_train_data, self.test_data))
+            ground_truths.append(self.test_data["user", "select", "item"].edge_label)
 
         pred = torch.cat(preds, dim=0)
         ground_truth = torch.cat(ground_truths, dim=0)
@@ -1011,8 +1002,7 @@ class Trainer_LP:
         hit_rate_at_2 = hit_rate_evaluator(
             pred,
             ground_truth,
-            indexes=self.test_data["user", "select",
-                                   "item"].edge_label_index[0],
+            indexes=self.test_data["user", "select", "item"].edge_label_index[0],
         )
         traveled_user_hit_rate_at_2 = hit_rate_evaluator(
             pred[self.traveled_user_edge_indices],
@@ -1023,8 +1013,7 @@ class Trainer_LP:
         )
         print(f"Test AUC: {auc:.4f}")
         print(f"Test Hit Rate at 2: {hit_rate_at_2:.4f}")
-        print(
-            f"Test Traveled User Hit Rate at 2: {traveled_user_hit_rate_at_2:.4f}")
+        print(f"Test Traveled User Hit Rate at 2: {traveled_user_hit_rate_at_2:.4f}")
         return auc, hit_rate_at_2, traveled_user_hit_rate_at_2
 
     def calculate_traveled_user_edge_indices(self, file_path: str) -> None:
@@ -1041,8 +1030,7 @@ class Trainer_LP:
                 [int(line.split("\t")[0]) for line in a]
             )  # read the user IDs of the traveled users
         mask = torch.isin(
-            self.test_data["user", "select",
-                           "item"].edge_label_index[0], traveled_users
+            self.test_data["user", "select", "item"].edge_label_index[0], traveled_users
         )  # mark the indices of the edges of the traveled users as True or False
         self.traveled_user_edge_indices = torch.where(mask)[
             0
