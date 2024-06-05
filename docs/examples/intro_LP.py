@@ -23,14 +23,19 @@ import torch
 import yaml
 from ray.util.metrics import Counter, Gauge, Histogram
 
+import datetime
 from fedgraph.federated_methods import LP_train_global_round
 from fedgraph.server_class import Server_LP
 from fedgraph.trainer_class import Trainer_LP
 from fedgraph.utils_lp import *
 
-sys.path.append("../fedgraph")
-sys.path.append("../../")
-ray.init()
+# Determine the directory of the current script
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Append paths relative to the current script's directory
+sys.path.append(os.path.join(current_dir, "../fedgraph"))
+sys.path.append(os.path.join(current_dir, "../../"))
+ray.init(address="auto", namespace='default')
 #######################################################################
 # Load configuration and check arguments
 # ------------
@@ -39,7 +44,7 @@ ray.init()
 # The algorithm and dataset (represented by the country code) are specified by the user here.
 # We also specify some prechecks to ensure the validity of the arguments.
 
-config_file = "configs/config_LP.yaml"
+config_file = os.path.join(current_dir, "configs/config_LP.yaml")
 with open(config_file, "r") as file:
     args = attridict(yaml.safe_load(file))
 
@@ -48,7 +53,8 @@ print(args)
 global_file_path = os.path.join(args.dataset_path, "data_global.txt")
 traveled_file_path = os.path.join(args.dataset_path, "traveled_users.txt")
 
-assert args.method in ["STFL", "StaticGNN", "4D-FED-GNN+", "FedLink"], "Invalid method."
+assert args.method in ["STFL", "StaticGNN",
+                       "4D-FED-GNN+", "FedLink"], "Invalid method."
 assert all(
     code in ["US", "BR", "ID", "TR", "JP"] for code in args.country_codes
 ), "The country codes should be in 'US', 'BR', 'ID', 'TR', 'JP'"
@@ -134,6 +140,14 @@ server = Server_LP(  # the concrete information of users and items is not availa
     meta_data=meta_data,
     trainers=clients,
 )
+pretrain_time_costs_gauge = Gauge(
+    "pretrain_time_cost",
+    description="Latencies of pretrain_time_costs in ms."
+)
+train_time_costs_gauge = Gauge(
+    "train_time_cost",
+    description="Latencies of train_time_costs in ms."
+)
 
 #######################################################################
 # Training preparation
@@ -144,6 +158,7 @@ server = Server_LP(  # the concrete information of users and items is not availa
 # (3) We open the file to record the results if the user wants to record the results.
 
 """Broadcast the global model parameter to all clients"""
+pretrain_start_time = datetime.datetime.now()
 global_model_parameter = (
     server.get_model_parameter()
 )  # fetch the global model parameter
@@ -170,12 +185,15 @@ else:
     time_writer = open("train_time_" + file_name, "a+")
 
 
+pretrain_time_costs_gauge.set((datetime.datetime.now()
+                               - pretrain_start_time).total_seconds() * 1000)
 #######################################################################
 # Train the model
 # ------------
 # Here we train the model for the experiment.
 # For each prediction day, we train the model for each client.
 # We also record the results if the user wants to record the results.
+
 for day in range(prediction_days):  # make predictions for each day
     # get the train and test data for each client at the current time step
     for i in range(number_of_clients):
@@ -193,9 +211,11 @@ for day in range(prediction_days):  # make predictions for each day
         print(f"start training for day {day + 1}")
     else:
         print(f"start training")
+
     for iteration in range(args.global_rounds):
         # each client train on local graph
         print(iteration)
+        train_start_time = datetime.datetime.now()
         current_loss = LP_train_global_round(
             server=server,
             local_steps=args.local_steps,
@@ -209,6 +229,8 @@ for day in range(prediction_days):  # make predictions for each day
             result_writer=result_writer,
             time_writer=time_writer,
         )
+        train_time_costs_gauge.set((datetime.datetime.now()
+                                    - train_start_time).total_seconds() * 1000)
 
     if current_loss >= 0.3:
         print("training is not complete")
