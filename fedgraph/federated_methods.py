@@ -955,7 +955,9 @@ def run_LP(args: attridict) -> None:
     record_results = args.record_results
     country_codes = args.country_codes
 
-    dataset_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.dataset_path)
+    dataset_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), args.dataset_path
+    )
     global_file_path = os.path.join(dataset_path, "data_global.txt")
     traveled_file_path = os.path.join(dataset_path, "traveled_users.txt")
 
