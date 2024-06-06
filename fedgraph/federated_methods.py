@@ -903,8 +903,14 @@ def run_LP(args: attridict) -> None:
             item_id_mapping.keys()
         )
         num_cpus_per_client = 1
-        device = torch.device("cpu")
-        num_gpus_per_client = 0
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+            print("gpu detected")
+            num_gpus_per_client = 1
+        else:
+            device = torch.device("cpu")
+            num_gpus_per_client = 0
+            print("gpu not detected")
 
         @ray.remote(
             num_gpus=num_gpus_per_client,
@@ -949,7 +955,7 @@ def run_LP(args: attridict) -> None:
     record_results = args.record_results
     country_codes = args.country_codes
 
-    dataset_path = args.dataset_path
+    dataset_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.dataset_path)
     global_file_path = os.path.join(dataset_path, "data_global.txt")
     traveled_file_path = os.path.join(dataset_path, "traveled_users.txt")
 
