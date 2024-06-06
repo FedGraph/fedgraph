@@ -52,11 +52,11 @@ spec:
             # resource accounting. K8s requests are not used by Ray.
             resources:
               limits:
-                cpu: "1"
-                memory: "4Gi"
+                cpu: "2"
+                memory: "14Gi"
               requests:
-                cpu: "1"
-                memory: "4Gi"
+                cpu: "2"
+                memory: "14Gi"
             env:
               - name: CPU_REQUEST
                 valueFrom:
@@ -82,6 +82,12 @@ spec:
                 valueFrom:
                   fieldRef:
                     fieldPath: status.podIP
+              - name: RAY_GRAFANA_IFRAME_HOST
+                value: http://127.0.0.1:3000
+              - name: RAY_GRAFANA_HOST
+                value: http://prometheus-grafana.prometheus-system.svc:80
+              - name: RAY_PROMETHEUS_HOST
+                value: http://prometheus-kube-prometheus-prometheus.prometheus-system.svc:9090
             ports:
               - containerPort: 6379
                 name: gcs
@@ -93,6 +99,10 @@ spec:
                 name: metrics
               - containerPort: 8000
                 name: serve
+              - containerPort: 44217
+                name: as-metrics # autoscaler
+              - containerPort: 44227
+                name: dash-metrics # dashboard
             lifecycle:
               preStop:
                 exec:
@@ -134,11 +144,13 @@ spec:
               # resource accounting. K8s requests are not used by Ray.
               resources:
                 limits:
-                  cpu: "1"
-                  memory: "4Gi"
+                  cpu: "2"
+                  memory: "7Gi"
+                  nvidia.com/gpu: "1"
                 requests:
-                  cpu: "1"
-                  memory: "4Gi"
+                  cpu: "2"
+                  memory: "7Gi"
+                  nvidia.com/gpu: "1"
               # environment variables to set in the container.Optional.
               # Refer to https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/
               env:
