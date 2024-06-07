@@ -159,9 +159,10 @@ def get_data(
     """
     file_name = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
-        "../../",
         f"data/LPDataset/data_{country_code}.txt",
     )
+    print(f"current os path is {os.path.dirname(os.path.abspath(__file__))}")
+    print(f"Loading data in {file_name}")
 
     if user_id_mapping is None and item_id_mapping is None:
         # use local client mapping
