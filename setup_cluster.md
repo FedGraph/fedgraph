@@ -23,6 +23,7 @@ docker buildx build --platform linux/amd64 -t public.ecr.aws/i7t1s5i1/fedgraph:l
 Create an EKS Cluster with eksctl:
 
 ```bash
+eksctl create cluster -f eks_cluster_config.yaml
 eksctl create cluster --name test --region us-east-1 --nodegroup-name standard-workers --node-type g4dn.xlarge --nodes 1 --nodes-min 1 --nodes-max 4 --managed
 ```
 
