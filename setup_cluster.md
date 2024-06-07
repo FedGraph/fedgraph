@@ -1,5 +1,23 @@
 # Instructions for Setting Up and Deleting a Ray Cluster on AWS EKS
 
+## Step-by-Step Guide to Push customized Docker ECR image
+Configure AWS:
+
+```bash
+aws configure
+```
+Login to ECR
+```bash
+aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
+```
+
+Build Docker with amd64 architecture and push to ECR
+
+```bash
+docker buildx build --platform linux/amd64 -t public.ecr.aws/i7t1s5i1/fedgraph:lp . --push
+```
+
+
 ## Step-by-Step Guide to Set Up the Ray Cluster
 
 Create an EKS Cluster with eksctl:
@@ -13,6 +31,16 @@ Update kubeconfig for AWS EKS:
 ```bash
 aws eks --region us-east-1 update-kubeconfig --name test
 ```
+
+
+Clone the KubeRay Repository and Install Prometheus
+
+```bash
+git clone https://github.com/ray-project/kuberay.git
+cd kuberay
+./install/prometheus/install.sh
+```
+
 
 Add the KubeRay Helm Repository:
 
@@ -40,29 +68,25 @@ kubectl apply -f ray_kubernetes_cluster.yaml
 kubectl apply -f ray_kubernetes_ingress.yaml
 ```
 
-Get the Head Pod Name:
-
-```bash
-export HEAD_POD=$(kubectl get pods --selector=ray.io/node-type=head -o custom-columns=POD:metadata.name --no-headers)
-echo $HEAD_POD
-```
-
-Initialize Ray in the Head Pod:
-
-```bash
-kubectl exec -it $HEAD_POD -- python -c "import ray; ray.init(); print(ray.cluster_resources())"
-```
-
-Execute Example Python Script in the Head Pod:
-
-```bash
-kubectl exec -it $HEAD_POD -- python docs/examples/intro_LP.py
-```
-
 Forward Port for Ray Dashboard:
 
 ```bash
 kubectl port-forward service/raycluster-autoscaler-head-svc 8265:8265
+```
+
+Forward Ports for Ray Dashboard, Prometheus, and Grafana
+
+```bash
+kubectl port-forward service/raycluster-autoscaler-head-svc 8265:8265
+kubectl port-forward raycluster-autoscaler-head-ts64s 8080:8080
+kubectl port-forward prometheus-prometheus-kube-prometheus-prometheus-0 -n prometheus-system 9090:9090
+kubectl port-forward deployment/prometheus-grafana -n prometheus-system 3000:3000
+```
+
+Final Check
+
+```bash
+kubectl get pods --all-namespaces -o wide
 ```
 
 Submit a Ray Job:
