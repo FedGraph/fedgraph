@@ -45,7 +45,7 @@ spec:
       spec:
         containers:
           - name: ray-head
-            image: public.ecr.aws/i7t1s5i1/fedgraph:latest
+            image: public.ecr.aws/i7t1s5i1/fedgraph:lp
             # Optimal resource allocation will depend on your Kubernetes infrastructure and might
             # require some experimentation.
             # Setting requests=limits is recommended with Ray. K8s limits are used for Ray-internal
@@ -139,7 +139,7 @@ spec:
         spec:
           containers:
             - name: machine-learning # must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character (e.g. 'my-name',  or '123-abc'
-              image: public.ecr.aws/i7t1s5i1/fedgraph:latest
+              image: public.ecr.aws/i7t1s5i1/fedgraph:lp
               # Setting requests=limits is recommended with Ray. K8s limits are used for Ray-internal
               # resource accounting. K8s requests are not used by Ray.
               resources:

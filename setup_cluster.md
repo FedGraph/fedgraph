@@ -68,7 +68,11 @@ kubectl port-forward service/raycluster-autoscaler-head-svc 8265:8265
 Submit a Ray Job:
 
 ```bash
-ray job submit --address http://localhost:8265 -- python -c "import ray; ray.init(); print(ray.cluster_resources())"
+cd fedgraph
+ray job submit --runtime-env-json '{
+  "working_dir": "./"
+}' --address http://localhost:8265 -- python docs/examples/intro_LP.py
+
 ```
 
 ## How to Delete the Ray Cluster
