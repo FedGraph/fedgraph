@@ -50,9 +50,12 @@ with open(config_file, "r") as file:
     args = attridict(yaml.safe_load(file))
 
 print(args)
-
-global_file_path = os.path.join(args.dataset_path, "data_global.txt")
-traveled_file_path = os.path.join(args.dataset_path, "traveled_users.txt")
+dataset_path = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "../../", args.dataset_path
+)
+print(dataset_path)
+global_file_path = os.path.join(dataset_path, "data_global.txt")
+traveled_file_path = os.path.join(dataset_path, "traveled_users.txt")
 
 assert args.method in ["STFL", "StaticGNN", "4D-FED-GNN+", "FedLink"], "Invalid method."
 assert all(
@@ -69,7 +72,7 @@ if args.use_buffer:
 # Otherwise, we download the data from the website and generate the data.
 # We also create the mappings and meta_data for the data.
 
-check_data_files_existance(args.country_codes, args.dataset_path)
+check_data_files_existance(args.country_codes, dataset_path)
 
 (
     user_id_mapping,
@@ -95,19 +98,15 @@ number_of_clients = len(args.country_codes)
 number_of_users, number_of_items = len(user_id_mapping.keys()), len(
     item_id_mapping.keys()
 )
-num_cpus_per_client = 2
-# TODO: add gpu check
-# # specifying a target GPU
-# if args.device:
-#     device = torch.device("cuda")
-#     # TODO: move data to cuda
-#     # edge_index = edge_index.to("cuda:0")
-#     num_gpus_per_client = 1
-# else:
-#     device = torch.device("cpu")
-#     num_gpus_per_client = 0
-device = torch.device("cpu")
-num_gpus_per_client = 0
+num_cpus_per_client = 1
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+    print("gpu detected")
+    num_gpus_per_client = 1
+else:
+    device = torch.device("cpu")
+    num_gpus_per_client = 0
+    print("gpu not detected")
 
 
 @ray.remote(

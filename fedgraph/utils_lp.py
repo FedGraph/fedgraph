@@ -157,7 +157,9 @@ def get_data(
     - `edge_label_index` (torch.Tensor): The edge label indices.
     - `edge_label` (torch.Tensor): The edge labels.
     """
-    file_name = f"data/LPDataset/data_{country_code}.txt"
+    file_name = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "../../",  f"data/LPDataset/data_{country_code}.txt"
+    )
 
     if user_id_mapping is None and item_id_mapping is None:
         # use local client mapping
