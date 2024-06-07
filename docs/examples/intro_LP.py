@@ -51,7 +51,7 @@ with open(config_file, "r") as file:
 
 print(args)
 dataset_path = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "../../", args.dataset_path
+    os.path.dirname(os.path.abspath(__file__)), args.dataset_path
 )
 print(dataset_path)
 global_file_path = os.path.join(dataset_path, "data_global.txt")

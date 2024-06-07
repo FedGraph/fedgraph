@@ -1055,7 +1055,7 @@ def run_LP(args: attridict) -> None:
                     time_writer=time_writer,
                 )
 
-            if current_loss >= 0.5:
+            if current_loss >= 0.1:
                 print("training is not complete")
 
             # go to next day

@@ -2,20 +2,20 @@
 method: FedLink
 fedgraph_task: LP
 # dataset:
-country_codes: ["US", "BR"] # country_codes = ['US', 'BR', 'ID', 'TR', 'JP']
+country_codes: ["US"] # country_codes = ['US', 'BR', 'ID', 'TR', 'JP']
 dataset_path: data/LPDataset
 global_file_path: data/LPDataset/data_five_countries.txt
 traveled_file_path: data/LPDataset/traveled_users.txt
 
 # setup:
-device: cpu
+device: gpu
 use_buffer: false
 buffer_size: 300000
 online_learning: false
 seed: 10
 
 # model_parameters:
-global_rounds: 20
+global_rounds: 8
 local_steps: 3
 repeat_time: 1
 hidden_channels: 64

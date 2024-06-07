@@ -968,7 +968,7 @@ class Trainer_LP:
 
         return client_id, loss, train_finish_times
 
-    def test(self, use_buffer: bool = False) -> tuple:
+    def test(self, clientId: int, use_buffer: bool = False) -> tuple:
         """
         Test the model on the test data.
 
@@ -1014,7 +1014,7 @@ class Trainer_LP:
         print(f"Test AUC: {auc:.4f}")
         print(f"Test Hit Rate at 2: {hit_rate_at_2:.4f}")
         print(f"Test Traveled User Hit Rate at 2: {traveled_user_hit_rate_at_2:.4f}")
-        return auc, hit_rate_at_2, traveled_user_hit_rate_at_2
+        return clientId, auc, hit_rate_at_2, traveled_user_hit_rate_at_2
 
     def calculate_traveled_user_edge_indices(self, file_path: str) -> None:
         """
