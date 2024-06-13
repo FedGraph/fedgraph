@@ -36,9 +36,9 @@ parser.add_argument("-d", "--dataset", default="cora", type=str)
 
 parser.add_argument("-f", "--fedtype", default="fedgcn", type=str)
 
-parser.add_argument("-c", "--global_rounds", default=100, type=int)
+parser.add_argument("-c", "--global_rounds", default=10000, type=int)
 parser.add_argument("-i", "--local_step", default=3, type=int)
-parser.add_argument("-lr", "--learning_rate", default=0.5, type=float)
+parser.add_argument("-lr", "--learning_rate", default=0.1, type=float)
 
 parser.add_argument("-n", "--n_trainer", default=2, type=int)
 parser.add_argument("-nl", "--num_layers", default=2, type=int)
@@ -73,11 +73,13 @@ else:
 row, col, edge_attr = adj.coo()
 edge_index = torch.stack([row, col], dim=0)
 
-num_cpus_per_client = 1
+num_cpus_per_client = 3
 # specifying a target GPU
+args.gpu = True  # Test
+print(f'gpu usage: {args.gpu}')
 if args.gpu:
     device = torch.device("cuda")
-    edge_index = edge_index.to("cuda:0")
+    edge_index = edge_index.to("cuda")
     num_gpus_per_client = 1
 else:
     device = torch.device("cpu")
