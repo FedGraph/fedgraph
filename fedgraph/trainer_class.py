@@ -1,7 +1,7 @@
 import argparse
 import random
 import time
-from typing import Any, Union
+from typing import Any, Union, List
 
 import numpy as np
 import ray
@@ -19,7 +19,7 @@ from fedgraph.utils_lp import (
     get_global_user_item_mapping,
 )
 from fedgraph.utils_nc import get_1hop_feature_sum
-
+from fedgraph.utils_lp import check_data_files_existance
 
 class Trainer_General:
     """
@@ -178,7 +178,7 @@ class Trainer_General:
         # create a large matrix with known local node features
         new_feature_for_trainer = torch.zeros(
             self.global_node_num, self.features.shape[1]
-        )
+        ).to(self.device) # TODO:check if all the tensors are in the same device
         new_feature_for_trainer[self.local_node_index] = self.features
         # sum of features of all 1-hop nodes for each node
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
@@ -217,6 +217,8 @@ class Trainer_General:
         """
         # clean cache
         torch.cuda.empty_cache()
+        self.model.to(self.device)
+        self.feature_aggregation = self.feature_aggregation.to(self.device)
         for iteration in range(self.local_step):
             self.model.train()
             loss_train, acc_train = train(
@@ -864,7 +866,12 @@ class Trainer_LP:
     ):
         self.client_id = client_id
         self.country_code = country_code
-
+        file_path = f"fedgraph/data/LPDataset"
+        print("checking code and file path")
+        print(country_code)
+        print(file_path)
+        country_codes: List[str] = [self.country_code]
+        check_data_files_existance(country_codes, file_path)
         # global user_id and item_id
         self.data = get_data(self.country_code, user_id_mapping, item_id_mapping)
 
@@ -875,6 +882,7 @@ class Trainer_LP:
         print(f"Device: '{self.device}'")
         self.model = self.model.to(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
+
 
     def get_train_test_data_at_current_time_step(
         self,
