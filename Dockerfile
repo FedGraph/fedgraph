@@ -8,10 +8,10 @@ WORKDIR /app
 RUN pip install torch
 
 # Copy only the requirements file to leverage caching
-COPY requirements.txt .
+COPY docker_requirements.txt .
 
 # Install dependencies without using cache to reduce image size
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r docker_requirements.txt
 
 # Copy the remaining application files
 COPY fedgraph /app/fedgraph
