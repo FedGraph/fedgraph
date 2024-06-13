@@ -2,7 +2,7 @@
 method: FedLink
 fedgraph_task: LP
 # dataset:
-country_codes: ["US"] # country_codes = ['US', 'BR', 'ID', 'TR', 'JP']
+country_codes: ["US", "BR"] # country_codes = ['US', 'BR', 'ID', 'TR', 'JP']
 dataset_path: data/LPDataset
 global_file_path: data/LPDataset/data_five_countries.txt
 traveled_file_path: data/LPDataset/traveled_users.txt
@@ -22,3 +22,5 @@ hidden_channels: 64
 
 # output:
 record_results: false
+
+

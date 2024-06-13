@@ -35,7 +35,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 # Append paths relative to the current script's directory
 sys.path.append(os.path.join(current_dir, "../fedgraph"))
 sys.path.append(os.path.join(current_dir, "../../"))
-ray.init(address="auto", namespace="default")
+ray.init(address="auto")
 
 #######################################################################
 # Load configuration and check arguments
@@ -49,7 +49,6 @@ config_file = os.path.join(current_dir, "configs/config_LP.yaml")
 with open(config_file, "r") as file:
     args = attridict(yaml.safe_load(file))
 
-print(args)
 dataset_path = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), args.dataset_path
 )
@@ -98,8 +97,8 @@ number_of_clients = len(args.country_codes)
 number_of_users, number_of_items = len(user_id_mapping.keys()), len(
     item_id_mapping.keys()
 )
-num_cpus_per_client = 1
-if torch.cuda.is_available():
+num_cpus_per_client = 3
+if args.device == "gpu":
     device = torch.device("cuda")
     print("gpu detected")
     num_gpus_per_client = 1
