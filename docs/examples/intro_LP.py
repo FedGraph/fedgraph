@@ -11,6 +11,7 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 
 import argparse
 import copy
+import datetime
 import os
 import random
 import sys
@@ -28,9 +29,14 @@ from fedgraph.server_class import Server_LP
 from fedgraph.trainer_class import Trainer_LP
 from fedgraph.utils_lp import *
 
-sys.path.append("../fedgraph")
-sys.path.append("../../")
-ray.init()
+# Determine the directory of the current script
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Append paths relative to the current script's directory
+sys.path.append(os.path.join(current_dir, "../fedgraph"))
+sys.path.append(os.path.join(current_dir, "../../"))
+ray.init(address="auto")
+
 #######################################################################
 # Load configuration and check arguments
 # ------------
@@ -39,14 +45,16 @@ ray.init()
 # The algorithm and dataset (represented by the country code) are specified by the user here.
 # We also specify some prechecks to ensure the validity of the arguments.
 
-config_file = "configs/config_LP.yaml"
+config_file = os.path.join(current_dir, "configs/config_LP.yaml")
 with open(config_file, "r") as file:
     args = attridict(yaml.safe_load(file))
 
-print(args)
-
-global_file_path = os.path.join(args.dataset_path, "data_global.txt")
-traveled_file_path = os.path.join(args.dataset_path, "traveled_users.txt")
+dataset_path = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), args.dataset_path
+)
+print(dataset_path)
+global_file_path = os.path.join(dataset_path, "data_global.txt")
+traveled_file_path = os.path.join(dataset_path, "traveled_users.txt")
 
 assert args.method in ["STFL", "StaticGNN", "4D-FED-GNN+", "FedLink"], "Invalid method."
 assert all(
@@ -63,7 +71,7 @@ if args.use_buffer:
 # Otherwise, we download the data from the website and generate the data.
 # We also create the mappings and meta_data for the data.
 
-check_data_files_existance(args.country_codes, args.dataset_path)
+check_data_files_existance(args.country_codes, dataset_path)
 
 (
     user_id_mapping,
@@ -89,19 +97,15 @@ number_of_clients = len(args.country_codes)
 number_of_users, number_of_items = len(user_id_mapping.keys()), len(
     item_id_mapping.keys()
 )
-num_cpus_per_client = 2
-# TODO: add gpu check
-# # specifying a target GPU
-# if args.device:
-#     device = torch.device("cuda")
-#     # TODO: move data to cuda
-#     # edge_index = edge_index.to("cuda:0")
-#     num_gpus_per_client = 1
-# else:
-#     device = torch.device("cpu")
-#     num_gpus_per_client = 0
-device = torch.device("cpu")
-num_gpus_per_client = 0
+num_cpus_per_client = 3
+if args.device == "gpu":
+    device = torch.device("cuda")
+    print("gpu detected")
+    num_gpus_per_client = 1
+else:
+    device = torch.device("cpu")
+    num_gpus_per_client = 0
+    print("gpu not detected")
 
 
 @ray.remote(
@@ -134,6 +138,12 @@ server = Server_LP(  # the concrete information of users and items is not availa
     meta_data=meta_data,
     trainers=clients,
 )
+pretrain_time_costs_gauge = Gauge(
+    "pretrain_time_cost", description="Latencies of pretrain_time_costs in ms."
+)
+train_time_costs_gauge = Gauge(
+    "train_time_cost", description="Latencies of train_time_costs in ms."
+)
 
 #######################################################################
 # Training preparation
@@ -144,6 +154,7 @@ server = Server_LP(  # the concrete information of users and items is not availa
 # (3) We open the file to record the results if the user wants to record the results.
 
 """Broadcast the global model parameter to all clients"""
+pretrain_start_time = datetime.datetime.now()
 global_model_parameter = (
     server.get_model_parameter()
 )  # fetch the global model parameter
@@ -170,6 +181,9 @@ else:
     time_writer = open("train_time_" + file_name, "a+")
 
 
+pretrain_time_costs_gauge.set(
+    (datetime.datetime.now() - pretrain_start_time).total_seconds() * 1000
+)
 #######################################################################
 # Train the model
 # ------------
@@ -196,6 +210,7 @@ for day in range(prediction_days):  # make predictions for each day
     for iteration in range(args.global_rounds):
         # each client train on local graph
         print(iteration)
+        train_start_time = datetime.datetime.now()
         current_loss = LP_train_global_round(
             server=server,
             local_steps=args.local_steps,
@@ -208,6 +223,9 @@ for day in range(prediction_days):  # make predictions for each day
             record_results=args.record_results,
             result_writer=result_writer,
             time_writer=time_writer,
+        )
+        train_time_costs_gauge.set(
+            (datetime.datetime.now() - train_start_time).total_seconds() * 1000
         )
 
     if current_loss >= 0.3:

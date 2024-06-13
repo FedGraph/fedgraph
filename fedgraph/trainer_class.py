@@ -1,7 +1,7 @@
 import argparse
 import random
 import time
-from typing import Any, Union
+from typing import Any, List, Union
 
 import numpy as np
 import ray
@@ -14,6 +14,7 @@ from torchmetrics.retrieval import RetrievalHitRate
 from fedgraph.gnn_models import GCN, GIN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
 from fedgraph.train_func import test, train
 from fedgraph.utils_lp import (
+    check_data_files_existance,
     get_data,
     get_data_loaders_per_time_step,
     get_global_user_item_mapping,
@@ -178,7 +179,9 @@ class Trainer_General:
         # create a large matrix with known local node features
         new_feature_for_trainer = torch.zeros(
             self.global_node_num, self.features.shape[1]
-        )
+        ).to(
+            self.device
+        )  # TODO:check if all the tensors are in the same device
         new_feature_for_trainer[self.local_node_index] = self.features
         # sum of features of all 1-hop nodes for each node
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
@@ -217,6 +220,8 @@ class Trainer_General:
         """
         # clean cache
         torch.cuda.empty_cache()
+        self.model.to(self.device)
+        self.feature_aggregation = self.feature_aggregation.to(self.device)
         for iteration in range(self.local_step):
             self.model.train()
             loss_train, acc_train = train(
@@ -747,7 +752,8 @@ class Trainer_GC:
         """
         prox = torch.tensor(0.0, requires_grad=True)
         for name, param in model.named_parameters():
-            if name in gconv_names:  # only add the prox term for sharing layers (gConv)
+            # only add the prox term for sharing layers (gConv)
+            if name in gconv_names:
                 prox = prox + torch.norm(param - Wt[name]).pow(
                     2
                 )  # force the weights to be close to the old weights
@@ -863,7 +869,12 @@ class Trainer_LP:
     ):
         self.client_id = client_id
         self.country_code = country_code
-
+        file_path = f"fedgraph/data/LPDataset"
+        print("checking code and file path")
+        print(country_code)
+        print(file_path)
+        country_codes: List[str] = [self.country_code]
+        check_data_files_existance(country_codes, file_path)
         # global user_id and item_id
         self.data = get_data(self.country_code, user_id_mapping, item_id_mapping)
 
@@ -917,7 +928,9 @@ class Trainer_LP:
         else:
             self.train_data, self.test_data = load_res
 
-    def train(self, local_updates: int, use_buffer: bool = False) -> tuple:
+    def train(
+        self, client_id: int, local_updates: int, use_buffer: bool = False
+    ) -> tuple:
         """
         Perform local training for a specified number of iterations.
 
@@ -963,9 +976,9 @@ class Trainer_LP:
                 f"client {self.client_id} local update {i} loss {loss:.4f} train time {train_finish_time:.4f}"
             )
 
-        return loss, train_finish_times
+        return client_id, loss, train_finish_times
 
-    def test(self, use_buffer: bool = False) -> tuple:
+    def test(self, clientId: int, use_buffer: bool = False) -> tuple:
         """
         Test the model on the test data.
 
@@ -1011,7 +1024,7 @@ class Trainer_LP:
         print(f"Test AUC: {auc:.4f}")
         print(f"Test Hit Rate at 2: {hit_rate_at_2:.4f}")
         print(f"Test Traveled User Hit Rate at 2: {traveled_user_hit_rate_at_2:.4f}")
-        return auc, hit_rate_at_2, traveled_user_hit_rate_at_2
+        return clientId, auc, hit_rate_at_2, traveled_user_hit_rate_at_2
 
     def calculate_traveled_user_edge_indices(self, file_path: str) -> None:
         """

@@ -358,6 +358,7 @@ def get_1hop_feature_sum(
         The tensor has the same number of rows as `node_features` and the same number of columns as the
         number of features per node.
     """
+    edge_index = edge_index.to("cpu")
     source_nodes = edge_index[0]
     target_nodes = edge_index[1]
 

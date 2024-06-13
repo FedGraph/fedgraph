@@ -28,8 +28,13 @@ from fedgraph.server_class import Server_LP
 from fedgraph.trainer_class import Trainer_LP
 from fedgraph.utils_lp import *
 
-sys.path.append("../fedgraph")
-sys.path.append("../../")
+# Determine the directory of the current script
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Append paths relative to the current script's directory
+sys.path.append(os.path.join(current_dir, "../fedgraph"))
+sys.path.append(os.path.join(current_dir, "../../"))
+
 #######################################################################
 # Load configuration and check arguments
 # ------------
@@ -38,7 +43,9 @@ sys.path.append("../../")
 # The algorithm and dataset (represented by the country code) are specified by the user here.
 # We also specify some prechecks to ensure the validity of the arguments.
 
-config_file = "configs/config_LP.yaml"
+
+config_file = os.path.join(current_dir, "configs/config_LP.yaml")
+
 with open(config_file, "r") as file:
     args = attridict(yaml.safe_load(file))
 
