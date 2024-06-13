@@ -76,7 +76,7 @@ edge_index = torch.stack([row, col], dim=0)
 num_cpus_per_client = 3
 # specifying a target GPU
 args.gpu = True  # Test
-print(f'gpu usage: {args.gpu}')
+print(f"gpu usage: {args.gpu}")
 if args.gpu:
     device = torch.device("cuda")
     edge_index = edge_index.to("cuda")

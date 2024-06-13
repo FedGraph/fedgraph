@@ -14,6 +14,7 @@ import ray
 import torch
 
 from fedgraph.gnn_models import GIN
+from fedgraph.monitor_class import Monitor
 from fedgraph.server_class import Server, Server_LP
 from fedgraph.train_func import gc_avg_accuracy
 from fedgraph.trainer_class import Trainer_General, Trainer_LP
@@ -24,7 +25,6 @@ from fedgraph.utils_lp import (
     get_start_end_time,
     to_next_day,
 )
-from fedgraph.monitor_class import Monitor
 from fedgraph.utils_nc import get_1hop_feature_sum
 
 

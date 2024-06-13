@@ -22,5 +22,3 @@ hidden_channels: 64
 
 # output:
 record_results: false
-
-
