@@ -24,6 +24,7 @@ from fedgraph.utils_lp import (
     get_start_end_time,
     to_next_day,
 )
+from fedgraph.monitor_class import Monitor
 from fedgraph.utils_nc import get_1hop_feature_sum
 
 
@@ -56,7 +57,7 @@ def run_FedGCN(args: attridict, data: tuple) -> None:
     data
     """
 
-    ray.init()
+    ray.init(address="auto")
 
     (
         edge_index,
@@ -77,7 +78,7 @@ def run_FedGCN(args: attridict, data: tuple) -> None:
     else:
         args_hidden = 256
 
-    num_cpus_per_trainer = 1
+    num_cpus_per_trainer = 3
     # specifying a target GPU
     if args.gpu:
         device = torch.device("cuda")
@@ -897,13 +898,13 @@ def run_LP(args: attridict) -> None:
             [0]: The list of clients
             [1]: The server
         """
-        ray.init()
+        ray.init(address="auto")
         number_of_clients = len(country_codes)
         number_of_users, number_of_items = len(user_id_mapping.keys()), len(
             item_id_mapping.keys()
         )
-        num_cpus_per_client = 1
-        if torch.cuda.is_available():
+        num_cpus_per_client = 3
+        if args.device == "gpu":
             device = torch.device("cuda")
             print("gpu detected")
             num_gpus_per_client = 1
@@ -954,7 +955,7 @@ def run_LP(args: attridict) -> None:
     hidden_channels = args.hidden_channels
     record_results = args.record_results
     country_codes = args.country_codes
-
+    monitor = Monitor()
     dataset_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), args.dataset_path
     )
@@ -994,6 +995,7 @@ def run_LP(args: attridict) -> None:
         )
 
         """Broadcast the global model parameter to all clients"""
+        monitor.pretrain_time_start()
         global_model_parameter = (
             server.get_model_parameter()
         )  # fetch the global model parameter
@@ -1018,7 +1020,7 @@ def run_LP(args: attridict) -> None:
         else:
             result_writer = None
             time_writer = None
-
+        monitor.pretrain_time_end()
         # from 2012-04-03 to 2012-04-13
         for day in range(prediction_days):  # make predictions for each day
             # get the train and test data for each client at the current time step
@@ -1041,6 +1043,7 @@ def run_LP(args: attridict) -> None:
             for iteration in range(global_rounds):
                 # each client train on local graph
                 print(f"global rounds: {iteration}")
+                monitor.train_time_start()
                 current_loss = LP_train_global_round(
                     server=server,
                     local_steps=local_steps,
@@ -1054,8 +1057,9 @@ def run_LP(args: attridict) -> None:
                     result_writer=result_writer,
                     time_writer=time_writer,
                 )
+                monitor.train_time_end()
 
-            if current_loss >= 0.1:
+            if current_loss >= 0.01:
                 print("training is not complete")
 
             # go to next day

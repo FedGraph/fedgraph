@@ -8,5 +8,6 @@ from . import (
     utils_gc,
     utils_lp,
     utils_nc,
+    monitor_class,
 )
 from .version import __version__
