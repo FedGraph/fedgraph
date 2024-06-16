@@ -9,10 +9,9 @@ FedGraph
 `Documentation <https://docs.fedgraph.org>`__ \| `Paper <https://arxiv.org/abs/2201.12433>`__
 
 
-**FedGraph** *(Federated Graph)* is a library built on top of `PyTorch Geometric (PyG) <https://www.pyg.org/>`_,
-`Ray <https://docs.ray.io/>`_, and `PyTorch <https://pytorch.org/>`_ to easily train Graph Neural Networks
+**FedGraph** *(Federated Graph)* is a library built on top of [PyTorch Geometric (PyG)](https://www.pyg.org/),
+[Ray](https://docs.ray.io/), and [PyTorch](https://pytorch.org/) to easily train Graph Neural Networks
 under federated or distributed settings.
-
 
 It supports various federated training methods of graph neural networks under simulated and real federated environments and supports communication between clients and the central server for model update and information aggregation.
 
@@ -21,8 +20,9 @@ Main Focus
 ----------------------
 
 - **Federated Node Classification with Cross-Client Edges**: Our library supports communicating information stored in other clients without affecting the privacy of users.
-
+- **Federated Link Prediction on Dynamic Graphs**: Our library supports balancing temporal heterogeneity across clients with privacy preservation.
 - **Federated Graph Classification**: Our library supports federated graph classification with non-IID graphs.
+
 
 
 Cross Platform Training
