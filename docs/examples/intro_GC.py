@@ -9,25 +9,27 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 (Time estimate: 15 minutes)
 """
 
-from fedgraph.utils_gc import *
-from fedgraph.gnn_models import GIN
-from fedgraph.federated_methods import (
-    run_GC_Fed_algorithm,
-    run_GCFL_algorithm,
-    run_GC_selftrain,
-)
-from fedgraph.data_process import data_loader_GC
 import argparse
 import copy
 import os
 import random
 import sys
 from pathlib import Path
-import ray
+
 import attridict
 import numpy as np
+import ray
 import torch
 import yaml
+
+from fedgraph.data_process import data_loader_GC
+from fedgraph.federated_methods import (
+    run_GC_Fed_algorithm,
+    run_GC_selftrain,
+    run_GCFL_algorithm,
+)
+from fedgraph.gnn_models import GIN
+from fedgraph.utils_gc import *
 
 sys.path.append("../fedgraph")
 sys.path.append("../../")
@@ -94,8 +96,7 @@ if args.save_files:
     if algorithm in ["SelfTrain"]:
         outdir = os.path.join(outdir, f"{args.dataset}")
     elif algorithm in ["FedAvg", "FedProx"]:
-        outdir = os.path.join(
-            outdir, f"{args.dataset}-{args.num_trainers}trainers")
+        outdir = os.path.join(outdir, f"{args.dataset}-{args.num_trainers}trainers")
     elif algorithm in ["GCFL"]:
         outdir = os.path.join(
             outdir,
@@ -205,8 +206,7 @@ trainers = [
     )
     for idx, dataset_trainer_name in enumerate(data.keys())
 ]
-server = Server_GC(base_model(nlayer=args.nlayer,
-                   nhid=args.hidden), args.device)
+server = Server_GC(base_model(nlayer=args.nlayer, nhid=args.hidden), args.device)
 # TODO: check and modify whether deepcopy should be added.
 # trainers = copy.deepcopy(init_trainers)
 # server = copy.deepcopy(init_server)
