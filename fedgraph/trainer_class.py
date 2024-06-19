@@ -387,7 +387,14 @@ class Trainer_GC:
 
         self.gconv_names: Any = None
 
-        self.train_stats = ([0], [0], [0], [0])
+        self.train_stats: dict[str, list[Any]] = {
+            "trainingAccs": [],
+            "valAccs": [],
+            "trainingLosses": [],
+            "valLosses": [],
+            "testAccs": [],
+            "testLosses": [],
+        }
         self.weights_norm = 0.0
         self.grads_norm = 0.0
         self.conv_grads_norm = 0.0
@@ -395,7 +402,7 @@ class Trainer_GC:
         self.conv_dWs_norm = 0.0
 
     ########### Public functions ###########
-    def update_params(self, server: Any) -> None:
+    def update_params(self, server_params: Any) -> None:
         """
         Update the model parameters by downloading the global model weights from the server.
 
@@ -404,9 +411,9 @@ class Trainer_GC:
         server: Server_GC
             The server object that contains the global model weights.
         """
-        self.gconv_names = server.W.keys()  # gconv layers
-        for k in server.W:
-            self.W[k].data = server.W[k].data.clone()
+        self.gconv_names = server_params.keys()  # gconv layers
+        for k in server_params:
+            self.W[k].data = server_params[k].data.clone()
 
     def reset_params(self) -> None:
         """
@@ -521,8 +528,8 @@ class Trainer_GC:
 
         Returns
         -------
-        (test_loss, test_acc): tuple(float, float)
-            The average loss and accuracy
+        (test_loss, test_acc, trainer_name, trainingAccs, valAccs): tuple(float, float, string, float, float)
+            The average loss and accuracy, trainer's name, trainer.train_stats["trainingAccs"][-1], trainer.train_stats["valAccs"][-1]
         """
         assert test_option in ["basic", "prox"], "Invalid test option."
 
@@ -700,8 +707,8 @@ class Trainer_GC:
 
         Returns
         -------
-        (test_loss, test_acc): tuple(float, float)
-            The average loss and accuracy
+        (test_loss, test_acc, trainer_name, trainingAccs, valAccs): tuple(float, float, string, float, float)
+            The average loss and accuracy, trainer's name, trainer.train_stats["trainingAccs"][-1], trainer.train_stats["valAccs"][-1]
 
         Note
         ----
@@ -730,7 +737,13 @@ class Trainer_GC:
             total_acc += pred.max(dim=1)[1].eq(label).sum().item()
             num_graphs += batch.num_graphs
 
-        return total_loss / num_graphs, total_acc / num_graphs
+        return (
+            total_loss / num_graphs,
+            total_acc / num_graphs,
+            self.name,
+            self.train_stats["trainingAccs"][-1],
+            self.train_stats["valAccs"][-1],
+        )
 
     def __prox_term(self, model: Any, gconv_names: Any, Wt: Any) -> torch.tensor:
         """

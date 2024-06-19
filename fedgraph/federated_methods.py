@@ -15,7 +15,7 @@ import torch
 
 from fedgraph.gnn_models import GIN
 from fedgraph.monitor_class import Monitor
-from fedgraph.server_class import Server, Server_LP
+from fedgraph.server_class import Server, Server_GC, Server_LP
 from fedgraph.train_func import gc_avg_accuracy
 from fedgraph.trainer_class import Trainer_GC, Trainer_General, Trainer_LP
 from fedgraph.utils_gc import setup_server, setup_trainers
@@ -322,9 +322,10 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
         )
         for idx, dataset_trainer_name in enumerate(data.keys())
     ]
-    init_server = setup_server(base_model, args)
+    server = Server_GC(base_model(nlayer=args.nlayer, nhid=args.hidden), args.device)
+    # TODO: check and modify whether deepcopy should be added.
     # trainers = copy.deepcopy(init_trainers)
-    server = copy.deepcopy(init_server)
+    # server = copy.deepcopy(init_server)
 
     print("\nDone setting up devices.")
 
@@ -416,25 +417,38 @@ def run_GC_selftrain(trainers: list, server: Any, local_epoch: int) -> dict:
     all_accs: dict
         Dictionary with training and test accuracies for each trainer
     """
+
     # all trainers are initialized with the same weights
+    global_params_id = ray.put(server.W)
     for trainer in trainers:
-        trainer.update_params.remote(server)
+        trainer.update_params.remote(global_params_id)
 
     all_accs = {}
+    acc_refs = []
     for trainer in trainers:
         trainer.local_train.remote(local_epoch=local_epoch)
-
-        _, acc = trainer.local_test()
-        all_accs[trainer.name] = [
-            trainer.train_stats["trainingAccs"][-1],
-            trainer.train_stats["valAccs"][-1],
-            acc,
-        ]
-        print("  > {} done.".format(trainer.name))
+        acc_ref = trainer.local_test.remote()
+        acc_refs.append(acc_ref)
+    while True:
+        ready, left = ray.wait(acc_refs, num_returns=1, timeout=None)
+        if ready:
+            for t in ready:
+                _, acc, trainer_name, trainingaccs, valaccs = ray.get(t)
+                all_accs[trainer_name] = [
+                    trainingaccs,
+                    valaccs,
+                    acc,
+                ]
+                print("  > {} done.".format(trainer_name))
+                print(f"trainingaccs: {trainingaccs}, valaccs: {valaccs}, acc: {acc}")
+        acc_refs = left
+        if not acc_refs:
+            break
 
     frame = pd.DataFrame(all_accs).T.iloc[:, [2]]
     frame.columns = ["test_acc"]
     print(frame)
+    # TODO: delete to make speed faster
     print(f"Average test accuracy: {gc_avg_accuracy(frame, trainers)}")
     return frame
 
@@ -798,6 +812,7 @@ def run_LP(args: attridict) -> None:
         global_model_parameter = (
             server.get_model_parameter()
         )  # fetch the global model parameter
+        # TODO: add memory optimization here by move ref to shared raylet
         for i in range(number_of_clients):
             clients[i].set_model_parameter.remote(
                 global_model_parameter
