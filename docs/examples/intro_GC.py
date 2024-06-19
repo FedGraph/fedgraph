@@ -9,13 +9,21 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 (Time estimate: 15 minutes)
 """
 
+from fedgraph.utils_gc import *
+from fedgraph.gnn_models import GIN
+from fedgraph.federated_methods import (
+    run_GC_Fed_algorithm,
+    run_GCFL_algorithm,
+    run_GC_selftrain,
+)
+from fedgraph.data_process import data_loader_GC
 import argparse
 import copy
 import os
 import random
 import sys
 from pathlib import Path
-
+import ray
 import attridict
 import numpy as np
 import torch
@@ -23,17 +31,6 @@ import yaml
 
 sys.path.append("../fedgraph")
 sys.path.append("../../")
-from fedgraph.data_process import data_loader_GC
-from fedgraph.federated_methods import (
-    run_GC_fedavg,
-    run_GC_fedprox,
-    run_GC_gcfl,
-    run_GC_gcfl_plus,
-    run_GC_gcfl_plus_dWs,
-    run_GC_selftrain,
-)
-from fedgraph.gnn_models import GIN
-from fedgraph.utils_gc import *
 
 #######################################################################
 # Load configuration
@@ -49,7 +46,7 @@ from fedgraph.utils_gc import *
 # For multiple datasets, the user can choose from the following groups: 'small', 'mix', 'mix_tiny', 'biochem', 'biochem_tiny', 'molecules', 'molecules_tiny'
 # For the detailed content of each group, please refer to the `load_multiple_datasets` function in `src/data_process_gc.py`
 
-algorithm = "GCFL"
+algorithm = "SelfTrain"
 
 config_file = f"configs/config_GC_{algorithm}.yaml"
 with open(config_file, "r") as file:
@@ -69,9 +66,18 @@ random.seed(args.seed)
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 torch.cuda.manual_seed(args.seed)
-
+base_model = GIN
 args.device = "cuda" if torch.cuda.is_available() else "cpu"
-
+num_cpus_per_trainer = 3
+# specifying a target GPU
+if torch.cuda.is_available():
+    print("using GPU")
+    device = torch.device("cuda")
+    num_gpus_per_trainer = 1
+else:
+    print("using CPU")
+    device = torch.device("cpu")
+    num_gpus_per_trainer = 0
 
 #######################################################################
 # Set output directory
@@ -88,7 +94,8 @@ if args.save_files:
     if algorithm in ["SelfTrain"]:
         outdir = os.path.join(outdir, f"{args.dataset}")
     elif algorithm in ["FedAvg", "FedProx"]:
-        outdir = os.path.join(outdir, f"{args.dataset}-{args.num_trainers}trainers")
+        outdir = os.path.join(
+            outdir, f"{args.dataset}-{args.num_trainers}trainers")
     elif algorithm in ["GCFL"]:
         outdir = os.path.join(
             outdir,
@@ -125,7 +132,7 @@ if args.save_files:
 """ using original features """
 print("Preparing data (original features) ...")
 
-splited_data = data_loader_GC(args)
+data = data_loader_GC(args)
 print("Data prepared.")
 
 #######################################################################
@@ -140,87 +147,135 @@ print("Data prepared.")
 # That is, `base_model` must have all the required methods and attributes as the default `GIN`
 # For the detailed expected format of the model, please refer to the `fedgraph/gnn_models.py`
 
-base_model = GIN
-init_trainers, _ = setup_trainers(splited_data, base_model, args)
-init_server = setup_server(base_model, args)
-trainers = copy.deepcopy(init_trainers)
-server = copy.deepcopy(init_server)
+ray.init()
+
+
+@ray.remote(
+    num_gpus=num_gpus_per_trainer,
+    num_cpus=num_cpus_per_trainer,
+    scheduling_strategy="SPREAD",
+)
+class Trainer(Trainer_GC):
+    def __init__(self, idx, splited_data, dataset_trainer_name, *args, **kwargs):  # type: ignore
+        print(f"inx: {idx}")
+        print(f"dataset_trainer_name: {dataset_trainer_name}")
+        """acquire data"""
+        dataloaders, num_node_features, num_graph_labels, train_size = splited_data[
+            dataset_trainer_name
+        ]
+
+        print(f"dataloaders: {dataloaders}")
+        print(f"num_node_features: {num_node_features}")
+        print(f"num_graph_labels: {num_graph_labels}")
+        print(f"train_size: {train_size}")
+
+        """build GIN model"""
+        cmodel_gc = base_model(
+            nfeat=num_node_features,
+            nhid=args.hidden,
+            nclass=num_graph_labels,
+            nlayer=args.nlayer,
+            dropout=args.dropout,
+        )
+
+        """build optimizer"""
+        optimizer = torch.optim.Adam(
+            params=filter(lambda p: p.requires_grad, cmodel_gc.parameters()),
+            lr=args.lr,
+            weight_decay=args.weight_decay,
+        )
+        super().__init__(  # type: ignore
+            model=cmodel_gc,
+            trainer_id=idx,
+            trainer_name=dataset_trainer_name,
+            train_size=train_size,
+            dataloader=dataloaders,
+            optimizer=optimizer,
+            *args,
+            **kwargs,
+        )
+
+
+trainers = [
+    Trainer.remote(  # type: ignore
+        idx=idx,
+        splited_data=data,
+        dataset_trainer_name=dataset_trainer_name,
+        args=args,
+    )
+    for idx, dataset_trainer_name in enumerate(data.keys())
+]
+server = Server_GC(base_model(nlayer=args.nlayer,
+                   nhid=args.hidden), args.device)
+# TODO: check and modify whether deepcopy should be added.
+# trainers = copy.deepcopy(init_trainers)
+# server = copy.deepcopy(init_server)
 
 print("\nDone setting up devices.")
 
+################ choose the algorithm to run ################
+print(f"Running {args.model} ...")
 
-#######################################################################
-# Federated Training for Graph Classification
-# ------------
-# Here we run the federated training for graph classification.
-# The server starts training of all trainers and aggregates the parameters.
-# The output consists of the accuracy of the model on the test set.
-print(f"Running {algorithm} ...")
-if algorithm == "SelfTrain":
-    output = run_GC_selftrain(
+model_parameters = {
+    "SelfTrain": lambda: run_GC_selftrain(
         trainers=trainers, server=server, local_epoch=args.local_epoch
-    )
-
-elif algorithm == "FedAvg":
-    output = run_GC_fedavg(
+    ),
+    "FedAvg": lambda: run_GC_Fed_algorithm(
         trainers=trainers,
         server=server,
         communication_rounds=args.num_rounds,
         local_epoch=args.local_epoch,
-    )
-
-elif algorithm == "FedProx":
-    output = run_GC_fedprox(
+        algorithm="FedAvg",
+    ),
+    "FedProx": lambda: run_GC_Fed_algorithm(
         trainers=trainers,
         server=server,
         communication_rounds=args.num_rounds,
         local_epoch=args.local_epoch,
+        algorithm="FedProx",
         mu=args.mu,
-    )
-
-elif algorithm == "GCFL":
-    output = run_GC_gcfl(
+    ),
+    "GCFL": lambda: run_GCFL_algorithm(
         trainers=trainers,
         server=server,
         communication_rounds=args.num_rounds,
         local_epoch=args.local_epoch,
         EPS_1=args.epsilon1,
         EPS_2=args.epsilon2,
-    )
-
-elif algorithm == "GCFL+":
-    output = run_GC_gcfl_plus(
+        algorithm_type="gcfl",
+    ),
+    "GCFL+": lambda: run_GCFL_algorithm(
         trainers=trainers,
         server=server,
         communication_rounds=args.num_rounds,
         local_epoch=args.local_epoch,
         EPS_1=args.epsilon1,
         EPS_2=args.epsilon2,
+        algorithm_type="gcfl_plus",
         seq_length=args.seq_length,
         standardize=args.standardize,
-    )
-
-elif algorithm == "GCFL+dWs":
-    output = run_GC_gcfl_plus_dWs(
+    ),
+    "GCFL+dWs": lambda: run_GCFL_algorithm(
         trainers=trainers,
         server=server,
         communication_rounds=args.num_rounds,
         local_epoch=args.local_epoch,
         EPS_1=args.epsilon1,
         EPS_2=args.epsilon2,
+        algorithm_type="gcfl_plus_dWs",
         seq_length=args.seq_length,
         standardize=args.standardize,
-    )
+    ),
+}
 
+if args.model in model_parameters:
+    output = model_parameters[args.model]()
 else:
-    raise ValueError(f"Unknown algorithm: {algorithm}")
+    raise ValueError(f"Unknown model: {args.model}")
 
-#######################################################################
-# Save the output
-# ------------
-# Here we save the results to a file, and the output directory can be specified by the user.
-# If save_files == False, the output will not be saved and will only be printed in the console.
+#################### save the output ####################
 if args.save_files:
     outdir_result = os.path.join(outdir, f"accuracy_seed{args.seed}.csv")
     pd.DataFrame(output).to_csv(outdir_result)
     print(f"The output has been written to file: {outdir_result}")
+ray.shutdown()
