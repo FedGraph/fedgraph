@@ -431,6 +431,37 @@ class Trainer_GC:
         for name in self.W.keys():
             self.W_old[name].data = self.W[name].data.clone()
 
+    def compute_update_norm(self, keys: dict) -> float:
+        """
+        Compute the max update norm (i.e., dW) for the trainer
+        """
+        dW = {}
+        for k in keys:
+            dW[k] = self.dW[k]
+
+        curr_dW = torch.norm(torch.cat([value.flatten() for value in dW.values()])).item()
+
+        return curr_dW
+
+    def compute_mean_norm(self, total_size: int, keys: dict) -> torch.Tensor:
+        """
+        Compute the mean update norm (i.e., dW) for the trainer
+        Returns
+        -------
+        curr_dW: Tensor
+        """
+        dW = {}
+        for k in keys:
+            dW[k] = (
+                    self.dW[k]
+                    * self.train_size
+                    / total_size
+            )
+
+        curr_dW = torch.cat([value.flatten() for value in dW.values()])
+
+        return curr_dW
+
     def set_stats_norms(self, train_stats: Any, is_gcfl: bool = False) -> None:
         """
         Set the norms of the weights and gradients of the model, as well as the statistics of the training.
@@ -841,6 +872,10 @@ class Trainer_GC:
             The gradients of a trainer
         """
         return torch.cat([v.flatten() for v in w.values()])
+
+    def calculate_weighted_weight(self, key):
+        weighted_weight = torch.mul(self.W[key].data, self.train_size)
+        return weighted_weight
 
 
 class Trainer_LP:

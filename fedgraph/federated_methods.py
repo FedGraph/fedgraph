@@ -490,8 +490,9 @@ def run_GC_Fed_algorithm(
         Pandas dataframe with test accuracies
     """
 
+    global_params_id = ray.put(server.W)
     for trainer in trainers:
-        trainer.update_params(server)  # download the global model
+        trainer.update_params.remote(global_params_id)
 
     for c_round in range(1, communication_rounds + 1):
         if (c_round) % 10 == 0:
@@ -505,24 +506,34 @@ def run_GC_Fed_algorithm(
 
         for trainer in selected_trainers:
             if algorithm == "FedAvg":
-                trainer.local_train(local_epoch=local_epoch)
+                trainer.local_train.remote(local_epoch=local_epoch)
             elif algorithm == "FedProx":
-                trainer.local_train(local_epoch=local_epoch, train_option="prox", mu=mu)
+                trainer.local_train.remote(local_epoch=local_epoch, train_option="prox", mu=mu)
             else:
                 raise ValueError(
                     "Invalid algorithm. Choose either 'FedAvg' or 'FedProx'."
                 )
 
         server.aggregate_weights(selected_trainers)
+        ray.internal.free([global_params_id])  # Free the old weight memory
+        global_params_id = ray.put(server.W)
         for trainer in selected_trainers:
-            trainer.update_params(server)
+            trainer.update_params.remote(global_params_id)
             if algorithm == "FedProx":
-                trainer.cache_weights()
+                trainer.cache_weights.remote()
 
     frame = pd.DataFrame()
+    acc_refs = []
     for trainer in trainers:
-        _, acc = trainer.local_test()  # Final evaluation
-        frame.loc[trainer.name, "test_acc"] = acc
+        acc_ref = trainer.local_test.remote()
+        acc_refs.append(acc_ref)
+    while acc_refs:
+        ready, left = ray.wait(acc_refs, num_returns=1, timeout=None)
+        if ready:
+            for t in ready:
+                _, acc, trainer_name, trainingaccs, valaccs = ray.get(t)
+                frame.loc[trainer_name, "test_acc"] = acc
+        acc_refs = left
 
     def highlight_max(s: pd.Series) -> list:
         is_max = s == s.max()
@@ -582,12 +593,15 @@ def run_GCFL_algorithm(
     cluster_indices = [np.arange(len(trainers)).astype("int")]
     trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
 
+    global_params_id = ray.put(server.W)
     if algorithm_type in ["gcfl_plus", "gcfl_plus_dWs"]:
         seqs_grads: Any = {c.id: [] for c in trainers}
 
         # Perform update_params before communication rounds for GCFL+ and GCFL+ dWs
+
+
         for trainer in trainers:
-            trainer.update_params(server)
+            trainer.update_params(global_params_id)
 
     acc_trainers: List[Any] = []
 
@@ -597,13 +611,18 @@ def run_GCFL_algorithm(
 
         if c_round == 1:
             # Perform update_params at the beginning of the first communication round
+            ray.internal.free([global_params_id])  # Free the old weight memory in object store
+            global_params_id = ray.put(server.W)
             for trainer in trainers:
-                trainer.update_params(server)
-
+                trainer.update_params(global_params_id)
+        reset_params_refs = []
         participating_trainers = server.random_sample_trainers(trainers, frac=1.0)
         for trainer in participating_trainers:
-            trainer.local_train(local_epoch=local_epoch, train_option="gcfl")
-            trainer.reset_params()
+            trainer.local_train.remote(local_epoch=local_epoch, train_option="gcfl")
+            reset_params_ref = trainer.reset_params.remote()
+            reset_params_refs.append(reset_params_ref)
+        ray.get(reset_params_refs)
+        for trainer in participating_trainers:
             if algorithm_type == "gcfl_plus":
                 seqs_grads[trainer.id].append(trainer.conv_grads_norm)
             elif algorithm_type == "gcfl_plus_dWs":
@@ -619,13 +638,15 @@ def run_GCFL_algorithm(
                 if algorithm_type == "gcfl" or all(
                     len(value) >= seq_length for value in seqs_grads.values()
                 ):
-                    server.cache_model(idc, trainers[idc[0]].W, acc_trainers)
 
+                    server.cache_model(idc, trainers[idc[0]].W, acc_trainers)
                     if algorithm_type == "gcfl":
                         c1, c2 = server.min_cut(
                             server.compute_pairwise_similarities(trainers)[idc][:, idc],
                             idc,
                         )
+                        cluster_indices_new += [c1, c2]
+
                     else:  # gcfl+, gcfl+dws
                         tmp = [seqs_grads[id][-seq_length:] for id in idc]
                         dtw_distances = server.compute_pairwise_distances(
@@ -634,10 +655,7 @@ def run_GCFL_algorithm(
                         c1, c2 = server.min_cut(
                             np.max(dtw_distances) - dtw_distances, idc
                         )
-
-                    cluster_indices_new += [c1, c2]
-
-                    if algorithm_type in ["gcfl_plus", "gcfl_plus_dWs"]:
+                        cluster_indices_new += [c1, c2]
                         seqs_grads = {c.id: [] for c in trainers}
                 else:
                     cluster_indices_new += [idc]
@@ -645,15 +663,25 @@ def run_GCFL_algorithm(
                 cluster_indices_new += [idc]
 
         cluster_indices = cluster_indices_new
-        trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
 
+        trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
         server.aggregate_clusterwise(trainer_clusters)
 
-        acc_trainers = [trainer.local_test()[1] for trainer in trainers]
+        acc_trainers = []
+        acc_trainers_refs = [
+            trainer.local_test().remote() for trainer in trainers
+        ]
+
+        # Collect the model parameters as they become ready
+        while acc_trainers_refs:
+            ready, left = ray.wait(acc_trainers_refs, num_returns=1, timeout=None)
+            if ready:
+                for t in ready:
+                    acc_trainers.append(ray.get(t)[1])
+            acc_trainers_refs = left
 
     for idc in cluster_indices:
         server.cache_model(idc, trainers[idc[0]].W, acc_trainers)
-
     results = np.zeros([len(trainers), len(server.model_cache)])
     for i, (idcs, W, accs) in enumerate(server.model_cache):
         results[idcs, i] = np.array(accs)

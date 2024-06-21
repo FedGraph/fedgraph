@@ -30,9 +30,9 @@ from fedgraph.federated_methods import (
 )
 from fedgraph.gnn_models import GIN
 from fedgraph.utils_gc import *
-
-sys.path.append("../fedgraph")
-sys.path.append("../../")
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(current_dir, "../fedgraph"))
+sys.path.append(os.path.join(current_dir, "../../"))
 
 #######################################################################
 # Load configuration
@@ -49,8 +49,7 @@ sys.path.append("../../")
 # For the detailed content of each group, please refer to the `load_multiple_datasets` function in `src/data_process_gc.py`
 
 algorithm = "SelfTrain"
-
-config_file = f"configs/config_GC_{algorithm}.yaml"
+config_file = os.path.join(current_dir, f"configs/config_GC_{algorithm}.yaml")
 with open(config_file, "r") as file:
     args = attridict(yaml.safe_load(file))
 

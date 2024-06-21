@@ -200,16 +200,24 @@ class Server_GC:
         """
         total_size = 0
         for trainer in selected_trainers:
-            total_size += trainer.train_size
+            total_size += trainer.train_size  # No need to decentralize because of the speed optimization
 
         for k in self.W.keys():
             # pass train_size, and weighted aggregate
-            accumulate = torch.stack(
-                [
-                    torch.mul(trainer.W[k].data, trainer.train_size)
-                    for trainer in selected_trainers
-                ]
-            )
+            accumulate_list = []
+
+            acc_refs = []
+            for trainer in selected_trainers:
+                acc_ref = trainer.calculate_weighted_weight.remote(k)
+                acc_refs.append(acc_ref)
+            while acc_refs:
+                ready, left = ray.wait(acc_refs, num_returns=1, timeout=None)
+                if ready:
+                    for t in ready:
+                        weighted_weight = ray.get(t)
+                        accumulate_list.append(weighted_weight)
+                acc_refs = left
+            accumulate = torch.stack(accumulate_list)
             self.W[k].data = torch.div(torch.sum(accumulate, dim=0), total_size).clone()
 
     def compute_pairwise_similarities(self, trainers: list) -> np.ndarray:
@@ -326,13 +334,13 @@ class Server_GC:
         cluster: list
             list of trainer objects
         """
-        max_dW = -np.inf
+        dw_refs = []
         for trainer in cluster:
-            dW = {}
-            for k in self.W.keys():
-                dW[k] = trainer.dW[k]
-            curr_dW = torch.norm(self.__flatten(dW)).item()
-            max_dW = max(max_dW, curr_dW)
+            dw_ref = trainer.compute_update_norm.remote(self.W.keys())
+            dw_refs.append(dw_ref)
+        results = ray.get(dw_refs)
+
+        max_dW = max(results)
 
         return max_dW
 
@@ -346,18 +354,13 @@ class Server_GC:
         cluster: list
             list of trainer objects
         """
-        cluster_dWs = []
-        for trainer in cluster:
-            dW = {}
-            for k in self.W.keys():
-                # dW[k] = trainer.dW[k]
-                dW[k] = (
-                    trainer.dW[k]
-                    * trainer.train_size
-                    / sum([c.train_size for c in cluster])
-                )
-            cluster_dWs.append(self.__flatten(dW))
+        dw_refs = []
 
+        total_size = sum([c.train_size for c in cluster])
+        for trainer in cluster:
+            dw_ref = trainer.compute_mean_norm.remote(total_size,self.W.keys())
+            dw_refs.append(dw_ref)
+        cluster_dWs = ray.get(dw_refs)
         return torch.norm(torch.mean(torch.stack(cluster_dWs), dim=0)).item()
 
     def cache_model(self, idcs: list, params: dict, accuracies: list) -> None:
