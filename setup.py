@@ -47,6 +47,7 @@ setup(
         "dtaidistance",
         "gdown",
         "pandas",
+        "twine==5.0.0"
     ],
     extras_require={"dev": ["build", "mypy", "pre-commit", "pytest"]},
 )
