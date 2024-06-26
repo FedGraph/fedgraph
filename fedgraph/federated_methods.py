@@ -274,33 +274,24 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
         scheduling_strategy="SPREAD",
     )
     class Trainer(Trainer_GC):
-        def __init__(self, idx, splited_data, dataset_trainer_name, *args, **kwargs):  # type: ignore
+        def __init__(self, idx, splited_data, dataset_trainer_name, cmodel_gc, args):  # type: ignore
             print(f"inx: {idx}")
             print(f"dataset_trainer_name: {dataset_trainer_name}")
             """acquire data"""
-            dataloaders, num_node_features, num_graph_labels, train_size = splited_data[
-                dataset_trainer_name
-            ]
+            dataloaders, num_node_features, num_graph_labels, train_size = splited_data
 
             print(f"dataloaders: {dataloaders}")
             print(f"num_node_features: {num_node_features}")
             print(f"num_graph_labels: {num_graph_labels}")
             print(f"train_size: {train_size}")
 
-            """build GIN model"""
-            cmodel_gc = base_model(
-                nfeat=num_node_features,
-                nhid=args.hidden,
-                nclass=num_graph_labels,
-                nlayer=args.nlayer,
-                dropout=args.dropout,
-            )
-
             """build optimizer"""
-            optimizer = torch.optim.Adam(
-                params=filter(lambda p: p.requires_grad, cmodel_gc.parameters()),
-                lr=args.lr,
-                weight_decay=args.weight_decay,
+            optimizer = (
+                torch.optim.Adam(
+                    params=filter(lambda p: p.requires_grad, cmodel_gc.parameters()),
+                    lr=args.lr,
+                    weight_decay=args.weight_decay,
+                ),
             )
             super().__init__(  # type: ignore
                 model=cmodel_gc,
@@ -309,15 +300,22 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
                 train_size=train_size,
                 dataloader=dataloaders,
                 optimizer=optimizer,
-                *args,
-                **kwargs,
+                args=args,
             )
 
     trainers = [
         Trainer.remote(  # type: ignore
             idx=idx,
-            splited_data=data,
+            splited_data=data[dataset_trainer_name],
             dataset_trainer_name=dataset_trainer_name,
+            # "GIN model for GC",
+            cmodel_gc=base_model(
+                nfeat=data[dataset_trainer_name].num_node_features,
+                nhid=args.hidden,
+                nclass=data[dataset_trainer_name].num_graph_labels,
+                nlayer=args.nlayer,
+                dropout=args.dropout,
+            ),
             args=args,
         )
         for idx, dataset_trainer_name in enumerate(data.keys())
