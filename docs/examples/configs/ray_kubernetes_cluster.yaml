@@ -55,13 +55,13 @@ spec:
             resources:
               limits:
                 cpu: "1"
-                memory: "10Gi"
-                nvidia.com/gpu: "1"
+                memory: "110Gi"
+                # nvidia.com/gpu: "1"
 
               requests:
                 cpu: "1"
-                memory: "10Gi"
-                nvidia.com/gpu: "1"
+                memory: "110Gi"
+                # nvidia.com/gpu: "1"
             env:
               - name: CPU_REQUEST
                 valueFrom:
@@ -151,12 +151,12 @@ spec:
               resources:
                 limits:
                   cpu: "3"
-                  memory: "12Gi"
-                  nvidia.com/gpu: "1"
+                  memory: "110Gi"
+                  # nvidia.com/gpu: "1"
                 requests:
                   cpu: "3"
-                  memory: "12Gi"
-                  nvidia.com/gpu: "1"
+                  memory: "110Gi"
+                  # nvidia.com/gpu: "1"
               # environment variables to set in the container.Optional.
               # Refer to https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/
               env:
