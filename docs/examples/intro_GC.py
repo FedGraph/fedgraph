@@ -48,7 +48,8 @@ sys.path.append(os.path.join(current_dir, "../../"))
 # For multiple datasets, the user can choose from the following groups: 'small', 'mix', 'mix_tiny', 'biochem', 'biochem_tiny', 'molecules', 'molecules_tiny'
 # For the detailed content of each group, please refer to the `load_multiple_datasets` function in `src/data_process_gc.py`
 
-algorithm = "SelfTrain"
+ray.init()
+algorithm = "GCFL+dWs"
 config_file = os.path.join(current_dir, f"configs/config_GC_{algorithm}.yaml")
 with open(config_file, "r") as file:
     args = attridict(yaml.safe_load(file))
@@ -147,16 +148,16 @@ print("Data prepared.")
 # That is, `base_model` must have all the required methods and attributes as the default `GIN`
 # For the detailed expected format of the model, please refer to the `fedgraph/gnn_models.py`
 
-ray.init()
 
-
+server = Server_GC(base_model(nlayer=args.nlayer, nhid=args.hidden), args.device)
+print("setup server done")
 @ray.remote(
     num_gpus=num_gpus_per_trainer,
     num_cpus=num_cpus_per_trainer,
     scheduling_strategy="SPREAD",
 )
 class Trainer(Trainer_GC):
-    def __init__(self, idx, splited_data, dataset_trainer_name, *args, **kwargs):  # type: ignore
+    def __init__(self, idx, splited_data, dataset_trainer_name, args):  # type: ignore
         print(f"inx: {idx}")
         print(f"dataset_trainer_name: {dataset_trainer_name}")
         """acquire data"""
@@ -191,8 +192,7 @@ class Trainer(Trainer_GC):
             train_size=train_size,
             dataloader=dataloaders,
             optimizer=optimizer,
-            *args,
-            **kwargs,
+            args=args,
         )
 
 
@@ -205,7 +205,7 @@ trainers = [
     )
     for idx, dataset_trainer_name in enumerate(data.keys())
 ]
-server = Server_GC(base_model(nlayer=args.nlayer, nhid=args.hidden), args.device)
+
 # TODO: check and modify whether deepcopy should be added.
 # trainers = copy.deepcopy(init_trainers)
 # server = copy.deepcopy(init_server)

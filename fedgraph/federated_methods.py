@@ -614,7 +614,7 @@ def run_GCFL_algorithm(
             ray.internal.free([global_params_id])  # Free the old weight memory in object store
             global_params_id = ray.put(server.W)
             for trainer in trainers:
-                trainer.update_params(global_params_id)
+                trainer.update_params.remote(global_params_id)
         reset_params_refs = []
         participating_trainers = server.random_sample_trainers(trainers, frac=1.0)
         for trainer in participating_trainers:
@@ -669,7 +669,7 @@ def run_GCFL_algorithm(
 
         acc_trainers = []
         acc_trainers_refs = [
-            trainer.local_test().remote() for trainer in trainers
+            trainer.local_test.remote() for trainer in trainers
         ]
 
         # Collect the model parameters as they become ready
@@ -681,7 +681,7 @@ def run_GCFL_algorithm(
             acc_trainers_refs = left
 
     for idc in cluster_indices:
-        server.cache_model(idc, trainers[idc[0]].W, acc_trainers)
+        server.cache_model(idc, ray.get(trainers[idc[0]].get_total_weight.remote()), acc_trainers)
     results = np.zeros([len(trainers), len(server.model_cache)])
     for i, (idcs, W, accs) in enumerate(server.model_cache):
         results[idcs, i] = np.array(accs)
@@ -690,7 +690,7 @@ def run_GCFL_algorithm(
         results,
         columns=["FL Model"]
         + ["Model {}".format(i) for i in range(results.shape[1] - 1)],
-        index=["{}".format(trainers[i].name) for i in range(results.shape[0])],
+        index=["{}".format(ray.get(trainers[i].get_name.remote())) for i in range(results.shape[0])],
     )
     frame = pd.DataFrame(frame.max(axis=1))
     frame.columns = ["test_acc"]

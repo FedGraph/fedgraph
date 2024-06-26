@@ -199,8 +199,13 @@ class Server_GC:
             list of trainer objects
         """
         total_size = 0
-        for trainer in selected_trainers:
-            total_size += trainer.train_size  # No need to decentralize because of the speed optimization
+        size_refs = [trainer.get_train_size.remote() for trainer in selected_trainers]
+        while size_refs:
+            ready, left = ray.wait(size_refs, num_returns=1, timeout=None)
+            if ready:
+                for t in ready:
+                    total_size += ray.get(t)
+            size_refs = left
 
         for k in self.W.keys():
             # pass train_size, and weighted aggregate
@@ -307,18 +312,13 @@ class Server_GC:
         trainer_clusters: list
             list of cluster-specified trainer groups, where each group contains the trainer objects in a cluster
         """
+        ks = self.W.keys()
         for cluster in trainer_clusters:  # cluster is a list of trainer objects
-            targs, sours = [], []
-            total_size = 0
-            for trainer in cluster:
-                W = {}
-                dW = {}
-                for k in self.W.keys():
-                    W[k] = trainer.W[k]
-                    dW[k] = trainer.dW[k]
-                targs.append(W)
-                sours.append((dW, trainer.train_size))
-                total_size += trainer.train_size
+            weights_list = ray.get([trainer.get_weights.remote(ks) for trainer in cluster])
+            # Unpack the list of dictionaries into separate lists for targs, sours, and train_sizes
+            targs = [weights['W'] for weights in weights_list]
+            sours = [(weights['dW'],weights['train_size']) for weights in weights_list]
+            total_size = sum([weights['train_size'] for weights in weights_list])
             # pass train_size, and weighted aggregate
             self.__reduce_add_average(
                 targets=targs, sources=sours, total_size=total_size
@@ -356,7 +356,7 @@ class Server_GC:
         """
         dw_refs = []
 
-        total_size = sum([c.train_size for c in cluster])
+        total_size = sum(ray.get([c.get_train_size.remote() for c in cluster]))
         for trainer in cluster:
             dw_ref = trainer.compute_mean_norm.remote(total_size,self.W.keys())
             dw_refs.append(dw_ref)

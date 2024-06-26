@@ -541,7 +541,6 @@ class Trainer_GC:
             self.__subtract_weights(
                 target=self.dW, minuend=self.W, subtrahend=self.W_old
             )
-
         self.set_stats_norms(train_stats)
 
     def local_test(self, test_option: str = "basic", mu: float = 1) -> tuple:
@@ -563,7 +562,6 @@ class Trainer_GC:
             The average loss and accuracy, trainer's name, trainer.train_stats["trainingAccs"][-1], trainer.train_stats["valAccs"][-1]
         """
         assert test_option in ["basic", "prox"], "Invalid test option."
-
         if test_option == "basic":
             return self.__eval(
                 model=self.model,
@@ -582,6 +580,22 @@ class Trainer_GC:
             )
         else:
             raise ValueError("Invalid test option.")
+    def get_train_size(self):
+        return self.train_size
+    def get_weights(self, ks: any)->dict:
+        data = {}
+        W = {}
+        dW = {}
+        for k in ks:
+            W[k], dW[k] = self.W[k], self.dW[k]
+        data["W"] = W
+        data["dW"] = dW
+        data["train_size"] = self.train_size
+        return data
+    def get_total_weight(self):
+        return self.W
+    def get_name(self):
+        return self.name
 
     ########### Private functions ###########
     def __train(
@@ -679,8 +693,8 @@ class Trainer_GC:
             loss_train /= num_graphs  # get the average loss per graph
             acc_train /= num_graphs  # get the average average per graph
 
-            loss_val, acc_val = self.__eval(model, val_loader, device)
-            loss_test, acc_test = self.__eval(model, test_loader, device)
+            loss_val, acc_val, _, _, _ = self.__eval(model, val_loader, device)
+            loss_test, acc_test, _, _, _ = self.__eval(model, test_loader, device)
 
             losses_train.append(loss_train)
             accs_train.append(acc_train)
@@ -768,12 +782,19 @@ class Trainer_GC:
             total_acc += pred.max(dim=1)[1].eq(label).sum().item()
             num_graphs += batch.num_graphs
 
+        current_training_acc = -1
+        current_val_acc = -1
+        if self.train_stats["trainingAccs"]:
+            current_training_acc = self.train_stats["trainingAccs"][-1]
+        if self.train_stats["valAccs"]:
+            current_val_acc = self.train_stats["valAccs"][-1]
+
         return (
             total_loss / num_graphs,
             total_acc / num_graphs,
             self.name,
-            self.train_stats["trainingAccs"][-1],
-            self.train_stats["valAccs"][-1],
+            current_training_acc,  # if no data then return -1 for 1st train round
+            current_val_acc  # if no data then return -1 for 1st train round
         )
 
     def __prox_term(self, model: Any, gconv_names: Any, Wt: Any) -> torch.tensor:
