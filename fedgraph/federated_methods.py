@@ -508,7 +508,9 @@ def run_GC_Fed_algorithm(
             if algorithm == "FedAvg":
                 trainer.local_train.remote(local_epoch=local_epoch)
             elif algorithm == "FedProx":
-                trainer.local_train.remote(local_epoch=local_epoch, train_option="prox", mu=mu)
+                trainer.local_train.remote(
+                    local_epoch=local_epoch, train_option="prox", mu=mu
+                )
             else:
                 raise ValueError(
                     "Invalid algorithm. Choose either 'FedAvg' or 'FedProx'."
@@ -599,7 +601,6 @@ def run_GCFL_algorithm(
 
         # Perform update_params before communication rounds for GCFL+ and GCFL+ dWs
 
-
         for trainer in trainers:
             trainer.update_params(global_params_id)
 
@@ -611,7 +612,9 @@ def run_GCFL_algorithm(
 
         if c_round == 1:
             # Perform update_params at the beginning of the first communication round
-            ray.internal.free([global_params_id])  # Free the old weight memory in object store
+            ray.internal.free(
+                [global_params_id]
+            )  # Free the old weight memory in object store
             global_params_id = ray.put(server.W)
             for trainer in trainers:
                 trainer.update_params.remote(global_params_id)
@@ -638,7 +641,6 @@ def run_GCFL_algorithm(
                 if algorithm_type == "gcfl" or all(
                     len(value) >= seq_length for value in seqs_grads.values()
                 ):
-
                     server.cache_model(idc, trainers[idc[0]].W, acc_trainers)
                     if algorithm_type == "gcfl":
                         c1, c2 = server.min_cut(
@@ -668,9 +670,7 @@ def run_GCFL_algorithm(
         server.aggregate_clusterwise(trainer_clusters)
 
         acc_trainers = []
-        acc_trainers_refs = [
-            trainer.local_test.remote() for trainer in trainers
-        ]
+        acc_trainers_refs = [trainer.local_test.remote() for trainer in trainers]
 
         # Collect the model parameters as they become ready
         while acc_trainers_refs:
@@ -681,7 +681,9 @@ def run_GCFL_algorithm(
             acc_trainers_refs = left
 
     for idc in cluster_indices:
-        server.cache_model(idc, ray.get(trainers[idc[0]].get_total_weight.remote()), acc_trainers)
+        server.cache_model(
+            idc, ray.get(trainers[idc[0]].get_total_weight.remote()), acc_trainers
+        )
     results = np.zeros([len(trainers), len(server.model_cache)])
     for i, (idcs, W, accs) in enumerate(server.model_cache):
         results[idcs, i] = np.array(accs)
@@ -690,7 +692,10 @@ def run_GCFL_algorithm(
         results,
         columns=["FL Model"]
         + ["Model {}".format(i) for i in range(results.shape[1] - 1)],
-        index=["{}".format(ray.get(trainers[i].get_name.remote())) for i in range(results.shape[0])],
+        index=[
+            "{}".format(ray.get(trainers[i].get_name.remote()))
+            for i in range(results.shape[0])
+        ],
     )
     frame = pd.DataFrame(frame.max(axis=1))
     frame.columns = ["test_acc"]

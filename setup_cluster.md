@@ -125,7 +125,7 @@ helm uninstall kuberay-operator
 Confirm that the KubeRay Operator Pod is Terminated:
 
 ```bash
-kubectl get pods -A 
+kubectl get pods -A
 ```
 
 Finally, Delete the EKS Cluster:

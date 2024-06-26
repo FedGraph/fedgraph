@@ -314,11 +314,13 @@ class Server_GC:
         """
         ks = self.W.keys()
         for cluster in trainer_clusters:  # cluster is a list of trainer objects
-            weights_list = ray.get([trainer.get_weights.remote(ks) for trainer in cluster])
+            weights_list = ray.get(
+                [trainer.get_weights.remote(ks) for trainer in cluster]
+            )
             # Unpack the list of dictionaries into separate lists for targs, sours, and train_sizes
-            targs = [weights['W'] for weights in weights_list]
-            sours = [(weights['dW'],weights['train_size']) for weights in weights_list]
-            total_size = sum([weights['train_size'] for weights in weights_list])
+            targs = [weights["W"] for weights in weights_list]
+            sours = [(weights["dW"], weights["train_size"]) for weights in weights_list]
+            total_size = sum([weights["train_size"] for weights in weights_list])
             # pass train_size, and weighted aggregate
             self.__reduce_add_average(
                 targets=targs, sources=sours, total_size=total_size
@@ -358,7 +360,7 @@ class Server_GC:
 
         total_size = sum(ray.get([c.get_train_size.remote() for c in cluster]))
         for trainer in cluster:
-            dw_ref = trainer.compute_mean_norm.remote(total_size,self.W.keys())
+            dw_ref = trainer.compute_mean_norm.remote(total_size, self.W.keys())
             dw_refs.append(dw_ref)
         cluster_dWs = ray.get(dw_refs)
         return torch.norm(torch.mean(torch.stack(cluster_dWs), dim=0)).item()

@@ -2,9 +2,10 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import ray
 import torch
 import torch.nn.functional as F
-import ray
+
 
 def accuracy(output: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
     """

@@ -439,7 +439,9 @@ class Trainer_GC:
         for k in keys:
             dW[k] = self.dW[k]
 
-        curr_dW = torch.norm(torch.cat([value.flatten() for value in dW.values()])).item()
+        curr_dW = torch.norm(
+            torch.cat([value.flatten() for value in dW.values()])
+        ).item()
 
         return curr_dW
 
@@ -452,11 +454,7 @@ class Trainer_GC:
         """
         dW = {}
         for k in keys:
-            dW[k] = (
-                    self.dW[k]
-                    * self.train_size
-                    / total_size
-            )
+            dW[k] = self.dW[k] * self.train_size / total_size
 
         curr_dW = torch.cat([value.flatten() for value in dW.values()])
 
@@ -580,10 +578,12 @@ class Trainer_GC:
             )
         else:
             raise ValueError("Invalid test option.")
-    def get_train_size(self):
+
+    def get_train_size(self) -> int:
         return self.train_size
-    def get_weights(self, ks: any)->dict:
-        data = {}
+
+    def get_weights(self, ks: Any) -> dict[str, Any]:
+        data: dict[str, Any] = {}
         W = {}
         dW = {}
         for k in ks:
@@ -592,9 +592,11 @@ class Trainer_GC:
         data["dW"] = dW
         data["train_size"] = self.train_size
         return data
-    def get_total_weight(self):
+
+    def get_total_weight(self) -> Any:
         return self.W
-    def get_name(self):
+
+    def get_name(self) -> str:
         return self.name
 
     ########### Private functions ###########
@@ -794,7 +796,7 @@ class Trainer_GC:
             total_acc / num_graphs,
             self.name,
             current_training_acc,  # if no data then return -1 for 1st train round
-            current_val_acc  # if no data then return -1 for 1st train round
+            current_val_acc,  # if no data then return -1 for 1st train round
         )
 
     def __prox_term(self, model: Any, gconv_names: Any, Wt: Any) -> torch.tensor:
@@ -894,7 +896,7 @@ class Trainer_GC:
         """
         return torch.cat([v.flatten() for v in w.values()])
 
-    def calculate_weighted_weight(self, key):
+    def calculate_weighted_weight(self, key: Any) -> torch.tensor:
         weighted_weight = torch.mul(self.W[key].data, self.train_size)
         return weighted_weight
 

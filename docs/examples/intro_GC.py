@@ -30,6 +30,7 @@ from fedgraph.federated_methods import (
 )
 from fedgraph.gnn_models import GIN
 from fedgraph.utils_gc import *
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(current_dir, "../fedgraph"))
 sys.path.append(os.path.join(current_dir, "../../"))
@@ -151,6 +152,8 @@ print("Data prepared.")
 
 server = Server_GC(base_model(nlayer=args.nlayer, nhid=args.hidden), args.device)
 print("setup server done")
+
+
 @ray.remote(
     num_gpus=num_gpus_per_trainer,
     num_cpus=num_cpus_per_trainer,
