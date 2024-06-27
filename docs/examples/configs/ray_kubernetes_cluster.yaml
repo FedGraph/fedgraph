@@ -1,8 +1,5 @@
 # For most use-cases, it makes sense to schedule one Ray pod per Kubernetes node.
-# This is a configuration for a RayCluster with 1 Ray head pod and 1 Ray worker pod.
-# Each pod requests 54 Gi memory and 14 CPU.
-# Each pod can be scheduled on a virtual machine with roughly 64 Gi memory and 16 CPU.
-# (AWS: m5.4xlarge, GCP: e2-standard-16, Azure: Standard_D5_v2)
+
 # Optimal resource allocation will depend on your Kubernetes infrastructure and might
 # require some experimentation.
 apiVersion: ray.io/v1alpha1
@@ -55,12 +52,12 @@ spec:
             resources:
               limits:
                 cpu: "1"
-                memory: "110Gi"
+                memory: "30Gi"
                 # nvidia.com/gpu: "1"
 
               requests:
                 cpu: "1"
-                memory: "110Gi"
+                memory: "30Gi"
                 # nvidia.com/gpu: "1"
             env:
               - name: CPU_REQUEST
@@ -151,11 +148,11 @@ spec:
               resources:
                 limits:
                   cpu: "3"
-                  memory: "110Gi"
+                  memory: "30Gi"
                   # nvidia.com/gpu: "1"
                 requests:
                   cpu: "3"
-                  memory: "110Gi"
+                  memory: "30Gi"
                   # nvidia.com/gpu: "1"
               # environment variables to set in the container.Optional.
               # Refer to https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/

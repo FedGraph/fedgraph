@@ -50,7 +50,7 @@ sys.path.append(os.path.join(current_dir, "../../"))
 # For the detailed content of each group, please refer to the `load_multiple_datasets` function in `src/data_process_gc.py`
 
 ray.init()
-algorithm = "GCFL+dWs"
+algorithm = "SelfTrain"
 config_file = os.path.join(current_dir, f"configs/config_GC_{algorithm}.yaml")
 with open(config_file, "r") as file:
     args = attridict(yaml.safe_load(file))
@@ -172,13 +172,12 @@ class Trainer(Trainer_GC):
         print(f"train_size: {train_size}")
 
         """build optimizer"""
-        optimizer = (
-            torch.optim.Adam(
-                params=filter(lambda p: p.requires_grad, cmodel_gc.parameters()),
-                lr=args.lr,
-                weight_decay=args.weight_decay,
-            ),
+        optimizer = torch.optim.Adam(
+            params=filter(lambda p: p.requires_grad, cmodel_gc.parameters()),
+            lr=args.lr,
+            weight_decay=args.weight_decay,
         )
+
         super().__init__(  # type: ignore
             model=cmodel_gc,
             trainer_id=idx,
@@ -197,9 +196,9 @@ trainers = [
         dataset_trainer_name=dataset_trainer_name,
         # "GIN model for GC",
         cmodel_gc=base_model(
-            nfeat=data[dataset_trainer_name].num_node_features,
+            nfeat=data[dataset_trainer_name][1],
             nhid=args.hidden,
-            nclass=data[dataset_trainer_name].num_graph_labels,
+            nclass=data[dataset_trainer_name][2],
             nlayer=args.nlayer,
             dropout=args.dropout,
         ),

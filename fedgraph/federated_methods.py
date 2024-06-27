@@ -286,13 +286,12 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
             print(f"train_size: {train_size}")
 
             """build optimizer"""
-            optimizer = (
-                torch.optim.Adam(
-                    params=filter(lambda p: p.requires_grad, cmodel_gc.parameters()),
-                    lr=args.lr,
-                    weight_decay=args.weight_decay,
-                ),
+            optimizer = torch.optim.Adam(
+                params=filter(lambda p: p.requires_grad, cmodel_gc.parameters()),
+                lr=args.lr,
+                weight_decay=args.weight_decay,
             )
+
             super().__init__(  # type: ignore
                 model=cmodel_gc,
                 trainer_id=idx,
