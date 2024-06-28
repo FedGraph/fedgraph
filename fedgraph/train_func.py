@@ -2,6 +2,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import ray
 import torch
 import torch.nn.functional as F
 
@@ -49,7 +50,7 @@ def gc_avg_accuracy(frame: pd.DataFrame, trainers: list) -> float:
 
     # weighted average accuracy
     accs = frame["test_acc"]
-    weights = [c.train_size for c in trainers]
+    weights = [ray.get(c.get_train_size.remote()) for c in trainers]
     return np.average(accs, weights=weights)
 
 

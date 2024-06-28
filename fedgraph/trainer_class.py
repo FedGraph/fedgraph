@@ -387,7 +387,14 @@ class Trainer_GC:
 
         self.gconv_names: Any = None
 
-        self.train_stats = ([0], [0], [0], [0])
+        self.train_stats: dict[str, list[Any]] = {
+            "trainingAccs": [],
+            "valAccs": [],
+            "trainingLosses": [],
+            "valLosses": [],
+            "testAccs": [],
+            "testLosses": [],
+        }
         self.weights_norm = 0.0
         self.grads_norm = 0.0
         self.conv_grads_norm = 0.0
@@ -395,7 +402,7 @@ class Trainer_GC:
         self.conv_dWs_norm = 0.0
 
     ########### Public functions ###########
-    def update_params(self, server: Any) -> None:
+    def update_params(self, server_params: Any) -> None:
         """
         Update the model parameters by downloading the global model weights from the server.
 
@@ -404,9 +411,9 @@ class Trainer_GC:
         server: Server_GC
             The server object that contains the global model weights.
         """
-        self.gconv_names = server.W.keys()  # gconv layers
-        for k in server.W:
-            self.W[k].data = server.W[k].data.clone()
+        self.gconv_names = server_params.keys()  # gconv layers
+        for k in server_params:
+            self.W[k].data = server_params[k].data.clone()
 
     def reset_params(self) -> None:
         """
@@ -423,6 +430,35 @@ class Trainer_GC:
         """
         for name in self.W.keys():
             self.W_old[name].data = self.W[name].data.clone()
+
+    def compute_update_norm(self, keys: dict) -> float:
+        """
+        Compute the max update norm (i.e., dW) for the trainer
+        """
+        dW = {}
+        for k in keys:
+            dW[k] = self.dW[k]
+
+        curr_dW = torch.norm(
+            torch.cat([value.flatten() for value in dW.values()])
+        ).item()
+
+        return curr_dW
+
+    def compute_mean_norm(self, total_size: int, keys: dict) -> torch.Tensor:
+        """
+        Compute the mean update norm (i.e., dW) for the trainer
+        Returns
+        -------
+        curr_dW: Tensor
+        """
+        dW = {}
+        for k in keys:
+            dW[k] = self.dW[k] * self.train_size / total_size
+
+        curr_dW = torch.cat([value.flatten() for value in dW.values()])
+
+        return curr_dW
 
     def set_stats_norms(self, train_stats: Any, is_gcfl: bool = False) -> None:
         """
@@ -503,7 +539,6 @@ class Trainer_GC:
             self.__subtract_weights(
                 target=self.dW, minuend=self.W, subtrahend=self.W_old
             )
-
         self.set_stats_norms(train_stats)
 
     def local_test(self, test_option: str = "basic", mu: float = 1) -> tuple:
@@ -521,11 +556,10 @@ class Trainer_GC:
 
         Returns
         -------
-        (test_loss, test_acc): tuple(float, float)
-            The average loss and accuracy
+        (test_loss, test_acc, trainer_name, trainingAccs, valAccs): tuple(float, float, string, float, float)
+            The average loss and accuracy, trainer's name, trainer.train_stats["trainingAccs"][-1], trainer.train_stats["valAccs"][-1]
         """
         assert test_option in ["basic", "prox"], "Invalid test option."
-
         if test_option == "basic":
             return self.__eval(
                 model=self.model,
@@ -544,6 +578,26 @@ class Trainer_GC:
             )
         else:
             raise ValueError("Invalid test option.")
+
+    def get_train_size(self) -> int:
+        return self.train_size
+
+    def get_weights(self, ks: Any) -> dict[str, Any]:
+        data: dict[str, Any] = {}
+        W = {}
+        dW = {}
+        for k in ks:
+            W[k], dW[k] = self.W[k], self.dW[k]
+        data["W"] = W
+        data["dW"] = dW
+        data["train_size"] = self.train_size
+        return data
+
+    def get_total_weight(self) -> Any:
+        return self.W
+
+    def get_name(self) -> str:
+        return self.name
 
     ########### Private functions ###########
     def __train(
@@ -641,8 +695,8 @@ class Trainer_GC:
             loss_train /= num_graphs  # get the average loss per graph
             acc_train /= num_graphs  # get the average average per graph
 
-            loss_val, acc_val = self.__eval(model, val_loader, device)
-            loss_test, acc_test = self.__eval(model, test_loader, device)
+            loss_val, acc_val, _, _, _ = self.__eval(model, val_loader, device)
+            loss_test, acc_test, _, _, _ = self.__eval(model, test_loader, device)
 
             losses_train.append(loss_train)
             accs_train.append(acc_train)
@@ -700,8 +754,8 @@ class Trainer_GC:
 
         Returns
         -------
-        (test_loss, test_acc): tuple(float, float)
-            The average loss and accuracy
+        (test_loss, test_acc, trainer_name, trainingAccs, valAccs): tuple(float, float, string, float, float)
+            The average loss and accuracy, trainer's name, trainer.train_stats["trainingAccs"][-1], trainer.train_stats["valAccs"][-1]
 
         Note
         ----
@@ -730,7 +784,20 @@ class Trainer_GC:
             total_acc += pred.max(dim=1)[1].eq(label).sum().item()
             num_graphs += batch.num_graphs
 
-        return total_loss / num_graphs, total_acc / num_graphs
+        current_training_acc = -1
+        current_val_acc = -1
+        if self.train_stats["trainingAccs"]:
+            current_training_acc = self.train_stats["trainingAccs"][-1]
+        if self.train_stats["valAccs"]:
+            current_val_acc = self.train_stats["valAccs"][-1]
+
+        return (
+            total_loss / num_graphs,
+            total_acc / num_graphs,
+            self.name,
+            current_training_acc,  # if no data then return -1 for 1st train round
+            current_val_acc,  # if no data then return -1 for 1st train round
+        )
 
     def __prox_term(self, model: Any, gconv_names: Any, Wt: Any) -> torch.tensor:
         """
@@ -828,6 +895,10 @@ class Trainer_GC:
             The gradients of a trainer
         """
         return torch.cat([v.flatten() for v in w.values()])
+
+    def calculate_weighted_weight(self, key: Any) -> torch.tensor:
+        weighted_weight = torch.mul(self.W[key].data, self.train_size)
+        return weighted_weight
 
 
 class Trainer_LP:

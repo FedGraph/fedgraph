@@ -5,7 +5,7 @@ import os
 import random
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, List, Optional
 
 import attridict
 import numpy as np
@@ -15,9 +15,9 @@ import torch
 
 from fedgraph.gnn_models import GIN
 from fedgraph.monitor_class import Monitor
-from fedgraph.server_class import Server, Server_LP
+from fedgraph.server_class import Server, Server_GC, Server_LP
 from fedgraph.train_func import gc_avg_accuracy
-from fedgraph.trainer_class import Trainer_General, Trainer_LP
+from fedgraph.trainer_class import Trainer_GC, Trainer_General, Trainer_LP
 from fedgraph.utils_gc import setup_server, setup_trainers
 from fedgraph.utils_lp import (
     check_data_files_existance,
@@ -220,8 +220,16 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
-
-    args.device = "cuda" if torch.cuda.is_available() else "cpu"
+    num_cpus_per_trainer = 3
+    # specifying a target GPU
+    if torch.cuda.is_available():
+        print("using GPU")
+        device = torch.device("cuda")
+        num_gpus_per_trainer = 1
+    else:
+        print("using CPU")
+        device = torch.device("cpu")
+        num_gpus_per_trainer = 0
 
     #################### set output directory ####################
     # outdir_base = os.path.join(args.outbase, f'seqLen{args.seq_length}')
@@ -258,71 +266,123 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
     #     print(f"The statistics of the data are written to {outdir_stats}")
 
     #################### setup server and trainers ####################
-    init_trainers, _ = setup_trainers(data, base_model, args)
-    init_server = setup_server(base_model, args)
-    trainers = copy.deepcopy(init_trainers)
-    server = copy.deepcopy(init_server)
+    ray.init(address="auto")
+
+    @ray.remote(
+        num_gpus=num_gpus_per_trainer,
+        num_cpus=num_cpus_per_trainer,
+        scheduling_strategy="SPREAD",
+    )
+    class Trainer(Trainer_GC):
+        def __init__(self, idx, splited_data, dataset_trainer_name, cmodel_gc, args):  # type: ignore
+            print(f"inx: {idx}")
+            print(f"dataset_trainer_name: {dataset_trainer_name}")
+            """acquire data"""
+            dataloaders, num_node_features, num_graph_labels, train_size = splited_data
+
+            print(f"dataloaders: {dataloaders}")
+            print(f"num_node_features: {num_node_features}")
+            print(f"num_graph_labels: {num_graph_labels}")
+            print(f"train_size: {train_size}")
+
+            """build optimizer"""
+            optimizer = torch.optim.Adam(
+                params=filter(lambda p: p.requires_grad, cmodel_gc.parameters()),
+                lr=args.lr,
+                weight_decay=args.weight_decay,
+            )
+
+            super().__init__(  # type: ignore
+                model=cmodel_gc,
+                trainer_id=idx,
+                trainer_name=dataset_trainer_name,
+                train_size=train_size,
+                dataloader=dataloaders,
+                optimizer=optimizer,
+                args=args,
+            )
+
+    trainers = [
+        Trainer.remote(  # type: ignore
+            idx=idx,
+            splited_data=data[dataset_trainer_name],
+            dataset_trainer_name=dataset_trainer_name,
+            # "GIN model for GC",
+            cmodel_gc=base_model(
+                nfeat=data[dataset_trainer_name].num_node_features,
+                nhid=args.hidden,
+                nclass=data[dataset_trainer_name].num_graph_labels,
+                nlayer=args.nlayer,
+                dropout=args.dropout,
+            ),
+            args=args,
+        )
+        for idx, dataset_trainer_name in enumerate(data.keys())
+    ]
+    server = Server_GC(base_model(nlayer=args.nlayer, nhid=args.hidden), args.device)
+    # TODO: check and modify whether deepcopy should be added.
+    # trainers = copy.deepcopy(init_trainers)
+    # server = copy.deepcopy(init_server)
 
     print("\nDone setting up devices.")
 
     ################ choose the algorithm to run ################
     print(f"Running {args.model} ...")
-    if args.model == "SelfTrain":
-        output = run_GC_selftrain(
+
+    model_parameters = {
+        "SelfTrain": lambda: run_GC_selftrain(
             trainers=trainers, server=server, local_epoch=args.local_epoch
-        )
-
-    elif args.model == "FedAvg":
-        output = run_GC_fedavg(
+        ),
+        "FedAvg": lambda: run_GC_Fed_algorithm(
             trainers=trainers,
             server=server,
             communication_rounds=args.num_rounds,
             local_epoch=args.local_epoch,
-        )
-
-    elif args.model == "FedProx":
-        output = run_GC_fedprox(
+            algorithm="FedAvg",
+        ),
+        "FedProx": lambda: run_GC_Fed_algorithm(
             trainers=trainers,
             server=server,
             communication_rounds=args.num_rounds,
             local_epoch=args.local_epoch,
+            algorithm="FedProx",
             mu=args.mu,
-        )
-
-    elif args.model == "GCFL":
-        output = run_GC_gcfl(
+        ),
+        "GCFL": lambda: run_GCFL_algorithm(
             trainers=trainers,
             server=server,
             communication_rounds=args.num_rounds,
             local_epoch=args.local_epoch,
             EPS_1=args.epsilon1,
             EPS_2=args.epsilon2,
-        )
-
-    elif args.model == "GCFL+":
-        output = run_GC_gcfl_plus(
+            algorithm_type="gcfl",
+        ),
+        "GCFL+": lambda: run_GCFL_algorithm(
             trainers=trainers,
             server=server,
             communication_rounds=args.num_rounds,
             local_epoch=args.local_epoch,
             EPS_1=args.epsilon1,
             EPS_2=args.epsilon2,
+            algorithm_type="gcfl_plus",
             seq_length=args.seq_length,
             standardize=args.standardize,
-        )
-
-    elif args.model == "GCFL+dWs":
-        output = run_GC_gcfl_plus(
+        ),
+        "GCFL+dWs": lambda: run_GCFL_algorithm(
             trainers=trainers,
             server=server,
             communication_rounds=args.num_rounds,
             local_epoch=args.local_epoch,
             EPS_1=args.epsilon1,
             EPS_2=args.epsilon2,
+            algorithm_type="gcfl_plus_dWs",
             seq_length=args.seq_length,
             standardize=args.standardize,
-        )
+        ),
+    }
 
+    if args.model in model_parameters:
+        output = model_parameters[args.model]()
     else:
         raise ValueError(f"Unknown model: {args.model}")
 
@@ -331,6 +391,7 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
         outdir_result = os.path.join(outdir, f"accuracy_seed{args.seed}.csv")
         pd.DataFrame(output).to_csv(outdir_result)
         print(f"The output has been written to file: {outdir_result}")
+    ray.shutdown()
 
 
 # The following code is the implementation of different federated graph classification methods.
@@ -353,38 +414,53 @@ def run_GC_selftrain(trainers: list, server: Any, local_epoch: int) -> dict:
     all_accs: dict
         Dictionary with training and test accuracies for each trainer
     """
+
     # all trainers are initialized with the same weights
+    global_params_id = ray.put(server.W)
     for trainer in trainers:
-        trainer.update_params(server)
+        trainer.update_params.remote(global_params_id)
 
     all_accs = {}
+    acc_refs = []
     for trainer in trainers:
-        trainer.local_train(local_epoch=local_epoch)
-
-        _, acc = trainer.local_test()
-        all_accs[trainer.name] = [
-            trainer.train_stats["trainingAccs"][-1],
-            trainer.train_stats["valAccs"][-1],
-            acc,
-        ]
-        print("  > {} done.".format(trainer.name))
+        trainer.local_train.remote(local_epoch=local_epoch)
+        acc_ref = trainer.local_test.remote()
+        acc_refs.append(acc_ref)
+    while True:
+        ready, left = ray.wait(acc_refs, num_returns=1, timeout=None)
+        if ready:
+            for t in ready:
+                _, acc, trainer_name, trainingaccs, valaccs = ray.get(t)
+                all_accs[trainer_name] = [
+                    trainingaccs,
+                    valaccs,
+                    acc,
+                ]
+                print("  > {} done.".format(trainer_name))
+                print(f"trainingaccs: {trainingaccs}, valaccs: {valaccs}, acc: {acc}")
+        acc_refs = left
+        if not acc_refs:
+            break
 
     frame = pd.DataFrame(all_accs).T.iloc[:, [2]]
     frame.columns = ["test_acc"]
     print(frame)
+    # TODO: delete to make speed faster
     print(f"Average test accuracy: {gc_avg_accuracy(frame, trainers)}")
     return frame
 
 
-def run_GC_fedavg(
+def run_GC_Fed_algorithm(
     trainers: list,
     server: Any,
     communication_rounds: int,
     local_epoch: int,
+    algorithm: str,
+    mu: float = 0.0,
     sampling_frac: float = 1.0,
 ) -> pd.DataFrame:
     """
-    Run the training and testing process of FedAvg algorithm.
+    Run the training and testing process of FedAvg or FedProx algorithm.
     It trains the model locally, aggregates the weights to the server,
     and downloads the global model within each communication round.
 
@@ -398,8 +474,12 @@ def run_GC_fedavg(
         Number of communication rounds
     local_epoch: int
         Number of local epochs
-    frac: float
-        Fraction of trainers to sample
+    algorithm: str
+        Algorithm to run, either 'FedAvg' or 'FedProx'
+    mu: float, optional
+        Proximal term for FedProx (default is 0.0)
+    sampling_frac: float, optional
+        Fraction of trainers to sample (default is 1.0)
 
     Returns
     -------
@@ -407,87 +487,13 @@ def run_GC_fedavg(
         Pandas dataframe with test accuracies
     """
 
+    global_params_id = ray.put(server.W)
     for trainer in trainers:
-        trainer.update_params(server)  # download the global model
-
-    # Overall training architecture:
-    # whole training => { communication rounds, communication rounds, ..., communication rounds }
-    # communication rounds => { local training (#epochs) -> aggregation -> download }
-    #                                |
-    #                           training_stats
-    for c_round in range(1, communication_rounds + 1):
-        if (c_round) % 10 == 0:
-            print(
-                f"  > Training round {c_round} finished."
-            )  # print the current round every 10 rounds
-
-        if c_round == 1:
-            selected_trainers = trainers
-        else:
-            selected_trainers = server.random_sample_trainers(trainers, sampling_frac)
-            # if sampling_frac=1.0, then all trainers are selected
-
-        for trainer in selected_trainers:  # only get weights of graphconv layers
-            # train the local model
-            trainer.local_train(local_epoch=local_epoch)
-
-        server.aggregate_weights(
-            selected_trainers
-        )  # aggregate the weights of selected trainers
-        for trainer in selected_trainers:
-            trainer.update_params(server)  # re-download the global server
-
-    frame = pd.DataFrame()
-    for trainer in trainers:
-        _, acc = trainer.local_test()  # Final evaluation
-        frame.loc[trainer.name, "test_acc"] = acc
-
-    def highlight_max(s: pd.Series) -> list:
-        is_max = s == s.max()
-        return ["background-color: yellow" if v else "" for v in is_max]
-
-    fs = frame.style.apply(highlight_max).data
-    print(fs)
-    print(f"Average test accuracy: {gc_avg_accuracy(frame, trainers)}")
-    return frame
-
-
-def run_GC_fedprox(
-    trainers: list,
-    server: Any,
-    communication_rounds: int,
-    local_epoch: int,
-    mu: float,
-    sampling_frac: float = 1.0,
-) -> pd.DataFrame:
-    """
-    Run the training and testing process of FedProx algorithm.
-    It trains the model locally, aggregates the weights to the server,
-    and downloads the global model within each communication round.
-
-    Parameters
-    ----------
-    trainers: list
-        List of trainers, each of which is a Trainer_GC object
-    server: Any
-        Server_GC object
-    communication_rounds: int
-        Number of communication rounds
-    local_epoch: int
-        Number of local epochs
-    mu: float
-        Proximal term
-    frac: float
-        Fraction of trainers to sample
-
-    Returns:
-        Frame: pandas dataframe with test accuracies
-    """
-    for trainer in trainers:
-        trainer.update_params(server)
+        trainer.update_params.remote(global_params_id)
 
     for c_round in range(1, communication_rounds + 1):
         if (c_round) % 10 == 0:
+            # print the current round every 10 rounds
             print(f"  > Training round {c_round} finished.")
 
         if c_round == 1:
@@ -496,21 +502,37 @@ def run_GC_fedprox(
             selected_trainers = server.random_sample_trainers(trainers, sampling_frac)
 
         for trainer in selected_trainers:
-            trainer.local_train(
-                local_epoch=local_epoch, train_option="prox", mu=mu
-            )  # Different from FedAvg
+            if algorithm == "FedAvg":
+                trainer.local_train.remote(local_epoch=local_epoch)
+            elif algorithm == "FedProx":
+                trainer.local_train.remote(
+                    local_epoch=local_epoch, train_option="prox", mu=mu
+                )
+            else:
+                raise ValueError(
+                    "Invalid algorithm. Choose either 'FedAvg' or 'FedProx'."
+                )
 
         server.aggregate_weights(selected_trainers)
+        ray.internal.free([global_params_id])  # Free the old weight memory
+        global_params_id = ray.put(server.W)
         for trainer in selected_trainers:
-            trainer.update_params(server)
-
-            # cache the aggregated weights for next round
-            trainer.cache_weights()
+            trainer.update_params.remote(global_params_id)
+            if algorithm == "FedProx":
+                trainer.cache_weights.remote()
 
     frame = pd.DataFrame()
+    acc_refs = []
     for trainer in trainers:
-        _, acc = trainer.local_test()
-        frame.loc[trainer.name, "test_acc"] = acc
+        acc_ref = trainer.local_test.remote()
+        acc_refs.append(acc_ref)
+    while acc_refs:
+        ready, left = ray.wait(acc_refs, num_returns=1, timeout=None)
+        if ready:
+            for t in ready:
+                _, acc, trainer_name, trainingaccs, valaccs = ray.get(t)
+                frame.loc[trainer_name, "test_acc"] = acc
+        acc_refs = left
 
     def highlight_max(s: pd.Series) -> list:
         is_max = s == s.max()
@@ -522,18 +544,19 @@ def run_GC_fedprox(
     return frame
 
 
-def run_GC_gcfl(
+def run_GCFL_algorithm(
     trainers: list,
     server: Any,
     communication_rounds: int,
     local_epoch: int,
     EPS_1: float,
     EPS_2: float,
+    algorithm_type: str,
+    seq_length: int = 0,
+    standardize: bool = True,
 ) -> pd.DataFrame:
     """
-    Run the GCFL algorithm.
-    The GCFL algorithm is a cluster-based federated learning algorithm, which aggregates the weights of the trainers
-    in each cluster, and dynamically splits the clusters during the training process.
+    Run the specified GCFL algorithm.
 
     Parameters
     ----------
@@ -549,76 +572,115 @@ def run_GC_gcfl(
         Threshold for mean update norm
     EPS_2: float
         Threshold for max update norm
+    algorithm_type: str
+        Type of algorithm ('gcfl', 'gcfl_plus', 'gcfl_plus_dWs')
+    seq_length: int, optional
+        The length of the gradient norm sequence, required for 'gcfl_plus' and 'gcfl_plus_dWs'
+    standardize: bool, optional
+        Whether to standardize the distance matrix, required for 'gcfl_plus' and 'gcfl_plus_dWs'
 
     Returns
     -------
     frame: pandas.DataFrame
         Pandas dataframe with test accuracies
-
     """
+    if algorithm_type not in ["gcfl", "gcfl_plus", "gcfl_plus_dWs"]:
+        raise ValueError(
+            "Invalid algorithm_type. Must be 'gcfl', 'gcfl_plus', or 'gcfl_plus_dWs'."
+        )
 
-    cluster_indices = [
-        np.arange(len(trainers)).astype("int")
-    ]  # cluster_indices: [[0, 1, ...]]
-    trainer_clusters = [
-        [trainers[i] for i in idcs] for idcs in cluster_indices
-    ]  # initially there is only one cluster
+    cluster_indices = [np.arange(len(trainers)).astype("int")]
+    trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
 
-    acc_trainers: list = []
-    ############### COMMUNICATION ROUNDS ###############
+    global_params_id = ray.put(server.W)
+    if algorithm_type in ["gcfl_plus", "gcfl_plus_dWs"]:
+        seqs_grads: Any = {c.id: [] for c in trainers}
+
+        # Perform update_params before communication rounds for GCFL+ and GCFL+ dWs
+
+        for trainer in trainers:
+            trainer.update_params(global_params_id)
+
+    acc_trainers: List[Any] = []
+
     for c_round in range(1, communication_rounds + 1):
         if (c_round) % 10 == 0:
             print(f"  > Training round {c_round} finished.")
-        if c_round == 1:
-            for trainer in trainers:
-                trainer.update_params(server)
 
+        if c_round == 1:
+            # Perform update_params at the beginning of the first communication round
+            ray.internal.free(
+                [global_params_id]
+            )  # Free the old weight memory in object store
+            global_params_id = ray.put(server.W)
+            for trainer in trainers:
+                trainer.update_params.remote(global_params_id)
+        reset_params_refs = []
         participating_trainers = server.random_sample_trainers(trainers, frac=1.0)
         for trainer in participating_trainers:
-            trainer.local_train(
-                local_epoch=local_epoch, train_option="gcfl"
-            )  # local training
-            trainer.reset_params()  # reset the gradients (discard the final gradients)
-
-        similarities = server.compute_pairwise_similarities(trainers)
+            trainer.local_train.remote(local_epoch=local_epoch, train_option="gcfl")
+            reset_params_ref = trainer.reset_params.remote()
+            reset_params_refs.append(reset_params_ref)
+        ray.get(reset_params_refs)
+        for trainer in participating_trainers:
+            if algorithm_type == "gcfl_plus":
+                seqs_grads[trainer.id].append(trainer.conv_grads_norm)
+            elif algorithm_type == "gcfl_plus_dWs":
+                seqs_grads[trainer.id].append(trainer.conv_dWs_norm)
 
         cluster_indices_new = []
-        for idc in cluster_indices:  # cluster-wise checking
-            max_norm = server.compute_max_update_norm(
-                [trainers[i] for i in idc]
-            )  # DELTA_MAX
-            mean_norm = server.compute_mean_update_norm(
-                [trainers[i] for i in idc]
-            )  # DELTA_MEAN
-            if (
-                mean_norm < EPS_1 and max_norm > EPS_2 and len(idc) > 2 and c_round > 20
-            ):  # stopping condition
-                server.cache_model(idc, trainers[idc[0]].W, acc_trainers)
-                c1, c2 = server.min_cut(similarities[idc][:, idc], idc)
-                cluster_indices_new += [c1, c2]  # split the cluster into two
+        for idc in cluster_indices:
+            max_norm = server.compute_max_update_norm([trainers[i] for i in idc])
+            mean_norm = server.compute_mean_update_norm([trainers[i] for i in idc])
+
+            if mean_norm < EPS_1 and max_norm > EPS_2 and len(idc) > 2 and c_round > 20:
+                # marginal condition for gcfl, gcfl+, gcfl+dws
+                if algorithm_type == "gcfl" or all(
+                    len(value) >= seq_length for value in seqs_grads.values()
+                ):
+                    server.cache_model(idc, trainers[idc[0]].W, acc_trainers)
+                    if algorithm_type == "gcfl":
+                        c1, c2 = server.min_cut(
+                            server.compute_pairwise_similarities(trainers)[idc][:, idc],
+                            idc,
+                        )
+                        cluster_indices_new += [c1, c2]
+
+                    else:  # gcfl+, gcfl+dws
+                        tmp = [seqs_grads[id][-seq_length:] for id in idc]
+                        dtw_distances = server.compute_pairwise_distances(
+                            tmp, standardize
+                        )
+                        c1, c2 = server.min_cut(
+                            np.max(dtw_distances) - dtw_distances, idc
+                        )
+                        cluster_indices_new += [c1, c2]
+                        seqs_grads = {c.id: [] for c in trainers}
+                else:
+                    cluster_indices_new += [idc]
             else:
-                cluster_indices_new += [idc]  # keep the same cluster
+                cluster_indices_new += [idc]
 
         cluster_indices = cluster_indices_new
-        trainer_clusters = [
-            [trainers[i] for i in idcs] for idcs in cluster_indices
-        ]  # initial: [[0, 1, ...]]
 
-        server.aggregate_clusterwise(
-            trainer_clusters
-        )  # aggregate the weights of the trainers in each cluster
+        trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
+        server.aggregate_clusterwise(trainer_clusters)
 
-        acc_trainers = [
-            trainer.local_test()[1] for trainer in trainers
-        ]  # get the test accuracy of each trainer
-    ############### END OF COMMUNICATION ROUNDS ###############
+        acc_trainers = []
+        acc_trainers_refs = [trainer.local_test.remote() for trainer in trainers]
+
+        # Collect the model parameters as they become ready
+        while acc_trainers_refs:
+            ready, left = ray.wait(acc_trainers_refs, num_returns=1, timeout=None)
+            if ready:
+                for t in ready:
+                    acc_trainers.append(ray.get(t)[1])
+            acc_trainers_refs = left
 
     for idc in cluster_indices:
         server.cache_model(
-            idc, trainers[idc[0]].W, acc_trainers
-        )  # cache the first trainer's weights in each cluster
-    # cluster-wise model
-
+            idc, ray.get(trainers[idc[0]].get_total_weight.remote()), acc_trainers
+        )
     results = np.zeros([len(trainers), len(server.model_cache)])
     for i, (idcs, W, accs) in enumerate(server.model_cache):
         results[idcs, i] = np.array(accs)
@@ -627,229 +689,10 @@ def run_GC_gcfl(
         results,
         columns=["FL Model"]
         + ["Model {}".format(i) for i in range(results.shape[1] - 1)],
-        index=["{}".format(trainers[i].name) for i in range(results.shape[0])],
-    )
-    frame = pd.DataFrame(frame.max(axis=1))
-    frame.columns = ["test_acc"]
-
-    print(frame)
-    print(f"Average test accuracy: {gc_avg_accuracy(frame, trainers)}")
-    return frame
-
-
-def run_GC_gcfl_plus(
-    trainers: list,
-    server: Any,
-    communication_rounds: int,
-    local_epoch: int,
-    EPS_1: float,
-    EPS_2: float,
-    seq_length: int,
-    standardize: bool,
-) -> pd.DataFrame:
-    """
-    Run the GCFL+ algorithm.
-
-    Parameters
-    ----------
-    trainers: list
-        List of trainers, each of which is a Trainer_GC object
-    server: Any
-        Server_GC object
-    communication_rounds: int
-        Number of communication rounds
-    local_epoch: int
-        Number of local epochs
-    EPS_1: float
-        Threshold for mean update norm
-    EPS_2: float
-        Threshold for max update norm
-    seq_length: int
-        The length of the gradient norm sequence
-    standardize: bool
-        Whether to standardize the distance matrix
-
-    Returns
-    -------
-    frame: pandas.DataFrame
-        Pandas dataframe with test accuracies
-    """
-    cluster_indices = [np.arange(len(trainers)).astype("int")]
-    trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
-
-    seqs_grads: Any = {c.id: [] for c in trainers}
-
-    for trainer in trainers:
-        trainer.update_params(server)
-
-    acc_trainers: list = []
-    for c_round in range(1, communication_rounds + 1):
-        if (c_round) % 10 == 0:
-            print(f"  > Training round {c_round} finished.")
-        if c_round == 1:
-            for trainer in trainers:
-                trainer.update_params(server)
-
-        participating_trainers = server.random_sample_trainers(trainers, frac=1.0)
-
-        for trainer in participating_trainers:
-            trainer.local_train(local_epoch=local_epoch, train_option="gcfl")
-            trainer.reset_params()
-
-            seqs_grads[trainer.id].append(trainer.conv_grads_norm)
-
-        cluster_indices_new = []
-        for idc in cluster_indices:
-            max_norm = server.compute_max_update_norm([trainers[i] for i in idc])
-            mean_norm = server.compute_mean_update_norm([trainers[i] for i in idc])
-            if (
-                mean_norm < EPS_1
-                and max_norm > EPS_2
-                and len(idc) > 2
-                and c_round > 20
-                and all(len(value) >= seq_length for value in seqs_grads.values())
-            ):
-                server.cache_model(idc, trainers[idc[0]].W, acc_trainers)
-
-                tmp = [seqs_grads[id][-seq_length:] for id in idc]
-                dtw_distances = server.compute_pairwise_distances(tmp, standardize)
-                c1, c2 = server.min_cut(np.max(dtw_distances) - dtw_distances, idc)
-                cluster_indices_new += [c1, c2]
-
-                seqs_grads = {c.id: [] for c in trainers}
-            else:
-                cluster_indices_new += [idc]
-
-        cluster_indices = cluster_indices_new
-        trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
-
-        server.aggregate_clusterwise(trainer_clusters)
-
-        acc_trainers = [trainer.local_test()[1] for trainer in trainers]
-
-    for idc in cluster_indices:
-        server.cache_model(idc, trainers[idc[0]].W, acc_trainers)
-
-    results = np.zeros([len(trainers), len(server.model_cache)])
-    for i, (idcs, W, accs) in enumerate(server.model_cache):
-        results[idcs, i] = np.array(accs)
-
-    frame = pd.DataFrame(
-        results,
-        columns=["FL Model"]
-        + ["Model {}".format(i) for i in range(results.shape[1] - 1)],
-        index=["{}".format(trainers[i].name) for i in range(results.shape[0])],
-    )
-
-    frame = pd.DataFrame(frame.max(axis=1))
-    frame.columns = ["test_acc"]
-    print(frame)
-    print(f"Average test accuracy: {gc_avg_accuracy(frame, trainers)}")
-
-    return frame
-
-
-def run_GC_gcfl_plus_dWs(
-    trainers: list,
-    server: Any,
-    communication_rounds: int,
-    local_epoch: int,
-    EPS_1: float,
-    EPS_2: float,
-    seq_length: int,
-    standardize: bool,
-) -> pd.DataFrame:
-    """
-    Run the GCFL+ algorithm with the gradient norms of the weights.
-
-    Parameters
-    ----------
-    trainers: list
-        List of trainers, each of which is a Trainer_GC object
-    server: Any
-        Server_GC object
-    communication_rounds: int
-        Number of communication rounds
-    local_epoch: int
-        Number of local epochs
-    EPS_1: float
-        Threshold for mean update norm
-    EPS_2: float
-        Threshold for max update norm
-    seq_length: int
-        The length of the gradient norm sequence
-    standardize: bool
-        Whether to standardize the distance matrix
-
-    Returns
-    -------
-    frame: pandas.DataFrame
-        Pandas dataframe with test accuracies
-    """
-    cluster_indices = [np.arange(len(trainers)).astype("int")]
-    trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
-
-    seqs_grads: Any = {c.id: [] for c in trainers}
-    for trainer in trainers:
-        trainer.update_params(server)
-
-    acc_trainers: list = []
-    for c_round in range(1, communication_rounds + 1):
-        if (c_round) % 10 == 0:
-            print(f"  > Training round {c_round} finished.")
-        if c_round == 1:
-            for trainer in trainers:
-                trainer.update_params(server)
-
-        participating_trainers = server.random_sample_trainers(trainers, frac=1.0)
-
-        for trainer in participating_trainers:
-            trainer.local_train(local_epoch=local_epoch, train_option="gcfl")
-            trainer.reset_params()
-
-            seqs_grads[trainer.id].append(trainer.conv_dWs_norm)
-
-        cluster_indices_new = []
-        for idc in cluster_indices:
-            max_norm = server.compute_max_update_norm([trainers[i] for i in idc])
-            mean_norm = server.compute_mean_update_norm([trainers[i] for i in idc])
-            if (
-                mean_norm < EPS_1
-                and max_norm > EPS_2
-                and len(idc) > 2
-                and c_round > 20
-                and all(len(value) >= seq_length for value in seqs_grads.values())
-            ):
-                server.cache_model(idc, trainers[idc[0]].W, acc_trainers)
-
-                tmp = [seqs_grads[id][-seq_length:] for id in idc]
-                dtw_distances = server.compute_pairwise_distances(tmp, standardize)
-                c1, c2 = server.min_cut(np.max(dtw_distances) - dtw_distances, idc)
-                cluster_indices_new += [c1, c2]
-
-                seqs_grads = {c.id: [] for c in trainers}
-            else:
-                cluster_indices_new += [idc]
-
-        cluster_indices = cluster_indices_new
-        trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
-
-        server.aggregate_clusterwise(trainer_clusters)
-
-        acc_trainers = [trainer.local_test()[1] for trainer in trainers]
-
-    for idc in cluster_indices:
-        server.cache_model(idc, trainers[idc[0]].W, acc_trainers)
-
-    results = np.zeros([len(trainers), len(server.model_cache)])
-    for i, (idcs, W, accs) in enumerate(server.model_cache):
-        results[idcs, i] = np.array(accs)
-
-    frame = pd.DataFrame(
-        results,
-        columns=["FL Model"]
-        + ["Model {}".format(i) for i in range(results.shape[1] - 1)],
-        index=["{}".format(trainers[i].name) for i in range(results.shape[0])],
+        index=[
+            "{}".format(ray.get(trainers[i].get_name.remote()))
+            for i in range(results.shape[0])
+        ],
     )
     frame = pd.DataFrame(frame.max(axis=1))
     frame.columns = ["test_acc"]
@@ -999,6 +842,7 @@ def run_LP(args: attridict) -> None:
         global_model_parameter = (
             server.get_model_parameter()
         )  # fetch the global model parameter
+        # TODO: add memory optimization here by move ref to shared raylet
         for i in range(number_of_clients):
             clients[i].set_model_parameter.remote(
                 global_model_parameter
