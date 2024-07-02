@@ -14,7 +14,7 @@ import scipy.sparse as sp
 import torch
 import torch_geometric
 import torch_sparse
-from torch_geometric.datasets import TUDataset
+from torch_geometric.datasets import Planetoid, TUDataset
 from torch_geometric.loader import DataLoader
 from torch_geometric.transforms import OneHotDegree
 
@@ -270,7 +270,7 @@ def FedGCN_load_data(dataset_str: str) -> tuple:
         "ogbn-products",
         "ogbn-mag",
         "ogbn-papers100M",
-    ]:  #'ogbn-mag' is heteregeneous
+    ]:  # 'ogbn-mag' is heteregeneous
         from ogb.nodeproppred import PygNodePropPredDataset
 
         # Download and process data at './dataset/.'
@@ -317,6 +317,53 @@ def FedGCN_load_data(dataset_str: str) -> tuple:
         labels = g.ndata["label"]
 
     return features.float(), adj, labels, idx_train, idx_val, idx_test
+
+
+def FedGAT_load_data(dataset_str: str) -> tuple:
+    """
+    Loads input data from 'torch_geometric' directory and processes these datasets into a format
+    suitable for training GAT and similar models.
+
+    Parameters
+    ----------
+    dataset_str : Name of the dataset to be loaded.
+
+    Returns
+    -------
+    data : torch_geometric.data.Data
+        The torch_geometric data object.
+    features : torch.Tensor
+        Node feature matrix as a float tensor.
+    adj : torch_sparse.tensor.SparseTensor
+        Adjacency matrix of the graph.
+    labels : torch.Tensor
+        Labels of the nodes.
+    idx_train : torch.LongTensor
+        Indices of training nodes.
+    idx_val : torch.LongTensor
+        Indices of validation nodes.
+    idx_test : torch.LongTensor
+        Indices of test nodes.
+    """
+    # Download dataset from torch_geometric
+    dataset = Planetoid(root="./data", name=dataset_str)
+    data = dataset[0]
+
+    # Add self-loops
+    data.edge_index, _ = torch_geometric.utils.add_self_loops(
+        data.edge_index, num_nodes=data.num_nodes
+    )
+
+    features = data.x
+    labels = data.y
+    idx_train = data.train_mask.nonzero(as_tuple=False).squeeze()
+    idx_val = data.val_mask.nonzero(as_tuple=False).squeeze()
+    idx_test = data.test_mask.nonzero(as_tuple=False).squeeze()
+
+    adj = torch_geometric.utils.to_scipy_sparse_matrix(data.edge_index)
+    adj = torch_sparse.tensor.SparseTensor.from_scipy(adj)
+
+    return data, features, adj, labels, idx_train, idx_val, idx_test
 
 
 def GC_rand_split_chunk(
