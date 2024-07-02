@@ -11,16 +11,18 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 
 
 import argparse
+import time
 from typing import Any
 
 import numpy as np
 import ray
 import torch
-
+from datetime import datetime
 ray.init()
 
 from fedgraph.data_process import FedGCN_load_data
 from fedgraph.server_class import Server
+from fedgraph.monitor_class import Monitor
 from fedgraph.trainer_class import Trainer_General
 from fedgraph.utils_nc import (
     get_1hop_feature_sum,
@@ -36,7 +38,7 @@ parser.add_argument("-d", "--dataset", default="cora", type=str)
 
 parser.add_argument("-f", "--fedtype", default="fedgcn", type=str)
 
-parser.add_argument("-c", "--global_rounds", default=10000, type=int)
+parser.add_argument("-c", "--global_rounds", default=10, type=int)
 parser.add_argument("-i", "--local_step", default=3, type=int)
 parser.add_argument("-lr", "--learning_rate", default=0.1, type=float)
 
@@ -75,7 +77,7 @@ edge_index = torch.stack([row, col], dim=0)
 
 num_cpus_per_client = 3
 # specifying a target GPU
-args.gpu = True  # Test
+args.gpu = False  # Test
 print(f"gpu usage: {args.gpu}")
 if args.gpu:
     device = torch.device("cuda")
@@ -153,6 +155,9 @@ trainers = [
     for i in range(args.n_trainer)
 ]
 
+
+
+
 #######################################################################
 # Define Server
 # -------------
@@ -160,7 +165,8 @@ trainers = [
 # without knowing the local trainer data
 
 server = Server(features.shape[1], args_hidden, class_num, device, trainers, args)
-
+time.sleep(20)
+server.monitor.pretrain_time_start()
 #######################################################################
 # Pre-Train Communication of FedGCN
 # ---------------------------------
@@ -168,8 +174,9 @@ server = Server(features.shape[1], args_hidden, class_num, device, trainers, arg
 # aggregates all local feature sums and send the global feature sum
 # of specific nodes back to each client.
 
+
 local_neighbor_feature_sums = [
-    trainer.get_local_feature_sum.remote() for trainer in server.trainers
+    trainer.get_local_feature_sum.remote() for trainer in trainers
 ]
 global_feature_sum = torch.zeros_like(features)
 while True:
@@ -177,21 +184,31 @@ while True:
     if ready:
         for t in ready:
             global_feature_sum += ray.get(t)
+
     local_neighbor_feature_sums = left
     if not local_neighbor_feature_sums:
         break
+# monitor the size of tensor for each local feature
+server.monitor.print_item_size(global_feature_sum)
 print("server aggregates all local neighbor feature sums")
 # test if aggregation is correct
 if args.num_hops != 0:
     assert (global_feature_sum != get_1hop_feature_sum(features, edge_index)).sum() == 0
 for i in range(args.n_trainer):
-    server.trainers[i].load_feature_aggregation.remote(
+    trainers[i].load_feature_aggregation.remote(
         global_feature_sum[communicate_node_indexes[i]]
+
     )
+
+# monitor the size
+server.monitor.print_item_size(global_feature_sum[communicate_node_indexes[0]])
 print("clients received feature aggregation from server")
-[trainer.relabel_adj.remote() for trainer in server.trainers]
+[trainer.relabel_adj.remote() for trainer in trainers]
+time.sleep(20)
+print("pretrain network____________________________________________________")
 
-
+server.monitor.pretrain_time_end()
+print("pretrain network____________________________________________________")
 #######################################################################
 # Federated Training
 # ------------------
@@ -199,9 +216,13 @@ print("clients received feature aggregation from server")
 # at every global round.
 
 print("global_rounds", args.global_rounds)
-
+time.sleep(20)
+server.monitor.init_item_size()
+server.monitor.train_time_start()
 for i in range(args.global_rounds):
     server.train(i)
+time.sleep(20)
+server.monitor.train_time_end()
 
 #######################################################################
 # Summarize Experiment Results
@@ -212,7 +233,7 @@ for i in range(args.global_rounds):
 train_data_weights = [len(i) for i in in_com_train_node_indexes]
 test_data_weights = [len(i) for i in in_com_test_node_indexes]
 
-results = [trainer.local_test.remote() for trainer in server.trainers]
+results = [trainer.local_test.remote() for trainer in trainers]
 results = np.array([ray.get(result) for result in results])
 
 average_final_test_loss = np.average(

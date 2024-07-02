@@ -5,6 +5,7 @@ import networkx as nx
 import numpy as np
 import ray
 import torch
+from fedgraph.monitor_class import Monitor
 from dtaidistance import dtw
 
 from fedgraph.gnn_models import GCN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
@@ -87,6 +88,8 @@ class Server:
 
         self.trainers = trainers
         self.num_of_trainers = len(trainers)
+        self.monitor = Monitor()
+
         self.broadcast_params(-1)
 
     @torch.no_grad()
@@ -118,7 +121,9 @@ class Server:
             if ready:
                 for t in ready:
                     for p, mp in zip(ray.get(t), self.model.parameters()):
-                        mp.data += p.cpu()
+                        p = p.cpu()
+                        self.monitor.print_item_size(p)
+                        mp.data += p
             params = left
             if not params:
                 break
@@ -140,6 +145,10 @@ class Server:
             trainer.update_params.remote(
                 tuple(self.model.parameters()), current_global_epoch
             )  # run in submit order
+            # monitor the size of the model broadcasted
+            for value in self.model.parameters():
+                self.monitor.print_item_size(value)
+
 
 
 class Server_GC:
