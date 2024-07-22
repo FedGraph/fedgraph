@@ -1,3 +1,4 @@
+import copy
 import random
 from typing import Any
 
@@ -7,7 +8,15 @@ import ray
 import torch
 from dtaidistance import dtw
 
-from fedgraph.gnn_models import GCN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
+from fedgraph.gnn_models import (
+    GCN,
+    GNN_LP,
+    AggreGCN,
+    FedGATModel,
+    GCN_arxiv,
+    SAGE_products,
+)
+from fedgraph.utils_gat import MatGen
 
 
 class Server:
@@ -453,6 +462,301 @@ class Server_GC:
                 )
                 tmp = torch.div(torch.sum(weighted_stack, dim=0), total_size).clone()
                 target[name].data += tmp
+
+
+class Server_GAT:
+    """
+    Server class for federated learning, responsible for aggregating model parameters
+    from different trainers, updating the central model, and broadcasting updated parameters
+    back to the trainers.
+
+    Parameters
+    ----------
+    feature_dim : int
+        Dimensionality of the feature vectors in the dataset.
+    hidden_dim : int
+        Number of hidden units.
+    class_num : int
+        Number of classes for classification in the dataset.
+    device : torch.device
+        Device initialized for the server model.
+    trainers : list[Trainer_GAT]
+        List of `Trainer_GAT` instances representing the trainers.
+    """
+
+    def __init__(
+        self,
+        graph,
+        feats,
+        labels,
+        sample_probab,
+        train_rounds,
+        num_local_iters,
+        dual_weight,
+        aug_lagrange_rho,
+        dual_lr,
+        model_lr,
+        model_regularisation,
+        feature_dim,
+        class_num,
+        hidden_dim,
+        num_head,
+        max_deg,
+        attn_func,
+        attn_func_domain,
+        device,
+        trainers,
+    ):
+        self.graph = graph
+        self.feats = feats
+        self.labels = labels
+
+        self.in_feat = feats.size()[1]
+        self.out_feat = labels.size()[1]
+
+        self.device = device
+        self.trainers = trainers
+        self.sample_probab = sample_probab
+        self.train_rounds = train_rounds
+        self.num_local_iters = num_local_iters
+        self.dual_weight = dual_weight
+        self.aug_lagrange_rho = aug_lagrange_rho
+        self.dual_lr = dual_lr
+        self.model_lr = model_lr
+        self.model_regularisation = model_regularisation
+        self.total_communicate = 0
+
+        self.model = FedGATModel(
+            in_feat=feature_dim,
+            out_feat=class_num,
+            hidden_dim=hidden_dim,
+            num_head=num_head,
+            max_deg=max_deg,
+            attn_func=attn_func,
+            domain=attn_func_domain,
+            device=device,
+        ).to(device)
+        self.GATModelParams = self.model.state_dict()
+        self.Duals = {
+            client_id: copy.deepcopy(self.model.state_dict())
+            for client_id in range(len(self.trainers))
+        }
+        self.LocalModelParams = {}
+
+        self.broadcast_params(-1)
+
+    @torch.no_grad()
+    def zero_params(self):
+        """Zeros out the parameters of the central model."""
+        for p in self.model.parameters():
+            p.zero_()
+
+    @torch.no_grad()
+    def train(self, current_global_epoch):
+        """
+        Perform a training round: aggregate parameters from trainers, update the central model,
+        and broadcast updated parameters back to the trainers.
+
+        Parameters
+        ----------
+        current_global_epoch : int
+            Current global epoch number during the federated learning process.
+        """
+        for trainer in self.trainers:
+            trainer.train.remote(current_global_epoch)
+
+        params = [trainer.get_params.remote() for trainer in self.trainers]
+        self.zero_params()
+
+        while params:
+            ready, left = ray.wait(params, num_returns=1, timeout=None)
+            if ready:
+                for t in ready:
+                    for p, mp in zip(ray.get(t), self.model.parameters()):
+                        mp.data += p.cpu()
+            params = left
+
+        for p in self.model.parameters():
+            p /= self.num_of_trainers
+        self.broadcast_params(current_global_epoch)
+
+    def broadcast_params(self, current_global_epoch):
+        """
+        Broadcast the current parameters of the central model to all trainers.
+
+        Parameters
+        ----------
+        current_global_epoch : int
+            Current global epoch number during the federated learning process.
+        """
+        for trainer in self.trainers:
+            trainer.update_params(tuple(self.model.parameters()), current_global_epoch)
+
+    def get_neighbours(self, node_id, edge_index):
+        mask = edge_index[0] == node_id
+        neighbours = edge_index[1][mask]
+        return neighbours
+
+    def get_predecessors(self, data, node):
+        edge_index = data.edge_index
+        mask = edge_index[1] == node
+        predecessors = edge_index[0, mask]
+        return predecessors
+
+    def pretrain_communication(self, client_id, node_info, graph, device):
+        return_info = {}
+
+        if self.Duals.get(client_id, None) == None:
+            self.num_clients += 1
+
+        self.Duals.update({client_id: copy.deepcopy(self.model.state_dict())})
+
+        for param in self.Duals[client_id]:
+            self.Duals[client_id][param].requires_grad = False
+
+        self.LocalModelParams.update({client_id: None})
+
+        for node in node_info:
+            neighbours = self.get_predecessors(graph, node)
+
+            temp = [
+                random.choices([0, 1], [1 - self.sample_probab, self.sample_probab])[0]
+                for j in range(len(neighbours))
+            ]
+
+            neigh = [neighbours[j] for j in range(len(neighbours)) if temp[j] == 1]
+
+            if len(neigh) < 2:
+                neigh = [j for j in neighbours]
+
+            num = len(neigh)
+
+            orth_vec = MatGen(num)
+
+            M1 = np.zeros((self.in_feat, 2 * num, 2 * num))
+
+            M2 = np.zeros((self.in_feat, 2 * num, 2 * num))
+
+            Q2 = np.zeros((2 * num, self.in_feat))
+
+            Q1 = 2 * np.sum(orth_vec[0:num, :], axis=0)
+
+            main_node_feat = self.feats[node, :].detach().cpu().numpy()
+
+            for j in range(len(neigh)):
+                node_id = neigh[j]
+
+                node_feat = self.feats[node_id, :].detach().cpu().numpy()
+
+                Q2 += np.outer(orth_vec[j, :], node_feat)
+
+                for d in range(self.in_feat):
+                    M1[d, :, :] += (
+                        main_node_feat[d]
+                        * 0.5
+                        * (
+                            np.outer(orth_vec[j, :], orth_vec[j, :])
+                            + np.outer(orth_vec[j + num, :], orth_vec[j + num, :])
+                            + 4 * np.outer(orth_vec[j, :], orth_vec[j + num, :])
+                            + 0.25 * np.outer(orth_vec[j + num, :], orth_vec[j, :])
+                        )
+                    )
+
+                    M2[d, :, :] += (
+                        node_feat[d]
+                        * 0.5
+                        * (
+                            np.outer(orth_vec[j, :], orth_vec[j, :])
+                            + np.outer(orth_vec[j + num, :], orth_vec[j + num, :])
+                            + 4 * np.outer(orth_vec[j, :], orth_vec[j + num, :])
+                            + 0.25 * np.outer(orth_vec[j + num, :], orth_vec[j, :])
+                        )
+                    )
+
+            return_info.update(
+                {
+                    node: [
+                        torch.from_numpy(M1).float().to(device=device),
+                        torch.from_numpy(M2).float().to(device=device),
+                        torch.from_numpy(Q1).float().to(device=device),
+                        torch.from_numpy(Q2).float().to(device=device),
+                    ]
+                }
+            )
+
+        count = 0
+
+        for node in return_info:
+            for j in range(len(return_info[node])):
+                count += torch.numel(return_info[node][j])
+
+                return_info[node][j].to(device=device)
+
+        self.total_communicate += count
+
+        return return_info
+
+    def _calculate_matrix(self, node_feat, orth_vec, j):
+        num = orth_vec.shape[0] // 2
+        matrix = np.zeros((self.in_feat, 2 * num, 2 * num))
+        for d in range(self.in_feat):
+            matrix[d, :, :] += (
+                node_feat[d]
+                * 0.5
+                * (
+                    np.outer(orth_vec[j], orth_vec[j])
+                    + np.outer(orth_vec[j + num], orth_vec[j + num])
+                    + 4 * np.outer(orth_vec[j], orth_vec[j + num])
+                    + 0.25 * np.outer(orth_vec[j + num], orth_vec[j])
+                )
+            )
+        return matrix
+
+    def TrainingUpdate(self):
+        """
+        Perform a global parameter update by aggregating local models and updating dual variables.
+        """
+        print("Global parameter update")
+        with torch.no_grad():
+            self.LocalModelParams = {
+                client_id: self.trainers[client_id].model.state_dict()
+                for client_id in range(len(self.trainers))
+            }
+
+            for param in self.GATModelParams:
+                self.GATModelParams[param].zero_()
+
+                for client_id in self.LocalModelParams:
+                    self.GATModelParams[param] += self.LocalModelParams[client_id][
+                        param
+                    ] - self.dual_weight * self.Duals[client_id][param] / (
+                        2 * self.aug_lagrange_rho
+                    )
+
+                self.GATModelParams[param] /= len(self.trainers)
+
+            for client_id in self.Duals:
+                for param in self.Duals[client_id]:
+                    self.Duals[client_id][param] += (
+                        self.dual_weight
+                        * self.dual_lr
+                        * (
+                            self.GATModelParams[param]
+                            - self.LocalModelParams[client_id][param]
+                        )
+                    )
+
+            global_variance = self._calculate_global_variance()
+            print(f"Global vs local parameter variance = {global_variance}")
+
+    def _calculate_global_variance(self):
+        global_variance = 0.0
+        for param in self.GATModelParams:
+            for client_id in self.LocalModelParams:
+                global_variance += torch.norm(
+                    self.GATModelParams[param] - self.LocalModelParams[client_id][param]
+                )
+        return global_variance / (len(self.trainers) * len(self.GATModelParams))
 
 
 class Server_LP:

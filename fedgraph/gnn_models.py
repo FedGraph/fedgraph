@@ -1,11 +1,13 @@
 from typing import Optional
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric
 from torch_geometric.data import HeteroData
 from torch_geometric.nn import (
+    GATConv,
     GCNConv,
     GINConv,
     SAGEConv,
@@ -13,6 +15,9 @@ from torch_geometric.nn import (
     global_mean_pool,
     to_hetero,
 )
+from torch_geometric.utils import dense_to_sparse
+
+from fedgraph.utils_gat import AttnFunction
 
 
 class GCN(torch.nn.Module):
@@ -647,3 +652,316 @@ class GNN_LP(torch.nn.Module):
         edge_feat_item = x_item[edge_label_index[1]]
         # Apply dot-product to get a prediction per supervision edge:
         return (edge_feat_user * edge_feat_item).sum(dim=-1)
+
+
+class FedGATConv(nn.Module):
+    def __init__(self, in_feat, out_feat, max_deg, att_func, att_func_domain, device):
+        super(FedGATConv, self).__init__()
+        self.att_func = lambda x: AttnFunction(x, att_func)
+        self.in_feat = in_feat
+        self.out_feat = out_feat
+        self.max_deg = max_deg
+
+        self.att1 = nn.Parameter(torch.rand(in_feat))
+        self.att2 = nn.Parameter(torch.rand(in_feat))
+        self.weight = nn.Parameter(torch.rand((in_feat, out_feat)))
+
+        nn.init.uniform_(self.att1, a=-1.0, b=1.0)
+        nn.init.uniform_(self.att2, a=-1.0, b=1.0)
+        nn.init.uniform_(self.weight, a=-1.0, b=1.0)
+
+        # self.Soft = nn.Softmax(dim = 1)
+
+        # Pre-computing the coefficients of the Chebyshev series
+
+        x_temp = np.linspace(att_func_domain[0], att_func_domain[1], att_func_domain[2])
+
+        y_temp = self.att_func(x_temp)
+
+        series = np.polynomial.chebyshev.Chebyshev.fit(
+            x_temp, y_temp, deg=max_deg, domain=att_func_domain[0:2]
+        )
+
+        coeffs = [j for j in series.convert().coef]
+
+        polycoeffs = np.polynomial.chebyshev.cheb2poly(coeffs)
+
+        self.polycoeffs = torch.from_numpy(polycoeffs).float().to(device=device)
+
+    # def edge_attention(self, edges):
+
+    #     D =
+
+    #     # e = torch.matmul(edges.src['z'], self.att2) + torch.matmul(edges.dst['z'], self.att1)
+
+    #     # return {'e' : self.ReLU(e)}
+
+    # def reduce_func(self, nodes):
+
+    #     alpha = nn.functional.softmax(nodes.mailbox['e'], dim = 1)
+
+    #     #print(alpha.size(), nodes.mailbox['e'].size(), nodes.mailbox['h'].size())
+
+    #     h = torch.sum(alpha * nodes.mailbox['z'], dim = 1)
+    #     h = h + torch.matmul(torch.ones((h.size()[0], 1)), self.bias)
+
+    #     return {'h' : h}
+
+    # def message_func(self, edges):
+
+    #     return {'z' : edges.src['z'], 'e' : edges.data['e']}
+
+    def forward(self, g, h):
+        # for i in range(len(h)):
+        #     for j, tensor in enumerate(h[i]):
+        #         print(f"h[{i}][{j}] size: {tensor.size()}")
+
+        D = [
+            torch.sum(
+                self.att1.view(-1, 1, 1) * h[i][0] + self.att2.view(-1, 1, 1) * h[i][1],
+                dim=0,
+            )
+            for i in range(len(h))
+        ]
+
+        D_powers = [
+            torch.stack(
+                [torch.linalg.matrix_power(D[i], r) for r in range(self.max_deg + 1)]
+            )
+            for i in range(len(h))
+        ]
+
+        E = [
+            torch.matmul(
+                torch.matmul(
+                    torch.matmul(
+                        h[i][2].t(),
+                        torch.sum(self.polycoeffs.view(-1, 1, 1) * D_powers[i], dim=0),
+                    ),
+                    h[i][3],
+                ),
+                self.weight,
+            )
+            for i in range(len(D_powers))
+        ]
+
+        F = [
+            torch.matmul(
+                torch.matmul(
+                    h[i][2].t(),
+                    torch.sum(self.polycoeffs.view(-1, 1, 1) * D_powers[i], dim=0),
+                ),
+                h[i][2],
+            )
+            for i in range(len(D_powers))
+        ]
+
+        z = torch.stack([E[i] / F[i] for i in range(len(E))])
+
+        return z
+
+
+# class GATConv(nn.Module):
+
+#     def __init__(self, in_feat, out_feat):
+
+#         super(GATConv, self).__init__()
+
+#         self.weight = nn.Parameter(torch.rand((in_feat, out_feat)))
+#         # self.bias = nn.Parameter(torch.rand((1, out_feat)))
+
+#         self.att1 = nn.Parameter(torch.rand((in_feat, 1)))
+#         self.att2 = nn.Parameter(torch.rand((in_feat, 1)))
+
+#         self.ReLU = nn.LeakyReLU()
+
+#         nn.init.uniform_(self.att1, a=-1, b=1)
+#         nn.init.uniform_(self.att2, a=-1, b=1)
+#         nn.init.uniform_(self.weight, a=-1, b=1)
+#         # nn.init.uniform_(self.bias, a = -1, b = 1)
+
+#         # nn.init.uniform(self.att1, -1., 1.)
+#         # nn.init.uniform(self.att2, -1., 1.)
+#         # nn.init.uniform(self.weight, -1., 1.)
+
+#         # with torch.no_grad():
+
+#         #     self.att1 /= torch.linalg.vector_norm(self.att1, ord = 2)
+#         #     self.att2 /= torch.linalg.vector_norm(self.att2, ord = 2)
+
+#     def edge_attention(self, edges):
+
+#         e = torch.matmul(edges.src['z'], self.att2) + \
+#             torch.matmul(edges.dst['z'], self.att1)
+
+#         # e = {i : torch.dot(edges.src['z'][i], self.att2) + torch.dot(edges.dst['z'][i], self.att1) for i in edges}
+
+#         return {'e': self.ReLU(e)}
+
+#     def reduce_func(self, nodes):
+
+#         alpha = nn.functional.softmax(nodes.mailbox['e'], dim=1)
+
+#         # print(alpha.size(), nodes.mailbox['e'].size(), nodes.mailbox['h'].size())
+
+#         h = torch.matmul(
+#             torch.sum(alpha * nodes.mailbox['z'], dim=1), self.weight)
+#         # h = torch.matmul(h, self.weight) + torch.matmul(torch.ones((h.size()[0], 1)), self.bias)
+
+#         return {'h': h}
+
+#     def message_func(self, edges):
+
+#         return {'z': edges.src['z'], 'e': edges.data['e']}
+
+#     def forward(self, g, h):
+
+#         print(h.size(), self.weight.size())
+#         print("printing g:")
+#         print(g)
+#         g.ndata['z'] = h
+
+#         g.apply_edges(self.edge_attention)
+
+#         g.update_all(self.message_func, self.reduce_func)
+
+#         return g.ndata.pop('h')
+
+
+class MultiHeadGATConv(nn.Module):
+    def __init__(self, in_feat, out_feat, num_head, activation=None, merge="cat"):
+        super(MultiHeadGATConv, self).__init__()
+
+        self.in_feat = in_feat
+        self.out_feat = out_feat
+        self.num_head = num_head
+
+        self.GATModules = nn.ModuleList(
+            [GATConv(in_feat, out_feat) for i in range(num_head)]
+        )
+
+        self.activ = None
+
+        if activation != None:
+            self.activ = activation
+
+        self.merge = merge
+
+    def forward(self, g, h):
+        out = [L(g, h) for L in self.GATModules]
+
+        if self.merge == "cat":
+            if self.activ != None:
+                return self.activ(torch.cat(out, dim=1))
+
+            else:
+                return torch.cat(out, dim=1)
+
+        else:
+            if self.activ != None:
+                return (
+                    self.activ(torch.sum(torch.cat(out, dim=1), dim=1)) / self.num_head
+                )
+
+            else:
+                return torch.sum(torch.cat(out, dim=1), dim=1) / self.num_head
+
+
+class MultiHeadFedGATConv(nn.Module):
+    def __init__(
+        self,
+        in_feat,
+        out_feat,
+        num_head,
+        max_deg,
+        attn_func,
+        attn_func_domain,
+        device,
+        activation=None,
+        merge="cat",
+    ):
+        super(MultiHeadFedGATConv, self).__init__()
+
+        self.in_feat = in_feat
+        self.out_feat = out_feat
+        self.num_head = num_head
+        self.merge = merge
+
+        self.activ = None
+
+        if activation != None:
+            self.activ = activation
+
+        self.FedGATModules = nn.ModuleList(
+            [
+                FedGATConv(
+                    in_feat, out_feat, max_deg, attn_func, attn_func_domain, device
+                )
+                for i in range(num_head)
+            ]
+        )
+
+    def forward(self, g, h):
+        out = [L(g, h) for L in self.FedGATModules]
+
+        if self.merge == "cat":
+            if self.activ != None:
+                return self.activ(torch.cat(out, dim=1))
+
+            else:
+                return torch.cat(out, dim=1)
+
+        else:
+            if self.activ != None:
+                return (
+                    self.activ(torch.sum(torch.cat(out, dim=1), dim=1)) / self.num_head
+                )
+
+            else:
+                return torch.sum(torch.cat(out, dim=1), dim=1) / self.num_head
+
+
+class FedGATModel(nn.Module):
+    def __init__(
+        self,
+        in_feat,
+        out_feat,
+        hidden_dim,
+        num_head,
+        max_deg,
+        attn_func,
+        domain,
+        device,
+    ):
+        super(FedGATModel, self).__init__()
+        self.attn_func = lambda x: AttnFunction(x, attn_func)
+        self.in_feat = in_feat
+        self.out_feat = out_feat
+        self.num_head = num_head
+
+        self.GAT1 = MultiHeadFedGATConv(
+            in_feat,
+            hidden_dim,
+            num_head,
+            max_deg,
+            attn_func,
+            domain,
+            device,
+            activation=nn.ELU(),
+        )
+
+        self.GAT2 = MultiHeadGATConv(num_head * hidden_dim, out_feat, 1)
+
+        self.soft = nn.Softmax(dim=1)
+
+    def forward(self, g, h):
+        z = self.GAT1(g, h)
+        # print("printing: g.shape and z.shape")
+        # print(g.edge_index)
+        # print(z.size(0))
+
+        z = self.GAT2(z, g.edge_index)
+
+        z = self.soft(z)
+
+        return z

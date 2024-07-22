@@ -113,7 +113,7 @@ torch-cluster==1.6.3
 torch-scatter==2.1.2
 torch-sparse==0.6.18
 torch-spline-conv==1.2.2
-torch_geometric==2.2.0
+torch_geometric==2.4.0
 torchmetrics==1.4.0.post0
 tqdm==4.66.4
 typing_extensions==4.11.0

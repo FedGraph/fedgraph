@@ -1,18 +1,29 @@
 import argparse
 import random
 import time
-from typing import Any, List, Union
+from typing import Any, Dict, List, Union
 
 import numpy as np
 import ray
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric
+from torch_geometric.data import Data
 from torchmetrics.functional.retrieval import retrieval_auroc
 from torchmetrics.retrieval import RetrievalHitRate
 
-from fedgraph.gnn_models import GCN, GIN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
+from fedgraph.gnn_models import (
+    GCN,
+    GIN,
+    GNN_LP,
+    AggreGCN,
+    FedGATModel,
+    GCN_arxiv,
+    SAGE_products,
+)
 from fedgraph.train_func import test, train
+from fedgraph.utils_gat import FedGATLoss
 from fedgraph.utils_lp import (
     check_data_files_existance,
     get_data,
@@ -1153,3 +1164,259 @@ class Trainer_LP:
             return self.model.gnn.state_dict()
         else:
             return self.model.state_dict()
+
+
+class Trainer_GAT:
+    """
+    Trainer class for Graph Attention Network (GAT) tasks, responsible for local training and testing,
+    parameter updates, and feature aggregation.
+
+    Parameters
+    ----------
+    client_id : int
+        ID of the client.
+    subgraph : Data
+        Subgraph data structure containing nodes and edges specific to this client.
+    feats : torch.Tensor
+        Features of the nodes.
+    labels : torch.Tensor
+        Labels of the nodes.
+    train_rounds : int
+        Number of training rounds.
+    num_local_iters : int
+        Number of local iterations.
+    dual_weight : float
+        Weight for the dual variable.
+    aug_lagrange_rho : float
+        Augmented Lagrangian rho parameter.
+    dual_lr : float
+        Learning rate for the dual variable.
+    model_lr : float
+        Learning rate for the model.
+    model_regularisation : float
+        Regularization parameter for the model.
+    device : str
+        Device to use for training.
+    """
+
+    def __init__(
+        self,
+        client_id,
+        subgraph,
+        node_indices,
+        train_indexes,
+        val_indexes,
+        test_indexes,
+        labels,
+        model,
+        train_rounds,
+        num_local_iters,
+        dual_weight,
+        aug_lagrange_rho,
+        dual_lr,
+        model_lr,
+        model_regularisation,
+        device,
+    ):
+        self.client_id = client_id
+        self.graph = subgraph
+        self.node_indices = node_indices
+        self.index_map = {int(node): idx for idx, node in enumerate(node_indices)}
+        # print(f"train index: {train_indexes}")
+        # print(f"val index: {val_indexes}")
+        # print(f"test index: {test_indexes}")  # directly use index
+        self.train_mask = (train_indexes,)  # directly use index
+        self.validate_mask = (val_indexes,)  # directly use index
+        self.test_mask = (test_indexes,)  # directly use index
+        tr_mask = torch.zeros(len(node_indices), dtype=torch.bool)
+        v_mask = torch.zeros(len(node_indices), dtype=torch.bool)
+        t_mask = torch.zeros(len(node_indices), dtype=torch.bool)
+
+        for index in train_indexes:
+            tr_mask[self.index_map[int(index)]] = True
+        for index in val_indexes:
+            v_mask[self.index_map[int(index)]] = True
+        for index in test_indexes:
+            t_mask[self.index_map[int(index)]] = True
+
+        self.tr_mask = tr_mask
+        self.v_mask = v_mask
+        self.t_mask = t_mask
+        self.labels = labels
+        self.train_rounds = train_rounds
+        self.num_local_iters = num_local_iters
+        self.dual_weight = dual_weight
+        self.aug_lagrange_rho = aug_lagrange_rho
+        self.dual_lr = dual_lr
+        self.model_lr = model_lr
+        self.model_regularisation = model_regularisation
+        self.device = device
+        self.model = model.to(device=device)
+        # self.model = FedGATModel(
+        #     feats.shape[1], labels.shape[1], args.hidden_dim,
+        #     args.num_heads, args.max_deg, args.attn_func_parameter, args.attn_func_domain, device
+        # ).to(device=device)
+        self.optimizer = None
+        self.loss_fn = nn.CrossEntropyLoss()
+        self.epoch = 0
+        self.node_feats = None
+
+        self.tr_loss = 0.0
+        self.tr_acc = 0.0
+        self.v_loss = 0.0
+        self.v_acc = 0.0
+        self.t_loss = 0.0
+        self.t_acc = 0.0
+
+        self.global_params = None
+        self.duals = None
+
+    def update_params(self, params, current_global_epoch):
+        """
+        Update the model parameters with global parameters received from the server.
+
+        Parameters
+        ----------
+        params : tuple
+            Global parameters from the server.
+        current_global_epoch : int
+            Current global epoch number.
+        """
+        self.model.to("cpu")
+        for p, mp in zip(params, self.model.parameters()):
+            mp.data = p
+        self.model.to(self.device)
+
+    def train_model(self):
+        """
+        Prepare the model and optimizer for training and adjust the node features.
+        """
+        self.model.to(self.device)
+        self.model.train()
+        self.optimizer = torch.optim.Adam(
+            self.model.parameters(),
+            lr=self.model_lr,
+            weight_decay=self.model_regularisation,
+        )
+        # print(
+        #     f"printing self.node_indices(): {list(self.node_mats.keys())}")
+        # print(self.node_mats.keys())
+
+        self.node_feats = [self.node_mats[i] for i in list(self.node_mats.keys())]
+        print(f"Client {self.client_id} ready for training!")
+
+    def from_server(self, global_params, duals):
+        """
+        Receive the global parameters and dual variables from the server.
+
+        Parameters
+        ----------
+        global_params : dict
+            Global parameters from the server.
+        duals : dict
+            Dual variables from the server.
+        """
+        self.global_params = global_params
+        self.duals = duals
+
+    def train_iterate(self):
+        """
+        Perform a single iteration of training, updating model parameters and computing training and validation metrics.
+        """
+        self.model.train()
+        self.optimizer.zero_grad()
+
+        y_pred = self.model(self.graph, self.node_feats)
+        # print("validating for loss size")
+        # print(self.client_id)
+        # print(y_pred.size())
+        # print(self.tr_mask)
+        self.tr_loss = self._calculate_loss(
+            y_pred[self.tr_mask], self.labels[self.train_mask]
+        )
+        self.tr_loss.backward()
+        self.optimizer.step()
+
+        self._update_metrics(y_pred)
+
+    def model_test(self):
+        """
+        Evaluate the model on the test set and compute the test accuracy.
+        """
+        self.model.eval()
+        with torch.no_grad():
+            y_pred = self.model(self.graph, self.node_feats)[self.t_mask]
+            self.t_acc = self._calculate_accuracy(y_pred, self.labels[self.test_mask])
+            print(f"Client {self.client_id}: Test acc: {self.t_acc}")
+
+    def get_params(self):
+        """
+        Retrieve the current parameters of the model.
+
+        Returns
+        -------
+        tuple
+            Current parameters of the model.
+        """
+        self.optimizer.zero_grad(set_to_none=True)
+        return tuple(self.model.parameters())
+
+    def get_all_loss_accuracy(self):
+        """
+        Return all recorded training and testing losses and accuracies.
+
+        Returns
+        -------
+        list
+            List containing arrays of training losses, training accuracies, testing losses, and testing accuracies.
+        """
+        return [
+            np.array(self.train_losses),
+            np.array(self.train_accs),
+            np.array(self.test_losses),
+            np.array(self.test_accs),
+        ]
+
+    def get_rank(self):
+        """
+        Return the rank (trainer ID) of the trainer.
+
+        Returns
+        -------
+        int
+            Rank (trainer ID) of this trainer instance.
+        """
+        return self.client_id
+
+    def _calculate_loss(self, y_pred, labels):
+        return FedGATLoss(
+            self.loss_fn,
+            y_pred,
+            labels,
+            self.model.state_dict(),
+            self.global_params,
+            self.duals[self.client_id],
+            self.aug_lagrange_rho,
+            self.dual_weight,
+        )
+
+    def _calculate_accuracy(self, y_pred, labels):
+        pred_labels = torch.argmax(y_pred, dim=1)
+        true_labels = torch.argmax(labels, dim=1)
+        return torch.sum(pred_labels == true_labels) / len(true_labels)
+
+    def _update_metrics(self, y_pred):
+        with torch.no_grad():
+            self.v_loss = self._calculate_loss(
+                y_pred[self.v_mask], self.labels[self.validate_mask]
+            )
+            self.tr_acc = self._calculate_accuracy(
+                y_pred[self.tr_mask], self.labels[self.train_mask]
+            )
+            self.v_acc = self._calculate_accuracy(
+                y_pred[self.v_mask], self.labels[self.validate_mask]
+            )
+            print(
+                f"Client {self.client_id}: Epoch {self.epoch}: Train loss: {self.tr_loss}, Train acc: {self.tr_acc}, Val loss: {self.v_loss}, Val acc {self.v_acc}"
+            )
+        self.epoch += 1

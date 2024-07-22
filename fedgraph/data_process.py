@@ -355,7 +355,21 @@ def FedGAT_load_data(dataset_str: str) -> tuple:
     )
 
     features = data.x
+    # X_T
+    normalized_features = torch.zeros(features.size())
+    for i in range(features.size()[0]):
+        normalized_features[i, :] = features[i, :] - torch.mean(features[i, :])
+        n = torch.norm(normalized_features[i, :])
+        if n > 0:
+            normalized_features[i, :] /= n
+    # Y
     labels = data.y
+    NumClasses = torch.max(labels).item() + 1
+    # L
+    one_hot_labels = torch.zeros((labels.size()[0], NumClasses))
+    for i in range(len(labels)):
+        one_hot_labels[i, labels[i]] = 1.0
+
     idx_train = data.train_mask.nonzero(as_tuple=False).squeeze()
     idx_val = data.val_mask.nonzero(as_tuple=False).squeeze()
     idx_test = data.test_mask.nonzero(as_tuple=False).squeeze()
@@ -363,7 +377,122 @@ def FedGAT_load_data(dataset_str: str) -> tuple:
     adj = torch_geometric.utils.to_scipy_sparse_matrix(data.edge_index)
     adj = torch_sparse.tensor.SparseTensor.from_scipy(adj)
 
-    return data, features, adj, labels, idx_train, idx_val, idx_test
+    return (
+        data,
+        features,
+        normalized_features,
+        adj,
+        labels,
+        one_hot_labels,
+        idx_train,
+        idx_val,
+        idx_test,
+    )
+
+
+def FedGAT_load_data_100(dataset_str: str) -> tuple:
+    """
+    Loads input data from 'torch_geometric' directory and processes these datasets into a format
+    suitable for training GAT and similar models.
+
+    Parameters
+    ----------
+    dataset_str : Name of the dataset to be loaded.
+
+    Returns
+    -------
+    data : torch_geometric.data.Data
+        The torch_geometric data object.
+    features : torch.Tensor
+        Node feature matrix as a float tensor.
+    adj : torch_sparse.tensor.SparseTensor
+        Adjacency matrix of the graph.
+    labels : torch.Tensor
+        Labels of the nodes.
+    idx_train : torch.LongTensor
+        Indices of training nodes.
+    idx_val : torch.LongTensor
+        Indices of validation nodes.
+    idx_test : torch.LongTensor
+        Indices of test nodes.
+    """
+    # Download dataset from torch_geometric
+    dataset = Planetoid(root="./data", name=dataset_str)
+    data = dataset[0]
+
+    # Add self-loops
+    data.edge_index, _ = torch_geometric.utils.add_self_loops(
+        data.edge_index, num_nodes=data.num_nodes
+    )
+
+    # Sample 100 nodes
+    total_nodes = data.num_nodes
+    sample_size = 100
+    sampled_indices = random.sample(range(total_nodes), sample_size)
+    sampled_indices = torch.tensor(sampled_indices)
+
+    # Update masks for sampled nodes
+    train_mask = data.train_mask[sampled_indices]
+    val_mask = data.val_mask[sampled_indices]
+    test_mask = data.test_mask[sampled_indices]
+
+    # Update features and labels
+    features = data.x[sampled_indices]
+    labels = data.y[sampled_indices]
+
+    # Create new edge_index for the sampled nodes
+    mask = torch.isin(data.edge_index[0], sampled_indices) & torch.isin(
+        data.edge_index[1], sampled_indices
+    )
+    new_edge_index = data.edge_index[:, mask]
+
+    # Map old indices to new indices
+    old_to_new = {
+        old_idx.item(): new_idx for new_idx, old_idx in enumerate(sampled_indices)
+    }
+    new_edge_index = torch.tensor(
+        [[old_to_new[old_idx.item()] for old_idx in edge] for edge in new_edge_index]
+    )
+
+    # Normalize features
+    normalized_features = torch.zeros(features.size())
+    for i in range(features.size()[0]):
+        normalized_features[i, :] = features[i, :] - torch.mean(features[i, :])
+        n = torch.norm(normalized_features[i, :])
+        if n > 0:
+            normalized_features[i, :] /= n
+
+    NumClasses = torch.max(labels).item() + 1
+    one_hot_labels = torch.zeros((labels.size()[0], NumClasses))
+    for i in range(len(labels)):
+        one_hot_labels[i, labels[i]] = 1.0
+
+    idx_train = train_mask.nonzero(as_tuple=False).squeeze()
+    idx_val = val_mask.nonzero(as_tuple=False).squeeze()
+    idx_test = test_mask.nonzero(as_tuple=False).squeeze()
+
+    adj = torch_geometric.utils.to_scipy_sparse_matrix(new_edge_index)
+    adj = torch_sparse.tensor.SparseTensor.from_scipy(adj)
+
+    # Update the data object with the new values
+    data.x = features
+    data.edge_index = new_edge_index
+    data.y = labels
+    data.train_mask = train_mask
+    data.val_mask = val_mask
+    data.test_mask = test_mask
+
+    return (
+        data,
+        features,
+        normalized_features,
+        adj,
+        labels,
+        one_hot_labels,
+        idx_train,
+        idx_val,
+        idx_test,
+    )
 
 
 def GC_rand_split_chunk(
