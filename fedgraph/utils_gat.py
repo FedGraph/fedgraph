@@ -163,6 +163,7 @@ def get_in_comm_indexes(
     L_hop: int,
     idx_train: torch.Tensor,
     idx_test: torch.Tensor,
+    idx_val: torch.Tensor,
 ) -> tuple:
     """
     Extract and preprocess data indices and edge information. It determines the nodes that each client
@@ -253,9 +254,16 @@ def get_in_comm_indexes(
         in_com_test_node_indexes.append(
             torch.searchsorted(communicate_node_indexes[i], inter).clone()
         )
+    in_com_val_node_indexes = []
+    for i in range(num_clients):
+        inter = intersect1d(split_node_indexes[i], idx_val)
+        in_com_val_node_indexes.append(
+            torch.searchsorted(communicate_node_indexes[i], inter).clone()
+        )
     return (
         communicate_node_indexes,
         in_com_train_node_indexes,
         in_com_test_node_indexes,
+        in_com_val_node_indexes,
         edge_indexes_clients,
     )

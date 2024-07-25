@@ -1203,59 +1203,31 @@ class Trainer_GAT:
         self,
         client_id,
         subgraph,
-        node_indices,
+        node_indexes,
         train_indexes,
         val_indexes,
         test_indexes,
         labels,
-        model,
-        train_rounds,
-        num_local_iters,
-        dual_weight,
-        aug_lagrange_rho,
-        dual_lr,
-        model_lr,
-        model_regularisation,
+        features_shape,
+        args,
         device,
     ):
         self.client_id = client_id
         self.graph = subgraph
-        self.node_indices = node_indices
-        self.index_map = {int(node): idx for idx, node in enumerate(node_indices)}
-        # print(f"train index: {train_indexes}")
-        # print(f"val index: {val_indexes}")
-        # print(f"test index: {test_indexes}")  # directly use index
+        self.node_indices = node_indexes
+        self.index_map = {int(node): idx for idx, node in enumerate(node_indexes)}
         self.train_mask = (train_indexes,)  # directly use index
         self.validate_mask = (val_indexes,)  # directly use index
         self.test_mask = (test_indexes,)  # directly use index
-        tr_mask = torch.zeros(len(node_indices), dtype=torch.bool)
-        v_mask = torch.zeros(len(node_indices), dtype=torch.bool)
-        t_mask = torch.zeros(len(node_indices), dtype=torch.bool)
-
-        for index in train_indexes:
-            tr_mask[self.index_map[int(index)]] = True
-        for index in val_indexes:
-            v_mask[self.index_map[int(index)]] = True
-        for index in test_indexes:
-            t_mask[self.index_map[int(index)]] = True
-
-        self.tr_mask = tr_mask
-        self.v_mask = v_mask
-        self.t_mask = t_mask
         self.labels = labels
-        self.train_rounds = train_rounds
-        self.num_local_iters = num_local_iters
-        self.dual_weight = dual_weight
-        self.aug_lagrange_rho = aug_lagrange_rho
-        self.dual_lr = dual_lr
-        self.model_lr = model_lr
-        self.model_regularisation = model_regularisation
+        self.train_rounds = args.global_rounds
+        self.num_local_iters = args.local_step
+        self.dual_weight = args.dual_weight
+        self.aug_lagrange_rho = args.aug_lagrange_rho
+        self.dual_lr = args.dual_lr
+        self.model_lr = args.learning_rate
+        self.model_regularisation = args.model_regularisation
         self.device = device
-        self.model = model.to(device=device)
-        # self.model = FedGATModel(
-        #     feats.shape[1], labels.shape[1], args.hidden_dim,
-        #     args.num_heads, args.max_deg, args.attn_func_parameter, args.attn_func_domain, device
-        # ).to(device=device)
         self.optimizer = None
         self.loss_fn = nn.CrossEntropyLoss()
         self.epoch = 0
@@ -1270,6 +1242,16 @@ class Trainer_GAT:
 
         self.global_params = None
         self.duals = None
+        self.model = FedGATModel(
+            features_shape,
+            labels.shape[1],
+            args.hidden_dim,
+            args.num_heads,
+            args.max_deg,
+            args.attn_func_parameter,
+            args.attn_func_domain,
+            device,
+        ).to(device=device)
 
     def update_params(self, params, current_global_epoch):
         """
@@ -1286,6 +1268,9 @@ class Trainer_GAT:
         for p, mp in zip(params, self.model.parameters()):
             mp.data = p
         self.model.to(self.device)
+
+    def setNodeMats(self, rec_info):
+        self.node_mats = rec_info
 
     def train_model(self):
         """
@@ -1325,14 +1310,17 @@ class Trainer_GAT:
         """
         self.model.train()
         self.optimizer.zero_grad()
-
+        # print("priting in  def train_iterate(self):")
+        # print(self.graph.size())
+        # print(len(self.node_feats))
         y_pred = self.model(self.graph, self.node_feats)
+
         # print("validating for loss size")
         # print(self.client_id)
         # print(y_pred.size())
         # print(self.tr_mask)
         self.tr_loss = self._calculate_loss(
-            y_pred[self.tr_mask], self.labels[self.train_mask]
+            y_pred[self.train_mask], self.labels[self.train_mask]
         )
         self.tr_loss.backward()
         self.optimizer.step()
@@ -1345,7 +1333,7 @@ class Trainer_GAT:
         """
         self.model.eval()
         with torch.no_grad():
-            y_pred = self.model(self.graph, self.node_feats)[self.t_mask]
+            y_pred = self.model(self.graph, self.node_feats)[self.test_mask]
             self.t_acc = self._calculate_accuracy(y_pred, self.labels[self.test_mask])
             print(f"Client {self.client_id}: Test acc: {self.t_acc}")
 
@@ -1408,13 +1396,13 @@ class Trainer_GAT:
     def _update_metrics(self, y_pred):
         with torch.no_grad():
             self.v_loss = self._calculate_loss(
-                y_pred[self.v_mask], self.labels[self.validate_mask]
+                y_pred[self.validate_mask], self.labels[self.validate_mask]
             )
             self.tr_acc = self._calculate_accuracy(
-                y_pred[self.tr_mask], self.labels[self.train_mask]
+                y_pred[self.train_mask], self.labels[self.train_mask]
             )
             self.v_acc = self._calculate_accuracy(
-                y_pred[self.v_mask], self.labels[self.validate_mask]
+                y_pred[self.validate_mask], self.labels[self.validate_mask]
             )
             print(
                 f"Client {self.client_id}: Epoch {self.epoch}: Train loss: {self.tr_loss}, Train acc: {self.tr_acc}, Val loss: {self.v_loss}, Val acc {self.v_acc}"

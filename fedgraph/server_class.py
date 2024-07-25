@@ -489,23 +489,11 @@ class Server_GAT:
         graph,
         feats,
         labels,
-        sample_probab,
-        train_rounds,
-        num_local_iters,
-        dual_weight,
-        aug_lagrange_rho,
-        dual_lr,
-        model_lr,
-        model_regularisation,
         feature_dim,
         class_num,
-        hidden_dim,
-        num_head,
-        max_deg,
-        attn_func,
-        attn_func_domain,
         device,
         trainers,
+        args,
     ):
         self.graph = graph
         self.feats = feats
@@ -516,24 +504,24 @@ class Server_GAT:
 
         self.device = device
         self.trainers = trainers
-        self.sample_probab = sample_probab
-        self.train_rounds = train_rounds
-        self.num_local_iters = num_local_iters
-        self.dual_weight = dual_weight
-        self.aug_lagrange_rho = aug_lagrange_rho
-        self.dual_lr = dual_lr
-        self.model_lr = model_lr
-        self.model_regularisation = model_regularisation
+        self.sample_probab = args.sample_probab
+        self.train_rounds = args.train_rounds
+        self.num_local_iters = args.num_local_iters
+        self.dual_weight = args.dual_weight
+        self.aug_lagrange_rho = args.aug_lagrange_rho
+        self.dual_lr = args.dual_lr
+        self.model_lr = args.model_lr
+        self.model_regularisation = args.model_regularisation
         self.total_communicate = 0
 
         self.model = FedGATModel(
             in_feat=feature_dim,
             out_feat=class_num,
-            hidden_dim=hidden_dim,
-            num_head=num_head,
-            max_deg=max_deg,
-            attn_func=attn_func,
-            domain=attn_func_domain,
+            hidden_dim=args.hidden_dim,
+            num_head=args.num_heads,
+            max_deg=args.max_deg,
+            attn_func=args.attn_func_parameter,
+            domain=args.attn_func_domain,
             device=device,
         ).to(device)
         self.GATModelParams = self.model.state_dict()
@@ -606,15 +594,15 @@ class Server_GAT:
     def pretrain_communication(self, client_id, node_info, graph, device):
         return_info = {}
 
-        if self.Duals.get(client_id, None) == None:
+        if self.Duals.get(client_id, None) is None:
             self.num_clients += 1
 
-        self.Duals.update({client_id: copy.deepcopy(self.model.state_dict())})
+        self.Duals[client_id] = copy.deepcopy(self.model.state_dict())
 
         for param in self.Duals[client_id]:
             self.Duals[client_id][param].requires_grad = False
 
-        self.LocalModelParams.update({client_id: None})
+        self.LocalModelParams[client_id] = None
 
         for node in node_info:
             neighbours = self.get_predecessors(graph, node)
@@ -634,18 +622,14 @@ class Server_GAT:
             orth_vec = MatGen(num)
 
             M1 = np.zeros((self.in_feat, 2 * num, 2 * num))
-
             M2 = np.zeros((self.in_feat, 2 * num, 2 * num))
-
             Q2 = np.zeros((2 * num, self.in_feat))
-
             Q1 = 2 * np.sum(orth_vec[0:num, :], axis=0)
 
             main_node_feat = self.feats[node, :].detach().cpu().numpy()
 
             for j in range(len(neigh)):
                 node_id = neigh[j]
-
                 node_feat = self.feats[node_id, :].detach().cpu().numpy()
 
                 Q2 += np.outer(orth_vec[j, :], node_feat)
@@ -673,23 +657,17 @@ class Server_GAT:
                         )
                     )
 
-            return_info.update(
-                {
-                    node: [
-                        torch.from_numpy(M1).float().to(device=device),
-                        torch.from_numpy(M2).float().to(device=device),
-                        torch.from_numpy(Q1).float().to(device=device),
-                        torch.from_numpy(Q2).float().to(device=device),
-                    ]
-                }
-            )
+            return_info[node] = [
+                torch.from_numpy(M1).float().to(device=device),
+                torch.from_numpy(M2).float().to(device=device),
+                torch.from_numpy(Q1).float().to(device=device),
+                torch.from_numpy(Q2).float().to(device=device),
+            ]
 
         count = 0
-
         for node in return_info:
             for j in range(len(return_info[node])):
                 count += torch.numel(return_info[node][j])
-
                 return_info[node][j].to(device=device)
 
         self.total_communicate += count

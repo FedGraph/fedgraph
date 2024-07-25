@@ -64,7 +64,7 @@ with open(config_file, "r") as file:
     idx_train,
     idx_val,
     idx_test,
-) = FedGAT_load_data_100(args.dataset)
+) = FedGAT_load_data(args.dataset)
 row, col, edge_attr = adj.coo()
 edge_index = torch.stack([row, col], dim=0)
 # Split Graph for Federated Learning
@@ -82,67 +82,67 @@ for i in range(args.n_trainer):
 
 # Device setup
 device = torch.device("cuda" if args.gpu else "cpu")
-initial_model = FedGATModel(
-    normalized_features.shape[1],
-    one_hot_labels.shape[1],
-    args.hidden_dim,
-    args.num_heads,
-    args.max_deg,
-    args.attn_func_parameter,
-    args.attn_func_domain,
-    device,
+print(f"normalized_features.shape[1]: {normalized_features.shape[1]}")
+
+
+# tr_indexes = [[] for _ in range(args.n_trainer)]
+# v_indexes = [[] for _ in range(args.n_trainer)]
+# t_indexes = [[] for _ in range(args.n_trainer)]
+# for i in range(args.n_trainer):
+#     n = len(split_node_indexes[i])
+#     np.random.shuffle(split_node_indexes[i].numpy())
+#     tr_indexes[i] = split_node_indexes[i][: n - 2].tolist()
+#     v_indexes[i] = split_node_indexes[i][n - 2: n - 1].tolist()
+#     t_indexes[i] = split_node_indexes[i][n - 1:].tolist()
+
+(
+    communicate_node_indexes,
+    in_com_train_node_indexes,
+    in_com_test_node_indexes,
+    in_com_val_node_indexes,
+    edge_indexes_clients,
+) = get_in_comm_indexes(
+    edge_index,
+    split_node_indexes,
+    args.n_trainer,
+    args.num_hops,
+    idx_train,
+    idx_test,
+    idx_val,
 )
-
-tr_indexes = [[] for _ in range(args.n_trainer)]
-v_indexes = [[] for _ in range(args.n_trainer)]
-t_indexes = [[] for _ in range(args.n_trainer)]
-for i in range(args.n_trainer):
-    n = len(split_node_indexes[i])
-    np.random.shuffle(split_node_indexes[i].numpy())  # 随机打乱索引
-    tr_indexes[i] = split_node_indexes[i][: n - 2].tolist()  # 训练集：前 n-2 个
-    v_indexes[i] = split_node_indexes[i][n - 2 : n - 1].tolist()  # 验证集：倒数第 2 个
-    t_indexes[i] = split_node_indexes[i][n - 1 :].tolist()  # 测试集：最后 1 个
-
-# (
-#     communicate_node_indexes,
-#     in_com_train_node_indexes,
-#     in_com_test_node_indexes,
-#     edge_indexes_clients,
-# ) = get_in_comm_indexes(
-#     edge_index,
-#     split_node_indexes,
-#     args.n_trainer,
-#     args.num_hops,
-#     idx_train,
-#     idx_test,
-# )
 
 
 # Initialize Clients
 clients = []
 for client_id, node_indices in enumerate(split_node_indexes):
-    print("current generating client:")
-    print(f"clientId: {client_id}")
-    print(f"node_indices: {node_indices}")
+    # print("current generating client:")
+    # print(f"clientId: {client_id}")
+    # print(f"node_indices: {node_indices}")
     # split graph and then transfer the subgraph to each client based on split index
-    subgraph = data.subgraph(node_indices)
+    subgraph = data.subgraph(communicate_node_indexes[client_id])
+    # print(
+    #     f"communicate_node_indexes[client_id]: {communicate_node_indexes[client_id]}")
+    # print(
+    #     f"in_com_train_node_indexes[client_id]: {in_com_train_node_indexes[client_id]}"
+    # )
+    # print(
+    #     f"in_com_val_node_indexes[client_id]: {in_com_val_node_indexes[client_id]}")
+    # print(
+    #     f"in_com_test_node_indexes[client_id]: {in_com_test_node_indexes[client_id]}")
+    print(
+        f"len(communicate_node_indexes[i]): {len(communicate_node_indexes[i])}")
+    print(one_hot_labels.size())
     # client initialization
     client = Trainer_GAT(
         client_id=client_id,
         subgraph=subgraph,
-        node_indices=node_indices,
-        train_indexes=tr_indexes[client_id],
-        val_indexes=v_indexes[client_id],
-        test_indexes=t_indexes[client_id],
+        node_indexes=communicate_node_indexes[client_id],
+        train_indexes=in_com_train_node_indexes[client_id],
+        val_indexes=in_com_val_node_indexes[client_id],
+        test_indexes=in_com_test_node_indexes[client_id],
         labels=one_hot_labels,
-        model=initial_model,
-        train_rounds=args.global_rounds,
-        num_local_iters=args.local_step,
-        dual_weight=args.dual_weight,
-        aug_lagrange_rho=args.aug_lagrange_rho,
-        dual_lr=args.dual_lr,
-        model_lr=args.learning_rate,
-        model_regularisation=args.model_regularisation,
+        features_shape=normalized_features.shape[1],
+        args=args,
         device=device,
     )
 
@@ -153,33 +153,28 @@ server = Server_GAT(
     graph=data,
     feats=features,
     labels=one_hot_labels,
-    sample_probab=args.sample_probab,
-    train_rounds=args.train_rounds,
-    num_local_iters=args.num_local_iters,
-    dual_weight=args.dual_weight,
-    aug_lagrange_rho=args.aug_lagrange_rho,
-    dual_lr=args.dual_lr,
-    model_lr=args.learning_rate,
-    model_regularisation=args.model_regularisation,
     feature_dim=features.shape[1],
     class_num=one_hot_labels.shape[1],
-    hidden_dim=args.hidden_dim,
-    num_head=args.num_heads,
-    max_deg=args.max_deg,
-    attn_func=args.attn_func_parameter,
-    attn_func_domain=args.attn_func_domain,
     device=device,
     trainers=clients,
+    args=args,
 )
 
 # Pre-training communication
 print("Pre-training communication initiated!")
 
-for client_id, node_indices in enumerate(split_node_indexes):
+for client_id, communicate_node_index in enumerate(communicate_node_indexes):
+    # print(f"currentClientID:{client_id}")
+    # print(f"node_indexes size: {len(communicate_node_index)}")
     ret_info = server.pretrain_communication(
-        client_id, node_indices, data, device=args.device
+        client_id, communicate_node_index, data, device=args.device
     )
-    clients[client_id].node_mats = ret_info
+    # print("printing ret_info and subgraph size:")
+    # print(len(ret_info))
+    # print(clients[client_id].graph.size())
+    # the subgraph size is 1606 but the ret_info size is 1578
+    # IndexError: Encountered an index error. Please ensure that all indices in 'edge_index' point to valid indices in the interval [0, 1578] (got interval [0, 1606])
+    clients[client_id].setNodeMats(ret_info)
     # print(f"client{client_id} have ret_info\n {ret_info}")
 print("Pre-training communication completed!")
 
