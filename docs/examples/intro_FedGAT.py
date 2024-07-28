@@ -213,8 +213,7 @@ server = Server_GAT(
 
 # Pre-training communication
 print("Pre-training communication initiated!")
-server.pretrain_communication(
-    communicate_node_indexes, data, device=args.device)
+server.pretrain_communication(communicate_node_indexes, data, device=args.device)
 # for client_id, communicate_node_index in enumerate(communicate_node_indexes):
 #     # print(f"currentClientID:{client_id}")
 #     # print(f"node_indexes size: {len(communicate_node_index)}")
@@ -233,8 +232,7 @@ print("Pre-training communication completed!")
 # Federated Training
 print("Commenced training!")
 
-[client.from_server.remote(server.GATModelParams, server.Duals)
- for client in clients]
+[client.from_server.remote(server.GATModelParams, server.Duals) for client in clients]
 [client.train_model.remote() for client in clients]
 
 print("Training initiated!")
