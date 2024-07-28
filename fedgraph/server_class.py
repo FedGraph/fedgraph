@@ -578,7 +578,9 @@ class Server_GAT:
             Current global epoch number during the federated learning process.
         """
         for trainer in self.trainers:
-            trainer.update_params(tuple(self.model.parameters()), current_global_epoch)
+            trainer.update_params.remote(
+                tuple(self.model.parameters()), current_global_epoch
+            )
 
     def get_neighbours(self, node_id, edge_index):
         mask = edge_index[0] == node_id
@@ -591,88 +593,92 @@ class Server_GAT:
         predecessors = edge_index[0, mask]
         return predecessors
 
-    def pretrain_communication(self, client_id, node_info, graph, device):
-        return_info = {}
+    def pretrain_communication(self, communicate_node_indexes, graph, device):
+        for client_id, communicate_node_index in enumerate(communicate_node_indexes):
+            return_info = {}
 
-        if self.Duals.get(client_id, None) is None:
-            self.num_clients += 1
+            if self.Duals.get(client_id, None) is None:
+                self.num_clients += 1
 
-        self.Duals[client_id] = copy.deepcopy(self.model.state_dict())
+            self.Duals[client_id] = copy.deepcopy(self.model.state_dict())
 
-        for param in self.Duals[client_id]:
-            self.Duals[client_id][param].requires_grad = False
+            for param in self.Duals[client_id]:
+                self.Duals[client_id][param].requires_grad = False
 
-        self.LocalModelParams[client_id] = None
+            self.LocalModelParams[client_id] = None
 
-        for node in node_info:
-            neighbours = self.get_predecessors(graph, node)
+            for node in communicate_node_index:
+                neighbours = self.get_predecessors(graph, node)
 
-            temp = [
-                random.choices([0, 1], [1 - self.sample_probab, self.sample_probab])[0]
-                for j in range(len(neighbours))
-            ]
+                temp = [
+                    random.choices(
+                        [0, 1], [1 - self.sample_probab, self.sample_probab]
+                    )[0]
+                    for j in range(len(neighbours))
+                ]
 
-            neigh = [neighbours[j] for j in range(len(neighbours)) if temp[j] == 1]
+                neigh = [neighbours[j] for j in range(len(neighbours)) if temp[j] == 1]
 
-            if len(neigh) < 2:
-                neigh = [j for j in neighbours]
+                if len(neigh) < 2:
+                    neigh = [j for j in neighbours]
 
-            num = len(neigh)
+                num = len(neigh)
 
-            orth_vec = MatGen(num)
+                orth_vec = MatGen(num)
 
-            M1 = np.zeros((self.in_feat, 2 * num, 2 * num))
-            M2 = np.zeros((self.in_feat, 2 * num, 2 * num))
-            Q2 = np.zeros((2 * num, self.in_feat))
-            Q1 = 2 * np.sum(orth_vec[0:num, :], axis=0)
+                M1 = np.zeros((self.in_feat, 2 * num, 2 * num))
+                M2 = np.zeros((self.in_feat, 2 * num, 2 * num))
+                Q2 = np.zeros((2 * num, self.in_feat))
+                Q1 = 2 * np.sum(orth_vec[0:num, :], axis=0)
 
-            main_node_feat = self.feats[node, :].detach().cpu().numpy()
+                main_node_feat = self.feats[node, :].detach().cpu().numpy()
 
-            for j in range(len(neigh)):
-                node_id = neigh[j]
-                node_feat = self.feats[node_id, :].detach().cpu().numpy()
+                for j in range(len(neigh)):
+                    node_id = neigh[j]
+                    node_feat = self.feats[node_id, :].detach().cpu().numpy()
 
-                Q2 += np.outer(orth_vec[j, :], node_feat)
+                    Q2 += np.outer(orth_vec[j, :], node_feat)
 
-                for d in range(self.in_feat):
-                    M1[d, :, :] += (
-                        main_node_feat[d]
-                        * 0.5
-                        * (
-                            np.outer(orth_vec[j, :], orth_vec[j, :])
-                            + np.outer(orth_vec[j + num, :], orth_vec[j + num, :])
-                            + 4 * np.outer(orth_vec[j, :], orth_vec[j + num, :])
-                            + 0.25 * np.outer(orth_vec[j + num, :], orth_vec[j, :])
+                    for d in range(self.in_feat):
+                        M1[d, :, :] += (
+                            main_node_feat[d]
+                            * 0.5
+                            * (
+                                np.outer(orth_vec[j, :], orth_vec[j, :])
+                                + np.outer(orth_vec[j + num, :], orth_vec[j + num, :])
+                                + 4 * np.outer(orth_vec[j, :], orth_vec[j + num, :])
+                                + 0.25 * np.outer(orth_vec[j + num, :], orth_vec[j, :])
+                            )
                         )
-                    )
 
-                    M2[d, :, :] += (
-                        node_feat[d]
-                        * 0.5
-                        * (
-                            np.outer(orth_vec[j, :], orth_vec[j, :])
-                            + np.outer(orth_vec[j + num, :], orth_vec[j + num, :])
-                            + 4 * np.outer(orth_vec[j, :], orth_vec[j + num, :])
-                            + 0.25 * np.outer(orth_vec[j + num, :], orth_vec[j, :])
+                        M2[d, :, :] += (
+                            node_feat[d]
+                            * 0.5
+                            * (
+                                np.outer(orth_vec[j, :], orth_vec[j, :])
+                                + np.outer(orth_vec[j + num, :], orth_vec[j + num, :])
+                                + 4 * np.outer(orth_vec[j, :], orth_vec[j + num, :])
+                                + 0.25 * np.outer(orth_vec[j + num, :], orth_vec[j, :])
+                            )
                         )
-                    )
 
-            return_info[node] = [
-                torch.from_numpy(M1).float().to(device=device),
-                torch.from_numpy(M2).float().to(device=device),
-                torch.from_numpy(Q1).float().to(device=device),
-                torch.from_numpy(Q2).float().to(device=device),
-            ]
+                return_info[node] = [
+                    torch.from_numpy(M1).float().to(device=device),
+                    torch.from_numpy(M2).float().to(device=device),
+                    torch.from_numpy(Q1).float().to(device=device),
+                    torch.from_numpy(Q2).float().to(device=device),
+                ]
 
-        count = 0
-        for node in return_info:
-            for j in range(len(return_info[node])):
-                count += torch.numel(return_info[node][j])
-                return_info[node][j].to(device=device)
+            count = 0
+            for node in return_info:
+                for j in range(len(return_info[node])):
+                    count += torch.numel(return_info[node][j])
+                    return_info[node][j].to(device=device)
 
-        self.total_communicate += count
+            self.total_communicate += count
 
-        return return_info
+            # return_info
+            self.trainers[client_id].setNodeMats.remote(return_info)
 
     def _calculate_matrix(self, node_feat, orth_vec, j):
         num = orth_vec.shape[0] // 2
@@ -696,9 +702,15 @@ class Server_GAT:
         """
         print("Global parameter update")
         with torch.no_grad():
-            self.LocalModelParams = {
-                client_id: self.trainers[client_id].model.state_dict()
+            futures = [
+                self.trainers[client_id].get_model_state_dict.remote()
                 for client_id in range(len(self.trainers))
+            ]
+
+            results = ray.get(futures)
+
+            self.LocalModelParams = {
+                client_id: results[client_id] for client_id in range(len(self.trainers))
             }
 
             for param in self.GATModelParams:

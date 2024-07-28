@@ -1253,6 +1253,9 @@ class Trainer_GAT:
             device,
         ).to(device=device)
 
+    def get_model_state_dict(self):
+        return self.model.state_dict()
+
     def update_params(self, params, current_global_epoch):
         """
         Update the model parameters with global parameters received from the server.

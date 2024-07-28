@@ -82,7 +82,8 @@ for i in range(args.n_trainer):
 
 # Device setup
 device = torch.device("cuda" if args.gpu else "cpu")
-print(f"normalized_features.shape[1]: {normalized_features.shape[1]}")
+print(f"device: {device}")
+# print(f"normalized_features.shape[1]: {normalized_features.shape[1]}")
 
 
 # tr_indexes = [[] for _ in range(args.n_trainer)]
@@ -101,6 +102,7 @@ print(f"normalized_features.shape[1]: {normalized_features.shape[1]}")
     in_com_test_node_indexes,
     in_com_val_node_indexes,
     edge_indexes_clients,
+    in_com_labels,
 ) = get_in_comm_indexes(
     edge_index,
     split_node_indexes,
@@ -109,44 +111,93 @@ print(f"normalized_features.shape[1]: {normalized_features.shape[1]}")
     idx_train,
     idx_test,
     idx_val,
+    one_hot_labels,
 )
+ray.init()
 
 
-# Initialize Clients
-clients = []
-for client_id, node_indices in enumerate(split_node_indexes):
-    # print("current generating client:")
-    # print(f"clientId: {client_id}")
-    # print(f"node_indices: {node_indices}")
-    # split graph and then transfer the subgraph to each client based on split index
-    subgraph = data.subgraph(communicate_node_indexes[client_id])
-    # print(
-    #     f"communicate_node_indexes[client_id]: {communicate_node_indexes[client_id]}")
-    # print(
-    #     f"in_com_train_node_indexes[client_id]: {in_com_train_node_indexes[client_id]}"
-    # )
-    # print(
-    #     f"in_com_val_node_indexes[client_id]: {in_com_val_node_indexes[client_id]}")
-    # print(
-    #     f"in_com_test_node_indexes[client_id]: {in_com_test_node_indexes[client_id]}")
-    print(
-        f"len(communicate_node_indexes[i]): {len(communicate_node_indexes[i])}")
-    print(one_hot_labels.size())
-    # client initialization
-    client = Trainer_GAT(
+@ray.remote(
+    num_gpus=0,
+    num_cpus=0.2,
+    scheduling_strategy="SPREAD",
+)
+class Trainer(Trainer_GAT):
+    def __init__(
+        self,
+        client_id,
+        subgraph,
+        node_indexes,
+        train_indexes,
+        val_indexes,
+        test_indexes,
+        labels,
+        features_shape,
+        args,
+        device,
+    ):
+        super().__init__(  # type: ignore
+            client_id=client_id,
+            subgraph=subgraph,
+            node_indexes=node_indexes,
+            train_indexes=train_indexes,
+            val_indexes=val_indexes,
+            test_indexes=test_indexes,
+            labels=labels,
+            features_shape=features_shape,
+            args=args,
+            device=device,
+        )
+
+
+clients = [
+    Trainer.remote(
         client_id=client_id,
-        subgraph=subgraph,
+        subgraph=data.subgraph(communicate_node_indexes[client_id]),
         node_indexes=communicate_node_indexes[client_id],
         train_indexes=in_com_train_node_indexes[client_id],
         val_indexes=in_com_val_node_indexes[client_id],
         test_indexes=in_com_test_node_indexes[client_id],
-        labels=one_hot_labels,
+        labels=in_com_labels[client_id],
         features_shape=normalized_features.shape[1],
         args=args,
         device=device,
     )
+    for client_id in range(len(split_node_indexes))
+]
+# for client_id, node_indices in enumerate(split_node_indexes):
+#     # print("current generating client:")
+#     # print(f"clientId: {client_id}")
+#     # print(f"node_indices: {node_indices}")
+#     # split graph and then transfer the subgraph to each client based on split index
+#     subgraph = data.subgraph(communicate_node_indexes[client_id])
+#     # print(
+#     #     f"communicate_node_indexes[client_id]: {communicate_node_indexes[client_id]}")
+#     # print(
+#     #     f"in_com_train_node_indexes[client_id]: {in_com_train_node_indexes[client_id]}"
+#     # )
+#     # print(
+#     #     f"in_com_val_node_indexes[client_id]: {in_com_val_node_indexes[client_id]}")
+#     # print(
+#     #     f"in_com_test_node_indexes[client_id]: {in_com_test_node_indexes[client_id]}")
+#     # print(
+#     #     f"len(communicate_node_indexes[i]): {len(communicate_node_indexes[i])}")
+#     # print(one_hot_labels.size())
 
-    clients.append(client)
+#     # client initialization
+#     client = Trainer_GAT(
+#         client_id=client_id,
+#         subgraph=subgraph,
+#         node_indexes=communicate_node_indexes[client_id],
+#         train_indexes=in_com_train_node_indexes[client_id],
+#         val_indexes=in_com_val_node_indexes[client_id],
+#         test_indexes=in_com_test_node_indexes[client_id],
+#         labels=in_com_labels[i],
+#         features_shape=normalized_features.shape[1],
+#         args=args,
+#         device=device,
+#     )
+
+#     clients.append(client)
 
 # Define Server
 server = Server_GAT(
@@ -162,46 +213,47 @@ server = Server_GAT(
 
 # Pre-training communication
 print("Pre-training communication initiated!")
-
-for client_id, communicate_node_index in enumerate(communicate_node_indexes):
-    # print(f"currentClientID:{client_id}")
-    # print(f"node_indexes size: {len(communicate_node_index)}")
-    ret_info = server.pretrain_communication(
-        client_id, communicate_node_index, data, device=args.device
-    )
-    # print("printing ret_info and subgraph size:")
-    # print(len(ret_info))
-    # print(clients[client_id].graph.size())
-    # the subgraph size is 1606 but the ret_info size is 1578
-    # IndexError: Encountered an index error. Please ensure that all indices in 'edge_index' point to valid indices in the interval [0, 1578] (got interval [0, 1606])
-    clients[client_id].setNodeMats(ret_info)
-    # print(f"client{client_id} have ret_info\n {ret_info}")
+server.pretrain_communication(
+    communicate_node_indexes, data, device=args.device)
+# for client_id, communicate_node_index in enumerate(communicate_node_indexes):
+#     # print(f"currentClientID:{client_id}")
+#     # print(f"node_indexes size: {len(communicate_node_index)}")
+#     ret_info = server.pretrain_communication(
+#         client_id, communicate_node_index, data, device=args.device
+#     )
+#     # print("printing ret_info and subgraph size:")
+#     # print(len(ret_info))
+#     # print(clients[client_id].graph.size())
+#     # the subgraph size is 1606 but the ret_info size is 1578
+#     # IndexError: Encountered an index error. Please ensure that all indices in 'edge_index' point to valid indices in the interval [0, 1578] (got interval [0, 1606])
+#     clients[client_id].setNodeMats(ret_info)
+#     # print(f"client{client_id} have ret_info\n {ret_info}")
 print("Pre-training communication completed!")
 
 # Federated Training
 print("Commenced training!")
 
-for client in clients:
-    client.from_server(server.GATModelParams, server.Duals)
-    client.train_model()
+[client.from_server.remote(server.GATModelParams, server.Duals)
+ for client in clients]
+[client.train_model.remote() for client in clients]
 
 print("Training initiated!")
 
 for t in range(server.train_rounds):
-    for client in clients:
-        client.train_iterate()
+    [client.train_iterate.remote() for client in clients]
 
     if (t + 1) % server.num_local_iters == 0:
         server.TrainingUpdate()
 
-    for client in clients:
-        client.from_server(server.GATModelParams, server.Duals)
+    [
+        client.from_server.remote(server.GATModelParams, server.Duals)
+        for client in clients
+    ]
 
 print("Training completed!")
 print("Testing now!")
 
-for client in clients:
-    client.model_test()
+[client.model_test.remote() for client in clients]
 
 print("Complete!")
 
