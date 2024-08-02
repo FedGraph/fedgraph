@@ -19,7 +19,7 @@ fedtype: fedgat
 global_rounds: 2 # 5
 local_step: 2
 learning_rate: 0.1
-n_trainer: 5
+n_trainer: 3
 num_layers: 2
 num_hops: 2
 gpu: false

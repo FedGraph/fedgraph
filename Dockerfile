@@ -9,7 +9,7 @@ RUN pip install torch
 
 # Copy only the requirements file to leverage caching
 COPY docker_requirements.txt .
-
+COPY wheels ./wheels
 # Install dependencies without using cache to reduce image size
 RUN pip install --no-cache-dir -r docker_requirements.txt
 
@@ -25,4 +25,4 @@ RUN pip install .
 COPY docs/examples /app/docs/examples
 
 # Specify the command to run the application
-CMD ["python", "/app/docs/examples/example_LP.py"]
+# CMD ["python", "/app/docs/examples/example_LP.py"]

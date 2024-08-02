@@ -78,7 +78,7 @@ kubectl port-forward service/raycluster-autoscaler-head-svc 8265:8265
 Forward Ports for Ray Dashboard, Prometheus, and Grafana
 
 ```bash
-kubectl port-forward raycluster-autoscaler-head-ts64s 8080:8080
+kubectl port-forward raycluster-autoscaler-head-n8jtm 8080:8080
 kubectl port-forward prometheus-prometheus-kube-prometheus-prometheus-0 -n prometheus-system 9090:9090
 kubectl port-forward deployment/prometheus-grafana -n prometheus-system 3000:3000
 ```
@@ -95,7 +95,7 @@ Submit a Ray Job:
 cd fedgraph
 ray job submit --runtime-env-json '{
   "working_dir": "./"
-}' --address http://localhost:8265 -- python docs/examples/intro_LP.py
+}' --address http://localhost:8265 -- python docs/examples/intro_FedGAT.py
 
 ```
 

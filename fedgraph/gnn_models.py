@@ -662,8 +662,8 @@ class FedGATConv(nn.Module):
         self.out_feat = out_feat
         self.max_deg = max_deg
 
-        self.att1 = nn.Parameter(torch.rand(in_feat))
-        self.att2 = nn.Parameter(torch.rand(in_feat))
+        self.att1 = nn.Parameter(torch.rand(in_feat)).to(device)
+        self.att2 = nn.Parameter(torch.rand(in_feat)).to(device)
         self.weight = nn.Parameter(torch.rand((in_feat, out_feat)))
 
         nn.init.uniform_(self.att1, a=-1.0, b=1.0)
@@ -712,6 +712,7 @@ class FedGATConv(nn.Module):
     #     return {'z' : edges.src['z'], 'e' : edges.data['e']}
 
     def forward(self, g, h):
+
         # for i in range(len(h)):
         #     for j, tensor in enumerate(h[i]):
         #         print(f"h[{i}][{j}] size: {tensor.size()}")

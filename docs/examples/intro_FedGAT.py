@@ -16,11 +16,18 @@ import sys
 import time
 from collections import deque
 from typing import Any
-
+import subprocess
+result = subprocess.run(['pip', 'list'], stdout=subprocess.PIPE, text=True)
+torch_versions = [line for line in result.stdout.split('\n') if 'torch' in line]
+for version in torch_versions:
+    print(version)
 import attridict
 import numpy as np
 import ray
 import torch
+print(sys.version)
+print(torch.__version__)
+print(torch.version.cuda)
 import yaml
 
 from fedgraph.data_process import FedGAT_load_data, FedGAT_load_data_100
@@ -81,7 +88,7 @@ for i in range(args.n_trainer):
 
 
 # Device setup
-device = torch.device("cuda" if args.gpu else "cpu")
+device = torch.device("cpu" if True else "cpu")
 print(f"device: {device}")
 # print(f"normalized_features.shape[1]: {normalized_features.shape[1]}")
 
@@ -119,7 +126,7 @@ ray.init()
 
 @ray.remote(
     num_gpus=0,
-    num_cpus=0.2,
+    num_cpus=0.1,
     scheduling_strategy="SPREAD",
 )
 class Trainer(Trainer_GAT):
@@ -211,7 +218,7 @@ clients = [
 #     )
 
 #     clients.append(client)
-
+edge_index = edge_index.to("cuda")
 # Define Server
 server = Server_GAT(
     graph=data,

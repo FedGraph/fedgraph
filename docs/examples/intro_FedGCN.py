@@ -73,7 +73,7 @@ else:
 row, col, edge_attr = adj.coo()
 edge_index = torch.stack([row, col], dim=0)
 
-num_cpus_per_client = 3
+num_cpus_per_client = 2
 # specifying a target GPU
 args.gpu = True  # Test
 print(f"gpu usage: {args.gpu}")
