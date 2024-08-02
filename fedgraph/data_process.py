@@ -3,6 +3,7 @@
 import pickle as pkl
 import random
 import sys
+import time
 from random import choices
 from typing import Any
 
@@ -369,7 +370,8 @@ def FedGAT_load_data(dataset_str: str) -> tuple:
     one_hot_labels = torch.zeros((labels.size()[0], NumClasses))
     for i in range(len(labels)):
         one_hot_labels[i, labels[i]] = 1.0
-
+    print(data)
+    # time.sleep(100)
     idx_train = data.train_mask.nonzero(as_tuple=False).squeeze()
     idx_val = data.val_mask.nonzero(as_tuple=False).squeeze()
     idx_test = data.test_mask.nonzero(as_tuple=False).squeeze()

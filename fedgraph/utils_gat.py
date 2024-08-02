@@ -26,46 +26,158 @@ def AttnFunction(x, gamma):
 
 
 def MatGen(num):
-    # Function to generate the orthogonal matrices needed to encode the features
-
-    A = np.random.uniform(low=0.0, high=3.0, size=(2 * num, 2 * num))
+    A = np.random.uniform(0.0, 5.0, (2 * num, 2 * num))
 
     A = np.matmul(A, A.T)
 
-    alpha = np.max(np.abs(np.linalg.eig(A)[0])) + 1.0
+    E = np.linalg.eig(A)[1].T
 
-    A += alpha * np.identity(2 * num)
-
-    orth = np.linalg.eig(A)[1].T
-
-    return orth
+    return E
 
 
 def FedGATLoss(
     LossFunc,
+    loss_weight,
     y_pred,
     y_true,
-    params,
+    Model,
     glob_params,
     dual_params,
     aug_lagrange_rho,
     dual_weight,
 ):
     v = LossFunc(y_pred, y_true)
-    # print("current in GAT loss")
 
-    # print("dual_params details:")
-    # for key, value in dual_params.items():
-    #     print(f"Key: {value}")
-    #     break
-    for p in params:
-        #     print(f"Parameter: {p}")
-        #     print(f"params[{p}]: {params[p]}")
-        #     print(f"glob_params[{p}]: {glob_params[p]}")
-        v += aug_lagrange_rho * torch.sum(
-            (glob_params[p] - params[p]) ** 2
-        ) + dual_weight * torch.sum(dual_params[p] * (glob_params[p] - params[p]))
+    # for p_id, p, dual in zip(
+    #     Model.parameters(), glob_params.parameters(), dual_params.parameters()
+    # ):
+    #     v += 0.5 * aug_lagrange_rho * torch.sum(
+    #         (p - p_id) ** 2
+    #     ) + dual_weight * torch.sum(dual * (p - p_id))
+    # v += 0. * dual_weight * torch.sum(dual * (p - p_id))
+
     return v
+
+
+def VecGen(feats1, feats2, num, dim, deg, fill_probab):
+    # Generate num vectors with dimension dim
+    # Generate keys for deg powers of the vectors
+
+    V = np.zeros((num, dim))
+
+    indices = {}
+
+    while len(indices) < num:
+        index = random.randint(0, dim - 1)
+
+        if index not in indices:
+            indices[index] = True
+
+    indices = [i for i in indices.keys()]
+
+    random.shuffle(indices)
+
+    indices = {indices[i]: i for i in range(len(indices))}
+
+    empty = np.array([i for i in range(dim) if i not in indices])
+
+    keys = np.zeros(len(empty), dtype=np.bool_)
+
+    for i in range(len(empty)):
+        keys[i] = random.choices([0, 1], [1 - fill_probab, fill_probab], k=1)[0]
+
+    chosen = empty[keys]
+
+    chosen = {chosen[i]: {} for i in range(len(chosen))}
+
+    # Now, assign each chosen index to at least 1 vector
+
+    for i in chosen:
+        # Decide how many vectors you want to assign it to
+
+        n = random.randint(0, num - 1)
+
+        while len(chosen[i]) < n:
+            vec_num = random.randint(0, num - 1)
+
+            if vec_num not in chosen[i]:
+                chosen[i][vec_num] = True
+
+    # Actually assigning numbers to the indices we have chosen!
+
+    for i in indices:
+        vec_num = indices[i]
+
+        V[vec_num, i] = np.random.uniform(0.5, 2.0)
+
+        b = random.choice([-1, 1])
+
+        V[vec_num, i] *= b
+
+    for i in chosen:
+        for j in chosen[i]:
+            V[j, i] = np.random.uniform(0.6, 2.0)
+
+            b = random.choice([-1, 1])
+
+            V[j, i] *= b
+
+    # Constructed the vectors; now construct the keys!
+
+    K = np.zeros((deg + 1, num, dim))
+
+    Priv_mask = np.zeros((deg + 1, 2, dim))
+
+    for d in range(deg + 1):
+        V_d = V**d
+
+        priv_mask_coeff_mat = np.zeros((V_d.shape[0] + 1, V_d.shape[1]))
+
+        for i in indices:
+            K[d, indices[i], i] = 1.0 / V_d[indices[i], i]
+
+            priv_mask_coeff_mat[indices[i], i] = V_d[indices[i], i]
+
+        priv_mask_coeff_mat[V_d.shape[0], :] = 1.0
+
+        priv_mask_res = np.zeros((V_d.shape[0] + 1, 2))
+
+        priv_mask_res[V_d.shape[0], 0] = 1.0
+        priv_mask_res[V_d.shape[0], 1] = -3.0
+
+        x = np.linalg.lstsq(priv_mask_coeff_mat, priv_mask_res, rcond=-1)[0]
+
+        for i in indices:
+            Priv_mask[d, 0, i] = x[i, 0]
+            Priv_mask[d, 1, i] = x[i, 1]
+
+    # Generated all the key vectors, masks
+    # Now, prepare the vectors necessary for GAT computations
+
+    M1 = np.zeros((feats1.shape[1], dim))
+
+    M2 = np.zeros((feats2.shape[1], dim))
+
+    K1 = np.zeros((deg + 1, dim, feats2.shape[1]))
+
+    K2 = np.zeros((deg + 1, dim))
+
+    for i in range(feats1.shape[0]):
+        M1 += np.outer(feats1[i, :], V[i, :])
+        M2 += np.outer(feats2[i, :], V[i, :])
+
+    for d in range(deg + 1):
+        for i in range(feats1.shape[0]):
+            K1[d, :, :] = np.outer(K[d, i, :], feats2[i, :])
+
+            K2[d, :] += K[d, i, :]
+
+        K1[d, :, :] += np.outer(
+            Priv_mask[d, 0, :], feats2[random.randint(0, feats2.shape[0] - 1), :]
+        )
+        K2[d, :] += Priv_mask[d, 1, :]
+
+    return M1, M2, K1, K2
 
 
 def label_dirichlet_partition(

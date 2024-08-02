@@ -8,12 +8,12 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 
 (Time estimate: 15 minutes)
 """
-
 import argparse
 import copy
 import os
 import random
 import sys
+import time
 from collections import deque
 from typing import Any
 
@@ -107,7 +107,8 @@ print(f"device: {device}")
     edge_index,
     split_node_indexes,
     args.n_trainer,
-    args.num_hops,
+    # args.num_hops,
+    1,
     idx_train,
     idx_test,
     idx_val,
@@ -147,10 +148,22 @@ class Trainer(Trainer_GAT):
             args=args,
             device=device,
         )
+        # print(f"client_id: {client_id}")
+        # print(f"subgraph: {subgraph}")
+        # print(f"node_indexes: {node_indexes} (size: {len(node_indexes)})")
+        # print(f"train_indexes: {train_indexes} (size: {len(train_indexes)})")
+        # print(f"val_indexes: {val_indexes} (size: {len(val_indexes)})")
+        # print(f"test_indexes: {test_indexes} (size: {len(test_indexes)})")
+        # print(f"labels: {labels} (size: {len(labels)})")
+        # print(f"features_shape: {features_shape}")
+        # print(f"args: {args}")
+        # print(f"device: {device}")
+        # time.sleep(100)
 
 
 clients = [
     Trainer.remote(
+        # Trainer(
         client_id=client_id,
         subgraph=data.subgraph(communicate_node_indexes[client_id]),
         node_indexes=communicate_node_indexes[client_id],
@@ -229,32 +242,45 @@ server.pretrain_communication(communicate_node_indexes, data, device=args.device
 #     # print(f"client{client_id} have ret_info\n {ret_info}")
 print("Pre-training communication completed!")
 
-# Federated Training
-print("Commenced training!")
+# # Federated Training
+# print("Commenced training!")
 
-[client.from_server.remote(server.GATModelParams, server.Duals) for client in clients]
-[client.train_model.remote() for client in clients]
+# [client.from_server.remote(server.GATModelParams, server.Duals) for client in clients]
+# [client.train_model.remote() for client in clients]
 
-print("Training initiated!")
+# print("Training initiated!")
 
-for t in range(server.train_rounds):
-    [client.train_iterate.remote() for client in clients]
+# for t in range(server.train_rounds):
+#     [client.train_iterate.remote() for client in clients]
 
-    if (t + 1) % server.num_local_iters == 0:
-        server.TrainingUpdate()
+#     if (t + 1) % server.num_local_iters == 0:
+#         server.TrainingUpdate()
 
-    [
-        client.from_server.remote(server.GATModelParams, server.Duals)
-        for client in clients
-    ]
+#     [
+#         client.from_server.remote(server.GATModelParams, server.Duals)
+#         for client in clients
+#     ]
 
-print("Training completed!")
-print("Testing now!")
+# print("Training completed!")
+# print("Testing now!")
 
-[client.model_test.remote() for client in clients]
+# [client.model_test.remote() for client in clients]
 
-print("Complete!")
+# print("Complete!")
 
-# Summarize Experiment Results
-# The server collects the local test loss and accuracy from all clients
-# then calculate the overall test loss and accuracy.
+# # Summarize Experiment Results
+# # The server collects the local test loss and accuracy from all clients
+# # then calculate the overall test loss and accuracy.
+GATModel = FedGATModel(
+    in_feat=features.shape[1],
+    out_feat=one_hot_labels.shape[1],
+    hidden_dim=args.hidden_dim,
+    num_head=args.num_heads,
+    max_deg=args.max_deg,
+    attn_func=args.attn_func_parameter,
+    domain=args.attn_func_domain,
+    device=device,
+)
+server.ResetAll(Model=GATModel)
+
+server.TrainCoordinate(GATModel)

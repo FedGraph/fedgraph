@@ -1216,9 +1216,10 @@ class Trainer_GAT:
         self.graph = subgraph
         self.node_indices = node_indexes
         self.index_map = {int(node): idx for idx, node in enumerate(node_indexes)}
-        self.train_mask = (train_indexes,)  # directly use index
-        self.validate_mask = (val_indexes,)  # directly use index
-        self.test_mask = (test_indexes,)  # directly use index
+        self.train_mask = train_indexes  # directly use index
+        self.validate_mask = val_indexes  # directly use index
+        self.test_mask = test_indexes  # directly use index
+        self.optim_kind = "Adam"
         self.labels = labels
         self.train_rounds = args.global_rounds
         self.num_local_iters = args.local_step
@@ -1252,9 +1253,14 @@ class Trainer_GAT:
             args.attn_func_domain,
             device,
         ).to(device=device)
+        self.node_mats = {}
+        self.loss_weight = 1.0
 
     def get_model_state_dict(self):
         return self.model.state_dict()
+
+    def get_model_parameters(self):
+        return self.model.parameters()
 
     def update_params(self, params, current_global_epoch):
         """
@@ -1272,73 +1278,195 @@ class Trainer_GAT:
             mp.data = p
         self.model.to(self.device)
 
+    def reset_initialzation(self, model, args):
+        self.model = model
+
+        self.train_rounds = args.train_rounds
+
+        self.num_local_iters = args.num_local_iters
+        self.dual_weight = args.dual_weight
+        self.aug_lagrange_rho = args.aug_lagrange_rho
+        self.dual_lr = args.dual_lr
+        self.model_lr = args.model_lr
+        self.model_regularisation = args.model_regularisation
+        self.optim_kind = args.optim_kind
+        self.momentum = args.momentum
+
+        self.train_model()
+        self.epoch = 0
+
     def setNodeMats(self, rec_info):
         self.node_mats = rec_info
+
+    def set_model(self, new_model):
+        self.model = new_model
+
+    def update_optim_kind(self, new_optim_kind):
+        self.optim_kind = new_optim_kind
+
+    def set_node_mats(self, node_mats, communicate_node_index):
+        for client_node_id, true_node_id in enumerate(communicate_node_index):
+            # true_node_id = self.trainers[id].graph.ndata['_ID'][nodes].item(
+            # )
+            print(true_node_id)
+            # TODO: true_node_id = self.clients[id].graph.ndata['_ID'][nodes].item()
+            self.node_mats[client_node_id] = node_mats[int(true_node_id)]
 
     def train_model(self):
         """
         Prepare the model and optimizer for training and adjust the node features.
         """
         self.model.to(self.device)
+        for p in self.model.parameters():
+            p.requires_grad = True
         self.model.train()
-        self.optimizer = torch.optim.Adam(
-            self.model.parameters(),
-            lr=self.model_lr,
-            weight_decay=self.model_regularisation,
-        )
+        self.OptimReset()
+        # self.optimizer = torch.optim.Adam(
+        #     self.model.parameters(),
+        #     lr=self.model_lr,
+        #     weight_decay=self.model_regularisation,
+        # )
         # print(
         #     f"printing self.node_indices(): {list(self.node_mats.keys())}")
         # print(self.node_mats.keys())
 
-        self.node_feats = [self.node_mats[i] for i in list(self.node_mats.keys())]
+        # self.node_feats = [self.node_mats[i]
+        #                    for i in list(self.node_mats.keys())]
         print(f"Client {self.client_id} ready for training!")
 
-    def from_server(self, global_params, duals):
-        """
-        Receive the global parameters and dual variables from the server.
-
-        Parameters
-        ----------
-        global_params : dict
-            Global parameters from the server.
-        duals : dict
-            Dual variables from the server.
-        """
+    def FromServer(self, global_params, duals):
         self.global_params = global_params
+
         self.duals = duals
+
+        with torch.no_grad():
+            for p, p_id in zip(
+                self.model.parameters(), self.global_params.parameters()
+            ):
+                p_id = p.clone()
+
+                p_id.requires_grad = True
+
+        # for p in self.global_params:
+
+        #     p.requires_grad = False
+
+        # for p in self.duals:
+
+        #     p.requires_grad = False
+
+    def OptimReset(self):  # This function is new
+        if self.optim_kind == "Adam":
+            self.Optim = torch.optim.Adam(
+                self.model.parameters(),
+                lr=self.model_lr,
+                weight_decay=self.model_regularisation,
+            )
+
+        elif self.optim_kind == "SGD":
+            self.Optim = torch.optim.SGD(
+                self.model.parameters(),
+                lr=self.model_lr,
+                weight_decay=self.model_regularisation,
+                momentum=self.momentum,
+                nesterov=True,
+            )
 
     def train_iterate(self):
         """
         Perform a single iteration of training, updating model parameters and computing training and validation metrics.
         """
-        self.model.train()
-        self.optimizer.zero_grad()
+        self.Optim.zero_grad()
         # print("priting in  def train_iterate(self):")
         # print(self.graph.size())
         # print(len(self.node_feats))
-        y_pred = self.model(self.graph, self.node_feats)
+        y_pred = self.model(self.graph, self.node_mats)
 
         # print("validating for loss size")
         # print(self.client_id)
         # print(y_pred.size())
         # print(self.tr_mask)
-        self.tr_loss = self._calculate_loss(
-            y_pred[self.train_mask], self.labels[self.train_mask]
+        t_loss = FedGATLoss(
+            self.loss_fn,
+            self.loss_weight,
+            y_pred[self.train_mask],
+            self.labels[self.train_mask],
+            self.model,
+            self.global_params,
+            self.duals,
+            self.aug_lagrange_rho,
+            self.dual_weight,
         )
-        self.tr_loss.backward()
-        self.optimizer.step()
 
-        self._update_metrics(y_pred)
+        t_loss.backward()
 
-    def model_test(self):
-        """
-        Evaluate the model on the test set and compute the test accuracy.
-        """
-        self.model.eval()
+        self.Optim.step()
+
         with torch.no_grad():
-            y_pred = self.model(self.graph, self.node_feats)[self.test_mask]
-            self.t_acc = self._calculate_accuracy(y_pred, self.labels[self.test_mask])
-            print(f"Client {self.client_id}: Test acc: {self.t_acc}")
+            v_loss = FedGATLoss(
+                self.loss_fn,
+                self.loss_weight,
+                y_pred[self.validate_mask],
+                self.labels[self.validate_mask],
+                self.model,
+                self.global_params,
+                self.duals,
+                self.aug_lagrange_rho,
+                self.dual_weight,
+            )
+
+            pred_labels = torch.argmax(y_pred, dim=1)
+            true_labels = torch.argmax(self.labels, dim=1)
+
+            self.t_acc = torch.sum(
+                pred_labels[self.train_mask] == true_labels[self.train_mask]
+            ) / len(self.train_mask)
+            self.v_acc = torch.sum(
+                pred_labels[self.validate_mask] == true_labels[self.validate_mask]
+            ) / len(self.validate_mask)
+            # print(pred_labels[:20])
+            # print(true_labels[:20])
+            # print(torch.sum(
+            #     pred_labels[self.train_mask] == true_labels[self.train_mask]
+            # ))
+            # print(len(self.train_mask))
+            # print(f"Size of y_pred: {y_pred.size()}")
+            # print(f"Size of labels: {self.labels.size()}")
+            # print(f"Size of train_mask: {self.train_mask.size()}")
+            # print(f"Size of validate_mask: {self.validate_mask.size()}")
+            # print(f"Size of pred_labels: {pred_labels.size()}")
+            # print(f"Size of true_labels: {true_labels.size()}")
+            print(
+                "Client {ID}: Epoch {ep}: Train loss: {t_loss}, Train acc: {t_acc}%, Val loss: {v_loss}, Val acc {v_acc}%".format(
+                    ID=self.client_id,
+                    ep=self.epoch,
+                    t_loss=t_loss,
+                    t_acc=100 * self.t_acc,
+                    v_loss=v_loss,
+                    v_acc=100 * self.v_acc,
+                )
+            )
+
+        self.epoch += 1
+
+    def get_sum_train_mask(self):
+        print(self.train_mask)
+        return self.train_mask.sum().item()
+
+    def ModelTest(self):
+        self.model.eval()
+
+        with torch.no_grad():
+            y_pred = self.model(self.graph, self.node_mats)[self.test_mask]
+
+            pred_labels = torch.argmax(y_pred, dim=1)
+            true_labels = torch.argmax(self.labels[self.test_mask], dim=1)
+
+            self.t_acc = torch.sum(pred_labels == true_labels) / torch.sum(
+                self.test_mask
+            )
+
+            print("Client {ID}: Test acc: {t_acc}".format(ID=self.id, t_acc=self.t_acc))
 
     def get_params(self):
         """

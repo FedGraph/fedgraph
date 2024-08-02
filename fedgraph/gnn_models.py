@@ -716,44 +716,79 @@ class FedGATConv(nn.Module):
         #     for j, tensor in enumerate(h[i]):
         #         print(f"h[{i}][{j}] size: {tensor.size()}")
 
+        # D = [
+        #     torch.sum(
+        #         self.att1.view(-1, 1, 1) * h[i][0] + self.att2.view(-1, 1, 1) * h[i][1],
+        #         dim=0,
+        #     )
+        #     for i in range(len(h))
+        # ]
+
+        # D_powers = [
+        #     torch.stack(
+        #         [torch.linalg.matrix_power(D[i], r) for r in range(self.max_deg + 1)]
+        #     )
+        #     for i in range(len(h))
+        # ]
+
+        # E = [
+        #     torch.matmul(
+        #         torch.matmul(
+        #             torch.matmul(
+        #                 h[i][2].t(),
+        #                 torch.sum(self.polycoeffs.view(-1, 1, 1) * D_powers[i], dim=0),
+        #             ),
+        #             h[i][3],
+        #         ),
+        #         self.weight,
+        #     )
+        #     for i in range(len(D_powers))
+        # ]
+
+        # F = [
+        #     torch.matmul(
+        #         torch.matmul(
+        #             h[i][2].t(),
+        #             torch.sum(self.polycoeffs.view(-1, 1, 1) * D_powers[i], dim=0),
+        #         ),
+        #         h[i][2],
+        #     )
+        #     for i in range(len(D_powers))
+        # ]
+
+        # z = torch.stack([E[i] / F[i] for i in range(len(E))])
+
+        # return z
         D = [
-            torch.sum(
-                self.att1.view(-1, 1, 1) * h[i][0] + self.att2.view(-1, 1, 1) * h[i][1],
-                dim=0,
-            )
+            torch.matmul(self.att1, h[i][0]) + torch.matmul(self.att2, h[i][1])
             for i in range(len(h))
         ]
 
-        D_powers = [
-            torch.stack(
-                [torch.linalg.matrix_power(D[i], r) for r in range(self.max_deg + 1)]
-            )
-            for i in range(len(h))
+        D_pow = [
+            [D[i] ** pow for pow in range(self.max_deg + 1)] for i in range(len(D))
         ]
 
         E = [
             torch.matmul(
-                torch.matmul(
-                    torch.matmul(
-                        h[i][2].t(),
-                        torch.sum(self.polycoeffs.view(-1, 1, 1) * D_powers[i], dim=0),
-                    ),
-                    h[i][3],
+                sum(
+                    [
+                        self.polycoeffs[j] * torch.matmul(D_pow[i][j], h[i][2][j, :, :])
+                        for j in range(self.max_deg + 1)
+                    ]
                 ),
                 self.weight,
             )
-            for i in range(len(D_powers))
+            for i in range(len(D_pow))
         ]
 
         F = [
-            torch.matmul(
-                torch.matmul(
-                    h[i][2].t(),
-                    torch.sum(self.polycoeffs.view(-1, 1, 1) * D_powers[i], dim=0),
-                ),
-                h[i][2],
+            sum(
+                [
+                    self.polycoeffs[j] * torch.dot(D_pow[i][j], h[i][3][j, :])
+                    for j in range(self.max_deg + 1)
+                ]
             )
-            for i in range(len(D_powers))
+            for i in range(len(D_pow))
         ]
 
         z = torch.stack([E[i] / F[i] for i in range(len(E))])
