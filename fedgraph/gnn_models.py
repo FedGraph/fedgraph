@@ -712,7 +712,6 @@ class FedGATConv(nn.Module):
     #     return {'z' : edges.src['z'], 'e' : edges.data['e']}
 
     def forward(self, g, h):
-
         # for i in range(len(h)):
         #     for j, tensor in enumerate(h[i]):
         #         print(f"h[{i}][{j}] size: {tensor.size()}")
