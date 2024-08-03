@@ -8,6 +8,27 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 
 (Time estimate: 15 minutes)
 """
+from fedgraph.utils_gat import (
+    CreateNodeSplit,
+    get_in_comm_indexes,
+    label_dirichlet_partition,
+)
+from fedgraph.trainer_class import Trainer_GAT
+from fedgraph.server_class import Server_GAT
+from fedgraph.gnn_models import (
+    GCN,
+    GNN_LP,
+    AggreGCN,
+    FedGATModel,
+    GCN_arxiv,
+    SAGE_products,
+)
+from fedgraph.data_process import FedGAT_load_data, FedGAT_load_data_100
+import yaml
+import torch
+import ray
+import numpy as np
+import attridict
 import argparse
 import copy
 import os
@@ -18,34 +39,14 @@ from collections import deque
 from typing import Any
 import subprocess
 result = subprocess.run(['pip', 'list'], stdout=subprocess.PIPE, text=True)
-torch_versions = [line for line in result.stdout.split('\n') if 'torch' in line]
+torch_versions = [line for line in result.stdout.split(
+    '\n') if 'torch' in line]
 for version in torch_versions:
     print(version)
-import attridict
-import numpy as np
-import ray
-import torch
 print(sys.version)
 print(torch.__version__)
 print(torch.version.cuda)
-import yaml
 
-from fedgraph.data_process import FedGAT_load_data, FedGAT_load_data_100
-from fedgraph.gnn_models import (
-    GCN,
-    GNN_LP,
-    AggreGCN,
-    FedGATModel,
-    GCN_arxiv,
-    SAGE_products,
-)
-from fedgraph.server_class import Server_GAT
-from fedgraph.trainer_class import Trainer_GAT
-from fedgraph.utils_gat import (
-    CreateNodeSplit,
-    get_in_comm_indexes,
-    label_dirichlet_partition,
-)
 
 # Seed initialization
 np.random.seed(42)
@@ -218,7 +219,7 @@ clients = [
 #     )
 
 #     clients.append(client)
-edge_index = edge_index.to("cuda")
+edge_index = edge_index.to(device)
 # Define Server
 server = Server_GAT(
     graph=data,
@@ -233,7 +234,8 @@ server = Server_GAT(
 
 # Pre-training communication
 print("Pre-training communication initiated!")
-server.pretrain_communication(communicate_node_indexes, data, device=args.device)
+server.pretrain_communication(
+    communicate_node_indexes, data, device=args.device)
 # for client_id, communicate_node_index in enumerate(communicate_node_indexes):
 #     # print(f"currentClientID:{client_id}")
 #     # print(f"node_indexes size: {len(communicate_node_index)}")
