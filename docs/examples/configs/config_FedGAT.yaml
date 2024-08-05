@@ -3,23 +3,23 @@ aug_lagrange_rho: 5.e-3
 model_lr: 0.1
 model_regularisation: 1.e-3
 dual_lr: 1.e-2
-num_local_iters: 400
+num_local_iters: 3400
 train_rounds: 1
 gamma: 0.2
 attn_func_parameter: 0.2
 # lambda x: AttnFunction(x, 0.2)
 attn_func_domain: [-5, 5, 500]
-sample_probab: 0.45
+sample_probab: 1
 hidden_dim: 8
 num_heads: 8
-max_deg: 6
+max_deg: 16
 
 dataset: cora
 fedtype: fedgat
 global_rounds: 2 # 5
 local_step: 2
 learning_rate: 0.1
-n_trainer: 3
+n_trainer: 5
 num_layers: 2
 num_hops: 2
 gpu: false

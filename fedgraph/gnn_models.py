@@ -655,15 +655,15 @@ class GNN_LP(torch.nn.Module):
 
 
 class FedGATConv(nn.Module):
-    def __init__(self, in_feat, out_feat, max_deg, att_func, att_func_domain, device):
+    def __init__(self, in_feat, out_feat, max_deg, att_func, att_func_domain):
         super(FedGATConv, self).__init__()
         self.att_func = lambda x: AttnFunction(x, att_func)
         self.in_feat = in_feat
         self.out_feat = out_feat
         self.max_deg = max_deg
 
-        self.att1 = nn.Parameter(torch.rand(in_feat)).to(device)
-        self.att2 = nn.Parameter(torch.rand(in_feat)).to(device)
+        self.att1 = nn.Parameter(torch.rand(in_feat))
+        self.att2 = nn.Parameter(torch.rand(in_feat))
         self.weight = nn.Parameter(torch.rand((in_feat, out_feat)))
 
         nn.init.uniform_(self.att1, a=-1.0, b=1.0)
@@ -686,7 +686,7 @@ class FedGATConv(nn.Module):
 
         polycoeffs = np.polynomial.chebyshev.cheb2poly(coeffs)
 
-        self.polycoeffs = torch.from_numpy(polycoeffs).float().to(device=device)
+        self.polycoeffs = torch.from_numpy(polycoeffs).float()
 
     # def edge_attention(self, edges):
 
@@ -712,86 +712,45 @@ class FedGATConv(nn.Module):
     #     return {'z' : edges.src['z'], 'e' : edges.data['e']}
 
     def forward(self, g, h):
-        # for i in range(len(h)):
-        #     for j, tensor in enumerate(h[i]):
-        #         print(f"h[{i}][{j}] size: {tensor.size()}")
 
-        # D = [
-        #     torch.sum(
-        #         self.att1.view(-1, 1, 1) * h[i][0] + self.att2.view(-1, 1, 1) * h[i][1],
-        #         dim=0,
-        #     )
-        #     for i in range(len(h))
-        # ]
+        #print(h.size(), self.weight.size())
 
-        # D_powers = [
-        #     torch.stack(
-        #         [torch.linalg.matrix_power(D[i], r) for r in range(self.max_deg + 1)]
-        #     )
-        #     for i in range(len(h))
-        # ]
+        # D = [torch.sum(self.att1.view(-1, 1, 1) * h[i][0] + self.att2.view(-1, 1, 1) * h[i][1], dim = 0) for i in range(len(h))]
 
-        # E = [
-        #     torch.matmul(
-        #         torch.matmul(
-        #             torch.matmul(
-        #                 h[i][2].t(),
-        #                 torch.sum(self.polycoeffs.view(-1, 1, 1) * D_powers[i], dim=0),
-        #             ),
-        #             h[i][3],
-        #         ),
-        #         self.weight,
-        #     )
-        #     for i in range(len(D_powers))
-        # ]
+        # D_powers = [torch.stack([torch.linalg.matrix_power(D[i], r) for r in range(self.max_deg + 1)]) for i in range(len(h))]
 
-        # F = [
-        #     torch.matmul(
-        #         torch.matmul(
-        #             h[i][2].t(),
-        #             torch.sum(self.polycoeffs.view(-1, 1, 1) * D_powers[i], dim=0),
-        #         ),
-        #         h[i][2],
-        #     )
-        #     for i in range(len(D_powers))
-        # ]
+        # E = [torch.matmul(torch.matmul(torch.matmul(h[i][2].t(), torch.sum(self.polycoeffs.view(-1, 1, 1) * D_powers[i], dim = 0)), h[i][3]), self.weight) for i in range(len(D_powers))]
 
-        # z = torch.stack([E[i] / F[i] for i in range(len(E))])
+        # F = [torch.matmul(torch.matmul(h[i][2].t(), torch.sum(self.polycoeffs.view(-1, 1, 1) * D_powers[i], dim = 0)), h[i][2]) for i in range(len(D_powers))]
 
-        # return z
-        D = [
-            torch.matmul(self.att1, h[i][0]) + torch.matmul(self.att2, h[i][1])
-            for i in range(len(h))
-        ]
+        # z = torch.stack([E[i]/F[i] for i in range(len(E))])
 
-        D_pow = [
-            [D[i] ** pow for pow in range(self.max_deg + 1)] for i in range(len(D))
-        ]
+        D = [(torch.matmul(self.att1, h[i][0]) + torch.matmul(self.att2, h[i][1]))/self.in_feat for i in range(len(h))]
 
-        E = [
-            torch.matmul(
-                sum(
-                    [
-                        self.polycoeffs[j] * torch.matmul(D_pow[i][j], h[i][2][j, :, :])
-                        for j in range(self.max_deg + 1)
-                    ]
-                ),
-                self.weight,
-            )
-            for i in range(len(D_pow))
-        ]
+        D_pow = [torch.stack([D[i] ** j for j in range(self.max_deg + 1)]) for i in range(len(D))]
 
-        F = [
-            sum(
-                [
-                    self.polycoeffs[j] * torch.dot(D_pow[i][j], h[i][3][j, :])
-                    for j in range(self.max_deg + 1)
-                ]
-            )
-            for i in range(len(D_pow))
-        ]
+        D_pow = [self.polycoeffs.view(self.polycoeffs.size()[0], -1) * D_pow[i] for i in range(len(D))]
 
-        z = torch.stack([E[i] / F[i] for i in range(len(E))])
+        Int_vec = [torch.sum(torch.matmul(D_pow[i].unsqueeze(1), h[i][4]).squeeze(1), dim = 0) for i in range(len(D))]
+
+        E = [torch.matmul(torch.matmul(Int_vec[i], h[i][3]), self.weight) for i in range(len(D))]
+
+        F = [torch.dot(Int_vec[i], h[i][2]) for i in range(len(D))]
+
+        z = torch.stack([E[i]/F[i] for i in range(len(D))])
+
+        return z
+    def forward_gpu(self, g, M1, M2, K1, K2):
+
+        D = torch.matmul(self.att1, M1) + torch.matmul(self.att2, M2)
+
+        D_pow = self.polycoeffs.view(1, self.polycoeffs.size()[0], -1) * torch.stack([D ** pow for pow in range(self.max_deg + 1)], dim = 1)
+
+        E = torch.matmul(torch.sum(torch.matmul(D_pow.unsqueeze(2), K1).squeeze(2), dim = 1), self.weight)
+
+        F = torch.sum(torch.sum(D_pow * K2, dim = 2), dim = 1)
+
+        z = E/F.unsqueeze(1)
 
         return z
 
@@ -883,23 +842,28 @@ class MultiHeadGATConv(nn.Module):
         self.merge = merge
 
     def forward(self, g, h):
+
         out = [L(g, h) for L in self.GATModules]
 
-        if self.merge == "cat":
+        if self.merge == 'cat':
+
             if self.activ != None:
-                return self.activ(torch.cat(out, dim=1))
+
+                return self.activ(torch.cat(out, dim = 1))
 
             else:
-                return torch.cat(out, dim=1)
+
+                return torch.cat(out, dim = 1)
 
         else:
+
             if self.activ != None:
-                return (
-                    self.activ(torch.sum(torch.cat(out, dim=1), dim=1)) / self.num_head
-                )
+
+                return self.activ(torch.sum(torch.cat(out, dim = 1), dim = 1))/self.num_head
 
             else:
-                return torch.sum(torch.cat(out, dim=1), dim=1) / self.num_head
+
+                return torch.sum(torch.cat(out, dim = 1), dim = 1)/self.num_head
 
 
 class MultiHeadFedGATConv(nn.Module):
@@ -911,7 +875,6 @@ class MultiHeadFedGATConv(nn.Module):
         max_deg,
         attn_func,
         attn_func_domain,
-        device,
         activation=None,
         merge="cat",
     ):
@@ -930,31 +893,58 @@ class MultiHeadFedGATConv(nn.Module):
         self.FedGATModules = nn.ModuleList(
             [
                 FedGATConv(
-                    in_feat, out_feat, max_deg, attn_func, attn_func_domain, device
+                    in_feat, out_feat, max_deg, attn_func, attn_func_domain
                 )
                 for i in range(num_head)
             ]
         )
 
     def forward(self, g, h):
-        out = [L(g, h) for L in self.FedGATModules]
 
-        if self.merge == "cat":
+        out = [L.forward(g, h) for L in self.FedGATModules]
+
+        if self.merge == 'cat':
+
             if self.activ != None:
-                return self.activ(torch.cat(out, dim=1))
+
+                return self.activ(torch.cat(out, dim = 1))
 
             else:
-                return torch.cat(out, dim=1)
+
+                return torch.cat(out, dim = 1)
 
         else:
+
             if self.activ != None:
-                return (
-                    self.activ(torch.sum(torch.cat(out, dim=1), dim=1)) / self.num_head
-                )
+
+                return self.activ(torch.sum(torch.cat(out, dim = 1), dim = 1))/self.num_head
 
             else:
-                return torch.sum(torch.cat(out, dim=1), dim=1) / self.num_head
 
+                return torch.sum(torch.cat(out, dim = 1), dim = 1)/self.num_head
+    def forward_gpu(self, g, M1, M2, K1, K2):
+
+        out = [L.forward_gpu(g, M1, M2, K1, K2) for L in self.FedGATModules]
+
+        if self.merge == 'cat':
+
+            if self.activ != None:
+
+                return self.activ(torch.cat(out, dim = 1))
+
+            else:
+
+                return torch.cat(out, dim = 1)
+
+        else:
+
+            if self.activ != None:
+
+                return self.activ(torch.sum(torch.cat(out, dim = 1), dim = 1))/self.num_head
+
+            else:
+
+                return torch.sum(torch.cat(out, dim = 1), dim = 1)/self.num_head
 
 class FedGATModel(nn.Module):
     def __init__(
@@ -966,7 +956,7 @@ class FedGATModel(nn.Module):
         max_deg,
         attn_func,
         domain,
-        device,
+
     ):
         super(FedGATModel, self).__init__()
         self.attn_func = lambda x: AttnFunction(x, attn_func)
@@ -981,7 +971,7 @@ class FedGATModel(nn.Module):
             max_deg,
             attn_func,
             domain,
-            device,
+
             activation=nn.ELU(),
         )
 
@@ -990,7 +980,18 @@ class FedGATModel(nn.Module):
         self.soft = nn.Softmax(dim=1)
 
     def forward(self, g, h):
-        z = self.GAT1(g, h)
+        z = self.GAT1.forward(g, h)
+        # print("printing: g.shape and z.shape")
+        # print(g.edge_index)
+        # print(z.size(0))
+
+        z = self.GAT2(z, g.edge_index)
+
+        z = self.soft(z)
+
+        return z
+    def forward_gpu(self, g, M1, M2, K1,K2):
+        z = self.GAT1.forward_gpu(g, M1, M2, K1, K2)
         # print("printing: g.shape and z.shape")
         # print(g.edge_index)
         # print(z.size(0))

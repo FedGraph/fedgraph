@@ -4,8 +4,8 @@ from typing import Any
 import numpy as np
 import torch
 import torch_geometric
-
-
+import ray
+from torch_geometric.utils import degree
 def CreateNodeSplit(graph: Any, num_clients: int) -> dict:
     nodes = [i for i in range(graph.num_nodes)]
     node_split = [random.randint(0, len(nodes)) for _ in range(num_clients - 1)]
@@ -59,125 +59,93 @@ def FedGATLoss(
     return v
 
 
-def VecGen(feats1, feats2, num, dim, deg, fill_probab):
-    # Generate num vectors with dimension dim
-    # Generate keys for deg powers of the vectors
-
-    V = np.zeros((num, dim))
+def VecGen(feats1, feats2, num, dim, deg):
+    V = np.random.uniform(-2, 2, (num, dim))
 
     indices = {}
 
     while len(indices) < num:
-        index = random.randint(0, dim - 1)
 
-        if index not in indices:
-            indices[index] = True
+        r = random.randint(0, dim - 1)
 
-    indices = [i for i in indices.keys()]
+        if indices.get(r, None) == None:
+            indices.update({r: True})
 
-    random.shuffle(indices)
+    index_list = [i for i in indices]
 
-    indices = {indices[i]: i for i in range(len(indices))}
+    random.shuffle(index_list)
 
-    empty = np.array([i for i in range(dim) if i not in indices])
+    Keys = np.zeros((num, dim))
 
-    keys = np.zeros(len(empty), dtype=np.bool_)
+    InterVec = np.zeros((deg + 1, num, dim))
 
-    for i in range(len(empty)):
-        keys[i] = random.choices([0, 1], [1 - fill_probab, fill_probab], k=1)[0]
+    for i in range(num):
 
-    chosen = empty[keys]
+        V[:, index_list[i]] = 0
 
-    chosen = {chosen[i]: {} for i in range(len(chosen))}
+        V[i, index_list[i]] = np.random.uniform(1, 3) * random.sample([-1, 1], 1)[0]
 
-    # Now, assign each chosen index to at least 1 vector
+        Keys[i, index_list[i]] = 1
 
-    for i in chosen:
-        # Decide how many vectors you want to assign it to
+        for j in range(deg + 1):
+            InterVec[j, :, index_list[i]] = 0.
 
-        n = random.randint(0, num - 1)
+            InterVec[j, i, index_list[i]] = 1 / V[i, index_list[i]] ** j
 
-        while len(chosen[i]) < n:
-            vec_num = random.randint(0, num - 1)
+    InterMat = np.zeros((deg + 1, dim, dim))
 
-            if vec_num not in chosen[i]:
-                chosen[i][vec_num] = True
+    for i in range(deg + 1):
 
-    # Actually assigning numbers to the indices we have chosen!
+        for j in range(num):
+            InterMat[i, :, :] += np.outer(InterVec[i, j, :], Keys[j, :])
 
-    for i in indices:
-        vec_num = indices[i]
+    temp1 = np.random.uniform(-5, 5, dim)
 
-        V[vec_num, i] = np.random.uniform(0.5, 2.0)
+    temp2 = np.random.uniform(-5, 5, dim)
 
-        b = random.choice([-1, 1])
+    temp3 = np.random.uniform(-5, 5, dim)
 
-        V[vec_num, i] *= b
+    mask1 = np.zeros(dim)
 
-    for i in chosen:
-        for j in chosen[i]:
-            V[j, i] = np.random.uniform(0.6, 2.0)
+    for i in range(num):
+        mask1 += Keys[i, :] * np.dot(Keys[i, :], temp1) / np.dot(Keys[i, :], Keys[i, :])
 
-            b = random.choice([-1, 1])
+    mask1 = temp1 - mask1
 
-            V[j, i] *= b
+    for i in range(deg + 1):
+        InterMat[i, :, :] += np.random.uniform(-2, 2) * np.outer(mask1, mask1)
 
-    # Constructed the vectors; now construct the keys!
+    mask2 = np.zeros(dim)
 
-    K = np.zeros((deg + 1, num, dim))
+    mask2 += np.dot(mask1, temp2) * mask1 / np.dot(mask1, mask1)
 
-    Priv_mask = np.zeros((deg + 1, 2, dim))
+    for i in range(num):
+        mask2 += Keys[i, :] * np.dot(Keys[i, :], temp2) / np.dot(Keys[i, :], Keys[i, :])
 
-    for d in range(deg + 1):
-        V_d = V**d
+    mask2 = temp2 - mask2
 
-        priv_mask_coeff_mat = np.zeros((V_d.shape[0] + 1, V_d.shape[1]))
+    K1 = np.zeros(dim)
 
-        for i in indices:
-            K[d, indices[i], i] = 1.0 / V_d[indices[i], i]
+    for i in range(num):
+        K1 += Keys[i, :]
 
-            priv_mask_coeff_mat[indices[i], i] = V_d[indices[i], i]
+    K1 += np.random.uniform(1, 4) * mask2
 
-        priv_mask_coeff_mat[V_d.shape[0], :] = 1.0
+    K2 = np.zeros((dim, feats1.shape[1]))
 
-        priv_mask_res = np.zeros((V_d.shape[0] + 1, 2))
+    for i in range(num):
+        K2 += np.outer(Keys[i, :], feats2[i, :])
 
-        priv_mask_res[V_d.shape[0], 0] = 1.0
-        priv_mask_res[V_d.shape[0], 1] = -3.0
-
-        x = np.linalg.lstsq(priv_mask_coeff_mat, priv_mask_res, rcond=-1)[0]
-
-        for i in indices:
-            Priv_mask[d, 0, i] = x[i, 0]
-            Priv_mask[d, 1, i] = x[i, 1]
-
-    # Generated all the key vectors, masks
-    # Now, prepare the vectors necessary for GAT computations
+    K2 += np.random.uniform(1, 3) * np.outer(mask2, feats2[random.randint(0, num - 1), :])
 
     M1 = np.zeros((feats1.shape[1], dim))
-
     M2 = np.zeros((feats2.shape[1], dim))
 
-    K1 = np.zeros((deg + 1, dim, feats2.shape[1]))
-
-    K2 = np.zeros((deg + 1, dim))
-
-    for i in range(feats1.shape[0]):
+    for i in range(num):
         M1 += np.outer(feats1[i, :], V[i, :])
         M2 += np.outer(feats2[i, :], V[i, :])
 
-    for d in range(deg + 1):
-        for i in range(feats1.shape[0]):
-            K1[d, :, :] = np.outer(K[d, i, :], feats2[i, :])
-
-            K2[d, :] += K[d, i, :]
-
-        K1[d, :, :] += np.outer(
-            Priv_mask[d, 0, :], feats2[random.randint(0, feats2.shape[0] - 1), :]
-        )
-        K2[d, :] += Priv_mask[d, 1, :]
-
-    return M1, M2, K1, K2
+    return M1, M2, K1, K2, InterMat
 
 
 def label_dirichlet_partition(
@@ -385,3 +353,78 @@ def get_in_comm_indexes(
         edge_indexes_clients,
         in_com_labels,
     )
+
+
+@ray.remote(
+    num_cpus=2,
+    scheduling_strategy="SPREAD",
+)
+def compute_node_matrix(index_list, graph, device, feats, sample_probab, max_deg):
+    node_mats = {}
+    d = feats.size()[1]
+    degrees = compute_degrees(graph.edge_index, graph.num_nodes)
+
+    max_degree = degrees.max().item()
+    print("The maximum degree is:", max_degree)
+    max_degree = int(sample_probab * max_degree)
+
+    for node in index_list:
+        print(node)
+        neighbours = get_predecessors(graph, node)
+
+        sampled_bool = np.array(
+            [
+                random.choices(
+                    [0, 1], [1 - sample_probab, sample_probab], k=1
+                )[0]
+                for j in range(len(neighbours))
+            ]
+        )
+
+        sampled_bool = torch.from_numpy(sampled_bool).to(device=device).bool()
+        sampled_neigh = neighbours[sampled_bool]
+
+        if len(sampled_neigh) < 2:
+            sampled_neigh = neighbours
+        elif device == torch.device("cuda"):
+            if len(sampled_neigh) > max_degree:
+                sampled_neigh = random.sample(list(sampled_neigh), max_degree)
+
+        feats1 = np.zeros((len(sampled_neigh), d))
+        feats2 = np.zeros((len(sampled_neigh), d))
+
+        for i in range(len(sampled_neigh)):
+            feats1[i, :] = feats[node, :].cpu().detach().numpy()
+            feats2[i, :] = feats[sampled_neigh[i].item(), :].cpu().detach().numpy()
+
+            if device == torch.device("cuda"):
+                dim = max_degree
+            else:
+                dim = 2 * len(sampled_neigh)
+
+            M1, M2, K1, K2 = VecGen(
+                feats1,
+                feats2,
+                len(sampled_neigh),
+                dim,
+                max_deg,
+                0.6,
+            )
+            print(torch.from_numpy(M1).float().size())
+
+        node_mats[node] = [
+            torch.from_numpy(M1).float().to(device=device),
+            torch.from_numpy(M2).float().to(device=device),
+            torch.from_numpy(K1).float().to(device=device),
+            torch.from_numpy(K2).float().to(device=device),
+        ]
+    return node_mats
+def compute_degrees(edge_index, num_nodes):
+    row, col = edge_index
+    deg = degree(row, num_nodes=num_nodes)
+    return deg
+def get_predecessors(data, node):
+    edge_index = data.edge_index
+    mask = edge_index[1] == node
+    predecessors = edge_index[0, mask]
+    return predecessors

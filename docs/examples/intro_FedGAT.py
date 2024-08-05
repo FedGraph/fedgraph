@@ -118,7 +118,7 @@ print(f"device: {device}")
     split_node_indexes,
     args.n_trainer,
     # args.num_hops,
-    1,
+    0,
     idx_train,
     idx_test,
     idx_val,
@@ -129,7 +129,7 @@ ray.init()
 
 @ray.remote(
     num_gpus=0,
-    num_cpus=0.1,
+    num_cpus=12,
     scheduling_strategy="SPREAD",
 )
 class Trainer(Trainer_GAT):
@@ -223,8 +223,19 @@ clients = [
 #     clients.append(client)
 edge_index = edge_index.to(device)
 # Define Server
+GATModel = FedGATModel(
+    in_feat=features.shape[1],
+    out_feat=one_hot_labels.shape[1],
+    hidden_dim=args.hidden_dim,
+    num_head=args.num_heads,
+    max_deg=args.max_deg,
+    attn_func=args.attn_func_parameter,
+    domain=args.attn_func_domain,
+
+).to(device=device)
 server = Server_GAT(
     graph=data,
+    model=GATModel,
     feats=features,
     labels=one_hot_labels,
     feature_dim=features.shape[1],
@@ -281,16 +292,8 @@ print("Pre-training communication completed!")
 # # Summarize Experiment Results
 # # The server collects the local test loss and accuracy from all clients
 # # then calculate the overall test loss and accuracy.
-GATModel = FedGATModel(
-    in_feat=features.shape[1],
-    out_feat=one_hot_labels.shape[1],
-    hidden_dim=args.hidden_dim,
-    num_head=args.num_heads,
-    max_deg=args.max_deg,
-    attn_func=args.attn_func_parameter,
-    domain=args.attn_func_domain,
-    device=device,
-)
-server.ResetAll(Model=GATModel)
+
+# server.ResetAll()
 
 server.TrainCoordinate(GATModel)
+ray.shutdown()

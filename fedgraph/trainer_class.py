@@ -1251,11 +1251,14 @@ class Trainer_GAT:
             args.max_deg,
             args.attn_func_parameter,
             args.attn_func_domain,
-            device,
         ).to(device=device)
         self.node_mats = {}
         self.loss_weight = 1.0
         self.graph.to(device=self.device)
+        self.M1 = None
+        self.M2 = None
+        self.K1 = None
+        self.K2 = None
 
     def get_model_state_dict(self):
         return self.model.state_dict()
@@ -1292,10 +1295,24 @@ class Trainer_GAT:
         self.model_regularisation = args.model_regularisation
         self.optim_kind = args.optim_kind
         self.momentum = args.momentum
+        self.glob_comm = args.glob_comm
 
+        self.optim_reset = args.optim_reset
+        self.handle_optim_reset()
         self.train_model()
         self.epoch = 0
 
+    def handle_optim_reset(self):
+
+        if self.optim_kind == 'Adam':
+
+            self.Optim = torch.optim.Adam(self.model.parameters(), lr=self.model_lr,
+                                          weight_decay=self.model_regularisation)
+
+        elif self.optim_kind == 'SGD':
+
+            self.Optim = torch.optim.SGD(self.model.parameters(), lr=self.model_lr,
+                                         weight_decay=self.model_regularisation, momentum=self.momentum, nesterov=True)
     def setNodeMats(self, rec_info):
         self.node_mats = rec_info
         self.node_mats.to(self.device)
@@ -1307,14 +1324,17 @@ class Trainer_GAT:
     def update_optim_kind(self, new_optim_kind):
         self.optim_kind = new_optim_kind
 
-    def set_node_mats(self, node_mats, communicate_node_index):
-        for client_node_id, true_node_id in enumerate(communicate_node_index):
-            # true_node_id = self.trainers[id].graph.ndata['_ID'][nodes].item(
-            # )
-            print(true_node_id)
-            # TODO: true_node_id = self.clients[id].graph.ndata['_ID'][nodes].item()
-            self.node_mats[client_node_id] = node_mats[int(true_node_id)]
+    # def set_node_mats(self, node_mats, communicate_node_index):
+    #     for client_node_id, true_node_id in enumerate(communicate_node_index):
+    #         # true_node_id = self.trainers[id].graph.ndata['_ID'][nodes].item(
+    #         # )
+    #         print(true_node_id)
+    #         # TODO: true_node_id = self.clients[id].graph.ndata['_ID'][nodes].item()
+    #         self.node_mats[client_node_id] = node_mats[int(true_node_id)]
 
+    def set_node_mats(self, node_mats):
+        for client_node_id, mat in enumerate(node_mats):
+            self.node_mats[client_node_id] = mat
     def train_model(self):
         """
         Prepare the model and optimizer for training and adjust the node features.
@@ -1335,6 +1355,16 @@ class Trainer_GAT:
 
         # self.node_feats = [self.node_mats[i]
         #                    for i in list(self.node_mats.keys())]
+        if self.device == torch.device("cuda"):
+
+            if self.M1 == None:
+
+            #Stacking all the matrices correctly
+
+                self.M1 = torch.stack([self.node_mats[i][0] for i in range(len(self.node_mats))]).to(device = self.device)
+                self.M2 = torch.stack([self.node_mats[i][1] for i in range(len(self.node_mats))]).to(device = self.device)
+                self.K1 = torch.stack([self.node_mats[i][2] for i in range(len(self.node_mats))]).to(device = self.device)
+                self.K2 = torch.stack([self.node_mats[i][3] for i in range(len(self.node_mats))]).to(device = self.device)
         print(f"Client {self.client_id} ready for training!")
 
     def FromServer(self, global_params, duals):
@@ -1383,7 +1413,10 @@ class Trainer_GAT:
         # print("priting in  def train_iterate(self):")
         # print(self.graph.size())
         # print(len(self.node_feats))
-        y_pred = self.model(self.graph, self.node_mats)
+        if self.device == torch.device("cuda"):
+            y_pred = self.model.forward_gpu(self.graph, self.M1, self.M2, self.K1, self.K2)
+        else:
+            y_pred = self.model.forward(self.graph, self.node_mats)
 
         # print("validating for loss size")
         # print(self.client_id)

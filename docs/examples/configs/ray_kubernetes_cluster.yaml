@@ -52,14 +52,14 @@ spec:
             # resource accounting. K8s requests are not used by Ray.
             resources:
               limits:
-                cpu: "2"
-                memory: "10Gi"
-                nvidia.com/gpu: "1"
+                cpu: "30"
+                memory: "100Gi"
+                # nvidia.com/gpu: "1"
 
               requests:
-                cpu: "1"
-                memory: "10Gi"
-                nvidia.com/gpu: "1"
+                cpu: "30"
+                memory: "100Gi"
+                # nvidia.com/gpu: "1"
             env:
               - name: CPU_REQUEST
                 valueFrom:
@@ -112,9 +112,9 @@ spec:
                   command: ["/bin/sh", "-c", "ray stop"]
   workerGroupSpecs:
     # the pod replicas in this group typed worker
-    - replicas: 3
-      minReplicas: 3
-      maxReplicas: 3
+    - replicas: 5
+      minReplicas: 5
+      maxReplicas: 5
       # logical group name, for this called large-group, also can be functional
       groupName: large-group
       # if worker pods need to be added, we can simply increment the replicas
@@ -149,13 +149,13 @@ spec:
               # resource accounting. K8s requests are not used by Ray.
               resources:
                 limits:
-                  cpu: "2"
-                  memory: "10Gi"
-                  nvidia.com/gpu: "1"
+                  cpu: "12"
+                  memory: "50Gi"
+                  # nvidia.com/gpu: "1"
                 requests:
-                  cpu: "2"
-                  memory: "10Gi"
-                  nvidia.com/gpu: "1"
+                  cpu: "12"
+                  memory: "50Gi"
+                  # nvidia.com/gpu: "1"
               # environment variables to set in the container.Optional.
               # Refer to https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/
               env:
