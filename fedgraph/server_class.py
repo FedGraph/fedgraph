@@ -789,7 +789,7 @@ class Server_GAT:
                 # print(K1.size())
                 # print(K2.size())
 
-            self.node_mats[node] = [torch.from_numpy(M1).float().to(device = device), torch.from_numpy(M2).float().to(device = device), torch.from_numpy(K1).float().to(device = device), torch.from_numpy(K2).float().to(device = device)]
+            self.node_mats[node] = [torch.from_numpy(M1).float().to(device = device), torch.from_numpy(M2).float().to(device = device), torch.from_numpy(K1).float().to(device = device), torch.from_numpy(K2).float().to(device = device), torch.from_numpy(Inter).float().to(device = device)]
 
 
         self.distribute_mats(communicate_node_indexes)
@@ -951,7 +951,7 @@ class Server_GAT:
             S = self.Model.state_dict()
 
             for id in range(len(self.trainers)):
-                model_state_dict = ray.get(self.trainers[id].model.state_dict.remote())
+                model_state_dict = ray.get(self.trainers[id].get_model_state_dict.remote())
                 for p in S:
 
                     if self.glob_comm == 'FedAvg':
@@ -996,7 +996,7 @@ class Server_GAT:
                 for id in range(len(self.trainers)):
 
                     S = self.Duals[id].state_dict()
-                    model_state_dict = ray.get(self.trainers[id].model.state_dict.remote())
+                    model_state_dict = ray.get(self.trainers[id].get_model_state_dict.remote())
                     for p in S:
                         S[p] += self.dual_weight * self.dual_lr * self.model_loss_weights[id] * (
                                     self.Model.state_dict()[p] - model_state_dict[p])

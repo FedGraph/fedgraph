@@ -1424,6 +1424,7 @@ class Trainer_GAT:
         # print(self.tr_mask)
         t_loss = FedGATLoss(
             self.loss_fn,
+            self.glob_comm,
             self.loss_weight,
             y_pred[self.train_mask],
             self.labels[self.train_mask],
@@ -1441,6 +1442,7 @@ class Trainer_GAT:
         with torch.no_grad():
             v_loss = FedGATLoss(
                 self.loss_fn,
+                self.glob_comm,
                 self.loss_weight,
                 y_pred[self.validate_mask],
                 self.labels[self.validate_mask],

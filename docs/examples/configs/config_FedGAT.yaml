@@ -9,7 +9,7 @@ gamma: 0.2
 attn_func_parameter: 0.2
 # lambda x: AttnFunction(x, 0.2)
 attn_func_domain: [-5, 5, 500]
-sample_probab: 1
+sample_probab: 1.
 hidden_dim: 8
 num_heads: 8
 max_deg: 16
@@ -27,4 +27,6 @@ momentum: 0.0
 iid_beta: 10000
 logdir: ./runs
 device: cpu
-optim_kind: "Adam"
+optim_kind: Adam
+glob_comm : FedAvg
+optim_reset : False

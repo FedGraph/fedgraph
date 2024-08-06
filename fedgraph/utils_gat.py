@@ -35,26 +35,16 @@ def MatGen(num):
     return E
 
 
-def FedGATLoss(
-    LossFunc,
-    loss_weight,
-    y_pred,
-    y_true,
-    Model,
-    glob_params,
-    dual_params,
-    aug_lagrange_rho,
-    dual_weight,
-):
+def FedGATLoss(LossFunc, glob_comm, loss_weight, y_pred, y_true, Model, glob_params, dual_params, aug_lagrange_rho, dual_weight):
+
     v = LossFunc(y_pred, y_true)
 
-    # for p_id, p, dual in zip(
-    #     Model.parameters(), glob_params.parameters(), dual_params.parameters()
-    # ):
-    #     v += 0.5 * aug_lagrange_rho * torch.sum(
-    #         (p - p_id) ** 2
-    #     ) + dual_weight * torch.sum(dual * (p - p_id))
-    # v += 0. * dual_weight * torch.sum(dual * (p - p_id))
+    if glob_comm == 'ADMM':
+
+        for p_id, p, dual in zip(Model.parameters(), glob_params.parameters(), dual_params.parameters()):
+
+            v += 0.5 * aug_lagrange_rho * torch.sum((p - p_id) ** 2) + dual_weight * torch.sum(dual * (p - p_id))
+            # v += 0. * dual_weight * torch.sum(dual * (p - p_id))
 
     return v
 
