@@ -8,6 +8,7 @@ import ray
 import torch
 from dtaidistance import dtw
 from torch_geometric.utils import degree
+
 from fedgraph.gnn_models import (
     GCN,
     GNN_LP,
@@ -530,8 +531,6 @@ class Server_GAT:
 
         self.optim_kind = args.optim_kind
 
-
-
         for id in self.Duals:
             for p in self.Duals[id].parameters():
                 p.requires_grad = False
@@ -702,14 +701,16 @@ class Server_GAT:
         print("Starting pre-train communication!")
         refs = []
         for list in communicate_node_indexes:
-            refs.append(compute_node_matrix.remote(
-            index_list=list,
-            graph=graph,
-            device=device,
-            feats=self.feats,
-            sample_probab=self.sample_probab,
-            max_deg=self.max_deg
-        ))
+            refs.append(
+                compute_node_matrix.remote(
+                    index_list=list,
+                    graph=graph,
+                    device=device,
+                    feats=self.feats,
+                    sample_probab=self.sample_probab,
+                    max_deg=self.max_deg,
+                )
+            )
         results = ray.get(refs)
         for result in results:
             for node, node_mat in result.items():
@@ -759,11 +760,8 @@ class Server_GAT:
             if len(sampled_neigh) < 2:
                 sampled_neigh = neighbours
             elif self.device == torch.device("cuda"):
-
                 if len(sampled_neigh) > max_degree:
-
                     sampled_neigh = random.sample(list(sampled_neigh), max_degree)
-
 
             feats1 = np.zeros((len(sampled_neigh), d))
             feats2 = np.zeros((len(sampled_neigh), d))
@@ -789,28 +787,31 @@ class Server_GAT:
                 # print(K1.size())
                 # print(K2.size())
 
-            self.node_mats[node] = [torch.from_numpy(M1).float().to(device = device), torch.from_numpy(M2).float().to(device = device), torch.from_numpy(K1).float().to(device = device), torch.from_numpy(K2).float().to(device = device), torch.from_numpy(Inter).float().to(device = device)]
-
+            self.node_mats[node] = [
+                torch.from_numpy(M1).float().to(device=device),
+                torch.from_numpy(M2).float().to(device=device),
+                torch.from_numpy(K1).float().to(device=device),
+                torch.from_numpy(K2).float().to(device=device),
+                torch.from_numpy(Inter).float().to(device=device),
+            ]
 
         self.distribute_mats(communicate_node_indexes)
 
         # Assigned all the node matrices!
 
-
-
-    def compute_degrees(self,edge_index, num_nodes):
+    def compute_degrees(self, edge_index, num_nodes):
         row, col = edge_index
         deg = degree(row, num_nodes=num_nodes)
         return deg
 
-
     def distribute_mats(self, communicate_node_indexes):
         for id in range(len(self.trainers)):
-            trimmed_node_mats = [self.node_mats[int(true_node_id)] for true_node_id in communicate_node_indexes[id]]
+            trimmed_node_mats = [
+                self.node_mats[int(true_node_id)]
+                for true_node_id in communicate_node_indexes[id]
+            ]
 
-            self.trainers[id].set_node_mats.remote(
-                trimmed_node_mats
-            )
+            self.trainers[id].set_node_mats.remote(trimmed_node_mats)
 
     def _calculate_matrix(self, node_feat, orth_vec, j):
         num = orth_vec.shape[0] // 2
@@ -940,8 +941,6 @@ class Server_GAT:
 
     def TrainUpdate(self):  # Minr changes, but critical to algorithm working!
         with torch.no_grad():
-
-
             # Update global parameters
 
             old = copy.deepcopy(self.Model)
@@ -951,18 +950,20 @@ class Server_GAT:
             S = self.Model.state_dict()
 
             for id in range(len(self.trainers)):
-                model_state_dict = ray.get(self.trainers[id].get_model_state_dict.remote())
+                model_state_dict = ray.get(
+                    self.trainers[id].get_model_state_dict.remote()
+                )
                 for p in S:
-
-                    if self.glob_comm == 'FedAvg':
-
+                    if self.glob_comm == "FedAvg":
                         S[p] += self.model_loss_weights[id] * model_state_dict[p]
 
-                    elif self.glob_comm == 'ADMM':
-
+                    elif self.glob_comm == "ADMM":
                         S[p] += self.model_loss_weights[id] * (
-                                    model_state_dict[p] - self.dual_weight *
-                                    self.Duals[id].state_dict()[p] / self.aug_lagrange_rho)
+                            model_state_dict[p]
+                            - self.dual_weight
+                            * self.Duals[id].state_dict()[p]
+                            / self.aug_lagrange_rho
+                        )
 
             self.Model.load_state_dict(S)
 
@@ -980,7 +981,7 @@ class Server_GAT:
 
             #             p += self.model_loss_weights[id] * (p_id - self.dual_weight * dual / self.aug_lagrange_rho)
 
-            change = 0.
+            change = 0.0
 
             for p, p_old in zip(self.Model.parameters(), old.parameters()):
                 change += torch.sum((p - p_old) ** 2)
@@ -991,15 +992,19 @@ class Server_GAT:
 
             # Now update the dual variables
 
-            if self.glob_comm == 'ADMM':
-
+            if self.glob_comm == "ADMM":
                 for id in range(len(self.trainers)):
-
                     S = self.Duals[id].state_dict()
-                    model_state_dict = ray.get(self.trainers[id].get_model_state_dict.remote())
+                    model_state_dict = ray.get(
+                        self.trainers[id].get_model_state_dict.remote()
+                    )
                     for p in S:
-                        S[p] += self.dual_weight * self.dual_lr * self.model_loss_weights[id] * (
-                                    self.Model.state_dict()[p] - model_state_dict[p])
+                        S[p] += (
+                            self.dual_weight
+                            * self.dual_lr
+                            * self.model_loss_weights[id]
+                            * (self.Model.state_dict()[p] - model_state_dict[p])
+                        )
 
                     self.Duals[id].load_state_dict(S)
 
@@ -1013,10 +1018,9 @@ class Server_GAT:
 
             # Computing error in global and local model parameters
 
-            err = 0.
+            err = 0.0
 
             for id in range(len(self.trainers)):
-
                 P = list(self.Model.parameters())
                 PID = list(self.trainers[id].get_model_parameters.remote())
                 Duals = list(self.Duals[id].parameters())
@@ -1105,8 +1109,6 @@ class Server_GAT:
         print("Training completed!")
 
         return self.Model, self.Duals
-
-
 
 
 class Server_LP:

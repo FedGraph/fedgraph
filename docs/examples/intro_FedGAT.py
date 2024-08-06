@@ -8,14 +8,11 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 
 (Time estimate: 15 minutes)
 """
-import argparse
-import copy
+
 import os
-import random
+import time
 import subprocess
 import sys
-import time
-from collections import deque
 from typing import Any
 
 import attridict
@@ -24,30 +21,25 @@ import ray
 import torch
 import yaml
 
-from fedgraph.data_process import FedGAT_load_data, FedGAT_load_data_100
+from fedgraph.data_process import FedGAT_load_data, FedGAT_load_data_100, FedAT_load_data_test
 from fedgraph.gnn_models import (
-    GCN,
-    GNN_LP,
-    AggreGCN,
     FedGATModel,
-    GCN_arxiv,
-    SAGE_products,
 )
 from fedgraph.server_class import Server_GAT
 from fedgraph.trainer_class import Trainer_GAT
 from fedgraph.utils_gat import (
-    CreateNodeSplit,
     get_in_comm_indexes,
     label_dirichlet_partition,
 )
-
-result = subprocess.run(["pip", "list"], stdout=subprocess.PIPE, text=True)
-torch_versions = [line for line in result.stdout.split("\n") if "torch" in line]
-for version in torch_versions:
-    print(version)
-print(sys.version)
-print(torch.__version__)
-print(torch.version.cuda)
+# check env version
+# result = subprocess.run(["pip", "list"], stdout=subprocess.PIPE, text=True)
+# torch_versions = [line for line in result.stdout.split(
+#     "\n") if "torch" in line]
+# for version in torch_versions:
+#     print(version)
+# print(sys.version)
+# print(torch.__version__)
+# print(torch.version.cuda)
 
 
 # Seed initialization
@@ -66,7 +58,6 @@ with open(config_file, "r") as file:
 # Data Loading
 (
     data,
-    features,
     normalized_features,
     adj,
     labels,
@@ -74,7 +65,44 @@ with open(config_file, "r") as file:
     idx_train,
     idx_val,
     idx_test,
-) = FedGAT_load_data(args.dataset)
+) = FedAT_load_data_test("cora")
+print(data)
+
+(
+    data,
+    normalized_features,
+    adj,
+    labels,
+    one_hot_labels,
+    idx_train,
+    idx_val,
+    idx_test,
+) = FedAT_load_data_test(args.dataset)
+print(data)
+(
+    data,
+    normalized_features,
+    adj,
+    labels,
+    one_hot_labels,
+    idx_train,
+    idx_val,
+    idx_test,
+) = FedAT_load_data_test("ogbn-products")
+print(data)
+(
+    data,
+    normalized_features,
+    adj,
+    labels,
+    one_hot_labels,
+    idx_train,
+    idx_val,
+    idx_test,
+) = FedAT_load_data_test("siteseer")
+print(data)
+
+time.sleep(100)
 row, col, edge_attr = adj.coo()
 edge_index = torch.stack([row, col], dim=0)
 # Split Graph for Federated Learning
@@ -129,7 +157,7 @@ ray.init()
 
 @ray.remote(
     num_gpus=0,
-    num_cpus=12,
+    num_cpus=1,
     scheduling_strategy="SPREAD",
 )
 class Trainer(Trainer_GAT):
@@ -224,21 +252,20 @@ clients = [
 edge_index = edge_index.to(device)
 # Define Server
 GATModel = FedGATModel(
-    in_feat=features.shape[1],
+    in_feat=normalized_features.shape[1],
     out_feat=one_hot_labels.shape[1],
     hidden_dim=args.hidden_dim,
     num_head=args.num_heads,
     max_deg=args.max_deg,
     attn_func=args.attn_func_parameter,
     domain=args.attn_func_domain,
-
 ).to(device=device)
 server = Server_GAT(
     graph=data,
     model=GATModel,
-    feats=features,
+    feats=normalized_features,
     labels=one_hot_labels,
-    feature_dim=features.shape[1],
+    feature_dim=normalized_features.shape[1],
     class_num=one_hot_labels.shape[1],
     device=device,
     trainers=clients,
@@ -247,7 +274,8 @@ server = Server_GAT(
 
 # Pre-training communication
 print("Pre-training communication initiated!")
-server.pretrain_communication(communicate_node_indexes, data, device=args.device)
+server.pretrain_communication(
+    communicate_node_indexes, data, device=args.device)
 # for client_id, communicate_node_index in enumerate(communicate_node_indexes):
 #     # print(f"currentClientID:{client_id}")
 #     # print(f"node_indexes size: {len(communicate_node_index)}")

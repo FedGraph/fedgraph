@@ -1303,16 +1303,22 @@ class Trainer_GAT:
         self.epoch = 0
 
     def handle_optim_reset(self):
+        if self.optim_kind == "Adam":
+            self.Optim = torch.optim.Adam(
+                self.model.parameters(),
+                lr=self.model_lr,
+                weight_decay=self.model_regularisation,
+            )
 
-        if self.optim_kind == 'Adam':
+        elif self.optim_kind == "SGD":
+            self.Optim = torch.optim.SGD(
+                self.model.parameters(),
+                lr=self.model_lr,
+                weight_decay=self.model_regularisation,
+                momentum=self.momentum,
+                nesterov=True,
+            )
 
-            self.Optim = torch.optim.Adam(self.model.parameters(), lr=self.model_lr,
-                                          weight_decay=self.model_regularisation)
-
-        elif self.optim_kind == 'SGD':
-
-            self.Optim = torch.optim.SGD(self.model.parameters(), lr=self.model_lr,
-                                         weight_decay=self.model_regularisation, momentum=self.momentum, nesterov=True)
     def setNodeMats(self, rec_info):
         self.node_mats = rec_info
         self.node_mats.to(self.device)
@@ -1335,6 +1341,7 @@ class Trainer_GAT:
     def set_node_mats(self, node_mats):
         for client_node_id, mat in enumerate(node_mats):
             self.node_mats[client_node_id] = mat
+
     def train_model(self):
         """
         Prepare the model and optimizer for training and adjust the node features.
@@ -1356,15 +1363,21 @@ class Trainer_GAT:
         # self.node_feats = [self.node_mats[i]
         #                    for i in list(self.node_mats.keys())]
         if self.device == torch.device("cuda"):
-
             if self.M1 == None:
+                # Stacking all the matrices correctly
 
-            #Stacking all the matrices correctly
-
-                self.M1 = torch.stack([self.node_mats[i][0] for i in range(len(self.node_mats))]).to(device = self.device)
-                self.M2 = torch.stack([self.node_mats[i][1] for i in range(len(self.node_mats))]).to(device = self.device)
-                self.K1 = torch.stack([self.node_mats[i][2] for i in range(len(self.node_mats))]).to(device = self.device)
-                self.K2 = torch.stack([self.node_mats[i][3] for i in range(len(self.node_mats))]).to(device = self.device)
+                self.M1 = torch.stack(
+                    [self.node_mats[i][0] for i in range(len(self.node_mats))]
+                ).to(device=self.device)
+                self.M2 = torch.stack(
+                    [self.node_mats[i][1] for i in range(len(self.node_mats))]
+                ).to(device=self.device)
+                self.K1 = torch.stack(
+                    [self.node_mats[i][2] for i in range(len(self.node_mats))]
+                ).to(device=self.device)
+                self.K2 = torch.stack(
+                    [self.node_mats[i][3] for i in range(len(self.node_mats))]
+                ).to(device=self.device)
         print(f"Client {self.client_id} ready for training!")
 
     def FromServer(self, global_params, duals):
@@ -1414,7 +1427,9 @@ class Trainer_GAT:
         # print(self.graph.size())
         # print(len(self.node_feats))
         if self.device == torch.device("cuda"):
-            y_pred = self.model.forward_gpu(self.graph, self.M1, self.M2, self.K1, self.K2)
+            y_pred = self.model.forward_gpu(
+                self.graph, self.M1, self.M2, self.K1, self.K2
+            )
         else:
             y_pred = self.model.forward(self.graph, self.node_mats)
 

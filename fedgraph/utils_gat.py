@@ -2,10 +2,12 @@ import random
 from typing import Any
 
 import numpy as np
+import ray
 import torch
 import torch_geometric
-import ray
 from torch_geometric.utils import degree
+
+
 def CreateNodeSplit(graph: Any, num_clients: int) -> dict:
     nodes = [i for i in range(graph.num_nodes)]
     node_split = [random.randint(0, len(nodes)) for _ in range(num_clients - 1)]
@@ -35,15 +37,27 @@ def MatGen(num):
     return E
 
 
-def FedGATLoss(LossFunc, glob_comm, loss_weight, y_pred, y_true, Model, glob_params, dual_params, aug_lagrange_rho, dual_weight):
-
+def FedGATLoss(
+    LossFunc,
+    glob_comm,
+    loss_weight,
+    y_pred,
+    y_true,
+    Model,
+    glob_params,
+    dual_params,
+    aug_lagrange_rho,
+    dual_weight,
+):
     v = LossFunc(y_pred, y_true)
 
-    if glob_comm == 'ADMM':
-
-        for p_id, p, dual in zip(Model.parameters(), glob_params.parameters(), dual_params.parameters()):
-
-            v += 0.5 * aug_lagrange_rho * torch.sum((p - p_id) ** 2) + dual_weight * torch.sum(dual * (p - p_id))
+    if glob_comm == "ADMM":
+        for p_id, p, dual in zip(
+            Model.parameters(), glob_params.parameters(), dual_params.parameters()
+        ):
+            v += 0.5 * aug_lagrange_rho * torch.sum(
+                (p - p_id) ** 2
+            ) + dual_weight * torch.sum(dual * (p - p_id))
             # v += 0. * dual_weight * torch.sum(dual * (p - p_id))
 
     return v
@@ -55,7 +69,6 @@ def VecGen(feats1, feats2, num, dim, deg):
     indices = {}
 
     while len(indices) < num:
-
         r = random.randint(0, dim - 1)
 
         if indices.get(r, None) == None:
@@ -70,7 +83,6 @@ def VecGen(feats1, feats2, num, dim, deg):
     InterVec = np.zeros((deg + 1, num, dim))
 
     for i in range(num):
-
         V[:, index_list[i]] = 0
 
         V[i, index_list[i]] = np.random.uniform(1, 3) * random.sample([-1, 1], 1)[0]
@@ -78,14 +90,13 @@ def VecGen(feats1, feats2, num, dim, deg):
         Keys[i, index_list[i]] = 1
 
         for j in range(deg + 1):
-            InterVec[j, :, index_list[i]] = 0.
+            InterVec[j, :, index_list[i]] = 0.0
 
             InterVec[j, i, index_list[i]] = 1 / V[i, index_list[i]] ** j
 
     InterMat = np.zeros((deg + 1, dim, dim))
 
     for i in range(deg + 1):
-
         for j in range(num):
             InterMat[i, :, :] += np.outer(InterVec[i, j, :], Keys[j, :])
 
@@ -126,7 +137,9 @@ def VecGen(feats1, feats2, num, dim, deg):
     for i in range(num):
         K2 += np.outer(Keys[i, :], feats2[i, :])
 
-    K2 += np.random.uniform(1, 3) * np.outer(mask2, feats2[random.randint(0, num - 1), :])
+    K2 += np.random.uniform(1, 3) * np.outer(
+        mask2, feats2[random.randint(0, num - 1), :]
+    )
 
     M1 = np.zeros((feats1.shape[1], dim))
     M2 = np.zeros((feats2.shape[1], dim))
@@ -346,7 +359,7 @@ def get_in_comm_indexes(
 
 
 @ray.remote(
-    num_cpus=2,
+    num_cpus=1,
     scheduling_strategy="SPREAD",
 )
 def compute_node_matrix(index_list, graph, device, feats, sample_probab, max_deg):
@@ -364,9 +377,7 @@ def compute_node_matrix(index_list, graph, device, feats, sample_probab, max_deg
 
         sampled_bool = np.array(
             [
-                random.choices(
-                    [0, 1], [1 - sample_probab, sample_probab], k=1
-                )[0]
+                random.choices([0, 1], [1 - sample_probab, sample_probab], k=1)[0]
                 for j in range(len(neighbours))
             ]
         )
@@ -409,10 +420,14 @@ def compute_node_matrix(index_list, graph, device, feats, sample_probab, max_deg
             torch.from_numpy(K2).float().to(device=device),
         ]
     return node_mats
+
+
 def compute_degrees(edge_index, num_nodes):
     row, col = edge_index
     deg = degree(row, num_nodes=num_nodes)
     return deg
+
+
 def get_predecessors(data, node):
     edge_index = data.edge_index
     mask = edge_index[1] == node

@@ -71,7 +71,8 @@ def data_loader_FedGCN(args: attridict) -> tuple:
     # tutorial <https://pytorch-geometric.readthedocs.io/en/latest/notes
     # /create_dataset.html>`__ in PyG.
     print("config: ", args)
-    features, adj, labels, idx_train, idx_val, idx_test = FedGCN_load_data(args.dataset)
+    features, adj, labels, idx_train, idx_val, idx_test = FedGCN_load_data(
+        args.dataset)
     class_num = labels.max().item() + 1
 
     row, col, edge_attr = adj.coo()
@@ -220,7 +221,8 @@ def FedGCN_load_data(dataset_str: str) -> tuple:
         objects = []
         for i in range(len(names)):
             with open(
-                "data/{}/raw/ind.{}.{}".format(dataset_str, dataset_str, names[i]), "rb"
+                "data/{}/raw/ind.{}.{}".format(dataset_str,
+                                               dataset_str, names[i]), "rb"
             ) as f:
                 if sys.version_info > (3, 0):
                     objects.append(pkl.load(f, encoding="latin1"))
@@ -347,8 +349,9 @@ def FedGAT_load_data(dataset_str: str) -> tuple:
         Indices of test nodes.
     """
     # Download dataset from torch_geometric
-    dataset = Planetoid(root="./data", name=dataset_str)
-    data = dataset[0]
+    if dataset_str in ["cora", "citeseer"]:
+        dataset = Planetoid(root="./data", name=dataset_str)
+        data = dataset[0]
 
     # Add self-loops
     data.edge_index, _ = torch_geometric.utils.add_self_loops(
@@ -381,7 +384,198 @@ def FedGAT_load_data(dataset_str: str) -> tuple:
 
     return (
         data,
-        features,
+        normalized_features,
+        adj,
+        labels,
+        one_hot_labels,
+        idx_train,
+        idx_val,
+        idx_test,
+    )
+
+
+def FedAT_load_data_test(dataset_str: str) -> tuple:
+    """
+    Loads input data from 'gcn/data' directory and processes these datasets into a format
+    suitable for training GCN and similar models.
+
+    Parameters
+    ----------
+    dataset_str : Name of the dataset to be loaded.
+
+    Returns
+    -------
+    features : torch.Tensor
+        Node feature matrix as a float tensor.
+    adj : torch.Tensor or torch_sparse.tensor.SparseTensor
+        Adjacency matrix of the graph.
+    labels : torch.Tensor
+        Labels of the nodes.
+    idx_train : torch.LongTensor
+        Indices of training nodes.
+    idx_val : torch.LongTensor
+        Indices of validation nodes.
+    idx_test : torch.LongTensor
+        Indices of test nodes.
+
+    Note
+    ----
+    ind.dataset_str.x => the feature vectors of the training instances as scipy.sparse.csr.csr_matrix object;
+    ind.dataset_str.tx => the feature vectors of the test instances as scipy.sparse.csr.csr_matrix object;
+    ind.dataset_str.allx => the feature vectors of both labeled and unlabeled training instances (a superset of ind.dataset_str.x) as scipy.sparse.csr.csr_matrix object;
+    ind.dataset_str.y => the one-hot labels of the labeled training instances as numpy.ndarray object;
+    ind.dataset_str.ty => the one-hot labels of the test instances as numpy.ndarray object;
+    ind.dataset_str.ally => the labels for instances in ind.dataset_str.allx as numpy.ndarray object;
+    ind.dataset_str.graph => a dict in the format {index: [index_of_neighbor_nodes]} as collections.defaultdict object;
+    ind.dataset_str.test.index => the indices of test instances in graph, for the inductive setting as list object.
+
+    All objects above must be saved using python pickle module.
+    """
+    if dataset_str in ["cora", "citeseer"]:
+        # download dataset from torch_geometric
+        dataset = torch_geometric.datasets.Planetoid("./data", dataset_str)
+        names = ["x", "y", "tx", "ty", "allx", "ally", "graph"]
+        objects = []
+        for i in range(len(names)):
+            with open(
+                "data/{}/raw/ind.{}.{}".format(dataset_str,
+                                               dataset_str, names[i]), "rb"
+            ) as f:
+                if sys.version_info > (3, 0):
+                    objects.append(pkl.load(f, encoding="latin1"))
+                else:
+                    objects.append(pkl.load(f))
+
+        x, y, tx, ty, allx, ally, graph = tuple(objects)
+        test_idx_reorder = FedGCN_parse_index_file(
+            "data/{}/raw/ind.{}.test.index".format(dataset_str, dataset_str)
+        )
+        test_idx_range = np.sort(test_idx_reorder)
+
+        if dataset_str == "citeseer":
+            # Fix citeseer dataset (there are some isolated nodes in the graph)
+            # Find isolated nodes, add them as zero-vecs into the right position
+            test_idx_range_full = range(
+                min(test_idx_reorder), max(test_idx_reorder) + 1
+            )
+            tx_extended = sp.lil_matrix((len(test_idx_range_full), x.shape[1]))
+            tx_extended[test_idx_range - min(test_idx_range), :] = tx
+            tx = tx_extended
+            ty_extended = np.zeros((len(test_idx_range_full), y.shape[1]))
+            ty_extended[test_idx_range - min(test_idx_range), :] = ty
+            ty = ty_extended
+
+        features = sp.vstack((allx, tx)).tolil()
+        features[test_idx_reorder, :] = features[test_idx_range, :]
+        adj = nx.adjacency_matrix(nx.from_dict_of_lists(graph))
+
+        labels = np.vstack((ally, ty))
+        labels[test_idx_reorder, :] = labels[test_idx_range, :]
+
+        idx_test = torch.LongTensor(test_idx_range.tolist())
+        idx_train = torch.LongTensor(range(len(y)))
+        idx_val = torch.LongTensor(range(len(y), len(y) + 500))
+
+        # features = normalize(features)
+        # adj = normalize(adj)    # no normalize adj here, normalize it in the training process
+
+        features = torch.tensor(features.toarray()).float()
+        adj = torch.tensor(adj.toarray()).float()
+        adj = torch_sparse.tensor.SparseTensor.from_dense(adj)
+        labels = torch.tensor(labels)
+        labels = torch.argmax(labels, dim=1)
+        # add self loop
+
+        adj = adj.set_diag()
+        row, col, edge_attr = adj.coo()
+        edge_index = torch.stack([row, col], dim=0)
+
+        # X_T normalize
+        normalized_features = torch.zeros(features.size())
+        for i in range(features.size()[0]):
+            normalized_features[i, :] = features[i, :] - \
+                torch.mean(features[i, :])
+            n = torch.norm(normalized_features[i, :])
+            if n > 0:
+                normalized_features[i, :] /= n
+
+        # Y class number
+        NumClasses = torch.max(labels).item() + 1
+
+        # L one hot
+        one_hot_labels = torch.zeros((labels.size()[0], NumClasses))
+        for i in range(len(labels)):
+            one_hot_labels[i, labels[i]] = 1.0
+        data = torch_geometric.data.Data(
+            x=normalized_features,
+            edge_index=edge_index,
+            y=one_hot_labels
+        )
+        data.train_mask = torch.zeros(data.num_nodes, dtype=torch.bool)
+        data.train_mask[idx_train] = True
+        data.val_mask = torch.zeros(data.num_nodes, dtype=torch.bool)
+        data.val_mask[idx_val] = True
+        data.test_mask = torch.zeros(data.num_nodes, dtype=torch.bool)
+        data.test_mask[idx_test] = True
+    elif dataset_str in [
+        "ogbn-arxiv",
+        "ogbn-products",
+    ]:
+        from ogb.nodeproppred import PygNodePropPredDataset
+
+        # Download and process data at './dataset/.'
+
+        dataset = PygNodePropPredDataset(
+            name=dataset_str, transform=torch_geometric.transforms.ToSparseTensor()
+        )
+
+        split_idx = dataset.get_idx_split()
+        idx_train, idx_val, idx_test = (
+            split_idx["train"],
+            split_idx["valid"],
+            split_idx["test"],
+        )
+        idx_train = torch.LongTensor(idx_train)
+        idx_val = torch.LongTensor(idx_val)
+        idx_test = torch.LongTensor(idx_test)
+        data = dataset[0]
+        data.adj_t = data.adj_t.set_diag()
+
+        features = data.x
+        # labels = data.y.reshape(-1)
+        if dataset_str == "ogbn-arxiv":
+            adj = data.adj_t.to_symmetric()
+        else:
+            adj = data.adj_t
+        row, col, edge_attr = data.adj_t.t().coo()
+        data.edge_index = torch.stack([row, col], dim=0)
+        # X_T normalize
+        normalized_features = torch.zeros(features.size())
+        for i in range(features.size()[0]):
+            normalized_features[i, :] = features[i, :] - \
+                torch.mean(features[i, :])
+            n = torch.norm(normalized_features[i, :])
+            if n > 0:
+                normalized_features[i, :] /= n
+
+        # Y class number
+        labels = data.y
+        NumClasses = torch.max(labels).item() + 1
+
+        # L one hot
+        one_hot_labels = torch.zeros((labels.size()[0], NumClasses))
+        for i in range(len(labels)):
+            one_hot_labels[i, labels[i]] = 1.0
+        data.x = normalized_features
+        data.y = one_hot_labels
+        data.train_mask = torch.zeros(data.num_nodes, dtype=torch.bool)
+        data.train_mask[idx_train] = True
+        data.val_mask = torch.zeros(data.num_nodes, dtype=torch.bool)
+        data.val_mask[idx_val] = True
+        data.test_mask = torch.zeros(data.num_nodes, dtype=torch.bool)
+        data.test_mask[idx_test] = True
+    return (
+        data,
         normalized_features,
         adj,
         labels,
@@ -421,7 +615,6 @@ def FedGAT_load_data_100(dataset_str: str) -> tuple:
     # Download dataset from torch_geometric
     dataset = Planetoid(root="./data", name=dataset_str)
     data = dataset[0]
-
     # Add self-loops
     data.edge_index, _ = torch_geometric.utils.add_self_loops(
         data.edge_index, num_nodes=data.num_nodes
@@ -453,7 +646,8 @@ def FedGAT_load_data_100(dataset_str: str) -> tuple:
         old_idx.item(): new_idx for new_idx, old_idx in enumerate(sampled_indices)
     }
     new_edge_index = torch.tensor(
-        [[old_to_new[old_idx.item()] for old_idx in edge] for edge in new_edge_index]
+        [[old_to_new[old_idx.item()] for old_idx in edge]
+         for edge in new_edge_index]
     )
 
     # Normalize features
@@ -483,7 +677,7 @@ def FedGAT_load_data_100(dataset_str: str) -> tuple:
     data.train_mask = train_mask
     data.val_mask = val_mask
     data.test_mask = test_mask
-
+    print(data)
     return (
         data,
         features,
@@ -527,8 +721,8 @@ def GC_rand_split_chunk(
     graphs_chunks = []
     if not overlap:  # non-overlapping
         for i in range(num_trainer):
-            graphs_chunks.append(graphs[i * minSize : (i + 1) * minSize])
-        for g in graphs[num_trainer * minSize :]:
+            graphs_chunks.append(graphs[i * minSize: (i + 1) * minSize])
+        for g in graphs[num_trainer * minSize:]:
             idx_chunk = np.random.randint(low=0, high=num_trainer, size=1)[0]
             graphs_chunks[idx_chunk].append(g)
     else:
@@ -619,9 +813,12 @@ def data_loader_GC_single(
         )
 
         """Generate data loader"""
-        dataloader_train = DataLoader(ds_train, batch_size=batch_size, shuffle=True)
-        dataloader_val = DataLoader(ds_val, batch_size=batch_size, shuffle=True)
-        dataloader_test = DataLoader(ds_test, batch_size=batch_size, shuffle=True)
+        dataloader_train = DataLoader(
+            ds_train, batch_size=batch_size, shuffle=True)
+        dataloader_val = DataLoader(
+            ds_val, batch_size=batch_size, shuffle=True)
+        dataloader_test = DataLoader(
+            ds_test, batch_size=batch_size, shuffle=True)
         num_graph_labels = get_num_graph_labels(ds_train)
 
         """Combine data"""
@@ -743,11 +940,13 @@ def data_loader_GC_multiple(
                 )
 
         graphs = [x for x in tudataset]
-        print("Dataset name: ", dataset, " Total number of graphs: ", len(graphs))
+        print("Dataset name: ", dataset,
+              " Total number of graphs: ", len(graphs))
 
         """Split data"""
         if dataset_group.endswith("tiny"):
-            graphs, _ = split_data(graphs, train_size=150, shuffle=True, seed=seed)
+            graphs, _ = split_data(
+                graphs, train_size=150, shuffle=True, seed=seed)
             graphs_train, graphs_val_test = split_data(
                 graphs, test_size=0.2, shuffle=True, seed=seed
             )
@@ -766,9 +965,12 @@ def data_loader_GC_multiple(
         num_graph_labels = get_num_graph_labels(graphs_train)
 
         """Generate data loader"""
-        dataloader_train = DataLoader(graphs_train, batch_size=batch_size, shuffle=True)
-        dataloader_val = DataLoader(graphs_val, batch_size=batch_size, shuffle=True)
-        dataloader_test = DataLoader(graphs_test, batch_size=batch_size, shuffle=True)
+        dataloader_train = DataLoader(
+            graphs_train, batch_size=batch_size, shuffle=True)
+        dataloader_val = DataLoader(
+            graphs_val, batch_size=batch_size, shuffle=True)
+        dataloader_test = DataLoader(
+            graphs_test, batch_size=batch_size, shuffle=True)
 
         """Combine data"""
         splited_data[dataset] = (

@@ -14,7 +14,8 @@ hidden_dim: 8
 num_heads: 8
 max_deg: 16
 
-dataset: cora
+# dataset: ogbn-arxiv
+dataset: ogbn-arxiv
 fedtype: fedgat
 global_rounds: 2 # 5
 local_step: 2
@@ -28,5 +29,5 @@ iid_beta: 10000
 logdir: ./runs
 device: cpu
 optim_kind: Adam
-glob_comm : FedAvg
-optim_reset : False
+glob_comm: FedAvg
+optim_reset: False
