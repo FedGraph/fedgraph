@@ -952,120 +952,108 @@ class Server_GAT:
                 )
         return global_variance / (len(self.trainers) * len(self.GATModelParams))
 
-    def TrainUpdate(self):  # Minr changes, but critical to algorithm working!
+    def TrainUpdate(self): #This has changed completely
+
+        old = copy.deepcopy(self.Model)
+
+        for p in old.parameters():
+
+            p.requires_grad = False
+
+        if self.glob_comm == 'FedAvg':
+
+            self.Optim.zero_grad()
+
+            with torch.no_grad():
+
+                for p in self.Model.parameters():
+
+                    p.grad = torch.zeros(p.size())
+
+                    p.grad.data.zero_()
+
+            with torch.no_grad():
+
+                for id in self.trainers:
+
+                    for p, p_id in zip(self.Model.parameters(), ray.get(self.trainers[id].get_model_parameters.remote())):
+
+                        p.grad += self.model_loss_weights[id] * p_id.grad
+
+            self.Optim.step()
+
+
+        elif self.glob_comm == 'ADMM':
+
+            with torch.no_grad():
+
+                for p in self.Model.parameters():
+
+                    p -= p
+
+                for id in self.trainers:
+
+                    for p, p_id, dual in zip(self.Model.parameters(), ray.get(self.trainers[id].get_model_parameters.remote()), self.Duals[id].parameters()):
+
+                        p += self.model_loss_weights[id] * (p_id - self.dual_weight * dual / self.aug_lagrange_rho)
+
+                for id in self.trainers:
+
+                    for p, p_id, dual in zip(self.Model.parameters(), ray.get(self.trainers[id].get_model_parameters.remote()), self.Duals[id].parameters()):
+
+                        dual += self.model_loss_weights[id] * self.dual_lr * self.dual_weight * (p - p_id)
+
         with torch.no_grad():
-            # Update global parameters
 
-            old = copy.deepcopy(self.Model)
-
-            for p in self.Model.parameters():
-                p -= p
-            S = self.Model.state_dict()
-
-            for id in range(len(self.trainers)):
-                model_state_dict = ray.get(
-                    self.trainers[id].get_model_state_dict.remote()
-                )
-                for p in S:
-                    if self.glob_comm == "FedAvg":
-                        S[p] += self.model_loss_weights[id] * model_state_dict[p]
-
-                    elif self.glob_comm == "ADMM":
-                        S[p] += self.model_loss_weights[id] * (
-                            model_state_dict[p]
-                            - self.dual_weight
-                            * self.Duals[id].state_dict()[p]
-                            / self.aug_lagrange_rho
-                        )
-
-            self.Model.load_state_dict(S)
-
-            # Updating global parameters
-
-            # for id in range(len(self.clients)):
-
-            #     for p, p_id, dual in zip(self.Model.parameters(), self.clients[id].Model.parameters(), self.Duals[id].parameters()):
-
-            #         if self.glob_comm == 'FedAvg':
-
-            #             p += self.model_loss_weights[id] * p_id
-
-            #         elif self.glob_comm == 'ADMM':
-
-            #             p += self.model_loss_weights[id] * (p_id - self.dual_weight * dual / self.aug_lagrange_rho)
-
-            change = 0.0
+            err = 0.
 
             for p, p_old in zip(self.Model.parameters(), old.parameters()):
-                change += torch.sum((p - p_old) ** 2)
 
-            print("Model parameters changed by {E}".format(E=change.item()))
+                err += torch.sum((p - p_old) ** 2)/torch.numel(p)
 
-            print("Change in global parameters = {C}".format(C=change))
-
-            # Now update the dual variables
-
-            if self.glob_comm == "ADMM":
-                for id in range(len(self.trainers)):
-                    S = self.Duals[id].state_dict()
-                    model_state_dict = ray.get(
-                        self.trainers[id].get_model_state_dict.remote()
-                    )
-                    for p in S:
-                        S[p] += (
-                            self.dual_weight
-                            * self.dual_lr
-                            * self.model_loss_weights[id]
-                            * (self.Model.state_dict()[p] - model_state_dict[p])
-                        )
-
-                    self.Duals[id].load_state_dict(S)
-
-                    # for p, p_id, dual in zip(self.Model.parameters(), self.clients[id].Model.parameters(), self.Duals[id].parameters()):
-
-                    #     dual += self.model_loss_weights[id] * self.aug_lagrange_rho * self.dual_weight * self.model_loss_weights[id] * (p - p_id)
-
-            # Completed dual variable update
-
-            print("Completed dual and global parameter update!")
-
-            # Computing error in global and local model parameters
-
-            err = 0.0
-
-            for id in range(len(self.trainers)):
-                P = list(self.Model.parameters())
-                PID = list(
-                    ray.get(self.trainers[id].get_model_parameters.remote()))
-                Duals = list(self.Duals[id].parameters())
-
-                for i in range(len(P)):
-                    p = P[i]
-                    p_id = PID[i]
-                    dual = Duals[i]
-
-                    err += torch.sum((p - p_id) ** 2) / torch.numel(p)
-
-            err /= len(self.trainers)
-
-            print(
-                "Average error in local and global models = {E}".format(E=err))
+            print("Change in model parameters = {E}".format(E = err.item()))
 
     def ResetAll(self, Model, train_params=None):
         if train_params != None:
             self.args = train_params
 
         self.Model = Model
+        if self.glob_comm == 'FedAvg':
 
-        self.Duals = {id: copy.deepcopy(self.Model)
-                      for id in range(len(self.trainers))}
+            for p in self.Model.parameters():
 
-        for p in self.Model.parameters():
-            p.requires_grad = False
+                p.requires_grad = True
 
-        for id in range(len(self.trainers)):
-            for p in self.Duals[id].parameters():
+                p.grad = torch.zeros(p.size())
+
+            if self.optim_kind == 'Adam':
+
+                self.Optim = torch.optim.Adam(self.Model.parameters(), lr = self.model_lr, weight_decay = self.model_regularisation)
+
+            elif self.optim_kind == 'SGD':
+
+                self.Optim = torch.optim.SGD(self.Model.parameters(), lr = self.model_lr, momentum = self.momentum, dampening = self.dampening, weight_decay = self.model_regularisation)
+
+
+        if self.glob_comm == 'ADMM':
+
+            for p in self.Model.parameters():
+
                 p.requires_grad = False
+            self.Duals = {id: copy.deepcopy(self.Model)
+                          for id in range(len(self.trainers))}
+            for id in range(len(self.trainers)):
+
+                for p in self.Duals[id].parameters():
+
+                    p.requires_grad = False
+
+        # for p in self.Model.parameters():
+        #     p.requires_grad = False
+        #
+        # for id in range(len(self.trainers)):
+        #     for p in self.Duals[id].parameters():
+        #         p.requires_grad = False
 
         self.LoadTrainParams(self.args)
 
@@ -1081,28 +1069,35 @@ class Server_GAT:
         # Changed function a little
 
         # Computing the weights for each client
-        # TODO; add resetall function
-        self.ResetAll(self.Model, train_params=self.args)
         loss_refs = [None for _ in range(len(self.trainers))]
         for id in range(len(self.trainers)):
             loss_refs[id] = self.trainers[id].get_sum_train_mask.remote()
         self.model_loss_weights = ray.get(loss_refs)
         # self.model_loss_weights = loss_refs
         temp = sum(self.model_loss_weights)
-        # TODO: check this
         for id in range(len(self.model_loss_weights)):
             self.model_loss_weights[id] /= temp
+        self.ResetAll(self.Model, self.args)
 
+        for id in range(len(self.trainers)):
+
+            if self.glob_comm == 'FedAvg':
+
+                self.trainers[id].FromServer.remote(copy.deepcopy(self.Model), None)
+
+            elif self.glob_comm == 'ADMM':
+
+                self.trainers[id].FromServer.remote(self.Model, self.Duals[id])
         # Assigned all the loss weights
 
         # Send global and dual variables to the clients, give local model weights too
 
-        for id in range(len(self.trainers)):
-            self.trainers[id].FromServer.remote(self.Model, self.Duals[id])
-
-            self.trainers[id].set_model.remote(self.Model)
-            self.trainers[id].update_optim_kind.remote(self.optim_kind)
-            self.trainers[id].train_model.remote()
+        # for id in range(len(self.trainers)):
+        #     self.trainers[id].FromServer.remote(self.Model, self.Duals[id])
+        #
+        #     self.trainers[id].set_model.remote(self.Model)
+        #     self.trainers[id].update_optim_kind.remote(self.optim_kind)
+        #     self.trainers[id].train_model.remote()
 
         # Now, we can start training!
 
@@ -1116,9 +1111,17 @@ class Server_GAT:
             self.TrainUpdate()
 
             for id in range(len(self.trainers)):
-                self.trainers[id].FromServer.remote(self.Model, self.Duals[id])
+                if self.glob_comm == 'ADMM':
 
-                self.trainers[id].OptimReset.remote()
+                    self.trainers[id].FromServer.remote(self.Model, self.Duals[id])
+
+                else:
+
+                    self.trainers[id].FromServer.remote(copy.deepcopy(self.Model), None)
+
+                if self.optim_reset:
+
+                    self.trainers[id].OptimReset.remote()
 
             print("Epoch {e} completed!".format(e=ep))
 

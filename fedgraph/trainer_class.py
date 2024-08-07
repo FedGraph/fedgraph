@@ -1397,42 +1397,40 @@ class Trainer_GAT:
         print(f"Client {self.client_id} ready for training!")
 
     def FromServer(self, global_params, duals):
+
         self.global_params = global_params
 
         self.duals = duals
 
         with torch.no_grad():
-            for p, p_id in zip(
-                self.model.parameters(), self.global_params.parameters()
-            ):
-                p_id = p.clone()
 
-                p_id.requires_grad = True
+            for p_id, p in zip(self.model.parameters(), self.global_params.parameters()):
 
-        # for p in self.global_params:
+                p_id.copy_(p)
 
-        #     p.requires_grad = False
+        for p in self.global_params.parameters():
 
-        # for p in self.duals:
+            p.requires_grad = False
 
-        #     p.requires_grad = False
+        if self.glob_comm == 'ADMM':
 
-    def OptimReset(self):  # This function is new
-        if self.optim_kind == "Adam":
-            self.Optim = torch.optim.Adam(
-                self.model.parameters(),
-                lr=self.model_lr,
-                weight_decay=self.model_regularisation,
-            )
+            for p in self.duals.parameters():
 
-        elif self.optim_kind == "SGD":
-            self.Optim = torch.optim.SGD(
-                self.model.parameters(),
-                lr=self.model_lr,
-                weight_decay=self.model_regularisation,
-                momentum=self.momentum,
-                nesterov=True,
-            )
+                p.requires_grad = False
+
+        for p_id in self.model.parameters():
+
+            p_id.requires_grad = True
+
+    def OptimReset(self):
+
+        if self.optim_kind == 'Adam':
+
+            self.Optim = torch.optim.Adam(self.model.parameters(), lr = self.model_lr)
+
+        elif self.optim_kind == 'SGD':
+
+            self.Optim = torch.optim.SGD(self.model.parameters(), lr = self.model_lr, momentum = self.momentum)
 
     def train_iterate(self):
         """
@@ -1467,8 +1465,9 @@ class Trainer_GAT:
         )
 
         t_loss.backward()
+        if self.glob_comm == 'ADMM':
 
-        self.Optim.step()
+            self.Optim.step()
 
         with torch.no_grad():
             v_loss = FedGATLoss(
@@ -1515,7 +1514,7 @@ class Trainer_GAT:
                     v_acc=100 * self.v_acc,
                 )
             )
-
+            self.ModelTest()
         self.epoch += 1
 
     def train_iterate_fedavg(self):
@@ -1616,7 +1615,7 @@ class Trainer_GAT:
             )
 
             print("Client {ID}: Test acc: {t_acc}".format(
-                ID=self.id, t_acc=self.t_acc))
+                ID=self.client_id, t_acc=self.t_acc))
 
     def get_params(self):
         """

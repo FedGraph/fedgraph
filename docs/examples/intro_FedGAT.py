@@ -537,16 +537,7 @@ clients = [
 #     clients.append(client)
 edge_index = edge_index.to(device)
 # Define Server
-# GATModel = FedGATModel(
-#     in_feat=normalized_features.shape[1],
-#     out_feat=one_hot_labels.shape[1],
-#     hidden_dim=args.hidden_dim,
-#     num_head=args.num_heads,
-#     max_deg=args.max_deg,
-#     attn_func=args.attn_func_parameter,
-#     domain=args.attn_func_domain,
-# ).to(device=device)
-centralizedGATModel = CentralizedGATModel(
+gat_model = FedGATModel(
     in_feat=normalized_features.shape[1],
     out_feat=one_hot_labels.shape[1],
     hidden_dim=args.hidden_dim,
@@ -554,10 +545,19 @@ centralizedGATModel = CentralizedGATModel(
     max_deg=args.max_deg,
     attn_func=args.attn_func_parameter,
     domain=args.attn_func_domain,
-).to(device="cpu")
+).to(device=device)
+# centralizedGATModel = CentralizedGATModel(
+#     in_feat=normalized_features.shape[1],
+#     out_feat=one_hot_labels.shape[1],
+#     hidden_dim=args.hidden_dim,
+#     num_head=args.num_heads,
+#     max_deg=args.max_deg,
+#     attn_func=args.attn_func_parameter,
+#     domain=args.attn_func_domain,
+# ).to(device="cpu")
 server = Server_GAT(
     graph=data,
-    model=centralizedGATModel,
+    model=gat_model,
     feats=normalized_features,
     labels=one_hot_labels,
     feature_dim=normalized_features.shape[1],
@@ -568,13 +568,13 @@ server = Server_GAT(
 )
 
 # Pre-training communication
-# print("Pre-training communication initiated!")
-# server.pretrain_communication(
-#     communicate_node_indexes, data, device=args.device)
-# print("Pre-training communication completed!")
+print("Pre-training communication initiated!")
+server.pretrain_communication(
+    communicate_node_indexes, data, device=args.device)
+print("Pre-training communication completed!")
 
 print("Pre-training communication completed!")
 
-
-server.TrainCoordinate_FedAvg(centralizedGATModel)
+server.ResetAll(gat_model, train_params=args)
+server.TrainCoordinate()
 ray.shutdown()
