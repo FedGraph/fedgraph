@@ -349,7 +349,7 @@ def FedGAT_load_data(dataset_str: str) -> tuple:
         Indices of test nodes.
     """
     # Download dataset from torch_geometric
-    if dataset_str in ["cora", "citeseer"]:
+    if dataset_str in ["cora", "citeseer", "pubmed"]:
         dataset = Planetoid(root="./data", name=dataset_str)
         data = dataset[0]
 
@@ -431,7 +431,7 @@ def FedAT_load_data_test(dataset_str: str) -> tuple:
 
     All objects above must be saved using python pickle module.
     """
-    if dataset_str in ["cora", "citeseer"]:
+    if dataset_str in ["cora", "citeseer", "pubmed"]:
         # download dataset from torch_geometric
         dataset = torch_geometric.datasets.Planetoid("./data", dataset_str)
         names = ["x", "y", "tx", "ty", "allx", "ally", "graph"]

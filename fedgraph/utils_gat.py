@@ -10,16 +10,18 @@ from torch_geometric.utils import degree
 
 def CreateNodeSplit(graph: Any, num_clients: int) -> dict:
     nodes = [i for i in range(graph.num_nodes)]
-    node_split = [random.randint(0, len(nodes)) for _ in range(num_clients - 1)]
+    node_split = [random.randint(0, len(nodes))
+                  for _ in range(num_clients - 1)]
     node_split.sort()
     node_split = [0] + node_split + [len(nodes)]
     random.shuffle(nodes)
     client_nodes = {
-        i: {j: True for j in nodes[node_split[i] : node_split[i + 1]]}
+        i: {j: True for j in nodes[node_split[i]: node_split[i + 1]]}
         for i in range(num_clients)
     }
     for id in client_nodes:
-        print("Client {ID} has {num} nodes".format(ID=id, num=len(client_nodes[id])))
+        print("Client {ID} has {num} nodes".format(
+            ID=id, num=len(client_nodes[id])))
     return client_nodes
 
 
@@ -85,7 +87,8 @@ def VecGen(feats1, feats2, num, dim, deg):
     for i in range(num):
         V[:, index_list[i]] = 0
 
-        V[i, index_list[i]] = np.random.uniform(1, 3) * random.sample([-1, 1], 1)[0]
+        V[i, index_list[i]] = np.random.uniform(
+            1, 3) * random.sample([-1, 1], 1)[0]
 
         Keys[i, index_list[i]] = 1
 
@@ -109,7 +112,8 @@ def VecGen(feats1, feats2, num, dim, deg):
     mask1 = np.zeros(dim)
 
     for i in range(num):
-        mask1 += Keys[i, :] * np.dot(Keys[i, :], temp1) / np.dot(Keys[i, :], Keys[i, :])
+        mask1 += Keys[i, :] * \
+            np.dot(Keys[i, :], temp1) / np.dot(Keys[i, :], Keys[i, :])
 
     mask1 = temp1 - mask1
 
@@ -121,7 +125,8 @@ def VecGen(feats1, feats2, num, dim, deg):
     mask2 += np.dot(mask1, temp2) * mask1 / np.dot(mask1, mask1)
 
     for i in range(num):
-        mask2 += Keys[i, :] * np.dot(Keys[i, :], temp2) / np.dot(Keys[i, :], Keys[i, :])
+        mask2 += Keys[i, :] * \
+            np.dot(Keys[i, :], temp2) / np.dot(Keys[i, :], Keys[i, :])
 
     mask2 = temp2 - mask2
 
@@ -202,7 +207,8 @@ def label_dirichlet_partition(
 
             proportions = proportions / proportions.sum()
 
-            proportions = (np.cumsum(proportions) * len(idx_k)).astype(int)[:-1]
+            proportions = (np.cumsum(proportions) *
+                           len(idx_k)).astype(int)[:-1]
 
             idx_batch = [
                 idx_j + idx.tolist()
@@ -213,7 +219,7 @@ def label_dirichlet_partition(
     for j in range(n_parties):
         np.random.shuffle(idx_batch[j])
         split_data_indexes.append(idx_batch[j])
-    print(f"Output split data indexes: {split_data_indexes}")
+    # print(f"Output split data indexes: {split_data_indexes}")
     return split_data_indexes
 
 
@@ -377,7 +383,8 @@ def compute_node_matrix(index_list, graph, device, feats, sample_probab, max_deg
 
         sampled_bool = np.array(
             [
-                random.choices([0, 1], [1 - sample_probab, sample_probab], k=1)[0]
+                random.choices(
+                    [0, 1], [1 - sample_probab, sample_probab], k=1)[0]
                 for j in range(len(neighbours))
             ]
         )
@@ -396,7 +403,8 @@ def compute_node_matrix(index_list, graph, device, feats, sample_probab, max_deg
 
         for i in range(len(sampled_neigh)):
             feats1[i, :] = feats[node, :].cpu().detach().numpy()
-            feats2[i, :] = feats[sampled_neigh[i].item(), :].cpu().detach().numpy()
+            feats2[i, :] = feats[sampled_neigh[i].item(),
+                                 :].cpu().detach().numpy()
 
             if device == torch.device("cuda"):
                 dim = max_degree
@@ -433,3 +441,39 @@ def get_predecessors(data, node):
     mask = edge_index[1] == node
     predecessors = edge_index[0, mask]
     return predecessors
+
+
+def calculate_statistics(data):
+    edge_index = data.edge_index
+    degrees = degree(edge_index[0], data.num_nodes)
+
+    E_degree = degrees.mean().item()
+    sqrt_E_degree_2 = torch.sqrt((degrees ** 2).mean()).item()
+    print(f"E_degree: {E_degree}")
+    print(f"sqrt_E_degree_2: {sqrt_E_degree_2}")
+
+
+def print_mask_statistics(data):
+    train_mask = data.train_mask
+    val_mask = data.val_mask
+    test_mask = data.test_mask
+
+    num_train = train_mask.sum().item()
+    num_val = val_mask.sum().item()
+    num_test = test_mask.sum().item()
+
+    print(f"Number of training idx: {num_train}")
+    print(f"Number of validation idx: {num_val}")
+    print(f"Number of test idx: {num_test}")
+
+
+def print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test):
+    for i, indexes in enumerate(split_node_indexes):
+        num_train = len(np.intersect1d(indexes, idx_train))
+        num_val = len(np.intersect1d(indexes, idx_val))
+        num_test = len(np.intersect1d(indexes, idx_test))
+
+        print(f"Client {i}:")
+        print(f"  Number of training idx: {num_train}")
+        print(f"  Number of validation idx: {num_val}")
+        print(f"  Number of test idx: {num_test}")

@@ -411,7 +411,8 @@ class GIN(torch.nn.Module):
         )
         self.graph_convs = torch.nn.ModuleList()
         self.nn1 = torch.nn.Sequential(
-            torch.nn.Linear(nhid, nhid), torch.nn.ReLU(), torch.nn.Linear(nhid, nhid)
+            torch.nn.Linear(nhid, nhid), torch.nn.ReLU(
+            ), torch.nn.Linear(nhid, nhid)
         )
         self.graph_convs.append(GINConv(self.nn1))
 
@@ -423,7 +424,8 @@ class GIN(torch.nn.Module):
             )
             self.graph_convs.append(GINConv(self.nnk))
 
-        self.post = torch.nn.Sequential(torch.nn.Linear(nhid, nhid), torch.nn.ReLU())
+        self.post = torch.nn.Sequential(
+            torch.nn.Linear(nhid, nhid), torch.nn.ReLU())
         self.readout = (
             torch.nn.Sequential(torch.nn.Linear(nhid, nclass))
             if nclass is not None
@@ -674,7 +676,8 @@ class FedGATConv(nn.Module):
 
         # Pre-computing the coefficients of the Chebyshev series
 
-        x_temp = np.linspace(att_func_domain[0], att_func_domain[1], att_func_domain[2])
+        x_temp = np.linspace(
+            att_func_domain[0], att_func_domain[1], att_func_domain[2])
 
         y_temp = self.att_func(x_temp)
 
@@ -725,7 +728,8 @@ class FedGATConv(nn.Module):
         # z = torch.stack([E[i]/F[i] for i in range(len(E))])
 
         D = [
-            (torch.matmul(self.att1, h[i][0]) + torch.matmul(self.att2, h[i][1]))
+            (torch.matmul(self.att1, h[i][0]) +
+             torch.matmul(self.att2, h[i][1]))
             / self.in_feat
             for i in range(len(h))
         ]
@@ -741,7 +745,8 @@ class FedGATConv(nn.Module):
         ]
 
         Int_vec = [
-            torch.sum(torch.matmul(D_pow[i].unsqueeze(1), h[i][4]).squeeze(1), dim=0)
+            torch.sum(torch.matmul(D_pow[i].unsqueeze(
+                1), h[i][4]).squeeze(1), dim=0)
             for i in range(len(D))
         ]
 
@@ -874,7 +879,8 @@ class MultiHeadGATConv(nn.Module):
         else:
             if self.activ != None:
                 return (
-                    self.activ(torch.sum(torch.cat(out, dim=1), dim=1)) / self.num_head
+                    self.activ(
+                        torch.sum(torch.cat(out, dim=1), dim=1)) / self.num_head
                 )
 
             else:
@@ -907,7 +913,8 @@ class MultiHeadFedGATConv(nn.Module):
 
         self.FedGATModules = nn.ModuleList(
             [
-                FedGATConv(in_feat, out_feat, max_deg, attn_func, attn_func_domain)
+                FedGATConv(in_feat, out_feat, max_deg,
+                           attn_func, attn_func_domain)
                 for i in range(num_head)
             ]
         )
@@ -925,7 +932,8 @@ class MultiHeadFedGATConv(nn.Module):
         else:
             if self.activ != None:
                 return (
-                    self.activ(torch.sum(torch.cat(out, dim=1), dim=1)) / self.num_head
+                    self.activ(
+                        torch.sum(torch.cat(out, dim=1), dim=1)) / self.num_head
                 )
 
             else:
@@ -944,7 +952,8 @@ class MultiHeadFedGATConv(nn.Module):
         else:
             if self.activ != None:
                 return (
-                    self.activ(torch.sum(torch.cat(out, dim=1), dim=1)) / self.num_head
+                    self.activ(
+                        torch.sum(torch.cat(out, dim=1), dim=1)) / self.num_head
                 )
 
             else:
@@ -1000,6 +1009,40 @@ class FedGATModel(nn.Module):
         # print(g.edge_index)
         # print(z.size(0))
 
+        z = self.GAT2(z, g.edge_index)
+
+        z = self.soft(z)
+
+        return z
+
+
+class CentralizedGATModel(nn.Module):
+    def __init__(
+        self,
+        in_feat,
+        out_feat,
+        hidden_dim,
+        num_head,
+        max_deg,
+        attn_func,
+        domain,
+    ):
+        super(CentralizedGATModel, self).__init__()
+
+        self.GAT1 = MultiHeadGATConv(
+            in_feat, hidden_dim, num_head, activation=nn.ELU())
+
+        self.GAT2 = MultiHeadGATConv(num_head * hidden_dim, out_feat, 1)
+
+        self.soft = nn.Softmax(dim=1)
+
+    def forward(self, g):
+        # print(g.x.size())
+        # print(g.edge_index.size())
+        z = self.GAT1(g.x, g.edge_index)
+        # print("printing: g.shape and z.shape")
+        # print(g.edge_index)
+        # print(z.size(0))
         z = self.GAT2(z, g.edge_index)
 
         z = self.soft(z)

@@ -209,7 +209,8 @@ class Server_GC:
             list of trainer objects
         """
         total_size = 0
-        size_refs = [trainer.get_train_size.remote() for trainer in selected_trainers]
+        size_refs = [trainer.get_train_size.remote()
+                     for trainer in selected_trainers]
         while size_refs:
             ready, left = ray.wait(size_refs, num_returns=1, timeout=None)
             if ready:
@@ -233,7 +234,8 @@ class Server_GC:
                         accumulate_list.append(weighted_weight)
                 acc_refs = left
             accumulate = torch.stack(accumulate_list)
-            self.W[k].data = torch.div(torch.sum(accumulate, dim=0), total_size).clone()
+            self.W[k].data = torch.div(
+                torch.sum(accumulate, dim=0), total_size).clone()
 
     def compute_pairwise_similarities(self, trainers: list) -> np.ndarray:
         """
@@ -329,8 +331,10 @@ class Server_GC:
             )
             # Unpack the list of dictionaries into separate lists for targs, sours, and train_sizes
             targs = [weights["W"] for weights in weights_list]
-            sours = [(weights["dW"], weights["train_size"]) for weights in weights_list]
-            total_size = sum([weights["train_size"] for weights in weights_list])
+            sours = [(weights["dW"], weights["train_size"])
+                     for weights in weights_list]
+            total_size = sum([weights["train_size"]
+                             for weights in weights_list])
             # pass train_size, and weighted aggregate
             self.__reduce_add_average(
                 targets=targs, sources=sours, total_size=total_size
@@ -370,7 +374,8 @@ class Server_GC:
 
         total_size = sum(ray.get([c.get_train_size.remote() for c in cluster]))
         for trainer in cluster:
-            dw_ref = trainer.compute_mean_norm.remote(total_size, self.W.keys())
+            dw_ref = trainer.compute_mean_norm.remote(
+                total_size, self.W.keys())
             dw_refs.append(dw_ref)
         cluster_dWs = ray.get(dw_refs)
         return torch.norm(torch.mean(torch.stack(cluster_dWs), dim=0)).item()
@@ -418,7 +423,8 @@ class Server_GC:
                 s2 = self.__flatten(source2)
                 angles[i, j] = (
                     torch.true_divide(
-                        torch.sum(s1 * s2), max(torch.norm(s1) * torch.norm(s2), 1e-12)
+                        torch.sum(s1 * s2), max(torch.norm(s1)
+                                                * torch.norm(s2), 1e-12)
                     )
                     + 1
                 )
@@ -459,9 +465,11 @@ class Server_GC:
         for target in targets:
             for name in target:
                 weighted_stack = torch.stack(
-                    [torch.mul(source[0][name].data, source[1]) for source in sources]
+                    [torch.mul(source[0][name].data, source[1])
+                     for source in sources]
                 )
-                tmp = torch.div(torch.sum(weighted_stack, dim=0), total_size).clone()
+                tmp = torch.div(
+                    torch.sum(weighted_stack, dim=0), total_size).clone()
                 target[name].data += tmp
 
 
@@ -588,7 +596,8 @@ class Server_GAT:
             Current global epoch number during the federated learning process.
         """
         for trainer in self.trainers:
-            trainer.update_params(tuple(self.model.parameters()), current_global_epoch)
+            trainer.update_params(
+                tuple(self.model.parameters()), current_global_epoch)
 
     def get_neighbours(self, node_id, edge_index):
         mask = edge_index[0] == node_id
@@ -753,7 +762,8 @@ class Server_GAT:
                 ]
             )
 
-            sampled_bool = torch.from_numpy(sampled_bool).to(device=device).bool()
+            sampled_bool = torch.from_numpy(
+                sampled_bool).to(device=device).bool()
 
             sampled_neigh = neighbours[sampled_bool]
 
@@ -761,7 +771,8 @@ class Server_GAT:
                 sampled_neigh = neighbours
             elif self.device == torch.device("cuda"):
                 if len(sampled_neigh) > max_degree:
-                    sampled_neigh = random.sample(list(sampled_neigh), max_degree)
+                    sampled_neigh = random.sample(
+                        list(sampled_neigh), max_degree)
 
             feats1 = np.zeros((len(sampled_neigh), d))
             feats2 = np.zeros((len(sampled_neigh), d))
@@ -769,7 +780,8 @@ class Server_GAT:
             for i in range(len(sampled_neigh)):
                 feats1[i, :] = self.feats[node, :].cpu().detach().numpy()
                 feats2[i, :] = (
-                    self.feats[sampled_neigh[i].item(), :].cpu().detach().numpy()
+                    self.feats[sampled_neigh[i].item(),
+                               :].cpu().detach().numpy()
                 )
                 if self.device == torch.device("cuda"):
                     dim = max_degree
@@ -935,7 +947,8 @@ class Server_GAT:
         for param in self.GATModelParams:
             for client_id in self.LocalModelParams:
                 global_variance += torch.norm(
-                    self.GATModelParams[param] - self.LocalModelParams[client_id][param]
+                    self.GATModelParams[param] -
+                    self.LocalModelParams[client_id][param]
                 )
         return global_variance / (len(self.trainers) * len(self.GATModelParams))
 
@@ -1022,7 +1035,8 @@ class Server_GAT:
 
             for id in range(len(self.trainers)):
                 P = list(self.Model.parameters())
-                PID = list(self.trainers[id].get_model_parameters.remote())
+                PID = list(
+                    ray.get(self.trainers[id].get_model_parameters.remote()))
                 Duals = list(self.Duals[id].parameters())
 
                 for i in range(len(P)):
@@ -1034,7 +1048,8 @@ class Server_GAT:
 
             err /= len(self.trainers)
 
-            print("Average error in local and global models = {E}".format(E=err))
+            print(
+                "Average error in local and global models = {E}".format(E=err))
 
     def ResetAll(self, Model, train_params=None):
         if train_params != None:
@@ -1042,7 +1057,8 @@ class Server_GAT:
 
         self.Model = Model
 
-        self.Duals = {id: copy.deepcopy(self.Model) for id in range(len(self.trainers))}
+        self.Duals = {id: copy.deepcopy(self.Model)
+                      for id in range(len(self.trainers))}
 
         for p in self.Model.parameters():
             p.requires_grad = False
@@ -1096,6 +1112,44 @@ class Server_GAT:
             for id in range(len(self.trainers)):
                 for i in range(self.num_local_iters):
                     self.trainers[id].train_iterate.remote()
+
+            self.TrainUpdate()
+
+            for id in range(len(self.trainers)):
+                self.trainers[id].FromServer.remote(self.Model, self.Duals[id])
+
+                self.trainers[id].OptimReset.remote()
+
+            print("Epoch {e} completed!".format(e=ep))
+
+        print("Training completed!")
+
+        return self.Model, self.Duals
+
+    def TrainCoordinate_FedAvg(self, model):  # This has also been changed
+        # Changed function a little
+
+        # Computing the weights for each client
+        # TODO; add resetall function
+        self.ResetAll(self.Model, train_params=self.args)
+
+        self.model_loss_weights = [1.0 for _ in range(len(self.trainers))]
+
+        for id in range(len(self.trainers)):
+            self.trainers[id].FromServer.remote(self.Model, self.Duals[id])
+
+            self.trainers[id].set_model.remote(self.Model)
+            self.trainers[id].update_optim_kind.remote(self.optim_kind)
+            self.trainers[id].train_model.remote()
+
+        # Now, we can start training!
+
+        print("Starting training!")
+
+        for ep in range(self.train_iters):
+            for id in range(len(self.trainers)):
+                for i in range(self.num_local_iters):
+                    self.trainers[id].train_iterate_fedavg.remote()
 
             self.TrainUpdate()
 
@@ -1168,7 +1222,8 @@ class Server_LP:
 
         # Collect the model parameters as they become ready
         while local_model_parameters:
-            ready, left = ray.wait(local_model_parameters, num_returns=1, timeout=None)
+            ready, left = ray.wait(
+                local_model_parameters, num_returns=1, timeout=None)
             if ready:
                 for t in ready:
                     model_states.append(ray.get(t))

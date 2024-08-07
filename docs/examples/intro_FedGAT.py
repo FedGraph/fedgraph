@@ -8,7 +8,7 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 
 (Time estimate: 15 minutes)
 """
-
+from torch.optim import Adam
 import os
 import time
 import subprocess
@@ -20,16 +20,20 @@ import numpy as np
 import ray
 import torch
 import yaml
-
+import torch.nn as nn
 from fedgraph.data_process import FedGAT_load_data, FedGAT_load_data_100, FedAT_load_data_test
 from fedgraph.gnn_models import (
     FedGATModel,
+    CentralizedGATModel,
 )
 from fedgraph.server_class import Server_GAT
 from fedgraph.trainer_class import Trainer_GAT
 from fedgraph.utils_gat import (
+    calculate_statistics,
     get_in_comm_indexes,
     label_dirichlet_partition,
+    print_client_statistics,
+    print_mask_statistics,
 )
 # check env version
 # result = subprocess.run(["pip", "list"], stdout=subprocess.PIPE, text=True)
@@ -55,7 +59,7 @@ config_file = os.path.join(current_dir, "configs/config_FedGAT.yaml")
 with open(config_file, "r") as file:
     args = attridict.AttriDict(yaml.safe_load(file))
 
-# Data Loading
+
 (
     data,
     normalized_features,
@@ -67,7 +71,45 @@ with open(config_file, "r") as file:
     idx_test,
 ) = FedAT_load_data_test("cora")
 print(data)
+calculate_statistics(data)
+print_mask_statistics(data)
+row, col, edge_attr = adj.coo()
+edge_index = torch.stack([row, col], dim=0)
+split_node_indexes = label_dirichlet_partition(
+    labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
+)
 
+
+for i in range(args.n_trainer):
+    split_node_indexes[i] = np.array(split_node_indexes[i])
+    split_node_indexes[i].sort()
+    split_node_indexes[i] = torch.tensor(split_node_indexes[i])
+
+
+# Device setup
+device = torch.device("cpu" if True else "cpu")
+print(f"device: {device}")
+
+
+(
+    communicate_node_indexes,
+    in_com_train_node_indexes,
+    in_com_test_node_indexes,
+    in_com_val_node_indexes,
+    edge_indexes_clients,
+    in_com_labels,
+) = get_in_comm_indexes(
+    edge_index,
+    split_node_indexes,
+    args.n_trainer,
+    # args.num_hops,
+    0,
+    idx_train,
+    idx_test,
+    idx_val,
+    one_hot_labels,
+)
+print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
 (
     data,
     normalized_features,
@@ -77,8 +119,97 @@ print(data)
     idx_train,
     idx_val,
     idx_test,
-) = FedAT_load_data_test(args.dataset)
+) = FedAT_load_data_test("pubmed")
 print(data)
+calculate_statistics(data)
+print_mask_statistics(data)
+row, col, edge_attr = adj.coo()
+edge_index = torch.stack([row, col], dim=0)
+split_node_indexes = label_dirichlet_partition(
+    labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
+)
+
+
+for i in range(args.n_trainer):
+    split_node_indexes[i] = np.array(split_node_indexes[i])
+    split_node_indexes[i].sort()
+    split_node_indexes[i] = torch.tensor(split_node_indexes[i])
+
+
+# Device setup
+device = torch.device("cpu" if True else "cpu")
+print(f"device: {device}")
+
+
+(
+    communicate_node_indexes,
+    in_com_train_node_indexes,
+    in_com_test_node_indexes,
+    in_com_val_node_indexes,
+    edge_indexes_clients,
+    in_com_labels,
+) = get_in_comm_indexes(
+    edge_index,
+    split_node_indexes,
+    args.n_trainer,
+    # args.num_hops,
+    0,
+    idx_train,
+    idx_test,
+    idx_val,
+    one_hot_labels,
+)
+print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
+(
+    data,
+    normalized_features,
+    adj,
+    labels,
+    one_hot_labels,
+    idx_train,
+    idx_val,
+    idx_test,
+) = FedAT_load_data_test("ogbn-arxiv")
+print(data)
+calculate_statistics(data)
+print_mask_statistics(data)
+row, col, edge_attr = adj.coo()
+edge_index = torch.stack([row, col], dim=0)
+split_node_indexes = label_dirichlet_partition(
+    labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
+)
+
+
+for i in range(args.n_trainer):
+    split_node_indexes[i] = np.array(split_node_indexes[i])
+    split_node_indexes[i].sort()
+    split_node_indexes[i] = torch.tensor(split_node_indexes[i])
+
+
+# Device setup
+device = torch.device("cpu" if True else "cpu")
+print(f"device: {device}")
+
+
+(
+    communicate_node_indexes,
+    in_com_train_node_indexes,
+    in_com_test_node_indexes,
+    in_com_val_node_indexes,
+    edge_indexes_clients,
+    in_com_labels,
+) = get_in_comm_indexes(
+    edge_index,
+    split_node_indexes,
+    args.n_trainer,
+    # args.num_hops,
+    0,
+    idx_train,
+    idx_test,
+    idx_val,
+    one_hot_labels,
+)
+print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
 (
     data,
     normalized_features,
@@ -90,6 +221,45 @@ print(data)
     idx_test,
 ) = FedAT_load_data_test("ogbn-products")
 print(data)
+calculate_statistics(data)
+print_mask_statistics(data)
+row, col, edge_attr = adj.coo()
+edge_index = torch.stack([row, col], dim=0)
+split_node_indexes = label_dirichlet_partition(
+    labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
+)
+
+
+for i in range(args.n_trainer):
+    split_node_indexes[i] = np.array(split_node_indexes[i])
+    split_node_indexes[i].sort()
+    split_node_indexes[i] = torch.tensor(split_node_indexes[i])
+
+
+# Device setup
+device = torch.device("cpu" if True else "cpu")
+print(f"device: {device}")
+
+
+(
+    communicate_node_indexes,
+    in_com_train_node_indexes,
+    in_com_test_node_indexes,
+    in_com_val_node_indexes,
+    edge_indexes_clients,
+    in_com_labels,
+) = get_in_comm_indexes(
+    edge_index,
+    split_node_indexes,
+    args.n_trainer,
+    # args.num_hops,
+    0,
+    idx_train,
+    idx_test,
+    idx_val,
+    one_hot_labels,
+)
+print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
 (
     data,
     normalized_features,
@@ -101,16 +271,14 @@ print(data)
     idx_test,
 ) = FedAT_load_data_test("siteseer")
 print(data)
-
-time.sleep(100)
+calculate_statistics(data)
+print_mask_statistics(data)
 row, col, edge_attr = adj.coo()
 edge_index = torch.stack([row, col], dim=0)
-# Split Graph for Federated Learning
-# client_nodes = CreateNodeSplit(data, args.n_trainer)
-# print(client_nodes)
 split_node_indexes = label_dirichlet_partition(
     labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
 )
+
 
 for i in range(args.n_trainer):
     split_node_indexes[i] = np.array(split_node_indexes[i])
@@ -121,18 +289,136 @@ for i in range(args.n_trainer):
 # Device setup
 device = torch.device("cpu" if True else "cpu")
 print(f"device: {device}")
-# print(f"normalized_features.shape[1]: {normalized_features.shape[1]}")
 
 
-# tr_indexes = [[] for _ in range(args.n_trainer)]
-# v_indexes = [[] for _ in range(args.n_trainer)]
-# t_indexes = [[] for _ in range(args.n_trainer)]
-# for i in range(args.n_trainer):
-#     n = len(split_node_indexes[i])
-#     np.random.shuffle(split_node_indexes[i].numpy())
-#     tr_indexes[i] = split_node_indexes[i][: n - 2].tolist()
-#     v_indexes[i] = split_node_indexes[i][n - 2: n - 1].tolist()
-#     t_indexes[i] = split_node_indexes[i][n - 1:].tolist()
+(
+    communicate_node_indexes,
+    in_com_train_node_indexes,
+    in_com_test_node_indexes,
+    in_com_val_node_indexes,
+    edge_indexes_clients,
+    in_com_labels,
+) = get_in_comm_indexes(
+    edge_index,
+    split_node_indexes,
+    args.n_trainer,
+    # args.num_hops,
+    0,
+    idx_train,
+    idx_test,
+    idx_val,
+    one_hot_labels,
+)
+print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
+
+
+time.sleep(100)
+
+# #######################################################################
+# # Centralized GAT Test
+# #######################################################################
+# gat = CentralizedGATModel(
+#     in_feat=normalized_features.shape[1],
+#     out_feat=one_hot_labels.shape[1],
+#     hidden_dim=args.hidden_dim,
+#     num_head=args.num_heads,
+#     max_deg=args.max_deg,
+#     attn_func=args.attn_func_parameter,
+#     domain=args.attn_func_domain,
+# ).to(device="cpu")
+
+
+# optimizer = Adam(gat.parameters(), lr=args.model_lr,
+#                  weight_decay=args.model_regularisation)
+
+
+# def LossFunc(y_pred, y_true, model, args):
+#     criterion = nn.CrossEntropyLoss()
+#     v = criterion(y_pred, y_true)
+#     # for p in model.parameters():
+#     #     v += 0.5 * 5e-4 * torch.sum(p ** 2)
+
+#     return v
+
+
+# print("Starting training!")
+# epoch = 0
+# num_epochs = 72
+
+# train_mask = idx_train
+# validate_mask = idx_val
+# test_mask = idx_test
+
+# for ep in range(num_epochs):
+#     optimizer.zero_grad()
+#     print(data)
+#     y_pred = gat(data)
+
+#     t_loss = LossFunc(y_pred[train_mask],
+#                       one_hot_labels[train_mask], gat, args)
+
+#     t_loss.backward()
+#     optimizer.step()
+
+#     with torch.no_grad():
+#         v_loss = LossFunc(y_pred[validate_mask],
+#                           one_hot_labels[validate_mask], gat, args)
+
+#         pred_labels = torch.argmax(y_pred, dim=1)
+#         true_labels = torch.argmax(one_hot_labels, dim=1)
+
+#         t_acc = torch.sum(
+#             pred_labels[train_mask] == true_labels[train_mask]).item() / len(train_mask)
+#         v_acc = torch.sum(pred_labels[validate_mask] == true_labels[validate_mask]).item(
+#         ) / len(validate_mask)
+
+#         print(
+#             f"Client 0: Epoch {epoch}: Train loss: {t_loss.item():.4f}, Train acc: {t_acc*100:.2f}%, "
+#             f"Val loss: {v_loss.item():.4f}, Val acc {v_acc*100:.2f}%"
+#         )
+
+#     epoch += 1
+#     print(f"Epoch {ep} completed!")
+
+# print("Training completed!")
+# gat.eval()
+
+# with torch.no_grad():
+#     y_pred = gat(data)
+
+#     test_loss = LossFunc(y_pred[test_mask],
+#                          one_hot_labels[test_mask], gat, args)
+
+#     pred_labels = torch.argmax(y_pred, dim=1)
+#     true_labels = torch.argmax(one_hot_labels, dim=1)
+
+#     test_acc = torch.sum(
+#         pred_labels[test_mask] == true_labels[test_mask]).item() / len(test_mask)
+
+#     print(
+#         f"Test loss: {test_loss.item():.4f}, Test acc: {test_acc*100:.2f}%"
+#     )
+# print("Testing completed!")
+# #######################################################################
+# # Centralized GAT Test
+# #######################################################################
+row, col, edge_attr = adj.coo()
+edge_index = torch.stack([row, col], dim=0)
+split_node_indexes = label_dirichlet_partition(
+    labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
+)
+
+
+for i in range(args.n_trainer):
+    split_node_indexes[i] = np.array(split_node_indexes[i])
+    split_node_indexes[i].sort()
+    split_node_indexes[i] = torch.tensor(split_node_indexes[i])
+
+
+# Device setup
+device = torch.device("cpu" if True else "cpu")
+print(f"device: {device}")
+
 
 (
     communicate_node_indexes,
@@ -251,7 +537,16 @@ clients = [
 #     clients.append(client)
 edge_index = edge_index.to(device)
 # Define Server
-GATModel = FedGATModel(
+# GATModel = FedGATModel(
+#     in_feat=normalized_features.shape[1],
+#     out_feat=one_hot_labels.shape[1],
+#     hidden_dim=args.hidden_dim,
+#     num_head=args.num_heads,
+#     max_deg=args.max_deg,
+#     attn_func=args.attn_func_parameter,
+#     domain=args.attn_func_domain,
+# ).to(device=device)
+centralizedGATModel = CentralizedGATModel(
     in_feat=normalized_features.shape[1],
     out_feat=one_hot_labels.shape[1],
     hidden_dim=args.hidden_dim,
@@ -259,10 +554,10 @@ GATModel = FedGATModel(
     max_deg=args.max_deg,
     attn_func=args.attn_func_parameter,
     domain=args.attn_func_domain,
-).to(device=device)
+).to(device="cpu")
 server = Server_GAT(
     graph=data,
-    model=GATModel,
+    model=centralizedGATModel,
     feats=normalized_features,
     labels=one_hot_labels,
     feature_dim=normalized_features.shape[1],
@@ -273,55 +568,13 @@ server = Server_GAT(
 )
 
 # Pre-training communication
-print("Pre-training communication initiated!")
-server.pretrain_communication(
-    communicate_node_indexes, data, device=args.device)
-# for client_id, communicate_node_index in enumerate(communicate_node_indexes):
-#     # print(f"currentClientID:{client_id}")
-#     # print(f"node_indexes size: {len(communicate_node_index)}")
-#     ret_info = server.pretrain_communication(
-#         client_id, communicate_node_index, data, device=args.device
-#     )
-#     # print("printing ret_info and subgraph size:")
-#     # print(len(ret_info))
-#     # print(clients[client_id].graph.size())
-#     # the subgraph size is 1606 but the ret_info size is 1578
-#     # IndexError: Encountered an index error. Please ensure that all indices in 'edge_index' point to valid indices in the interval [0, 1578] (got interval [0, 1606])
-#     clients[client_id].setNodeMats(ret_info)
-#     # print(f"client{client_id} have ret_info\n {ret_info}")
+# print("Pre-training communication initiated!")
+# server.pretrain_communication(
+#     communicate_node_indexes, data, device=args.device)
+# print("Pre-training communication completed!")
+
 print("Pre-training communication completed!")
 
-# # Federated Training
-# print("Commenced training!")
 
-# [client.from_server.remote(server.GATModelParams, server.Duals) for client in clients]
-# [client.train_model.remote() for client in clients]
-
-# print("Training initiated!")
-
-# for t in range(server.train_rounds):
-#     [client.train_iterate.remote() for client in clients]
-
-#     if (t + 1) % server.num_local_iters == 0:
-#         server.TrainingUpdate()
-
-#     [
-#         client.from_server.remote(server.GATModelParams, server.Duals)
-#         for client in clients
-#     ]
-
-# print("Training completed!")
-# print("Testing now!")
-
-# [client.model_test.remote() for client in clients]
-
-# print("Complete!")
-
-# # Summarize Experiment Results
-# # The server collects the local test loss and accuracy from all clients
-# # then calculate the overall test loss and accuracy.
-
-# server.ResetAll()
-
-server.TrainCoordinate(GATModel)
+server.TrainCoordinate_FedAvg(centralizedGATModel)
 ray.shutdown()
