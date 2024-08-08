@@ -1135,7 +1135,7 @@ class Server_GAT:
                 for i in range(self.num_local_iters):
                     refs.append(self.trainers[id].train_iterate.remote())
             test_acc_list = ray.get(refs)
-            average_final_test_accuracy = statistics.mean(test_acc_list)
+            average_final_test_accuracy = torch.tensor(test_acc_list).mean().item()
             print(f"iteration {ep} completed, avg acc = {average_final_test_accuracy}")
             self.TrainUpdate()
 
