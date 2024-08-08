@@ -8,24 +8,26 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 
 (Time estimate: 15 minutes)
 """
-from torch.optim import Adam
 import os
-import time
 import subprocess
 import sys
+import time
 from typing import Any
 
 import attridict
 import numpy as np
 import ray
 import torch
-import yaml
 import torch.nn as nn
-from fedgraph.data_process import FedGAT_load_data, FedGAT_load_data_100, FedAT_load_data_test
-from fedgraph.gnn_models import (
-    FedGATModel,
-    CentralizedGATModel,
+import yaml
+from torch.optim import Adam
+
+from fedgraph.data_process import (
+    FedAT_load_data_test,
+    FedGAT_load_data,
+    FedGAT_load_data_100,
 )
+from fedgraph.gnn_models import CentralizedGATModel, FedGATModel
 from fedgraph.server_class import Server_GAT
 from fedgraph.trainer_class import Trainer_GAT
 from fedgraph.utils_gat import (
@@ -35,6 +37,7 @@ from fedgraph.utils_gat import (
     print_client_statistics,
     print_mask_statistics,
 )
+
 # check env version
 # result = subprocess.run(["pip", "list"], stdout=subprocess.PIPE, text=True)
 # torch_versions = [line for line in result.stdout.split(
@@ -536,8 +539,7 @@ server = Server_GAT(
 
 # Pre-training communication
 print("Pre-training communication initiated!")
-server.pretrain_communication(
-    communicate_node_indexes, data, device=args.device)
+server.pretrain_communication(communicate_node_indexes, data, device=args.device)
 print("Pre-training communication completed!")
 
 
