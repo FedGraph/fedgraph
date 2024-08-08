@@ -110,209 +110,209 @@ print(f"device: {device}")
     one_hot_labels,
 )
 print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
-(
-    data,
-    normalized_features,
-    adj,
-    labels,
-    one_hot_labels,
-    idx_train,
-    idx_val,
-    idx_test,
-) = FedAT_load_data_test("pubmed")
-print(data)
-calculate_statistics(data)
-print_mask_statistics(data)
-row, col, edge_attr = adj.coo()
-edge_index = torch.stack([row, col], dim=0)
-split_node_indexes = label_dirichlet_partition(
-    labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
-)
+# (
+#     data,
+#     normalized_features,
+#     adj,
+#     labels,
+#     one_hot_labels,
+#     idx_train,
+#     idx_val,
+#     idx_test,
+# ) = FedAT_load_data_test("pubmed")
+# print(data)
+# calculate_statistics(data)
+# print_mask_statistics(data)
+# row, col, edge_attr = adj.coo()
+# edge_index = torch.stack([row, col], dim=0)
+# split_node_indexes = label_dirichlet_partition(
+#     labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
+# )
 
 
-for i in range(args.n_trainer):
-    split_node_indexes[i] = np.array(split_node_indexes[i])
-    split_node_indexes[i].sort()
-    split_node_indexes[i] = torch.tensor(split_node_indexes[i])
+# for i in range(args.n_trainer):
+#     split_node_indexes[i] = np.array(split_node_indexes[i])
+#     split_node_indexes[i].sort()
+#     split_node_indexes[i] = torch.tensor(split_node_indexes[i])
 
 
-# Device setup
-device = torch.device("cpu" if True else "cpu")
-print(f"device: {device}")
+# # Device setup
+# device = torch.device("cpu" if True else "cpu")
+# print(f"device: {device}")
 
 
-(
-    communicate_node_indexes,
-    in_com_train_node_indexes,
-    in_com_test_node_indexes,
-    in_com_val_node_indexes,
-    edge_indexes_clients,
-    in_com_labels,
-) = get_in_comm_indexes(
-    edge_index,
-    split_node_indexes,
-    args.n_trainer,
-    # args.num_hops,
-    0,
-    idx_train,
-    idx_test,
-    idx_val,
-    one_hot_labels,
-)
-print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
-(
-    data,
-    normalized_features,
-    adj,
-    labels,
-    one_hot_labels,
-    idx_train,
-    idx_val,
-    idx_test,
-) = FedAT_load_data_test("ogbn-arxiv")
-print(data)
-calculate_statistics(data)
-print_mask_statistics(data)
-row, col, edge_attr = adj.coo()
-edge_index = torch.stack([row, col], dim=0)
-split_node_indexes = label_dirichlet_partition(
-    labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
-)
+# (
+#     communicate_node_indexes,
+#     in_com_train_node_indexes,
+#     in_com_test_node_indexes,
+#     in_com_val_node_indexes,
+#     edge_indexes_clients,
+#     in_com_labels,
+# ) = get_in_comm_indexes(
+#     edge_index,
+#     split_node_indexes,
+#     args.n_trainer,
+#     # args.num_hops,
+#     0,
+#     idx_train,
+#     idx_test,
+#     idx_val,
+#     one_hot_labels,
+# )
+# print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
+# (
+#     data,
+#     normalized_features,
+#     adj,
+#     labels,
+#     one_hot_labels,
+#     idx_train,
+#     idx_val,
+#     idx_test,
+# ) = FedAT_load_data_test("ogbn-arxiv")
+# print(data)
+# calculate_statistics(data)
+# print_mask_statistics(data)
+# row, col, edge_attr = adj.coo()
+# edge_index = torch.stack([row, col], dim=0)
+# split_node_indexes = label_dirichlet_partition(
+#     labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
+# )
 
 
-for i in range(args.n_trainer):
-    split_node_indexes[i] = np.array(split_node_indexes[i])
-    split_node_indexes[i].sort()
-    split_node_indexes[i] = torch.tensor(split_node_indexes[i])
+# for i in range(args.n_trainer):
+#     split_node_indexes[i] = np.array(split_node_indexes[i])
+#     split_node_indexes[i].sort()
+#     split_node_indexes[i] = torch.tensor(split_node_indexes[i])
 
 
-# Device setup
-device = torch.device("cpu" if True else "cpu")
-print(f"device: {device}")
+# # Device setup
+# device = torch.device("cpu" if True else "cpu")
+# print(f"device: {device}")
 
 
-(
-    communicate_node_indexes,
-    in_com_train_node_indexes,
-    in_com_test_node_indexes,
-    in_com_val_node_indexes,
-    edge_indexes_clients,
-    in_com_labels,
-) = get_in_comm_indexes(
-    edge_index,
-    split_node_indexes,
-    args.n_trainer,
-    # args.num_hops,
-    0,
-    idx_train,
-    idx_test,
-    idx_val,
-    one_hot_labels,
-)
-print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
-(
-    data,
-    normalized_features,
-    adj,
-    labels,
-    one_hot_labels,
-    idx_train,
-    idx_val,
-    idx_test,
-) = FedAT_load_data_test("ogbn-products")
-print(data)
-calculate_statistics(data)
-print_mask_statistics(data)
-row, col, edge_attr = adj.coo()
-edge_index = torch.stack([row, col], dim=0)
-split_node_indexes = label_dirichlet_partition(
-    labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
-)
+# (
+#     communicate_node_indexes,
+#     in_com_train_node_indexes,
+#     in_com_test_node_indexes,
+#     in_com_val_node_indexes,
+#     edge_indexes_clients,
+#     in_com_labels,
+# ) = get_in_comm_indexes(
+#     edge_index,
+#     split_node_indexes,
+#     args.n_trainer,
+#     # args.num_hops,
+#     0,
+#     idx_train,
+#     idx_test,
+#     idx_val,
+#     one_hot_labels,
+# )
+# print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
+# (
+#     data,
+#     normalized_features,
+#     adj,
+#     labels,
+#     one_hot_labels,
+#     idx_train,
+#     idx_val,
+#     idx_test,
+# ) = FedAT_load_data_test("ogbn-products")
+# print(data)
+# calculate_statistics(data)
+# print_mask_statistics(data)
+# row, col, edge_attr = adj.coo()
+# edge_index = torch.stack([row, col], dim=0)
+# split_node_indexes = label_dirichlet_partition(
+#     labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
+# )
 
 
-for i in range(args.n_trainer):
-    split_node_indexes[i] = np.array(split_node_indexes[i])
-    split_node_indexes[i].sort()
-    split_node_indexes[i] = torch.tensor(split_node_indexes[i])
+# for i in range(args.n_trainer):
+#     split_node_indexes[i] = np.array(split_node_indexes[i])
+#     split_node_indexes[i].sort()
+#     split_node_indexes[i] = torch.tensor(split_node_indexes[i])
 
 
-# Device setup
-device = torch.device("cpu" if True else "cpu")
-print(f"device: {device}")
+# # Device setup
+# device = torch.device("cpu" if True else "cpu")
+# print(f"device: {device}")
 
 
-(
-    communicate_node_indexes,
-    in_com_train_node_indexes,
-    in_com_test_node_indexes,
-    in_com_val_node_indexes,
-    edge_indexes_clients,
-    in_com_labels,
-) = get_in_comm_indexes(
-    edge_index,
-    split_node_indexes,
-    args.n_trainer,
-    # args.num_hops,
-    0,
-    idx_train,
-    idx_test,
-    idx_val,
-    one_hot_labels,
-)
-print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
-(
-    data,
-    normalized_features,
-    adj,
-    labels,
-    one_hot_labels,
-    idx_train,
-    idx_val,
-    idx_test,
-) = FedAT_load_data_test("siteseer")
-print(data)
-calculate_statistics(data)
-print_mask_statistics(data)
-row, col, edge_attr = adj.coo()
-edge_index = torch.stack([row, col], dim=0)
-split_node_indexes = label_dirichlet_partition(
-    labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
-)
+# (
+#     communicate_node_indexes,
+#     in_com_train_node_indexes,
+#     in_com_test_node_indexes,
+#     in_com_val_node_indexes,
+#     edge_indexes_clients,
+#     in_com_labels,
+# ) = get_in_comm_indexes(
+#     edge_index,
+#     split_node_indexes,
+#     args.n_trainer,
+#     # args.num_hops,
+#     0,
+#     idx_train,
+#     idx_test,
+#     idx_val,
+#     one_hot_labels,
+# )
+# print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
+# (
+#     data,
+#     normalized_features,
+#     adj,
+#     labels,
+#     one_hot_labels,
+#     idx_train,
+#     idx_val,
+#     idx_test,
+# ) = FedAT_load_data_test("siteseer")
+# print(data)
+# calculate_statistics(data)
+# print_mask_statistics(data)
+# row, col, edge_attr = adj.coo()
+# edge_index = torch.stack([row, col], dim=0)
+# split_node_indexes = label_dirichlet_partition(
+#     labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
+# )
 
 
-for i in range(args.n_trainer):
-    split_node_indexes[i] = np.array(split_node_indexes[i])
-    split_node_indexes[i].sort()
-    split_node_indexes[i] = torch.tensor(split_node_indexes[i])
+# for i in range(args.n_trainer):
+#     split_node_indexes[i] = np.array(split_node_indexes[i])
+#     split_node_indexes[i].sort()
+#     split_node_indexes[i] = torch.tensor(split_node_indexes[i])
 
 
-# Device setup
-device = torch.device("cpu" if True else "cpu")
-print(f"device: {device}")
+# # Device setup
+# device = torch.device("cpu" if True else "cpu")
+# print(f"device: {device}")
 
 
-(
-    communicate_node_indexes,
-    in_com_train_node_indexes,
-    in_com_test_node_indexes,
-    in_com_val_node_indexes,
-    edge_indexes_clients,
-    in_com_labels,
-) = get_in_comm_indexes(
-    edge_index,
-    split_node_indexes,
-    args.n_trainer,
-    # args.num_hops,
-    0,
-    idx_train,
-    idx_test,
-    idx_val,
-    one_hot_labels,
-)
-print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
+# (
+#     communicate_node_indexes,
+#     in_com_train_node_indexes,
+#     in_com_test_node_indexes,
+#     in_com_val_node_indexes,
+#     edge_indexes_clients,
+#     in_com_labels,
+# ) = get_in_comm_indexes(
+#     edge_index,
+#     split_node_indexes,
+#     args.n_trainer,
+#     # args.num_hops,
+#     0,
+#     idx_train,
+#     idx_test,
+#     idx_val,
+#     one_hot_labels,
+# )
+# print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
 
 
-time.sleep(100)
+# time.sleep(100)
 
 # #######################################################################
 # # Centralized GAT Test
@@ -431,7 +431,7 @@ print(f"device: {device}")
     edge_index,
     split_node_indexes,
     args.n_trainer,
-    # args.num_hops,
+    # args.num_hops:
     0,
     idx_train,
     idx_test,
@@ -501,41 +501,8 @@ clients = [
     )
     for client_id in range(len(split_node_indexes))
 ]
-# for client_id, node_indices in enumerate(split_node_indexes):
-#     # print("current generating client:")
-#     # print(f"clientId: {client_id}")
-#     # print(f"node_indices: {node_indices}")
-#     # split graph and then transfer the subgraph to each client based on split index
-#     subgraph = data.subgraph(communicate_node_indexes[client_id])
-#     # print(
-#     #     f"communicate_node_indexes[client_id]: {communicate_node_indexes[client_id]}")
-#     # print(
-#     #     f"in_com_train_node_indexes[client_id]: {in_com_train_node_indexes[client_id]}"
-#     # )
-#     # print(
-#     #     f"in_com_val_node_indexes[client_id]: {in_com_val_node_indexes[client_id]}")
-#     # print(
-#     #     f"in_com_test_node_indexes[client_id]: {in_com_test_node_indexes[client_id]}")
-#     # print(
-#     #     f"len(communicate_node_indexes[i]): {len(communicate_node_indexes[i])}")
-#     # print(one_hot_labels.size())
 
-#     # client initialization
-#     client = Trainer_GAT(
-#         client_id=client_id,
-#         subgraph=subgraph,
-#         node_indexes=communicate_node_indexes[client_id],
-#         train_indexes=in_com_train_node_indexes[client_id],
-#         val_indexes=in_com_val_node_indexes[client_id],
-#         test_indexes=in_com_test_node_indexes[client_id],
-#         labels=in_com_labels[i],
-#         features_shape=normalized_features.shape[1],
-#         args=args,
-#         device=device,
-#     )
 
-#     clients.append(client)
-edge_index = edge_index.to(device)
 # Define Server
 gat_model = FedGATModel(
     in_feat=normalized_features.shape[1],
@@ -573,8 +540,7 @@ server.pretrain_communication(
     communicate_node_indexes, data, device=args.device)
 print("Pre-training communication completed!")
 
-print("Pre-training communication completed!")
 
-server.ResetAll(gat_model, train_params=args)
+# server.ResetAll(gat_model, train_params=args)
 server.TrainCoordinate()
 ray.shutdown()

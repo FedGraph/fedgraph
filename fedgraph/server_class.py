@@ -1,14 +1,14 @@
 import copy
 import random
 from typing import Any
-
+import time
 import networkx as nx
 import numpy as np
 import ray
 import torch
 from dtaidistance import dtw
 from torch_geometric.utils import degree
-
+import statistics
 from fedgraph.gnn_models import (
     GCN,
     GNN_LP,
@@ -526,29 +526,50 @@ class Server_GAT:
         self.max_deg = args.max_deg
         self.Model = model
         self.GATModelParams = self.Model.state_dict()
-        for p in self.Model.parameters():
-            p.requires_grad = False
-        self.Duals = {
-            client_id: copy.deepcopy(self.Model)
-            for client_id in range(len(self.trainers))
-        }
 
         self.num_layers = args.num_layers
+        self.glob_comm = args.glob_comm
 
         self.node_mats = {}
 
         self.optim_kind = args.optim_kind
+        self.Duals = {}
+        if args.glob_comm == 'FedAvg':
 
-        for id in self.Duals:
-            for p in self.Duals[id].parameters():
+            for p in self.Model.parameters():
+
+                p.requires_grad = True
+
+                p.grad = torch.zeros(p.size())
+
+        elif args.glob_comm == 'ADMM':
+
+            for p in self.Model.parameters():
+
                 p.requires_grad = False
 
-        self.LocalModelParams = {
-            id: copy.deepcopy(self.Model).parameters() for id in range(len(trainers))
-        }
+        if self.glob_comm == 'FedAvg':
 
+            if args.optim_kind == 'Adam':
+
+                self.Optim = torch.optim.Adam(self.Model.parameters(
+                ), lr=args.model_lr, weight_decay=self.model_regularisation)
+
+            elif args.optim_kind == 'SGD':
+
+                self.Optim = torch.optim.SGD(self.Model.parameters(
+                ), lr=args.model_lr, momentum=args.momentum, dampening=args.dampening, weight_decay=self.model_regularisation)
+        if args.glob_comm == 'ADMM':
+
+            self.Duals = {id: copy.deepcopy(self.Model).to(
+                device=device) for id in range(len(self.trainers))}
+
+            for id in self.Duals:
+
+                for p in self.Duals[id].parameters():
+
+                    p.requires_grad = False
         self.model_loss_weights = {id: 1.0 for id in range(len(trainers))}
-
         self.args = args
 
     @torch.no_grad()
@@ -952,7 +973,7 @@ class Server_GAT:
                 )
         return global_variance / (len(self.trainers) * len(self.GATModelParams))
 
-    def TrainUpdate(self): #This has changed completely
+    def TrainUpdate(self):  # This has changed completely
 
         old = copy.deepcopy(self.Model)
 
@@ -968,20 +989,30 @@ class Server_GAT:
 
                 for p in self.Model.parameters():
 
+                    # print(p.requires_grad)
+
                     p.grad = torch.zeros(p.size())
 
                     p.grad.data.zero_()
-
+            # time.sleep(100)
             with torch.no_grad():
 
-                for id in self.trainers:
+                for id in range(len(self.trainers)):
+                    # S = ray.get(
+                    #     self.trainers[id].get_model_state_dict.remote())
+                    # for p in S:
+                    #     print(p)
+                    # print(
+                    #     ray.get(self.trainers[id].get_model_parameters.remote()))
+                    # for p in ray.get(self.trainers[id].get_model_parameters.remote()).parameters():
+                    #     print(p.grad)
+                    # print(
+                    #     ray.get(self.trainers[id].get_model_parameters.remote()).parameters().grad)
+                    for p, grad in zip(self.Model.parameters(), ray.get(self.trainers[id].get_model_grads.remote())):
 
-                    for p, p_id in zip(self.Model.parameters(), ray.get(self.trainers[id].get_model_parameters.remote())):
-
-                        p.grad += self.model_loss_weights[id] * p_id.grad
+                        p.grad += self.model_loss_weights[id] * grad
 
             self.Optim.step()
-
 
         elif self.glob_comm == 'ADMM':
 
@@ -993,15 +1024,17 @@ class Server_GAT:
 
                 for id in self.trainers:
 
-                    for p, p_id, dual in zip(self.Model.parameters(), ray.get(self.trainers[id].get_model_parameters.remote()), self.Duals[id].parameters()):
+                    for p, p_id, dual in zip(self.Model.parameters(), ray.get(self.trainers[id].get_model_grads.remote()), self.Duals[id].parameters()):
 
-                        p += self.model_loss_weights[id] * (p_id - self.dual_weight * dual / self.aug_lagrange_rho)
+                        p += self.model_loss_weights[id] * (
+                            p_id - self.dual_weight * dual / self.aug_lagrange_rho)
 
                 for id in self.trainers:
 
-                    for p, p_id, dual in zip(self.Model.parameters(), ray.get(self.trainers[id].get_model_parameters.remote()), self.Duals[id].parameters()):
+                    for p, p_id, dual in zip(self.Model.parameters(), ray.get(self.trainers[id].get_model_grads.remote()), self.Duals[id].parameters()):
 
-                        dual += self.model_loss_weights[id] * self.dual_lr * self.dual_weight * (p - p_id)
+                        dual += self.model_loss_weights[id] * \
+                            self.dual_lr * self.dual_weight * (p - p_id)
 
         with torch.no_grad():
 
@@ -1011,7 +1044,7 @@ class Server_GAT:
 
                 err += torch.sum((p - p_old) ** 2)/torch.numel(p)
 
-            print("Change in model parameters = {E}".format(E = err.item()))
+            print("Change in model parameters = {E}".format(E=err.item()))
 
     def ResetAll(self, Model, train_params=None):
         if train_params != None:
@@ -1028,12 +1061,13 @@ class Server_GAT:
 
             if self.optim_kind == 'Adam':
 
-                self.Optim = torch.optim.Adam(self.Model.parameters(), lr = self.model_lr, weight_decay = self.model_regularisation)
+                self.Optim = torch.optim.Adam(self.Model.parameters(
+                ), lr=self.model_lr, weight_decay=self.model_regularisation)
 
             elif self.optim_kind == 'SGD':
 
-                self.Optim = torch.optim.SGD(self.Model.parameters(), lr = self.model_lr, momentum = self.momentum, dampening = self.dampening, weight_decay = self.model_regularisation)
-
+                self.Optim = torch.optim.SGD(self.Model.parameters(
+                ), lr=self.model_lr, momentum=self.momentum, dampening=self.dampening, weight_decay=self.model_regularisation)
 
         if self.glob_comm == 'ADMM':
 
@@ -1065,25 +1099,31 @@ class Server_GAT:
                 copy.deepcopy(self.Model), self.args
             )
 
-    def TrainCoordinate(self, model):  # This has also been changed
-        # Changed function a little
-
+    def TrainCoordinate(self):  # This has also been changed
+        #######################################
         # Computing the weights for each client
+        #######################################
+
         loss_refs = [None for _ in range(len(self.trainers))]
         for id in range(len(self.trainers)):
             loss_refs[id] = self.trainers[id].get_sum_train_mask.remote()
         self.model_loss_weights = ray.get(loss_refs)
-        # self.model_loss_weights = loss_refs
+
         temp = sum(self.model_loss_weights)
         for id in range(len(self.model_loss_weights)):
             self.model_loss_weights[id] /= temp
+        #######################################
+        # Computing the weights for each client
+        #######################################
+
         self.ResetAll(self.Model, self.args)
 
         for id in range(len(self.trainers)):
 
             if self.glob_comm == 'FedAvg':
 
-                self.trainers[id].FromServer.remote(copy.deepcopy(self.Model), None)
+                self.trainers[id].FromServer.remote(
+                    copy.deepcopy(self.Model), None)
 
             elif self.glob_comm == 'ADMM':
 
@@ -1104,20 +1144,28 @@ class Server_GAT:
         print("Starting training!")
 
         for ep in range(self.train_iters):
-            for id in range(len(self.trainers)):
-                for i in range(self.num_local_iters):
-                    self.trainers[id].train_iterate.remote()
 
+            refs = []
+            for id in range(len(self.trainers)):
+
+                for i in range(self.num_local_iters):
+                    refs.append(self.trainers[id].train_iterate.remote())
+            ray.get(refs)
+            average_final_test_accuracy = statistics.mean(refs)
+            print(
+                f"iteration {ep} completed, avg acc = {average_final_test_accuracy}")
             self.TrainUpdate()
 
             for id in range(len(self.trainers)):
                 if self.glob_comm == 'ADMM':
 
-                    self.trainers[id].FromServer.remote(self.Model, self.Duals[id])
+                    self.trainers[id].FromServer.remote(
+                        self.Model, self.Duals[id])
 
                 else:
 
-                    self.trainers[id].FromServer.remote(copy.deepcopy(self.Model), None)
+                    self.trainers[id].FromServer.remote(
+                        copy.deepcopy(self.Model), None)
 
                 if self.optim_reset:
 
@@ -1129,11 +1177,8 @@ class Server_GAT:
 
         return self.Model, self.Duals
 
-    def TrainCoordinate_FedAvg(self, model):  # This has also been changed
-        # Changed function a little
+    def TrainCoordinate_FedAvg(self):  # This has also been changed
 
-        # Computing the weights for each client
-        # TODO; add resetall function
         self.ResetAll(self.Model, train_params=self.args)
 
         self.model_loss_weights = [1.0 for _ in range(len(self.trainers))]

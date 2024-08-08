@@ -680,7 +680,6 @@ def FedGAT_load_data_100(dataset_str: str) -> tuple:
     print(data)
     return (
         data,
-        features,
         normalized_features,
         adj,
         labels,

@@ -1259,15 +1259,16 @@ class Trainer_GAT:
 
         self.global_params = None
         self.duals = None
-        self.model = FedGATModel(
-            features_shape,
-            labels.shape[1],
-            args.hidden_dim,
-            args.num_heads,
-            args.max_deg,
-            args.attn_func_parameter,
-            args.attn_func_domain,
-        ).to(device=device)
+        # self.model = FedGATModel(
+        #     features_shape,
+        #     labels.shape[1],
+        #     args.hidden_dim,
+        #     args.num_heads,
+        #     args.max_deg,
+        #     args.attn_func_parameter,
+        #     args.attn_func_domain,
+        # ).to(device=device)
+        self.model = None
         self.node_mats = {}
         self.loss_weight = 1.0
         self.graph.to(device=self.device)
@@ -1280,7 +1281,14 @@ class Trainer_GAT:
         return self.model.state_dict()
 
     def get_model_parameters(self):
-        return self.model.parameters()
+        return self.model
+
+    def get_model_grads(self):
+        ps = self.model.parameters()
+        grad_list = []
+        for p in ps:
+            grad_list.append(p.grad)
+        return grad_list
 
     def update_params(self, params, current_global_epoch):
         """
@@ -1300,6 +1308,8 @@ class Trainer_GAT:
 
     def reset_initialzation(self, model, args):
         self.model = model
+        for p in self.model.parameters():
+            p.requires_grad = True
 
         self.train_rounds = args.train_rounds
 
@@ -1407,6 +1417,8 @@ class Trainer_GAT:
             for p_id, p in zip(self.model.parameters(), self.global_params.parameters()):
 
                 p_id.copy_(p)
+                p_id.grad = torch.zeros(p.size())
+                p_id.grad.data.zero_()
 
         for p in self.global_params.parameters():
 
@@ -1426,26 +1438,25 @@ class Trainer_GAT:
 
         if self.optim_kind == 'Adam':
 
-            self.Optim = torch.optim.Adam(self.model.parameters(), lr = self.model_lr)
+            self.Optim = torch.optim.Adam(
+                self.model.parameters(), lr=self.model_lr)
 
         elif self.optim_kind == 'SGD':
 
-            self.Optim = torch.optim.SGD(self.model.parameters(), lr = self.model_lr, momentum = self.momentum)
+            self.Optim = torch.optim.SGD(
+                self.model.parameters(), lr=self.model_lr, momentum=self.momentum)
 
     def train_iterate(self):
         """
         Perform a single iteration of training, updating model parameters and computing training and validation metrics.
         """
+        # for p in self.model.parameters():
+        # print(p.requires_grad)
         self.Optim.zero_grad()
         # print("priting in  def train_iterate(self):")
         # print(self.graph.size())
         # print(len(self.node_feats))
-        if self.device == torch.device("cuda"):
-            y_pred = self.model.forward_gpu(
-                self.graph, self.M1, self.M2, self.K1, self.K2
-            )
-        else:
-            y_pred = self.model.forward(self.graph, self.node_mats)
+        y_pred = self.model.forward(self.graph, self.node_mats)
 
         # print("validating for loss size")
         # print(self.client_id)
@@ -1463,12 +1474,31 @@ class Trainer_GAT:
             self.aug_lagrange_rho,
             self.dual_weight,
         )
+        for p in self.model.parameters():
+            p.retain_grad()
+        # S = self.model.state_dict()
+        # print("printing state dict")
+        # print(S)
+        # for p in S:
+        #     print("printing p ")
+        #     print(p)
+
+        #     print(S[p].grad)
+        #     print("printing p.is_leaf")
+        #     print(S[p].is_leaf)
+        # for p in self.model.parameters():
+        #     print(p.grad)
+        #     print(p.is_leaf)
+        #     print(p)
 
         t_loss.backward()
+        # for p in self.model.parameters():
+        #     print("printing p.grad")
+        #     print(p.grad)
         if self.glob_comm == 'ADMM':
 
             self.Optim.step()
-
+        test_accracy = 0.0
         with torch.no_grad():
             v_loss = FedGATLoss(
                 self.loss_fn,
@@ -1514,8 +1544,9 @@ class Trainer_GAT:
                     v_acc=100 * self.v_acc,
                 )
             )
-            self.ModelTest()
+            test_accracy = self.ModelTest()
         self.epoch += 1
+        return test_accracy
 
     def train_iterate_fedavg(self):
         """
@@ -1610,12 +1641,13 @@ class Trainer_GAT:
             pred_labels = torch.argmax(y_pred, dim=1)
             true_labels = torch.argmax(self.labels[self.test_mask], dim=1)
 
-            self.t_acc = torch.sum(pred_labels == true_labels) / torch.sum(
+            self.t_acc = torch.sum(pred_labels == true_labels) / len(
                 self.test_mask
-            )
+            )*100
 
-            print("Client {ID}: Test acc: {t_acc}".format(
+            print("Client {ID}: Test acc: {t_acc}%".format(
                 ID=self.client_id, t_acc=self.t_acc))
+        return self.t_acc
 
     def get_params(self):
         """
