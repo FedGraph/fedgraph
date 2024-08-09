@@ -443,6 +443,15 @@ def calculate_statistics(data):
     sqrt_E_degree_2 = torch.sqrt((degrees**2).mean()).item()
     print(f"E_degree: {E_degree}")
     print(f"sqrt_E_degree_2: {sqrt_E_degree_2}")
+    # Calculate degree distribution
+    degree_distribution = {}
+    for degree_value in degrees.tolist():
+        degree_distribution[degree_value] = degree_distribution.get(degree_value, 0) + 1
+
+    # Print degree distribution
+    print("Degree distribution (degree: frequency):")
+    for degree_value, frequency in sorted(degree_distribution.items()):
+        print(f"{degree_value}: {frequency}")
 
 
 def print_mask_statistics(data):

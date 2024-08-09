@@ -72,7 +72,7 @@ with open(config_file, "r") as file:
     idx_train,
     idx_val,
     idx_test,
-) = FedAT_load_data_test("cora")
+) = FedAT_load_data_test("ogbn-arxiv")
 print(data)
 calculate_statistics(data)
 print_mask_statistics(data)
@@ -446,7 +446,7 @@ ray.init()
 
 @ray.remote(
     num_gpus=0,
-    num_cpus=1,
+    num_cpus=8,
     scheduling_strategy="SPREAD",
 )
 class Trainer(Trainer_GAT):

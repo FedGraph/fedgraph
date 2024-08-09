@@ -20,7 +20,7 @@ COPY README.md .
 
 # Install the application
 RUN pip install .
-
+Run pip install ogb
 # Copy documentation and examples
 COPY docs/examples /app/docs/examples
 
