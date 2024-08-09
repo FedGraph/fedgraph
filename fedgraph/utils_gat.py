@@ -285,34 +285,36 @@ def get_in_comm_indexes(
     communicate_node_indexes = []
     in_com_train_node_indexes = []
     edge_indexes_clients = []
-
+    induce_node_indexes = []
     for i in range(num_clients):
         communicate_node_index = split_node_indexes[i]
-        if L_hop == 0:
-            (
-                communicate_node_index,
-                current_edge_index,
-                _,
-                __,
-            ) = torch_geometric.utils.k_hop_subgraph(
-                communicate_node_index, 0, edge_index, relabel_nodes=False
-            )
-            del _
-            del __
-        elif L_hop == 1 or L_hop == 2:
-            (
-                communicate_node_index,
-                current_edge_index,
-                _,
-                __,
-            ) = torch_geometric.utils.k_hop_subgraph(
-                communicate_node_index, 1, edge_index, relabel_nodes=False
-            )
-            del _
-            del __
+
+        (
+            communicate_node_index,
+            current_edge_index,
+            _,
+            __,
+        ) = torch_geometric.utils.k_hop_subgraph(
+            communicate_node_index, 0, edge_index, relabel_nodes=False
+        )
+        del _
+        del __
+
+        (
+            induce_node_index,
+            _,
+            __,
+            ___,
+        ) = torch_geometric.utils.k_hop_subgraph(
+            communicate_node_index, 1, edge_index, relabel_nodes=False
+        )
+        del _
+        del __
+        del ___
 
         communicate_node_index = communicate_node_index.to("cpu")
         current_edge_index = current_edge_index.to("cpu")
+        induce_node_index = induce_node_index.to("cpu")
         communicate_node_indexes.append(communicate_node_index)
         """
         current_edge_index = torch_sparse.SparseTensor(
@@ -323,7 +325,7 @@ def get_in_comm_indexes(
         """
 
         edge_indexes_clients.append(current_edge_index)
-
+        induce_node_indexes.append(induce_node_index)
         inter = intersect1d(
             split_node_indexes[i], idx_train
         )  # only count the train data of nodes in current server(not communicate nodes)
@@ -355,6 +357,7 @@ def get_in_comm_indexes(
         in_com_val_node_indexes,
         edge_indexes_clients,
         in_com_labels,
+        induce_node_indexes,
     )
 
 

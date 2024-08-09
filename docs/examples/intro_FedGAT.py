@@ -72,7 +72,7 @@ with open(config_file, "r") as file:
     idx_train,
     idx_val,
     idx_test,
-) = FedAT_load_data_test("ogbn-arxiv")
+) = FedAT_load_data_test(args.dataset)
 print(data)
 calculate_statistics(data)
 print_mask_statistics(data)
@@ -101,6 +101,7 @@ print(f"device: {device}")
     in_com_val_node_indexes,
     edge_indexes_clients,
     in_com_labels,
+    induce_node_indexes,
 ) = get_in_comm_indexes(
     edge_index,
     split_node_indexes,
@@ -405,48 +406,13 @@ print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
 # #######################################################################
 # # Centralized GAT Test
 # #######################################################################
-row, col, edge_attr = adj.coo()
-edge_index = torch.stack([row, col], dim=0)
-split_node_indexes = label_dirichlet_partition(
-    labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
-)
 
-
-for i in range(args.n_trainer):
-    split_node_indexes[i] = np.array(split_node_indexes[i])
-    split_node_indexes[i].sort()
-    split_node_indexes[i] = torch.tensor(split_node_indexes[i])
-
-
-# Device setup
-device = torch.device("cpu" if True else "cpu")
-print(f"device: {device}")
-
-
-(
-    communicate_node_indexes,
-    in_com_train_node_indexes,
-    in_com_test_node_indexes,
-    in_com_val_node_indexes,
-    edge_indexes_clients,
-    in_com_labels,
-) = get_in_comm_indexes(
-    edge_index,
-    split_node_indexes,
-    args.n_trainer,
-    # args.num_hops:
-    0,
-    idx_train,
-    idx_test,
-    idx_val,
-    one_hot_labels,
-)
 ray.init()
 
 
 @ray.remote(
     num_gpus=0,
-    num_cpus=8,
+    num_cpus=0.1,
     scheduling_strategy="SPREAD",
 )
 class Trainer(Trainer_GAT):
@@ -493,7 +459,7 @@ clients = [
         # Trainer(
         client_id=client_id,
         # TODO: subgraph should be 1 hop
-        subgraph=data.subgraph(communicate_node_indexes[client_id]),
+        subgraph=data.subgraph(induce_node_indexes[client_id]),
         node_indexes=communicate_node_indexes[client_id],
         train_indexes=in_com_train_node_indexes[client_id],
         val_indexes=in_com_val_node_indexes[client_id],
@@ -540,8 +506,7 @@ server = Server_GAT(
 
 # Pre-training communication
 print("Pre-training communication initiated!")
-server.pretrain_communication(
-    communicate_node_indexes, data, device=args.device, args=args)
+server.pretrain_communication(induce_node_indexes, data, device=args.device, args=args)
 print("Pre-training communication completed!")
 
 

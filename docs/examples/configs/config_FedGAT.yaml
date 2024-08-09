@@ -1,6 +1,6 @@
 dual_weight: 5.e-4
 aug_lagrange_rho: 6.e-4
-model_lr: 0.05
+model_lr: 0.1
 model_regularisation: 2.e-3
 dual_lr: 1.e-2
 num_local_iters: 1
@@ -15,10 +15,9 @@ num_heads: 8
 max_deg: 16
 
 # dataset: ogbn-arxiv
-dataset: ogbn-arxiv
+dataset: cora
 fedtype: fedgat
 global_rounds: 5 # 5
-local_step: 10
 learning_rate: 0.1
 n_trainer: 5
 num_layers: 2

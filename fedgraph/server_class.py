@@ -794,7 +794,8 @@ class Server_GAT:
                 sampled_neigh = neighbours
             elif len(sampled_neigh) > args.limit_node_degree:
                 sampled_neigh = random.sample(
-                    list(sampled_neigh), args.limit_node_degree)
+                    list(sampled_neigh), args.limit_node_degree
+                )
 
             elif self.device == torch.device("cuda"):
                 if len(sampled_neigh) > max_degree:
@@ -1008,11 +1009,15 @@ class Server_GAT:
                     #     print(p.grad)
                     # print(
                     #     ray.get(self.trainers[id].get_model_parameters.remote()).parameters().grad)
-                    for p, grad in zip(
+                    for p, p_id in zip(
                         self.Model.parameters(),
                         ray.get(self.trainers[id].get_model_grads.remote()),
                     ):
-                        p.grad += self.model_loss_weights[id] * grad
+
+                        p.grad += (
+                            self.model_loss_weights[id] *
+                            p_id / self.num_local_iters
+                        )
 
             self.Optim.step()
 
@@ -1024,7 +1029,7 @@ class Server_GAT:
                 for id in self.trainers:
                     for p, p_id, dual in zip(
                         self.Model.parameters(),
-                        ray.get(self.trainers[id].get_model_grads.remote()),
+                        ray.get(self.trainers[id]()),
                         self.Duals[id].parameters(),
                     ):
                         p += self.model_loss_weights[id] * (
