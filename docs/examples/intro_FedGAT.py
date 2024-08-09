@@ -9,25 +9,18 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 (Time estimate: 15 minutes)
 """
 import os
-import subprocess
 import sys
-import time
-from typing import Any
 
 import attridict
 import numpy as np
 import ray
 import torch
-import torch.nn as nn
 import yaml
-from torch.optim import Adam
 
 from fedgraph.data_process import (
     FedAT_load_data_test,
-    FedGAT_load_data,
-    FedGAT_load_data_100,
 )
-from fedgraph.gnn_models import CentralizedGATModel, FedGATModel
+from fedgraph.gnn_models import FedGATModel
 from fedgraph.server_class import Server_GAT
 from fedgraph.trainer_class import Trainer_GAT
 from fedgraph.utils_gat import (
@@ -38,15 +31,6 @@ from fedgraph.utils_gat import (
     print_mask_statistics,
 )
 
-# check env version
-# result = subprocess.run(["pip", "list"], stdout=subprocess.PIPE, text=True)
-# torch_versions = [line for line in result.stdout.split(
-#     "\n") if "torch" in line]
-# for version in torch_versions:
-#     print(version)
-# print(sys.version)
-# print(torch.__version__)
-# print(torch.version.cuda)
 
 
 # Seed initialization
@@ -54,7 +38,7 @@ np.random.seed(42)
 torch.manual_seed(42)
 
 # Directory and configuration setup
-current_dir = os.path.dirname(os.path.abspath(__file__))
+current_dir = os.getcwd()  # Use current working directory
 sys.path.append(os.path.join(current_dir, "../fedgraph"))
 sys.path.append(os.path.join(current_dir, "../../"))
 config_file = os.path.join(current_dir, "configs/config_FedGAT.yaml")
@@ -72,7 +56,7 @@ with open(config_file, "r") as file:
     idx_train,
     idx_val,
     idx_test,
-) = FedAT_load_data_test("ogbn-arxiv")
+) = FedAT_load_data_test("cora")
 print(data)
 calculate_statistics(data)
 print_mask_statistics(data)
@@ -113,295 +97,7 @@ print(f"device: {device}")
     one_hot_labels,
 )
 print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
-# (
-#     data,
-#     normalized_features,
-#     adj,
-#     labels,
-#     one_hot_labels,
-#     idx_train,
-#     idx_val,
-#     idx_test,
-# ) = FedAT_load_data_test("pubmed")
-# print(data)
-# calculate_statistics(data)
-# print_mask_statistics(data)
-# row, col, edge_attr = adj.coo()
-# edge_index = torch.stack([row, col], dim=0)
-# split_node_indexes = label_dirichlet_partition(
-#     labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
-# )
 
-
-# for i in range(args.n_trainer):
-#     split_node_indexes[i] = np.array(split_node_indexes[i])
-#     split_node_indexes[i].sort()
-#     split_node_indexes[i] = torch.tensor(split_node_indexes[i])
-
-
-# # Device setup
-# device = torch.device("cpu" if True else "cpu")
-# print(f"device: {device}")
-
-
-# (
-#     communicate_node_indexes,
-#     in_com_train_node_indexes,
-#     in_com_test_node_indexes,
-#     in_com_val_node_indexes,
-#     edge_indexes_clients,
-#     in_com_labels,
-# ) = get_in_comm_indexes(
-#     edge_index,
-#     split_node_indexes,
-#     args.n_trainer,
-#     # args.num_hops,
-#     0,
-#     idx_train,
-#     idx_test,
-#     idx_val,
-#     one_hot_labels,
-# )
-# print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
-# (
-#     data,
-#     normalized_features,
-#     adj,
-#     labels,
-#     one_hot_labels,
-#     idx_train,
-#     idx_val,
-#     idx_test,
-# ) = FedAT_load_data_test("ogbn-arxiv")
-# print(data)
-# calculate_statistics(data)
-# print_mask_statistics(data)
-# row, col, edge_attr = adj.coo()
-# edge_index = torch.stack([row, col], dim=0)
-# split_node_indexes = label_dirichlet_partition(
-#     labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
-# )
-
-
-# for i in range(args.n_trainer):
-#     split_node_indexes[i] = np.array(split_node_indexes[i])
-#     split_node_indexes[i].sort()
-#     split_node_indexes[i] = torch.tensor(split_node_indexes[i])
-
-
-# # Device setup
-# device = torch.device("cpu" if True else "cpu")
-# print(f"device: {device}")
-
-
-# (
-#     communicate_node_indexes,
-#     in_com_train_node_indexes,
-#     in_com_test_node_indexes,
-#     in_com_val_node_indexes,
-#     edge_indexes_clients,
-#     in_com_labels,
-# ) = get_in_comm_indexes(
-#     edge_index,
-#     split_node_indexes,
-#     args.n_trainer,
-#     # args.num_hops,
-#     0,
-#     idx_train,
-#     idx_test,
-#     idx_val,
-#     one_hot_labels,
-# )
-# print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
-# (
-#     data,
-#     normalized_features,
-#     adj,
-#     labels,
-#     one_hot_labels,
-#     idx_train,
-#     idx_val,
-#     idx_test,
-# ) = FedAT_load_data_test("ogbn-products")
-# print(data)
-# calculate_statistics(data)
-# print_mask_statistics(data)
-# row, col, edge_attr = adj.coo()
-# edge_index = torch.stack([row, col], dim=0)
-# split_node_indexes = label_dirichlet_partition(
-#     labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
-# )
-
-
-# for i in range(args.n_trainer):
-#     split_node_indexes[i] = np.array(split_node_indexes[i])
-#     split_node_indexes[i].sort()
-#     split_node_indexes[i] = torch.tensor(split_node_indexes[i])
-
-
-# # Device setup
-# device = torch.device("cpu" if True else "cpu")
-# print(f"device: {device}")
-
-
-# (
-#     communicate_node_indexes,
-#     in_com_train_node_indexes,
-#     in_com_test_node_indexes,
-#     in_com_val_node_indexes,
-#     edge_indexes_clients,
-#     in_com_labels,
-# ) = get_in_comm_indexes(
-#     edge_index,
-#     split_node_indexes,
-#     args.n_trainer,
-#     # args.num_hops,
-#     0,
-#     idx_train,
-#     idx_test,
-#     idx_val,
-#     one_hot_labels,
-# )
-# print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
-# (
-#     data,
-#     normalized_features,
-#     adj,
-#     labels,
-#     one_hot_labels,
-#     idx_train,
-#     idx_val,
-#     idx_test,
-# ) = FedAT_load_data_test("siteseer")
-# print(data)
-# calculate_statistics(data)
-# print_mask_statistics(data)
-# row, col, edge_attr = adj.coo()
-# edge_index = torch.stack([row, col], dim=0)
-# split_node_indexes = label_dirichlet_partition(
-#     labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
-# )
-
-
-# for i in range(args.n_trainer):
-#     split_node_indexes[i] = np.array(split_node_indexes[i])
-#     split_node_indexes[i].sort()
-#     split_node_indexes[i] = torch.tensor(split_node_indexes[i])
-
-
-# # Device setup
-# device = torch.device("cpu" if True else "cpu")
-# print(f"device: {device}")
-
-
-# (
-#     communicate_node_indexes,
-#     in_com_train_node_indexes,
-#     in_com_test_node_indexes,
-#     in_com_val_node_indexes,
-#     edge_indexes_clients,
-#     in_com_labels,
-# ) = get_in_comm_indexes(
-#     edge_index,
-#     split_node_indexes,
-#     args.n_trainer,
-#     # args.num_hops,
-#     0,
-#     idx_train,
-#     idx_test,
-#     idx_val,
-#     one_hot_labels,
-# )
-# print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
-
-
-# time.sleep(100)
-
-# #######################################################################
-# # Centralized GAT Test
-# #######################################################################
-# gat = CentralizedGATModel(
-#     in_feat=normalized_features.shape[1],
-#     out_feat=one_hot_labels.shape[1],
-#     hidden_dim=args.hidden_dim,
-#     num_head=args.num_heads,
-#     max_deg=args.max_deg,
-#     attn_func=args.attn_func_parameter,
-#     domain=args.attn_func_domain,
-# ).to(device="cpu")
-
-
-# optimizer = Adam(gat.parameters(), lr=args.model_lr,
-#                  weight_decay=args.model_regularisation)
-
-
-# def LossFunc(y_pred, y_true, model, args):
-#     criterion = nn.CrossEntropyLoss()
-#     v = criterion(y_pred, y_true)
-#     # for p in model.parameters():
-#     #     v += 0.5 * 5e-4 * torch.sum(p ** 2)
-
-#     return v
-
-
-# print("Starting training!")
-# epoch = 0
-# num_epochs = 72
-
-# train_mask = idx_train
-# validate_mask = idx_val
-# test_mask = idx_test
-
-# for ep in range(num_epochs):
-#     optimizer.zero_grad()
-#     print(data)
-#     y_pred = gat(data)
-
-#     t_loss = LossFunc(y_pred[train_mask],
-#                       one_hot_labels[train_mask], gat, args)
-
-#     t_loss.backward()
-#     optimizer.step()
-
-#     with torch.no_grad():
-#         v_loss = LossFunc(y_pred[validate_mask],
-#                           one_hot_labels[validate_mask], gat, args)
-
-#         pred_labels = torch.argmax(y_pred, dim=1)
-#         true_labels = torch.argmax(one_hot_labels, dim=1)
-
-#         t_acc = torch.sum(
-#             pred_labels[train_mask] == true_labels[train_mask]).item() / len(train_mask)
-#         v_acc = torch.sum(pred_labels[validate_mask] == true_labels[validate_mask]).item(
-#         ) / len(validate_mask)
-
-#         print(
-#             f"Client 0: Epoch {epoch}: Train loss: {t_loss.item():.4f}, Train acc: {t_acc*100:.2f}%, "
-#             f"Val loss: {v_loss.item():.4f}, Val acc {v_acc*100:.2f}%"
-#         )
-
-#     epoch += 1
-#     print(f"Epoch {ep} completed!")
-
-# print("Training completed!")
-# gat.eval()
-
-# with torch.no_grad():
-#     y_pred = gat(data)
-
-#     test_loss = LossFunc(y_pred[test_mask],
-#                          one_hot_labels[test_mask], gat, args)
-
-#     pred_labels = torch.argmax(y_pred, dim=1)
-#     true_labels = torch.argmax(one_hot_labels, dim=1)
-
-#     test_acc = torch.sum(
-#         pred_labels[test_mask] == true_labels[test_mask]).item() / len(test_mask)
-
-#     print(
-#         f"Test loss: {test_loss.item():.4f}, Test acc: {test_acc*100:.2f}%"
-#     )
-# print("Testing completed!")
 # #######################################################################
 # # Centralized GAT Test
 # #######################################################################

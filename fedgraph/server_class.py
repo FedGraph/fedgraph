@@ -767,15 +767,6 @@ class Server_GAT:
                 ]
             )
 
-            sampled_bool = np.array(
-                [
-                    random.choices(
-                        [0, 1], [1 - self.sample_probab, self.sample_probab], k=1
-                    )[0]
-                    for j in range(len(neighbours))
-                ]
-            )
-
             sampled_bool = torch.from_numpy(sampled_bool).to(device=device).bool()
 
             sampled_neigh = neighbours[sampled_bool]
