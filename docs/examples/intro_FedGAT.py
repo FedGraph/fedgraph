@@ -539,7 +539,7 @@ server = Server_GAT(
 
 # Pre-training communication
 print("Pre-training communication initiated!")
-server.pretrain_communication(communicate_node_indexes, data, device=args.device)
+server.pretrain_communication(communicate_node_indexes, data, device=args.device, args=args)
 print("Pre-training communication completed!")
 
 

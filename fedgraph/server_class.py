@@ -742,7 +742,7 @@ class Server_GAT:
         self.distribute_mats(communicate_node_indexes)
 
     # Changed layout of the pretrain_communication algorithm
-    def pretrain_communication(self, communicate_node_indexes, graph, device):
+    def pretrain_communication(self, communicate_node_indexes, graph, device,args):
         # Now, the function first computes matrices for all nodes, and then distributes them to each client
         # Saves computation
 
@@ -782,9 +782,9 @@ class Server_GAT:
 
             if len(sampled_neigh) < 2:
                 sampled_neigh = neighbours
-            elif self.device == torch.device("cuda"):
-                if len(sampled_neigh) > max_degree:
-                    sampled_neigh = random.sample(list(sampled_neigh), max_degree)
+            elif len(sampled_neigh) > args.limit_node_degree:
+
+                sampled_neigh = random.sample(list(sampled_neigh),args.limit_node_degree)
 
             feats1 = np.zeros((len(sampled_neigh), d))
             feats2 = np.zeros((len(sampled_neigh), d))

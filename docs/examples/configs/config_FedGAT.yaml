@@ -32,3 +32,4 @@ optim_kind: Adam
 glob_comm: FedAvg
 optim_reset: False
 dampening: 0.0
+limit_node_degree: 30
