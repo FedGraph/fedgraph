@@ -71,7 +71,8 @@ def data_loader_FedGCN(args: attridict) -> tuple:
     # tutorial <https://pytorch-geometric.readthedocs.io/en/latest/notes
     # /create_dataset.html>`__ in PyG.
     print("config: ", args)
-    features, adj, labels, idx_train, idx_val, idx_test = FedGCN_load_data(args.dataset)
+    features, adj, labels, idx_train, idx_val, idx_test = FedGCN_load_data(
+        args.dataset)
     class_num = labels.max().item() + 1
 
     row, col, edge_attr = adj.coo()
@@ -220,7 +221,8 @@ def FedGCN_load_data(dataset_str: str) -> tuple:
         objects = []
         for i in range(len(names)):
             with open(
-                "data/{}/raw/ind.{}.{}".format(dataset_str, dataset_str, names[i]), "rb"
+                "data/{}/raw/ind.{}.{}".format(dataset_str,
+                                               dataset_str, names[i]), "rb"
             ) as f:
                 if sys.version_info > (3, 0):
                     objects.append(pkl.load(f, encoding="latin1"))
@@ -436,7 +438,8 @@ def FedAT_load_data_test(dataset_str: str) -> tuple:
         objects = []
         for i in range(len(names)):
             with open(
-                "data/{}/raw/ind.{}.{}".format(dataset_str, dataset_str, names[i]), "rb"
+                "data/{}/raw/ind.{}.{}".format(dataset_str,
+                                               dataset_str, names[i]), "rb"
             ) as f:
                 if sys.version_info > (3, 0):
                     objects.append(pkl.load(f, encoding="latin1"))
@@ -490,7 +493,8 @@ def FedAT_load_data_test(dataset_str: str) -> tuple:
         # X_T normalize
         normalized_features = torch.zeros(features.size())
         for i in range(features.size()[0]):
-            normalized_features[i, :] = features[i, :] - torch.mean(features[i, :])
+            normalized_features[i, :] = features[i, :] - \
+                torch.mean(features[i, :])
             n = torch.norm(normalized_features[i, :])
             if n > 0:
                 normalized_features[i, :] /= n
@@ -516,9 +520,7 @@ def FedAT_load_data_test(dataset_str: str) -> tuple:
         "ogbn-products",
     ]:
         from ogb.nodeproppred import PygNodePropPredDataset
-
         # Download and process data at './dataset/.'
-
         dataset = PygNodePropPredDataset(
             name=dataset_str, transform=torch_geometric.transforms.ToSparseTensor()
         )
@@ -546,7 +548,8 @@ def FedAT_load_data_test(dataset_str: str) -> tuple:
         # X_T normalize
         normalized_features = torch.zeros(features.size())
         for i in range(features.size()[0]):
-            normalized_features[i, :] = features[i, :] - torch.mean(features[i, :])
+            normalized_features[i, :] = features[i, :] - \
+                torch.mean(features[i, :])
             n = torch.norm(normalized_features[i, :])
             if n > 0:
                 normalized_features[i, :] /= n
@@ -639,7 +642,8 @@ def FedGAT_load_data_100(dataset_str: str) -> tuple:
         old_idx.item(): new_idx for new_idx, old_idx in enumerate(sampled_indices)
     }
     new_edge_index = torch.tensor(
-        [[old_to_new[old_idx.item()] for old_idx in edge] for edge in new_edge_index]
+        [[old_to_new[old_idx.item()] for old_idx in edge]
+         for edge in new_edge_index]
     )
 
     # Normalize features
@@ -712,8 +716,8 @@ def GC_rand_split_chunk(
     graphs_chunks = []
     if not overlap:  # non-overlapping
         for i in range(num_trainer):
-            graphs_chunks.append(graphs[i * minSize : (i + 1) * minSize])
-        for g in graphs[num_trainer * minSize :]:
+            graphs_chunks.append(graphs[i * minSize: (i + 1) * minSize])
+        for g in graphs[num_trainer * minSize:]:
             idx_chunk = np.random.randint(low=0, high=num_trainer, size=1)[0]
             graphs_chunks[idx_chunk].append(g)
     else:
@@ -804,9 +808,12 @@ def data_loader_GC_single(
         )
 
         """Generate data loader"""
-        dataloader_train = DataLoader(ds_train, batch_size=batch_size, shuffle=True)
-        dataloader_val = DataLoader(ds_val, batch_size=batch_size, shuffle=True)
-        dataloader_test = DataLoader(ds_test, batch_size=batch_size, shuffle=True)
+        dataloader_train = DataLoader(
+            ds_train, batch_size=batch_size, shuffle=True)
+        dataloader_val = DataLoader(
+            ds_val, batch_size=batch_size, shuffle=True)
+        dataloader_test = DataLoader(
+            ds_test, batch_size=batch_size, shuffle=True)
         num_graph_labels = get_num_graph_labels(ds_train)
 
         """Combine data"""
@@ -928,11 +935,13 @@ def data_loader_GC_multiple(
                 )
 
         graphs = [x for x in tudataset]
-        print("Dataset name: ", dataset, " Total number of graphs: ", len(graphs))
+        print("Dataset name: ", dataset,
+              " Total number of graphs: ", len(graphs))
 
         """Split data"""
         if dataset_group.endswith("tiny"):
-            graphs, _ = split_data(graphs, train_size=150, shuffle=True, seed=seed)
+            graphs, _ = split_data(
+                graphs, train_size=150, shuffle=True, seed=seed)
             graphs_train, graphs_val_test = split_data(
                 graphs, test_size=0.2, shuffle=True, seed=seed
             )
@@ -951,9 +960,12 @@ def data_loader_GC_multiple(
         num_graph_labels = get_num_graph_labels(graphs_train)
 
         """Generate data loader"""
-        dataloader_train = DataLoader(graphs_train, batch_size=batch_size, shuffle=True)
-        dataloader_val = DataLoader(graphs_val, batch_size=batch_size, shuffle=True)
-        dataloader_test = DataLoader(graphs_test, batch_size=batch_size, shuffle=True)
+        dataloader_train = DataLoader(
+            graphs_train, batch_size=batch_size, shuffle=True)
+        dataloader_val = DataLoader(
+            graphs_val, batch_size=batch_size, shuffle=True)
+        dataloader_test = DataLoader(
+            graphs_test, batch_size=batch_size, shuffle=True)
 
         """Combine data"""
         splited_data[dataset] = (

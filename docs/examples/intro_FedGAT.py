@@ -492,6 +492,7 @@ clients = [
     Trainer.remote(
         # Trainer(
         client_id=client_id,
+        # TODO: subgraph should be 1 hop
         subgraph=data.subgraph(communicate_node_indexes[client_id]),
         node_indexes=communicate_node_indexes[client_id],
         train_indexes=in_com_train_node_indexes[client_id],
@@ -539,7 +540,8 @@ server = Server_GAT(
 
 # Pre-training communication
 print("Pre-training communication initiated!")
-server.pretrain_communication(communicate_node_indexes, data, device=args.device)
+server.pretrain_communication(
+    communicate_node_indexes, data, device=args.device, args=args)
 print("Pre-training communication completed!")
 
 
