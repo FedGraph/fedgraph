@@ -19,6 +19,7 @@ import numpy as np
 import ray
 import torch
 import torch.nn as nn
+import torch_geometric
 import yaml
 from torch.optim import Adam
 
@@ -113,6 +114,16 @@ print(f"device: {device}")
     idx_val,
     one_hot_labels,
 )
+# print("Communicate Node Indexes [0]:", communicate_node_indexes[0])
+# print("size of communicate_node_indexes[0]:", len(communicate_node_indexes[0]))
+# print("In Com Train Node Indexes [0]:", in_com_train_node_indexes[0])
+# print("In Com Test Node Indexes [0]:", in_com_test_node_indexes[0])
+# print("In Com Val Node Indexes [0]:", in_com_val_node_indexes[0])
+# print("Edge Indexes Clients [0]:", edge_indexes_clients[0])
+# print("In Com Labels [0]:", len(in_com_labels[0]))
+# print("Induce Node Indexes [0]:", induce_node_indexes[0])
+# print("size of induce_node_indexes[0]:", len(induce_node_indexes[0]))
+# #
 print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
 # (
 #     data,
@@ -458,7 +469,6 @@ clients = [
     Trainer.remote(
         # Trainer(
         client_id=client_id,
-        # TODO: subgraph should be 1 hop
         subgraph=data.subgraph(induce_node_indexes[client_id]),
         node_indexes=communicate_node_indexes[client_id],
         train_indexes=in_com_train_node_indexes[client_id],
@@ -503,6 +513,7 @@ server = Server_GAT(
     trainers=clients,
     args=args,
 )
+
 
 # Pre-training communication
 print("Pre-training communication initiated!")
