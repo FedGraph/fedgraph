@@ -211,8 +211,7 @@ class Server_GC:
             list of trainer objects
         """
         total_size = 0
-        size_refs = [trainer.get_train_size.remote()
-                     for trainer in selected_trainers]
+        size_refs = [trainer.get_train_size.remote() for trainer in selected_trainers]
         while size_refs:
             ready, left = ray.wait(size_refs, num_returns=1, timeout=None)
             if ready:
@@ -236,8 +235,7 @@ class Server_GC:
                         accumulate_list.append(weighted_weight)
                 acc_refs = left
             accumulate = torch.stack(accumulate_list)
-            self.W[k].data = torch.div(
-                torch.sum(accumulate, dim=0), total_size).clone()
+            self.W[k].data = torch.div(torch.sum(accumulate, dim=0), total_size).clone()
 
     def compute_pairwise_similarities(self, trainers: list) -> np.ndarray:
         """
@@ -333,10 +331,8 @@ class Server_GC:
             )
             # Unpack the list of dictionaries into separate lists for targs, sours, and train_sizes
             targs = [weights["W"] for weights in weights_list]
-            sours = [(weights["dW"], weights["train_size"])
-                     for weights in weights_list]
-            total_size = sum([weights["train_size"]
-                             for weights in weights_list])
+            sours = [(weights["dW"], weights["train_size"]) for weights in weights_list]
+            total_size = sum([weights["train_size"] for weights in weights_list])
             # pass train_size, and weighted aggregate
             self.__reduce_add_average(
                 targets=targs, sources=sours, total_size=total_size
@@ -376,8 +372,7 @@ class Server_GC:
 
         total_size = sum(ray.get([c.get_train_size.remote() for c in cluster]))
         for trainer in cluster:
-            dw_ref = trainer.compute_mean_norm.remote(
-                total_size, self.W.keys())
+            dw_ref = trainer.compute_mean_norm.remote(total_size, self.W.keys())
             dw_refs.append(dw_ref)
         cluster_dWs = ray.get(dw_refs)
         return torch.norm(torch.mean(torch.stack(cluster_dWs), dim=0)).item()
@@ -425,8 +420,7 @@ class Server_GC:
                 s2 = self.__flatten(source2)
                 angles[i, j] = (
                     torch.true_divide(
-                        torch.sum(s1 * s2), max(torch.norm(s1)
-                                                * torch.norm(s2), 1e-12)
+                        torch.sum(s1 * s2), max(torch.norm(s1) * torch.norm(s2), 1e-12)
                     )
                     + 1
                 )
@@ -467,11 +461,9 @@ class Server_GC:
         for target in targets:
             for name in target:
                 weighted_stack = torch.stack(
-                    [torch.mul(source[0][name].data, source[1])
-                     for source in sources]
+                    [torch.mul(source[0][name].data, source[1]) for source in sources]
                 )
-                tmp = torch.div(
-                    torch.sum(weighted_stack, dim=0), total_size).clone()
+                tmp = torch.div(torch.sum(weighted_stack, dim=0), total_size).clone()
                 target[name].data += tmp
 
 
@@ -619,8 +611,7 @@ class Server_GAT:
             Current global epoch number during the federated learning process.
         """
         for trainer in self.trainers:
-            trainer.update_params(
-                tuple(self.model.parameters()), current_global_epoch)
+            trainer.update_params(tuple(self.model.parameters()), current_global_epoch)
 
     def get_neighbours(self, node_id, edge_index):
         mask = edge_index[0] == node_id
@@ -785,8 +776,7 @@ class Server_GAT:
                 ]
             )
 
-            sampled_bool = torch.from_numpy(
-                sampled_bool).to(device=device).bool()
+            sampled_bool = torch.from_numpy(sampled_bool).to(device=device).bool()
 
             sampled_neigh = neighbours[sampled_bool]
 
@@ -799,8 +789,7 @@ class Server_GAT:
 
             elif self.device == torch.device("cuda"):
                 if len(sampled_neigh) > max_degree:
-                    sampled_neigh = random.sample(
-                        list(sampled_neigh), max_degree)
+                    sampled_neigh = random.sample(list(sampled_neigh), max_degree)
 
             feats1 = np.zeros((len(sampled_neigh), d))
             feats2 = np.zeros((len(sampled_neigh), d))
@@ -808,8 +797,7 @@ class Server_GAT:
             for i in range(len(sampled_neigh)):
                 feats1[i, :] = self.feats[node, :].cpu().detach().numpy()
                 feats2[i, :] = (
-                    self.feats[sampled_neigh[i].item(),
-                               :].cpu().detach().numpy()
+                    self.feats[sampled_neigh[i].item(), :].cpu().detach().numpy()
                 )
                 if self.device == torch.device("cuda"):
                     dim = max_degree
@@ -975,8 +963,7 @@ class Server_GAT:
         for param in self.GATModelParams:
             for client_id in self.LocalModelParams:
                 global_variance += torch.norm(
-                    self.GATModelParams[param] -
-                    self.LocalModelParams[client_id][param]
+                    self.GATModelParams[param] - self.LocalModelParams[client_id][param]
                 )
         return global_variance / (len(self.trainers) * len(self.GATModelParams))
 
@@ -1013,10 +1000,8 @@ class Server_GAT:
                         self.Model.parameters(),
                         ray.get(self.trainers[id].get_model_grads.remote()),
                     ):
-
                         p.grad += (
-                            self.model_loss_weights[id] *
-                            p_id / self.num_local_iters
+                            self.model_loss_weights[id] * p_id / self.num_local_iters
                         )
 
             self.Optim.step()
@@ -1132,8 +1117,7 @@ class Server_GAT:
 
         for id in range(len(self.trainers)):
             if self.glob_comm == "FedAvg":
-                self.trainers[id].FromServer.remote(
-                    copy.deepcopy(self.Model), None)
+                self.trainers[id].FromServer.remote(copy.deepcopy(self.Model), None)
 
             elif self.glob_comm == "ADMM":
                 self.trainers[id].FromServer.remote(self.Model, self.Duals[id])
@@ -1158,20 +1142,16 @@ class Server_GAT:
                 for i in range(self.num_local_iters):
                     refs.append(self.trainers[id].train_iterate.remote())
             test_acc_list = ray.get(refs)
-            average_final_test_accuracy = torch.tensor(
-                test_acc_list).mean().item()
-            print(
-                f"iteration {ep} completed, avg acc = {average_final_test_accuracy}")
+            average_final_test_accuracy = torch.tensor(test_acc_list).mean().item()
+            print(f"iteration {ep} completed, avg acc = {average_final_test_accuracy}")
             self.TrainUpdate()
 
             for id in range(len(self.trainers)):
                 if self.glob_comm == "ADMM":
-                    self.trainers[id].FromServer.remote(
-                        self.Model, self.Duals[id])
+                    self.trainers[id].FromServer.remote(self.Model, self.Duals[id])
 
                 else:
-                    self.trainers[id].FromServer.remote(
-                        copy.deepcopy(self.Model), None)
+                    self.trainers[id].FromServer.remote(copy.deepcopy(self.Model), None)
 
                 if self.optim_reset:
                     self.trainers[id].OptimReset.remote()
@@ -1274,8 +1254,7 @@ class Server_LP:
 
         # Collect the model parameters as they become ready
         while local_model_parameters:
-            ready, left = ray.wait(
-                local_model_parameters, num_returns=1, timeout=None)
+            ready, left = ray.wait(local_model_parameters, num_returns=1, timeout=None)
             if ready:
                 for t in ready:
                     model_states.append(ray.get(t))

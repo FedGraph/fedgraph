@@ -287,7 +287,7 @@ def get_in_comm_indexes(
     edge_indexes_clients = []
     induce_node_indexes = []
     for i in range(num_clients):
-        communicate_node_index = split_node_indexes[i]
+        client_index = split_node_indexes[i]
 
         (
             communicate_node_index,
@@ -295,7 +295,7 @@ def get_in_comm_indexes(
             _,
             __,
         ) = torch_geometric.utils.k_hop_subgraph(
-            communicate_node_index, 0, edge_index, relabel_nodes=False
+            client_index, 0, edge_index, relabel_nodes=False
         )
         del _
         del __
@@ -306,7 +306,7 @@ def get_in_comm_indexes(
             __,
             ___,
         ) = torch_geometric.utils.k_hop_subgraph(
-            communicate_node_index, 1, edge_index, relabel_nodes=False
+            client_index, 1, edge_index, relabel_nodes=False
         )
         del _
         del __
@@ -329,27 +329,50 @@ def get_in_comm_indexes(
         inter = intersect1d(
             split_node_indexes[i], idx_train
         )  # only count the train data of nodes in current server(not communicate nodes)
+        train_node_idx_relative_comm = torch.searchsorted(
+            communicate_node_indexes[i], inter
+        ).clone()
+        train_node_idx_absolute = communicate_node_index[train_node_idx_relative_comm]
 
-        in_com_train_node_indexes.append(
-            torch.searchsorted(communicate_node_indexes[i], inter).clone()
-        )  # local id in block matrix
+        train_node_idx_relative_induce = torch.nonzero(
+            torch.isin(induce_node_index, train_node_idx_absolute)
+        ).squeeze()
+        in_com_train_node_indexes.append(train_node_idx_relative_induce)
 
     in_com_test_node_indexes = []
     for i in range(num_clients):
         inter = intersect1d(split_node_indexes[i], idx_test)
-        in_com_test_node_indexes.append(
-            torch.searchsorted(communicate_node_indexes[i], inter).clone()
-        )
+        test_node_idx_relative_comm = torch.searchsorted(
+            communicate_node_indexes[i], inter
+        ).clone()
+
+        test_node_idx_absolute = communicate_node_indexes[i][
+            test_node_idx_relative_comm
+        ]
+        test_node_idx_relative_induce = torch.nonzero(
+            torch.isin(induce_node_indexes[i], test_node_idx_absolute)
+        ).squeeze()
+
+        in_com_test_node_indexes.append(test_node_idx_relative_induce)
+
     in_com_val_node_indexes = []
     for i in range(num_clients):
         inter = intersect1d(split_node_indexes[i], idx_val)
-        in_com_val_node_indexes.append(
-            torch.searchsorted(communicate_node_indexes[i], inter).clone()
-        )
+        val_node_idx_relative_comm = torch.searchsorted(
+            communicate_node_indexes[i], inter
+        ).clone()
+
+        val_node_idx_absolute = communicate_node_indexes[i][val_node_idx_relative_comm]
+        val_node_idx_relative_induce = torch.nonzero(
+            torch.isin(induce_node_indexes[i], val_node_idx_absolute)
+        ).squeeze()
+
+        in_com_val_node_indexes.append(val_node_idx_relative_induce)
+
     in_com_labels = []
     for i in range(num_clients):
-        selected_labels = labels[communicate_node_indexes[i]]
-        in_com_labels.append(selected_labels.clone())
+        selected_labels = labels[induce_node_indexes[i]].clone()
+        in_com_labels.append(selected_labels)
     return (
         communicate_node_indexes,
         in_com_train_node_indexes,

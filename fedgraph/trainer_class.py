@@ -959,7 +959,6 @@ class Trainer_LP:
         check_data_files_existance(country_codes, file_path)
         # global user_id and item_id
         self.data = get_data(self.country_code, user_id_mapping, item_id_mapping)
-
         self.model = GNN_LP(
             number_of_users, number_of_items, meta_data, hidden_channels
         )
@@ -1222,7 +1221,7 @@ class Trainer_GAT:
         self.optim_kind = "Adam"
         self.labels = labels
         self.train_rounds = args.global_rounds
-        self.num_local_iters = args.local_step
+        self.num_local_iters = args.num_local_iters
         self.dual_weight = args.dual_weight
         self.aug_lagrange_rho = args.aug_lagrange_rho
         self.dual_lr = args.dual_lr
