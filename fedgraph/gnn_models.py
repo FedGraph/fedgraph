@@ -1017,12 +1017,28 @@ class CentralizedGATModel(nn.Module):
         max_deg,
         attn_func,
         domain,
+        num_layers,
     ):
         super(CentralizedGATModel, self).__init__()
+        self.num_layers = num_layers
+        self.GAT1 = None
+        self.GAT2 = None
+        self.GAT3 = None
+        if num_layers == 2:
+            self.GAT1 = MultiHeadGATConv(
+                in_feat, hidden_dim, num_head, activation=nn.ELU()
+            )
 
-        self.GAT1 = MultiHeadGATConv(in_feat, hidden_dim, num_head, activation=nn.ELU())
+            self.GAT2 = MultiHeadGATConv(num_head * hidden_dim, out_feat, 1)
+        elif num_layers == 3:
+            self.GAT1 = MultiHeadGATConv(
+                in_feat, hidden_dim, num_head, activation=nn.ELU()
+            )
 
-        self.GAT2 = MultiHeadGATConv(num_head * hidden_dim, out_feat, 1)
+            self.GAT2 = MultiHeadGATConv(
+                num_head * hidden_dim, hidden_dim, num_head, activation=nn.ELU()
+            )
+            self.GAT3 = MultiHeadGATConv(num_head * hidden_dim, out_feat, 1)
 
         self.soft = nn.Softmax(dim=1)
 
@@ -1034,7 +1050,8 @@ class CentralizedGATModel(nn.Module):
         # print(g.edge_index)
         # print(z.size(0))
         z = self.GAT2(z, g.edge_index)
-
+        if self.num_layers == 3:
+            z = self.GAT3(z, g.edge_index)
         z = self.soft(z)
 
         return z

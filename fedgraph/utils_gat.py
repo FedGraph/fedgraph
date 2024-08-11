@@ -286,6 +286,10 @@ def get_in_comm_indexes(
     in_com_train_node_indexes = []
     edge_indexes_clients = []
     induce_node_indexes = []
+    origin_train_indexes = []
+    origin_val_indexes = []
+    origin_test_indexes = []
+
     for i in range(num_clients):
         client_index = split_node_indexes[i]
 
@@ -332,6 +336,7 @@ def get_in_comm_indexes(
         train_node_idx_relative_comm = torch.searchsorted(
             communicate_node_indexes[i], inter
         ).clone()
+        origin_train_indexes.append(train_node_idx_relative_comm)
         train_node_idx_absolute = communicate_node_index[train_node_idx_relative_comm]
 
         train_node_idx_relative_induce = torch.nonzero(
@@ -345,7 +350,7 @@ def get_in_comm_indexes(
         test_node_idx_relative_comm = torch.searchsorted(
             communicate_node_indexes[i], inter
         ).clone()
-
+        origin_test_indexes.append(test_node_idx_relative_comm)
         test_node_idx_absolute = communicate_node_indexes[i][
             test_node_idx_relative_comm
         ]
@@ -361,7 +366,7 @@ def get_in_comm_indexes(
         val_node_idx_relative_comm = torch.searchsorted(
             communicate_node_indexes[i], inter
         ).clone()
-
+        origin_val_indexes.append(val_node_idx_relative_comm)
         val_node_idx_absolute = communicate_node_indexes[i][val_node_idx_relative_comm]
         val_node_idx_relative_induce = torch.nonzero(
             torch.isin(induce_node_indexes[i], val_node_idx_absolute)
@@ -373,6 +378,20 @@ def get_in_comm_indexes(
     for i in range(num_clients):
         selected_labels = labels[induce_node_indexes[i]].clone()
         in_com_labels.append(selected_labels)
+    origin_labels = []
+    for i in range(num_clients):
+        selected_labels = labels[communicate_node_indexes[i]].clone()
+        origin_labels.append(selected_labels)
+    # print("Communicate Node Indexes [0]:", communicate_node_indexes[0])
+    # print("size of communicate_node_indexes[0]:", len(communicate_node_indexes[0]))
+    # print("In Com Train Node Indexes [0]:", in_com_train_node_indexes[0])
+    # print("In Com Test Node Indexes [0]:", in_com_test_node_indexes[0])
+    # print("In Com Val Node Indexes [0]:", in_com_val_node_indexes[0])
+    # print("Edge Indexes Clients [0]:", edge_indexes_clients[0])
+    # print("In Com Labels [0]:", len(in_com_labels[0]))
+    # print("Induce Node Indexes [0]:", induce_node_indexes[0])
+    # print("size of induce_node_indexes[0]:", len(induce_node_indexes[0]))
+    # #
     return (
         communicate_node_indexes,
         in_com_train_node_indexes,
@@ -381,6 +400,10 @@ def get_in_comm_indexes(
         edge_indexes_clients,
         in_com_labels,
         induce_node_indexes,
+        origin_train_indexes,
+        origin_val_indexes,
+        origin_test_indexes,
+        origin_labels,
     )
 
 

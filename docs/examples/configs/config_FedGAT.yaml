@@ -18,8 +18,7 @@ max_deg: 16
 dataset: cora
 fedtype: fedgat
 global_rounds: 5 # 5
-learning_rate: 0.1
-n_trainer: 5
+n_trainer: 3
 num_layers: 2
 num_hops: 2
 gpu: false
@@ -32,3 +31,7 @@ glob_comm: FedAvg
 optim_reset: False
 dampening: 0.0
 limit_node_degree: 30
+# method: DistributedGAT
+# method: CentralizedGAT
+method: FedGAT
+batch_size: 128

@@ -1210,6 +1210,8 @@ class Trainer_GAT:
         features_shape,
         args,
         device,
+        type,
+        batch_size=None,
     ):
         self.client_id = client_id
         self.graph = subgraph
@@ -1225,7 +1227,7 @@ class Trainer_GAT:
         self.dual_weight = args.dual_weight
         self.aug_lagrange_rho = args.aug_lagrange_rho
         self.dual_lr = args.dual_lr
-        self.model_lr = args.learning_rate
+        self.model_lr = args.model_lr
         self.model_regularisation = args.model_regularisation
         self.device = device
         self.optimizer = None
@@ -1259,6 +1261,11 @@ class Trainer_GAT:
         self.M2 = None
         self.K1 = None
         self.K2 = None
+        self.grad = None
+        self.batch_size = batch_size
+        print(batch_size)
+        self.batch_mask = None
+        self.type = type
 
     def get_model_state_dict(self):
         return self.model.state_dict()
@@ -1267,11 +1274,7 @@ class Trainer_GAT:
         return self.model
 
     def get_model_grads(self):
-        ps = self.model.parameters()
-        grad_list = []
-        for p in ps:
-            grad_list.append(p.grad)
-        return grad_list
+        return self.grad
 
     def update_params(self, params, current_global_epoch):
         """
@@ -1358,6 +1361,9 @@ class Trainer_GAT:
         self.model.to(self.device)
         for p in self.model.parameters():
             p.requires_grad = True
+        self.grad = [torch.zeros(p.size()) for p in self.model.parameters()]
+        for g in range(len(self.grad)):
+            self.grad[g].requires_grad = False
         self.model.train()
         self.OptimReset()
         # self.optimizer = torch.optim.Adam(
@@ -1401,6 +1407,9 @@ class Trainer_GAT:
                 p_id.copy_(p)
                 p_id.grad = torch.zeros(p.size())
                 p_id.grad.data.zero_()
+        self.grad = [torch.zeros(p.size()) for p in self.model.parameters()]
+        for g in range(len(self.grad)):
+            self.grad[g].requires_grad = False
 
         for p in self.global_params.parameters():
             p.requires_grad = False
@@ -1431,8 +1440,24 @@ class Trainer_GAT:
         # print("priting in  def train_iterate(self):")
         # print(self.graph.size())
         # print(len(self.node_feats))
-        y_pred = self.model.forward(self.graph, self.node_mats)
-
+        y_pred = None
+        if self.type == "DistributedGAT":
+            y_pred = self.model.forward(self.graph)
+        else:
+            y_pred = self.model.forward(self.graph, self.node_mats)
+        if self.batch_size != None:
+            self.batch_mask = torch.as_tensor(
+                [
+                    random.randint(0, len(self.train_mask) - 1)
+                    for i in range(self.batch_size)
+                ]
+            ).long()
+        else:
+            self.batch_mask = (
+                torch.as_tensor([i for i in range(len(self.train_mask))])
+                .long()
+                .to(device=self.device)
+            )
         # print("validating for loss size")
         # print(self.client_id)
         # print(y_pred.size())
@@ -1467,6 +1492,10 @@ class Trainer_GAT:
         #     print(p)
 
         t_loss.backward()
+        if self.glob_comm == "FedAvg":
+            with torch.no_grad():
+                for ind, p in enumerate(self.model.parameters()):
+                    self.grad[ind] += p.grad
         # for p in self.model.parameters():
         #     print("printing p.grad")
         #     print(p.grad)
@@ -1599,8 +1628,9 @@ class Trainer_GAT:
                     v_acc=100 * self.v_acc,
                 )
             )
-
+            test_accracy = self.ModelTest()
         self.epoch += 1
+        return test_accracy
 
     def get_sum_train_mask(self):
         print(self.train_mask)
@@ -1610,7 +1640,10 @@ class Trainer_GAT:
         self.model.eval()
 
         with torch.no_grad():
-            y_pred = self.model(self.graph, self.node_mats)[self.test_mask]
+            if self.type == "DistributedGAT":
+                y_pred = self.model(self.graph)[self.test_mask]
+            else:
+                y_pred = self.model(self.graph, self.node_mats)[self.test_mask]
 
             pred_labels = torch.argmax(y_pred, dim=1)
             true_labels = torch.argmax(self.labels[self.test_mask], dim=1)

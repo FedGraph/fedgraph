@@ -540,7 +540,7 @@ def FedAT_load_data_test(dataset_str: str) -> tuple:
             adj = data.adj_t.to_symmetric()
         else:
             adj = data.adj_t
-        row, col, edge_attr = data.adj_t.t().coo()
+        row, col, edge_attr = adj.coo()
         data.edge_index = torch.stack([row, col], dim=0)
         # X_T normalize
         normalized_features = torch.zeros(features.size())
@@ -554,6 +554,8 @@ def FedAT_load_data_test(dataset_str: str) -> tuple:
         labels = data.y
         NumClasses = torch.max(labels).item() + 1
 
+        print(NumClasses)
+        # time.sleep(100)
         # L one hot
         one_hot_labels = torch.zeros((labels.size()[0], NumClasses))
         for i in range(len(labels)):
@@ -566,6 +568,7 @@ def FedAT_load_data_test(dataset_str: str) -> tuple:
         data.val_mask[idx_val] = True
         data.test_mask = torch.zeros(data.num_nodes, dtype=torch.bool)
         data.test_mask[idx_test] = True
+        print(data)
     return (
         data,
         normalized_features,

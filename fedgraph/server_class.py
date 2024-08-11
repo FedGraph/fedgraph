@@ -1000,6 +1000,8 @@ class Server_GAT:
                         self.Model.parameters(),
                         ray.get(self.trainers[id].get_model_grads.remote()),
                     ):
+                        # print("printing trainer grad")
+                        # print(ray.get(self.trainers[id].get_model_grads.remote()))
                         p.grad += (
                             self.model_loss_weights[id] * p_id / self.num_local_iters
                         )
