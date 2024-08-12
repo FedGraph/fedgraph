@@ -32,7 +32,7 @@ eksctl create cluster --name test --region us-east-1 --nodegroup-name standard-w
 Update kubeconfig for AWS EKS:
 
 ```bash
-aws eks --region us-west-2 update-kubeconfig --name test4
+aws eks --region us-west-2 update-kubeconfig --name test6
 ```
 
 Clone the KubeRay Repository and Install Prometheus
@@ -78,7 +78,7 @@ kubectl port-forward service/raycluster-autoscaler-head-svc 8265:8265
 Forward Ports for Ray Dashboard, Prometheus, and Grafana
 
 ```bash
-kubectl port-forward raycluster-autoscaler-head-xxmxt 8080:8080
+kubectl port-forward raycluster-autoscaler-head-gjkz2 8080:8080
 kubectl port-forward prometheus-prometheus-kube-prometheus-prometheus-0 -n prometheus-system 9090:9090
 kubectl port-forward deployment/prometheus-grafana -n prometheus-system 3000:3000
 ```
@@ -131,5 +131,5 @@ kubectl get pods -A
 Finally, Delete the EKS Cluster:
 
 ```bash
-eksctl delete cluster --region us-west-2 --name test4
+eksctl delete cluster --region us-west-2 --name test6
 ```

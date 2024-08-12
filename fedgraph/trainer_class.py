@@ -1546,7 +1546,8 @@ class Trainer_GAT:
             # )
             test_accracy = self.ModelTest()
         self.epoch += 1
-        return test_accracy  # , 100 * self.v_acc, 100 * self.t_acc
+        # , 100 * self.v_acc, 100 * self.t_acc
+        return test_accracy, len(self.test_mask)
 
     def train_iterate_fedavg(self):
         """

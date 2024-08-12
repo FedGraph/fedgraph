@@ -64,6 +64,8 @@ with open(config_file, "r") as file:
     args = attridict.AttriDict(yaml.safe_load(file))
 ray.init()
 
+print(args)
+
 
 def run_fedgraph():
     (
@@ -129,7 +131,7 @@ def run_fedgraph():
 
         @ray.remote(
             num_gpus=0,
-            num_cpus=2,
+            num_cpus=0.1,
             scheduling_strategy="SPREAD",
         )
         class Trainer(Trainer_GAT):
@@ -146,7 +148,7 @@ def run_fedgraph():
                 args,
                 device,
                 type,
-                batch_size=None,
+                batch_size,
             ):
                 super().__init__(  # type: ignore
                     client_id=client_id,
@@ -174,109 +176,109 @@ def run_fedgraph():
                 # print(f"device: {device}")
                 # time.sleep(100)
 
-        if True:
-            #######################################################################
-            # Centralized GAT Test
-            #######################################################################
-            m = "Centralized GAT"
-            gat = CentralizedGATModel(
-                in_feat=normalized_features.shape[1],
-                out_feat=one_hot_labels.shape[1],
-                hidden_dim=args.hidden_dim,
-                num_head=args.num_heads,
-                max_deg=args.max_deg,
-                attn_func=args.attn_func_parameter,
-                domain=args.attn_func_domain,
-                num_layers=args.num_layers,
-            ).to(device="cpu")
-            for p in gat.parameters():
-                p.requires_grad = True
-            optimizer = Adam(
-                gat.parameters(),
-                lr=args.model_lr,
-                weight_decay=args.model_regularisation,
-            )
-            # optimizer = SGD(gat.parameters(), lr=args.model_lr,
-            #                 weight_decay=args.model_regularisation)
+        # if True:
+        #     #######################################################################
+        #     # Centralized GAT Test
+        #     #######################################################################
+        #     m = "Centralized GAT"
+        #     gat = CentralizedGATModel(
+        #         in_feat=normalized_features.shape[1],
+        #         out_feat=one_hot_labels.shape[1],
+        #         hidden_dim=args.hidden_dim,
+        #         num_head=args.num_heads,
+        #         max_deg=args.max_deg,
+        #         attn_func=args.attn_func_parameter,
+        #         domain=args.attn_func_domain,
+        #         num_layers=args.num_layers,
+        #     ).to(device="cpu")
+        #     for p in gat.parameters():
+        #         p.requires_grad = True
+        #     optimizer = Adam(
+        #         gat.parameters(),
+        #         lr=args.model_lr,
+        #         weight_decay=args.model_regularisation,
+        #     )
+        #     # optimizer = SGD(gat.parameters(), lr=args.model_lr,
+        #     #                 weight_decay=args.model_regularisation)
 
-            def LossFunc(y_pred, y_true, model, args):
-                criterion = nn.CrossEntropyLoss()
-                v = criterion(y_pred, y_true)
-                # for p in model.parameters():
-                #     v += 0.5 * 5e-4 * torch.sum(p ** 2)
+        #     def LossFunc(y_pred, y_true, model, args):
+        #         criterion = nn.CrossEntropyLoss()
+        #         v = criterion(y_pred, y_true)
+        #         # for p in model.parameters():
+        #         #     v += 0.5 * 5e-4 * torch.sum(p ** 2)
 
-                return v
+        #         return v
 
-            # print("Starting training!")
-            epoch = 0
-            num_epochs = 25
+        #     # print("Starting training!")
+        #     epoch = 0
+        #     num_epochs = 25
 
-            train_mask = idx_train
-            validate_mask = idx_val
-            test_mask = idx_test
+        #     train_mask = idx_train
+        #     validate_mask = idx_val
+        #     test_mask = idx_test
 
-            # for p in gat.parameters():
-            #     print(p.requires_grad)
+        #     # for p in gat.parameters():
+        #     #     print(p.requires_grad)
 
-            print("Starting training!")
-            for ep in range(num_epochs):
-                gat.train()
-                optimizer.zero_grad()
-                y_pred = gat(data)
+        #     print("Starting training!")
+        #     for ep in range(num_epochs):
+        #         gat.train()
+        #         optimizer.zero_grad()
+        #         y_pred = gat(data)
 
-                t_loss = LossFunc(
-                    y_pred[train_mask], one_hot_labels[train_mask], gat, args
-                )
+        #         t_loss = LossFunc(
+        #             y_pred[train_mask], one_hot_labels[train_mask], gat, args
+        #         )
 
-                t_loss.backward()
-                optimizer.step()
+        #         t_loss.backward()
+        #         optimizer.step()
 
-                with torch.no_grad():
-                    gat.train()
-                    v_loss = LossFunc(
-                        y_pred[validate_mask], one_hot_labels[validate_mask], gat, args
-                    )
+        #         with torch.no_grad():
+        #             gat.train()
+        #             v_loss = LossFunc(
+        #                 y_pred[validate_mask], one_hot_labels[validate_mask], gat, args
+        #             )
 
-                    pred_labels = torch.argmax(y_pred, dim=1)
-                    true_labels = torch.argmax(one_hot_labels, dim=1)
+        #             pred_labels = torch.argmax(y_pred, dim=1)
+        #             true_labels = torch.argmax(one_hot_labels, dim=1)
 
-                    t_acc = torch.sum(
-                        pred_labels[train_mask] == true_labels[train_mask]
-                    ).item() / len(train_mask)
-                    v_acc = torch.sum(
-                        pred_labels[validate_mask] == true_labels[validate_mask]
-                    ).item() / len(validate_mask)
+        #             t_acc = torch.sum(
+        #                 pred_labels[train_mask] == true_labels[train_mask]
+        #             ).item() / len(train_mask)
+        #             v_acc = torch.sum(
+        #                 pred_labels[validate_mask] == true_labels[validate_mask]
+        #             ).item() / len(validate_mask)
 
-                    # print(
-                    #     f"Client 0: Epoch {epoch}: Train loss: {t_loss.item():.4f}, Train acc: {t_acc*100:.2f}%, "
-                    #     f"Val loss: {v_loss.item():.4f}, Val acc {v_acc*100:.2f}%"
-                    # )
-                    gat.eval()
+        #             # print(
+        #             #     f"Client 0: Epoch {epoch}: Train loss: {t_loss.item():.4f}, Train acc: {t_acc*100:.2f}%, "
+        #             #     f"Val loss: {v_loss.item():.4f}, Val acc {v_acc*100:.2f}%"
+        #             # )
+        #             gat.eval()
 
-                    with torch.no_grad():
-                        y_pred = gat(data)
+        #             with torch.no_grad():
+        #                 y_pred = gat(data)
 
-                        test_loss = LossFunc(
-                            y_pred[test_mask], one_hot_labels[test_mask], gat, args
-                        )
+        #                 test_loss = LossFunc(
+        #                     y_pred[test_mask], one_hot_labels[test_mask], gat, args
+        #                 )
 
-                        pred_labels = torch.argmax(y_pred, dim=1)
-                        true_labels = torch.argmax(one_hot_labels, dim=1)
+        #                 pred_labels = torch.argmax(y_pred, dim=1)
+        #                 true_labels = torch.argmax(one_hot_labels, dim=1)
 
-                        test_acc = (
-                            torch.sum(
-                                pred_labels[test_mask] == true_labels[test_mask]
-                            ).item()
-                            / len(test_mask)
-                            * 100
-                        )
+        #                 test_acc = (
+        #                     torch.sum(
+        #                         pred_labels[test_mask] == true_labels[test_mask]
+        #                     ).item()
+        #                     / len(test_mask)
+        #                     * 100
+        #                 )
 
-                        print(
-                            f" Log// {m}, {args.dataset}, {1}, {ep}, {test_acc}, {0}, {args.iid_beta} //end"
-                        )
+        #                 print(
+        #                     f" Log// {m}, {args.dataset}, {1}, {ep}, {test_acc}, {0}, {args.iid_beta} //end"
+        #                 )
 
-                epoch += 1
-                # print(f"Epoch {ep} completed!")
+        #         epoch += 1
+        #         # print(f"Epoch {ep} completed!")
 
         if True:
             args.method = "DistributedGAT"
@@ -397,7 +399,7 @@ def run_fedgraph():
             return node_mats
 
     # experiment start here
-    for n_trainer in [20]:
+    for n_trainer in [5]:
         args.n_trainer = n_trainer
         for iid in [10000]:
             args.iid_beta = iid
