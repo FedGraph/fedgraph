@@ -758,7 +758,7 @@ class Server_GAT:
         # print("The maximum degree is:", max_degree)
         max_degree = int(self.sample_probab * max_degree)
         for node in range(graph.num_nodes):
-            # print(node)
+            print(node)
             neighbours = self.get_predecessors(graph, node)
 
             sampled_bool = np.array(
