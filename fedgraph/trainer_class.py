@@ -1231,7 +1231,7 @@ class Trainer_GAT:
         self.model_regularisation = args.model_regularisation
         self.device = device
         self.optimizer = None
-        self.loss_fn = nn.KLDivLoss(reduction = 'batchmean', log_target = False)
+        self.loss_fn = nn.KLDivLoss(reduction="batchmean", log_target=False)
         self.epoch = 0
         self.node_feats = None
 
@@ -1447,23 +1447,21 @@ class Trainer_GAT:
             y_pred = self.model.forward(self.graph, self.node_mats)
         if self.batch_size:
             if self.batch_size > len(self.train_mask):
-                return self.train_mask
+                self.batch_mask = self.train_mask
             else:
-                return random.sample(self.train_mask, self.batch_size)
+                self.batch_mask = random.sample(self.train_mask, self.batch_size)
         else:
-            return self.train_mask
+            self.batch_mask = self.train_mask
         # print("validating for loss size")
         # print(self.client_id)
         # print(y_pred.size())
         # print(self.tr_mask)
-        print("priting batch_mask")
-        print(self.batch_mask)
         t_loss = FedGATLoss(
             self.loss_fn,
             self.glob_comm,
             self.loss_weight,
-            y_pred[self.train_mask][self.batch_mask].log(),
-            self.labels[self.train_mask][self.batch_mask],
+            y_pred[self.batch_mask].log(),
+            self.labels[self.batch_mask],
             self.model,
             self.global_params,
             self.duals,
@@ -1516,7 +1514,7 @@ class Trainer_GAT:
             true_labels = torch.argmax(self.labels, dim=1)
 
             self.t_acc = torch.sum(
-                pred_labels[self.train_mask] == true_labels[self.train_mask]
+                pred_labels[self.batch_mask] == true_labels[self.batch_mask]
             ) / len(self.train_mask)
             self.v_acc = torch.sum(
                 pred_labels[self.validate_mask] == true_labels[self.validate_mask]
@@ -1645,16 +1643,14 @@ class Trainer_GAT:
             pred_labels = torch.argmax(y_pred, dim=1)
             true_labels = torch.argmax(self.labels[self.test_mask], dim=1)
 
-            self.t_acc = (
-                torch.sum(pred_labels == true_labels) / len(self.test_mask) * 100
-            )
+            t_acc = torch.sum(pred_labels == true_labels) / len(self.test_mask) * 100
 
             # print(
             #     "Client {ID}: Test acc: {t_acc}%".format(
             #         ID=self.client_id, t_acc=self.t_acc
             #     )
             # )
-        return self.t_acc
+        return t_acc
 
     def get_params(self):
         """
