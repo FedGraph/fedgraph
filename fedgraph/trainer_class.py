@@ -1231,7 +1231,8 @@ class Trainer_GAT:
         self.model_regularisation = args.model_regularisation
         self.device = device
         self.optimizer = None
-        self.loss_fn = nn.KLDivLoss(reduction="batchmean", log_target=False)
+        # self.loss_fn = nn.KLDivLoss(reduction="batchmean", log_target=False)
+        self.loss_fn = nn.CrossEntropyLoss()
         self.epoch = 0
         self.node_feats = None
 
@@ -1462,7 +1463,7 @@ class Trainer_GAT:
             self.loss_fn,
             self.glob_comm,
             self.loss_weight,
-            y_pred[self.batch_mask].log(),
+            y_pred[self.batch_mask],
             self.labels[self.batch_mask],
             self.model,
             self.global_params,
@@ -1470,8 +1471,6 @@ class Trainer_GAT:
             self.aug_lagrange_rho,
             self.dual_weight,
         )
-        for p in self.model.parameters():
-            p.retain_grad()
         # S = self.model.state_dict()
         # print("printing state dict")
         # print(S)
@@ -1503,7 +1502,7 @@ class Trainer_GAT:
                 self.loss_fn,
                 self.glob_comm,
                 self.loss_weight,
-                y_pred[self.validate_mask].log(),
+                y_pred[self.validate_mask],
                 self.labels[self.validate_mask],
                 self.model,
                 self.global_params,
@@ -1568,7 +1567,7 @@ class Trainer_GAT:
             self.loss_fn,
             self.glob_comm,
             self.loss_weight,
-            y_pred[self.train_mask].log(),
+            y_pred[self.train_mask],
             self.labels[self.train_mask],
             self.model,
             self.global_params,
@@ -1586,7 +1585,7 @@ class Trainer_GAT:
                 self.loss_fn,
                 self.glob_comm,
                 self.loss_weight,
-                y_pred[self.validate_mask].log(),
+                y_pred[self.validate_mask],
                 self.labels[self.validate_mask],
                 self.model,
                 self.global_params,
