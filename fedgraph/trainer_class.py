@@ -1449,7 +1449,9 @@ class Trainer_GAT:
             if self.batch_size > len(self.train_mask):
                 self.batch_mask = self.train_mask
             else:
-                self.batch_mask = random.sample(self.train_mask, self.batch_size)
+                self.batch_mask = torch.tensor(
+                    random.sample(list(self.train_mask), self.batch_size)
+                )
         else:
             self.batch_mask = self.train_mask
         # print("validating for loss size")

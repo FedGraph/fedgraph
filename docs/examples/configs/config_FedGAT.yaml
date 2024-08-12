@@ -33,4 +33,4 @@ limit_node_degree: 40
 # method: DistributedGAT
 # method: CentralizedGAT
 method: FedGAT
-batch_size: False
+batch_size: 512
