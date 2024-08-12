@@ -1,18 +1,18 @@
 dual_weight: 5.e-4
 aug_lagrange_rho: 6.e-4
-model_lr: 0.005
+model_lr: 0.1
 model_regularisation: 2.e-3
 dual_lr: 1.e-2
 num_local_iters: 1
-train_rounds: 70
-global_rounds: 70
+train_rounds: 30
+global_rounds: 30
 gamma: 0.2
 attn_func_parameter: 0.2
 # lambda x: AttnFunction(x, 0.2)
 attn_func_domain: [-5, 5, 500]
 sample_probab: 0.8
-hidden_dim: 128
-num_heads: 3
+hidden_dim: 8
+num_heads: 8
 max_deg: 16
 
 # dataset: ogbn-arxiv
@@ -33,4 +33,4 @@ limit_node_degree: 40
 # method: DistributedGAT
 # method: CentralizedGAT
 method: FedGAT
-batch_size: 512
+batch_size: False
