@@ -497,6 +497,7 @@ class Server_GAT:
         class_num,
         device,
         trainers,
+        type,
         args,
     ):
         self.graph = graph
@@ -508,6 +509,7 @@ class Server_GAT:
 
         self.device = device
         self.trainers = trainers
+        self.dataset = args.dataset
         self.sample_probab = args.sample_probab
         self.train_rounds = args.train_rounds
         self.num_local_iters = args.num_local_iters
@@ -523,7 +525,7 @@ class Server_GAT:
 
         self.num_layers = args.num_layers
         self.glob_comm = args.glob_comm
-
+        self.communication_cost = 0
         self.node_mats = {}
 
         self.optim_kind = args.optim_kind
@@ -565,6 +567,7 @@ class Server_GAT:
                     p.requires_grad = False
         self.model_loss_weights = {id: 1.0 for id in range(len(trainers))}
         self.args = args
+        self.type = type
 
     @torch.no_grad()
     def zero_params(self):
@@ -752,10 +755,10 @@ class Server_GAT:
         degrees = self.compute_degrees(graph.edge_index, graph.num_nodes)
 
         max_degree = degrees.max().item()
-        print("The maximum degree is:", max_degree)
+        # print("The maximum degree is:", max_degree)
         max_degree = int(self.sample_probab * max_degree)
         for node in range(graph.num_nodes):
-            print(node)
+            # print(node)
             neighbours = self.get_predecessors(graph, node)
 
             sampled_bool = np.array(
@@ -824,7 +827,7 @@ class Server_GAT:
             ]
 
         self.distribute_mats(communicate_node_indexes)
-
+        return self.node_mats
         # Assigned all the node matrices!
 
     def compute_degrees(self, edge_index, num_nodes):
@@ -832,13 +835,17 @@ class Server_GAT:
         deg = degree(row, num_nodes=num_nodes)
         return deg
 
-    def distribute_mats(self, communicate_node_indexes):
+    def distribute_mats(self, communicate_node_indexes, previous_node_mats=None):
+        if previous_node_mats is not None:
+            self.node_mats = previous_node_mats
         for id in range(len(self.trainers)):
             trimmed_node_mats = [
                 self.node_mats[int(true_node_id)]
                 for true_node_id in communicate_node_indexes[id]
             ]
-
+            for i in trimmed_node_mats:
+                for j in i:
+                    self.communication_cost += j.element_size() * j.nelement()
             self.trainers[id].set_node_mats.remote(trimmed_node_mats)
 
     def _calculate_matrix(self, node_feat, orth_vec, j):
@@ -995,13 +1002,14 @@ class Server_GAT:
                     # for p in ray.get(self.trainers[id].get_model_parameters.remote()).parameters():
                     #     print(p.grad)
                     # print(
-                    #     ray.get(self.trainers[id].get_model_parameters.remote()).parameters().grad)
+
                     for p, p_id in zip(
                         self.Model.parameters(),
                         ray.get(self.trainers[id].get_model_grads.remote()),
                     ):
                         # print("printing trainer grad")
                         # print(ray.get(self.trainers[id].get_model_grads.remote()))
+                        self.communication_cost += p_id.nelement() * p_id.element_size()
                         p.grad += (
                             self.model_loss_weights[id] * p_id / self.num_local_iters
                         )
@@ -1042,7 +1050,7 @@ class Server_GAT:
             for p, p_old in zip(self.Model.parameters(), old.parameters()):
                 err += torch.sum((p - p_old) ** 2) / torch.numel(p)
 
-            print("Change in model parameters = {E}".format(E=err.item()))
+            # print("Change in model parameters = {E}".format(E=err.item()))
 
     def ResetAll(self, Model, train_params=None):
         if train_params != None:
@@ -1145,7 +1153,7 @@ class Server_GAT:
                     refs.append(self.trainers[id].train_iterate.remote())
             test_acc_list = ray.get(refs)
             average_final_test_accuracy = torch.tensor(test_acc_list).mean().item()
-            print(f"iteration {ep} completed, avg acc = {average_final_test_accuracy}")
+
             self.TrainUpdate()
 
             for id in range(len(self.trainers)):
@@ -1153,12 +1161,23 @@ class Server_GAT:
                     self.trainers[id].FromServer.remote(self.Model, self.Duals[id])
 
                 else:
+                    for param in self.Model.parameters():
+                        if param.data.is_floating_point():
+                            self.communication_cost += (
+                                param.numel() * torch.finfo(param.data.dtype).bits
+                            )
+                        else:
+                            self.communication_cost += (
+                                param.numel() * torch.iinfo(param.data.dtype).bits
+                            )
                     self.trainers[id].FromServer.remote(copy.deepcopy(self.Model), None)
 
                 if self.optim_reset:
                     self.trainers[id].OptimReset.remote()
 
-            print("Epoch {e} completed!".format(e=ep))
+            print(
+                f" Log// {self.type}, {self.dataset}, {len(self.trainers)}, {ep}, {average_final_test_accuracy}, {self.communication_cost}, {self.args.iid_beta} //end"
+            )
 
         print("Training completed!")
 
@@ -1192,7 +1211,7 @@ class Server_GAT:
 
                 self.trainers[id].OptimReset.remote()
 
-            print("Epoch {e} completed!".format(e=ep))
+            # print("Epoch {e} completed!".format(e=ep))
 
         print("Training completed!")
 

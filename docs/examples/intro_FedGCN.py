@@ -17,8 +17,6 @@ import numpy as np
 import ray
 import torch
 
-ray.init()
-
 from fedgraph.data_process import FedGCN_load_data
 from fedgraph.server_class import Server
 from fedgraph.trainer_class import Trainer_General
@@ -28,15 +26,18 @@ from fedgraph.utils_nc import (
     label_dirichlet_partition,
 )
 
+ray.init()
+
+
 np.random.seed(42)
 torch.manual_seed(42)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-d", "--dataset", default="cora", type=str)
+parser.add_argument("-d", "--dataset", default="ogbn-arxiv", type=str)
 
 parser.add_argument("-f", "--fedtype", default="fedgcn", type=str)
 
-parser.add_argument("-c", "--global_rounds", default=10000, type=int)
+parser.add_argument("-c", "--global_rounds", default=100, type=int)
 parser.add_argument("-i", "--local_step", default=3, type=int)
 parser.add_argument("-lr", "--learning_rate", default=0.1, type=float)
 
@@ -75,7 +76,7 @@ edge_index = torch.stack([row, col], dim=0)
 
 num_cpus_per_client = 2
 # specifying a target GPU
-args.gpu = True  # Test
+args.gpu = False  # Test
 print(f"gpu usage: {args.gpu}")
 if args.gpu:
     device = torch.device("cuda")

@@ -62,316 +62,350 @@ config_file = os.path.join(current_dir, "configs/config_FedGAT.yaml")
 
 with open(config_file, "r") as file:
     args = attridict.AttriDict(yaml.safe_load(file))
-
-
-(
-    data,
-    normalized_features,
-    adj,
-    labels,
-    one_hot_labels,
-    idx_train,
-    idx_val,
-    idx_test,
-) = FedAT_load_data_test(args.dataset)
-print(data)
-calculate_statistics(data)
-print_mask_statistics(data)
-row, col, edge_attr = adj.coo()
-edge_index = torch.stack([row, col], dim=0)
-split_node_indexes = label_dirichlet_partition(
-    labels, len(labels), labels.max().item() + 1, args.n_trainer, beta=args.iid_beta
-)
-
-
-for i in range(args.n_trainer):
-    split_node_indexes[i] = np.array(split_node_indexes[i])
-    split_node_indexes[i].sort()
-    split_node_indexes[i] = torch.tensor(split_node_indexes[i])
-
-
-# Device setup
-device = torch.device("cpu" if True else "cpu")
-print(f"device: {device}")
-
-
-(
-    communicate_node_indexes,
-    in_com_train_node_indexes,
-    in_com_test_node_indexes,
-    in_com_val_node_indexes,
-    edge_indexes_clients,
-    in_com_labels,
-    induce_node_indexes,
-    origin_train_indexes,
-    origin_val_indexes,
-    origin_test_indexes,
-    origin_labels,
-) = get_in_comm_indexes(
-    edge_index,
-    split_node_indexes,
-    args.n_trainer,
-    # args.num_hops:
-    0,
-    idx_train,
-    idx_test,
-    idx_val,
-    one_hot_labels,
-)
-
-print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
 ray.init()
 
 
-@ray.remote(
-    num_gpus=0,
-    num_cpus=0.1,
-    scheduling_strategy="SPREAD",
-)
-class Trainer(Trainer_GAT):
-    def __init__(
-        self,
-        client_id,
-        subgraph,
-        node_indexes,
-        train_indexes,
-        val_indexes,
-        test_indexes,
+def run_fedgraph():
+    (
+        data,
+        normalized_features,
+        adj,
         labels,
-        features_shape,
-        args,
-        device,
-        type,
-        batch_size=None,
-    ):
-        super().__init__(  # type: ignore
-            client_id=client_id,
-            subgraph=subgraph,
-            node_indexes=node_indexes,
-            train_indexes=train_indexes,
-            val_indexes=val_indexes,
-            test_indexes=test_indexes,
-            labels=labels,
-            features_shape=features_shape,
-            args=args,
-            device=device,
-            type=type,
-            batch_size=batch_size,
+        one_hot_labels,
+        idx_train,
+        idx_val,
+        idx_test,
+    ) = FedAT_load_data_test(args.dataset)
+    # print(data)
+    # calculate_statistics(data)
+    # print_mask_statistics(data)
+    row, col, edge_attr = adj.coo()
+    edge_index = torch.stack([row, col], dim=0)
+    node_mats = None
+
+    def run(node_mats):
+        split_node_indexes = label_dirichlet_partition(
+            labels,
+            len(labels),
+            labels.max().item() + 1,
+            args.n_trainer,
+            beta=args.iid_beta,
         )
-        # print(f"client_id: {client_id}")
-        # print(f"subgraph: {subgraph}")
-        # print(f"node_indexes: {node_indexes} (size: {len(node_indexes)})")
-        # print(f"train_indexes: {train_indexes} (size: {len(train_indexes)})")
-        # print(f"val_indexes: {val_indexes} (size: {len(val_indexes)})")
-        # print(f"test_indexes: {test_indexes} (size: {len(test_indexes)})")
-        # print(f"labels: {labels} (size: {len(labels)})")
-        # print(f"features_shape: {features_shape}")
-        # print(f"args: {args}")
-        # print(f"device: {device}")
-        # time.sleep(100)
 
+        for i in range(args.n_trainer):
+            split_node_indexes[i] = np.array(split_node_indexes[i])
+            split_node_indexes[i].sort()
+            split_node_indexes[i] = torch.tensor(split_node_indexes[i])
 
-if args.method == "CentralizedGAT":
-    #######################################################################
-    # Centralized GAT Test
-    #######################################################################
-    gat = CentralizedGATModel(
-        in_feat=normalized_features.shape[1],
-        out_feat=one_hot_labels.shape[1],
-        hidden_dim=args.hidden_dim,
-        num_head=args.num_heads,
-        max_deg=args.max_deg,
-        attn_func=args.attn_func_parameter,
-        domain=args.attn_func_domain,
-        num_layers=args.num_layers,
-    ).to(device="cpu")
-    for p in gat.parameters():
-        p.requires_grad = True
-    optimizer = Adam(
-        gat.parameters(), lr=args.model_lr, weight_decay=args.model_regularisation
-    )
-    # optimizer = SGD(gat.parameters(), lr=args.model_lr,
-    #                 weight_decay=args.model_regularisation)
+        # Device setup
+        device = torch.device("cpu" if True else "cpu")
+        print(f"device: {device}")
 
-    def LossFunc(y_pred, y_true, model, args):
-        criterion = nn.CrossEntropyLoss()
-        v = criterion(y_pred, y_true)
-        # for p in model.parameters():
-        #     v += 0.5 * 5e-4 * torch.sum(p ** 2)
+        (
+            communicate_node_indexes,
+            in_com_train_node_indexes,
+            in_com_test_node_indexes,
+            in_com_val_node_indexes,
+            edge_indexes_clients,
+            in_com_labels,
+            induce_node_indexes,
+            origin_train_indexes,
+            origin_val_indexes,
+            origin_test_indexes,
+            origin_labels,
+        ) = get_in_comm_indexes(
+            edge_index,
+            split_node_indexes,
+            args.n_trainer,
+            # args.num_hops:
+            0,
+            idx_train,
+            idx_test,
+            idx_val,
+            one_hot_labels,
+        )
 
-        return v
+        print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
 
-    print("Starting training!")
-    epoch = 0
-    num_epochs = 25
+        @ray.remote(
+            num_gpus=0,
+            num_cpus=0.5,
+            scheduling_strategy="SPREAD",
+        )
+        class Trainer(Trainer_GAT):
+            def __init__(
+                self,
+                client_id,
+                subgraph,
+                node_indexes,
+                train_indexes,
+                val_indexes,
+                test_indexes,
+                labels,
+                features_shape,
+                args,
+                device,
+                type,
+                batch_size=None,
+            ):
+                super().__init__(  # type: ignore
+                    client_id=client_id,
+                    subgraph=subgraph,
+                    node_indexes=node_indexes,
+                    train_indexes=train_indexes,
+                    val_indexes=val_indexes,
+                    test_indexes=test_indexes,
+                    labels=labels,
+                    features_shape=features_shape,
+                    args=args,
+                    device=device,
+                    type=type,
+                    batch_size=batch_size,
+                )
+                # print(f"client_id: {client_id}")
+                # print(f"subgraph: {subgraph}")
+                # print(f"node_indexes: {node_indexes} (size: {len(node_indexes)})")
+                # print(f"train_indexes: {train_indexes} (size: {len(train_indexes)})")
+                # print(f"val_indexes: {val_indexes} (size: {len(val_indexes)})")
+                # print(f"test_indexes: {test_indexes} (size: {len(test_indexes)})")
+                # print(f"labels: {labels} (size: {len(labels)})")
+                # print(f"features_shape: {features_shape}")
+                # print(f"args: {args}")
+                # print(f"device: {device}")
+                # time.sleep(100)
 
-    train_mask = idx_train
-    validate_mask = idx_val
-    test_mask = idx_test
+        if True:
+            #######################################################################
+            # Centralized GAT Test
+            #######################################################################
+            m = "Centralized GAT"
+            gat = CentralizedGATModel(
+                in_feat=normalized_features.shape[1],
+                out_feat=one_hot_labels.shape[1],
+                hidden_dim=args.hidden_dim,
+                num_head=args.num_heads,
+                max_deg=args.max_deg,
+                attn_func=args.attn_func_parameter,
+                domain=args.attn_func_domain,
+                num_layers=args.num_layers,
+            ).to(device="cpu")
+            for p in gat.parameters():
+                p.requires_grad = True
+            optimizer = Adam(
+                gat.parameters(),
+                lr=args.model_lr,
+                weight_decay=args.model_regularisation,
+            )
+            # optimizer = SGD(gat.parameters(), lr=args.model_lr,
+            #                 weight_decay=args.model_regularisation)
 
-    for p in gat.parameters():
-        print(p.requires_grad)
+            def LossFunc(y_pred, y_true, model, args):
+                criterion = nn.CrossEntropyLoss()
+                v = criterion(y_pred, y_true)
+                # for p in model.parameters():
+                #     v += 0.5 * 5e-4 * torch.sum(p ** 2)
 
-    print("Starting training!")
-    for ep in range(num_epochs):
-        gat.train()
-        optimizer.zero_grad()
-        y_pred = gat(data)
+                return v
 
-        t_loss = LossFunc(y_pred[train_mask], one_hot_labels[train_mask], gat, args)
+            # print("Starting training!")
+            epoch = 0
+            num_epochs = 25
 
-        t_loss.backward()
-        optimizer.step()
+            train_mask = idx_train
+            validate_mask = idx_val
+            test_mask = idx_test
 
-        with torch.no_grad():
-            v_loss = LossFunc(
-                y_pred[validate_mask], one_hot_labels[validate_mask], gat, args
+            # for p in gat.parameters():
+            #     print(p.requires_grad)
+
+            print("Starting training!")
+            for ep in range(num_epochs):
+                gat.train()
+                optimizer.zero_grad()
+                y_pred = gat(data)
+
+                t_loss = LossFunc(
+                    y_pred[train_mask], one_hot_labels[train_mask], gat, args
+                )
+
+                t_loss.backward()
+                optimizer.step()
+
+                with torch.no_grad():
+                    gat.train()
+                    v_loss = LossFunc(
+                        y_pred[validate_mask], one_hot_labels[validate_mask], gat, args
+                    )
+
+                    pred_labels = torch.argmax(y_pred, dim=1)
+                    true_labels = torch.argmax(one_hot_labels, dim=1)
+
+                    t_acc = torch.sum(
+                        pred_labels[train_mask] == true_labels[train_mask]
+                    ).item() / len(train_mask)
+                    v_acc = torch.sum(
+                        pred_labels[validate_mask] == true_labels[validate_mask]
+                    ).item() / len(validate_mask)
+
+                    # print(
+                    #     f"Client 0: Epoch {epoch}: Train loss: {t_loss.item():.4f}, Train acc: {t_acc*100:.2f}%, "
+                    #     f"Val loss: {v_loss.item():.4f}, Val acc {v_acc*100:.2f}%"
+                    # )
+                    gat.eval()
+
+                    with torch.no_grad():
+                        y_pred = gat(data)
+
+                        test_loss = LossFunc(
+                            y_pred[test_mask], one_hot_labels[test_mask], gat, args
+                        )
+
+                        pred_labels = torch.argmax(y_pred, dim=1)
+                        true_labels = torch.argmax(one_hot_labels, dim=1)
+
+                        test_acc = (
+                            torch.sum(
+                                pred_labels[test_mask] == true_labels[test_mask]
+                            ).item()
+                            / len(test_mask)
+                            * 100
+                        )
+
+                        print(
+                            f" Log// {m}, {args.dataset}, {1}, {ep}, {test_acc}, {0}, {args.iid_beta} //end"
+                        )
+
+                epoch += 1
+                # print(f"Epoch {ep} completed!")
+
+        if True:
+            args.method = "DistributedGAT"
+            #######################################################################
+            # Distributed GAT Test
+            #######################################################################
+            gat = CentralizedGATModel(
+                in_feat=normalized_features.shape[1],
+                out_feat=one_hot_labels.shape[1],
+                hidden_dim=args.hidden_dim,
+                num_head=args.num_heads,
+                max_deg=args.max_deg,
+                attn_func=args.attn_func_parameter,
+                domain=args.attn_func_domain,
+                num_layers=args.num_layers,
+            ).to(device="cpu")
+            clients = [
+                Trainer.remote(
+                    # Trainer(
+                    client_id=client_id,
+                    subgraph=data.subgraph(communicate_node_indexes[client_id]),
+                    node_indexes=communicate_node_indexes[client_id],
+                    train_indexes=origin_train_indexes[client_id],
+                    val_indexes=origin_val_indexes[client_id],
+                    test_indexes=origin_test_indexes[client_id],
+                    labels=origin_labels[client_id],
+                    features_shape=normalized_features.shape[1],
+                    args=args,
+                    device=device,
+                    type=args.method,
+                    batch_size=args.batch_size,
+                )
+                for client_id in range(len(split_node_indexes))
+            ]
+            server = Server_GAT(
+                graph=data,
+                model=gat,
+                feats=normalized_features,
+                labels=one_hot_labels,
+                feature_dim=normalized_features.shape[1],
+                class_num=one_hot_labels.shape[1],
+                device=device,
+                trainers=clients,
+                type=args.method,
+                args=args,
             )
 
-            pred_labels = torch.argmax(y_pred, dim=1)
-            true_labels = torch.argmax(one_hot_labels, dim=1)
+            # server.ResetAll(gat_model, train_params=args)
+            server.TrainCoordinate()
+        if True:
+            args.method = "FedGAT"
+            #######################################################################
+            # FedGAT Test
+            #######################################################################
+            clients = [
+                Trainer.remote(
+                    # Trainer(
+                    client_id=client_id,
+                    subgraph=data.subgraph(induce_node_indexes[client_id]),
+                    node_indexes=communicate_node_indexes[client_id],
+                    train_indexes=in_com_train_node_indexes[client_id],
+                    val_indexes=in_com_val_node_indexes[client_id],
+                    test_indexes=in_com_test_node_indexes[client_id],
+                    labels=in_com_labels[client_id],
+                    features_shape=normalized_features.shape[1],
+                    args=args,
+                    device=device,
+                    type=args.method,
+                    batch_size=args.batch_size,
+                )
+                for client_id in range(len(split_node_indexes))
+            ]
 
-            t_acc = torch.sum(
-                pred_labels[train_mask] == true_labels[train_mask]
-            ).item() / len(train_mask)
-            v_acc = torch.sum(
-                pred_labels[validate_mask] == true_labels[validate_mask]
-            ).item() / len(validate_mask)
-
-            print(
-                f"Client 0: Epoch {epoch}: Train loss: {t_loss.item():.4f}, Train acc: {t_acc*100:.2f}%, "
-                f"Val loss: {v_loss.item():.4f}, Val acc {v_acc*100:.2f}%"
+            # Define Server
+            gat_model = FedGATModel(
+                in_feat=normalized_features.shape[1],
+                out_feat=one_hot_labels.shape[1],
+                hidden_dim=args.hidden_dim,
+                num_head=args.num_heads,
+                max_deg=args.max_deg,
+                attn_func=args.attn_func_parameter,
+                domain=args.attn_func_domain,
+            ).to(device=device)
+            # centralizedGATModel = CentralizedGATModel(
+            #     in_feat=normalized_features.shape[1],
+            #     out_feat=one_hot_labels.shape[1],
+            #     hidden_dim=args.hidden_dim,
+            #     num_head=args.num_heads,
+            #     max_deg=args.max_deg,
+            #     attn_func=args.attn_func_parameter,
+            #     domain=args.attn_func_domain,
+            # ).to(device="cpu")
+            server = Server_GAT(
+                graph=data,
+                model=gat_model,
+                feats=normalized_features,
+                labels=one_hot_labels,
+                feature_dim=normalized_features.shape[1],
+                class_num=one_hot_labels.shape[1],
+                device=device,
+                trainers=clients,
+                args=args,
+                type=args.method,
             )
 
-        epoch += 1
-        print(f"Epoch {ep} completed!")
+            # Pre-training communication
+            print("Pre-training communication initiated!")
+            if node_mats == None:
+                node_mats = server.pretrain_communication(
+                    induce_node_indexes, data, device=args.device, args=args
+                )
+            else:
+                server.distribute_mats(induce_node_indexes, node_mats)
+            print("Pre-training communication completed!")
 
-    print("Training completed!")
-    gat.eval()
+            # server.ResetAll(gat_model, train_params=args)
+            server.TrainCoordinate()
+            return node_mats
 
-    with torch.no_grad():
-        y_pred = gat(data)
-
-        test_loss = LossFunc(y_pred[test_mask], one_hot_labels[test_mask], gat, args)
-
-        pred_labels = torch.argmax(y_pred, dim=1)
-        true_labels = torch.argmax(one_hot_labels, dim=1)
-
-        test_acc = torch.sum(
-            pred_labels[test_mask] == true_labels[test_mask]
-        ).item() / len(test_mask)
-
-        print(f"Test loss: {test_loss.item():.4f}, Test acc: {test_acc*100:.2f}%")
-    print("Testing completed!")
-    # time.sleep(100)
+    # experiment start here
+    for n_trainer in [2, 4, 6, 8, 10]:
+        args.n_trainer = n_trainer
+        for iid in [1, 100, 10000]:
+            args.iid_beta = iid
+            node_mats = run(node_mats)
 
 
-elif args.method == "DistributedGAT":
-    #######################################################################
-    # Distributed GAT Test
-    #######################################################################
-    gat = CentralizedGATModel(
-        in_feat=normalized_features.shape[1],
-        out_feat=one_hot_labels.shape[1],
-        hidden_dim=args.hidden_dim,
-        num_head=args.num_heads,
-        max_deg=args.max_deg,
-        attn_func=args.attn_func_parameter,
-        domain=args.attn_func_domain,
-        num_layers=args.num_layers,
-    ).to(device="cpu")
-    clients = [
-        Trainer.remote(
-            # Trainer(
-            client_id=client_id,
-            subgraph=data.subgraph(communicate_node_indexes[client_id]),
-            node_indexes=communicate_node_indexes[client_id],
-            train_indexes=origin_train_indexes[client_id],
-            val_indexes=origin_val_indexes[client_id],
-            test_indexes=origin_test_indexes[client_id],
-            labels=origin_labels[client_id],
-            features_shape=normalized_features.shape[1],
-            args=args,
-            device=device,
-            type=args.method,
-            batch_size=args.batch_size,
-        )
-        for client_id in range(len(split_node_indexes))
-    ]
-    server = Server_GAT(
-        graph=data,
-        model=gat,
-        feats=normalized_features,
-        labels=one_hot_labels,
-        feature_dim=normalized_features.shape[1],
-        class_num=one_hot_labels.shape[1],
-        device=device,
-        trainers=clients,
-        args=args,
-    )
+for d in ["cora", "citeseer", "pubmed"]:
+    args.dataset = d
+    run_fedgraph()
 
-    # server.ResetAll(gat_model, train_params=args)
-    server.TrainCoordinate()
-else:
-    #######################################################################
-    # FedGAT Test
-    #######################################################################
-    clients = [
-        Trainer.remote(
-            # Trainer(
-            client_id=client_id,
-            subgraph=data.subgraph(induce_node_indexes[client_id]),
-            node_indexes=communicate_node_indexes[client_id],
-            train_indexes=in_com_train_node_indexes[client_id],
-            val_indexes=in_com_val_node_indexes[client_id],
-            test_indexes=in_com_test_node_indexes[client_id],
-            labels=in_com_labels[client_id],
-            features_shape=normalized_features.shape[1],
-            args=args,
-            device=device,
-            type=args.method,
-        )
-        for client_id in range(len(split_node_indexes))
-    ]
-
-    # Define Server
-    gat_model = FedGATModel(
-        in_feat=normalized_features.shape[1],
-        out_feat=one_hot_labels.shape[1],
-        hidden_dim=args.hidden_dim,
-        num_head=args.num_heads,
-        max_deg=args.max_deg,
-        attn_func=args.attn_func_parameter,
-        domain=args.attn_func_domain,
-    ).to(device=device)
-    # centralizedGATModel = CentralizedGATModel(
-    #     in_feat=normalized_features.shape[1],
-    #     out_feat=one_hot_labels.shape[1],
-    #     hidden_dim=args.hidden_dim,
-    #     num_head=args.num_heads,
-    #     max_deg=args.max_deg,
-    #     attn_func=args.attn_func_parameter,
-    #     domain=args.attn_func_domain,
-    # ).to(device="cpu")
-    server = Server_GAT(
-        graph=data,
-        model=gat_model,
-        feats=normalized_features,
-        labels=one_hot_labels,
-        feature_dim=normalized_features.shape[1],
-        class_num=one_hot_labels.shape[1],
-        device=device,
-        trainers=clients,
-        args=args,
-    )
-
-    # Pre-training communication
-    print("Pre-training communication initiated!")
-    server.pretrain_communication(
-        induce_node_indexes, data, device=args.device, args=args
-    )
-    print("Pre-training communication completed!")
-
-    # server.ResetAll(gat_model, train_params=args)
-    server.TrainCoordinate()
 ray.shutdown()

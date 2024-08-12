@@ -421,7 +421,7 @@ def compute_node_matrix(index_list, graph, device, feats, sample_probab, max_deg
     max_degree = int(sample_probab * max_degree)
 
     for node in index_list:
-        print(node)
+        # print(node)
         neighbours = get_predecessors(graph, node)
 
         sampled_bool = np.array(
@@ -460,7 +460,7 @@ def compute_node_matrix(index_list, graph, device, feats, sample_probab, max_deg
                 max_deg,
                 0.6,
             )
-            print(torch.from_numpy(M1).float().size())
+            # print(torch.from_numpy(M1).float().size())
 
         node_mats[node] = [
             torch.from_numpy(M1).float().to(device=device),

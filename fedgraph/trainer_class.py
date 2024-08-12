@@ -1263,7 +1263,7 @@ class Trainer_GAT:
         self.K2 = None
         self.grad = None
         self.batch_size = batch_size
-        print(batch_size)
+        # print(batch_size)
         self.batch_mask = None
         self.type = type
 
@@ -1445,7 +1445,7 @@ class Trainer_GAT:
             y_pred = self.model.forward(self.graph)
         else:
             y_pred = self.model.forward(self.graph, self.node_mats)
-        if self.batch_size != None:
+        if self.batch_size:
             self.batch_mask = torch.as_tensor(
                 [
                     random.randint(0, len(self.train_mask) - 1)
@@ -1537,19 +1537,20 @@ class Trainer_GAT:
             # print(f"Size of validate_mask: {self.validate_mask.size()}")
             # print(f"Size of pred_labels: {pred_labels.size()}")
             # print(f"Size of true_labels: {true_labels.size()}")
-            print(
-                "Client {ID}: Epoch {ep}: Train loss: {t_loss}, Train acc: {t_acc}%, Val loss: {v_loss}, Val acc {v_acc}%".format(
-                    ID=self.client_id,
-                    ep=self.epoch,
-                    t_loss=t_loss,
-                    t_acc=100 * self.t_acc,
-                    v_loss=v_loss,
-                    v_acc=100 * self.v_acc,
-                )
-            )
+            # Used in the previous metrics
+            # print(
+            #     "Client {ID}: Epoch {ep}: Train loss: {t_loss}, Train acc: {t_acc}%, Val loss: {v_loss}, Val acc {v_acc}%".format(
+            #         ID=self.client_id,
+            #         ep=self.epoch,
+            #         t_loss=t_loss,
+            #         t_acc=100 * self.t_acc,
+            #         v_loss=v_loss,
+            #         v_acc=100 * self.v_acc,
+            #     )
+            # )
             test_accracy = self.ModelTest()
         self.epoch += 1
-        return test_accracy
+        return test_accracy  # , 100 * self.v_acc, 100 * self.t_acc
 
     def train_iterate_fedavg(self):
         """
@@ -1618,22 +1619,22 @@ class Trainer_GAT:
             # print(f"Size of validate_mask: {self.validate_mask.size()}")
             # print(f"Size of pred_labels: {pred_labels.size()}")
             # print(f"Size of true_labels: {true_labels.size()}")
-            print(
-                "Client {ID}: Epoch {ep}: Train loss: {t_loss}, Train acc: {t_acc}%, Val loss: {v_loss}, Val acc {v_acc}%".format(
-                    ID=self.client_id,
-                    ep=self.epoch,
-                    t_loss=t_loss,
-                    t_acc=100 * self.t_acc,
-                    v_loss=v_loss,
-                    v_acc=100 * self.v_acc,
-                )
-            )
+            # print(
+            #     "Client {ID}: Epoch {ep}: Train loss: {t_loss}, Train acc: {t_acc}%, Val loss: {v_loss}, Val acc {v_acc}%".format(
+            #         ID=self.client_id,
+            #         ep=self.epoch,
+            #         t_loss=t_loss,
+            #         t_acc=100 * self.t_acc,
+            #         v_loss=v_loss,
+            #         v_acc=100 * self.v_acc,
+            #     )
+            # )
             test_accracy = self.ModelTest()
         self.epoch += 1
-        return test_accracy
+        return test_accracy, 100 * self.v_acc, 100 * self.t_acc
 
     def get_sum_train_mask(self):
-        print(self.train_mask)
+        # print(self.train_mask)
         return self.train_mask.sum().item()
 
     def ModelTest(self):
@@ -1652,11 +1653,11 @@ class Trainer_GAT:
                 torch.sum(pred_labels == true_labels) / len(self.test_mask) * 100
             )
 
-            print(
-                "Client {ID}: Test acc: {t_acc}%".format(
-                    ID=self.client_id, t_acc=self.t_acc
-                )
-            )
+            # print(
+            #     "Client {ID}: Test acc: {t_acc}%".format(
+            #         ID=self.client_id, t_acc=self.t_acc
+            #     )
+            # )
         return self.t_acc
 
     def get_params(self):
@@ -1726,7 +1727,7 @@ class Trainer_GAT:
             self.v_acc = self._calculate_accuracy(
                 y_pred[self.validate_mask], self.labels[self.validate_mask]
             )
-            print(
-                f"Client {self.client_id}: Epoch {self.epoch}: Train loss: {self.tr_loss}, Train acc: {self.tr_acc}, Val loss: {self.v_loss}, Val acc {self.v_acc}"
-            )
+            # print(
+            #     f"Client {self.client_id}: Epoch {self.epoch}: Train loss: {self.tr_loss}, Train acc: {self.tr_acc}, Val loss: {self.v_loss}, Val acc {self.v_acc}"
+            # )
         self.epoch += 1
