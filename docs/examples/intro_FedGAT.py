@@ -125,11 +125,12 @@ def run_fedgraph():
             one_hot_labels,
         )
 
-        print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
+        print_client_statistics(
+            split_node_indexes, idx_train, idx_val, idx_test)
 
         @ray.remote(
             num_gpus=0,
-            num_cpus=0.5,
+            num_cpus=2,
             scheduling_strategy="SPREAD",
         )
         class Trainer(Trainer_GAT):
@@ -297,7 +298,8 @@ def run_fedgraph():
                 Trainer.remote(
                     # Trainer(
                     client_id=client_id,
-                    subgraph=data.subgraph(communicate_node_indexes[client_id]),
+                    subgraph=data.subgraph(
+                        communicate_node_indexes[client_id]),
                     node_indexes=communicate_node_indexes[client_id],
                     train_indexes=origin_train_indexes[client_id],
                     val_indexes=origin_val_indexes[client_id],
@@ -397,15 +399,16 @@ def run_fedgraph():
             return node_mats
 
     # experiment start here
-    for n_trainer in [2, 4, 6, 8, 10]:
+    for n_trainer in [20]:
         args.n_trainer = n_trainer
-        for iid in [1, 100, 10000]:
+        for iid in [10000]:
             args.iid_beta = iid
             node_mats = run(node_mats)
 
 
-for d in ["cora", "citeseer", "pubmed"]:
+for d in ["ogbn_arxiv"]:
     args.dataset = d
+
     run_fedgraph()
 
 ray.shutdown()

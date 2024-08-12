@@ -2,7 +2,7 @@ apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 
 metadata:
-  name: test3
+  name: test4
   region: us-west-2
 
 nodeGroups:
@@ -14,7 +14,6 @@ nodeGroups:
     volumeSize: 1024
     labels:
       ray-node-type: head
-
 #  - name: worker-nodes
 #    instanceType: m5.4xlarge
 #    desiredCapacity: 5
