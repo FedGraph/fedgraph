@@ -1231,7 +1231,7 @@ class Trainer_GAT:
         self.model_regularisation = args.model_regularisation
         self.device = device
         self.optimizer = None
-        self.loss_fn = nn.CrossEntropyLoss()
+        self.loss_fn = nn.KLDivLoss(reduction = 'batchmean', log_target = False)
         self.epoch = 0
         self.node_feats = None
 
@@ -1446,28 +1446,24 @@ class Trainer_GAT:
         else:
             y_pred = self.model.forward(self.graph, self.node_mats)
         if self.batch_size:
-            self.batch_mask = torch.as_tensor(
-                [
-                    random.randint(0, len(self.train_mask) - 1)
-                    for i in range(self.batch_size)
-                ]
-            ).long()
+            if self.batch_size > len(self.train_mask):
+                return self.train_mask
+            else:
+                return random.sample(self.train_mask, self.batch_size)
         else:
-            self.batch_mask = (
-                torch.as_tensor([i for i in range(len(self.train_mask))])
-                .long()
-                .to(device=self.device)
-            )
+            return self.train_mask
         # print("validating for loss size")
         # print(self.client_id)
         # print(y_pred.size())
         # print(self.tr_mask)
+        print("priting batch_mask")
+        print(self.batch_mask)
         t_loss = FedGATLoss(
             self.loss_fn,
             self.glob_comm,
             self.loss_weight,
-            y_pred[self.train_mask],
-            self.labels[self.train_mask],
+            y_pred[self.train_mask][self.batch_mask].log(),
+            self.labels[self.train_mask][self.batch_mask],
             self.model,
             self.global_params,
             self.duals,
@@ -1507,7 +1503,7 @@ class Trainer_GAT:
                 self.loss_fn,
                 self.glob_comm,
                 self.loss_weight,
-                y_pred[self.validate_mask],
+                y_pred[self.validate_mask].log(),
                 self.labels[self.validate_mask],
                 self.model,
                 self.global_params,
@@ -1571,7 +1567,7 @@ class Trainer_GAT:
             self.loss_fn,
             self.glob_comm,
             self.loss_weight,
-            y_pred[self.train_mask],
+            y_pred[self.train_mask].log(),
             self.labels[self.train_mask],
             self.model,
             self.global_params,
@@ -1589,7 +1585,7 @@ class Trainer_GAT:
                 self.loss_fn,
                 self.glob_comm,
                 self.loss_weight,
-                y_pred[self.validate_mask],
+                y_pred[self.validate_mask].log(),
                 self.labels[self.validate_mask],
                 self.model,
                 self.global_params,
