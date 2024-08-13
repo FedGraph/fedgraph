@@ -243,7 +243,7 @@ def get_in_comm_indexes(
     edge_index: torch.Tensor,
     split_node_indexes: list,
     num_clients: int,
-    L_hop: int,
+    num_layers: int,
     idx_train: torch.Tensor,
     idx_test: torch.Tensor,
     idx_val: torch.Tensor,
@@ -303,14 +303,14 @@ def get_in_comm_indexes(
         )
         del _
         del __
-
+        num_hops = num_layers - 1
         (
             induce_node_index,
             _,
             __,
             ___,
         ) = torch_geometric.utils.k_hop_subgraph(
-            client_index, 1, edge_index, relabel_nodes=False
+            client_index, num_hops, edge_index, relabel_nodes=False
         )
         del _
         del __

@@ -868,13 +868,23 @@ class FedGATConv(nn.Module):
 
 
 class MultiHeadGATConv(nn.Module):
-    def __init__(self, in_feat, out_feat, num_head, activation=None, merge="cat"):
+    def __init__(
+        self,
+        in_feat,
+        out_feat,
+        num_head,
+        batch_norm=False,
+        activation=None,
+        merge="cat",
+    ):
         super(MultiHeadGATConv, self).__init__()
 
         self.in_feat = in_feat
         self.out_feat = out_feat
         self.num_head = num_head
-
+        self.batch_norm = None
+        if batch_norm:
+            self.batch_norm = nn.BatchNorm1d(self.out_feat * self.num_head)
         self.GATModules = nn.ModuleList(
             [GATConv(in_feat, out_feat) for i in range(num_head)]
         )
@@ -889,21 +899,22 @@ class MultiHeadGATConv(nn.Module):
     def forward(self, g, h):
         out = [L(g, h) for L in self.GATModules]
 
+        out = torch.cat(out, dim=1)
+
+        if self.batch_norm is not None:
+            out = self.batch_norm(out)
+
         if self.merge == "cat":
-            if self.activ != None:
-                return self.activ(torch.cat(out, dim=1))
-
+            if self.activ is not None:
+                return self.activ(out)
             else:
-                return torch.cat(out, dim=1)
-
+                return out
         else:
-            if self.activ != None:
-                return (
-                    self.activ(torch.sum(torch.cat(out, dim=1), dim=1)) / self.num_head
-                )
-
+            summed_out = torch.sum(out, dim=1)
+            if self.activ is not None:
+                return self.activ(summed_out) / self.num_head
             else:
-                return torch.sum(torch.cat(out, dim=1), dim=1) / self.num_head
+                return summed_out / self.num_head
 
 
 class MultiHeadFedGATConv(nn.Module):
@@ -1057,7 +1068,7 @@ class CentralizedGATModel(nn.Module):
             self.GAT2 = MultiHeadGATConv(num_head * hidden_dim, out_feat, 1)
         elif num_layers == 3:
             self.GAT1 = MultiHeadGATConv(
-                in_feat, hidden_dim, num_head, activation=nn.ELU()
+                in_feat, hidden_dim, num_head, batch_norm=True, activation=nn.ELU()
             )
 
             self.GAT2 = MultiHeadGATConv(
