@@ -133,3 +133,9 @@ Finally, Delete the EKS Cluster:
 ```bash
 eksctl delete cluster --region us-west-2 --name test6
 ```
+
+To stop a job:
+
+```bash
+ray job stop raysubmit_g6VpKNnNy8fsjha9 --address http://localhost:8265
+```
