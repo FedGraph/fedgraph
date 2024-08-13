@@ -115,8 +115,7 @@ def run_fedgraph():
             # criterion = nn.KLDivLoss(
             #     reduction="batchmean", log_target=False)
             if args.dataset == "ogbn-arxiv":
-                criterion = nn.KLDivLoss(
-                    reduction="batchmean", log_target=False)
+                criterion = nn.KLDivLoss(reduction="batchmean", log_target=False)
             else:
                 criterion = nn.CrossEntropyLoss()
             v = criterion(y_pred, y_true)
@@ -134,8 +133,7 @@ def run_fedgraph():
         test_mask = idx_test
 
         if args.batch_size:
-            train_mask = torch.tensor(random.sample(
-                list(idx_train), args.batch_size))
+            train_mask = torch.tensor(random.sample(list(idx_train), args.batch_size))
         # for p in gat.parameters():
         #     print(p.requires_grad)
 
@@ -146,8 +144,7 @@ def run_fedgraph():
             y_pred = gat(data)
             if args.dataset == "ogbn-arxiv":
                 t_loss = LossFunc(
-                    y_pred[train_mask].log(
-                    ), one_hot_labels[train_mask], gat, args
+                    y_pred[train_mask].log(), one_hot_labels[train_mask], gat, args
                 )
             else:
                 t_loss = LossFunc(
@@ -318,8 +315,7 @@ def run_fedgraph():
                 Trainer.remote(
                     # Trainer(
                     client_id=client_id,
-                    subgraph=data.subgraph(
-                        communicate_node_indexes[client_id]),
+                    subgraph=data.subgraph(communicate_node_indexes[client_id]),
                     node_indexes=communicate_node_indexes[client_id],
                     train_indexes=origin_train_indexes[client_id],
                     val_indexes=origin_val_indexes[client_id],
