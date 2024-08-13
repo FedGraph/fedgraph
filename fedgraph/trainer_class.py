@@ -1232,7 +1232,11 @@ class Trainer_GAT:
         self.device = device
         self.optimizer = None
         # self.loss_fn = nn.KLDivLoss(reduction="batchmean", log_target=False)
-        self.loss_fn = nn.CrossEntropyLoss()
+        self.loss_fn = None
+        if args.dataset == "ogbn-arxiv":
+            self.loss_fn = nn.KLDivLoss(reduction="batchmean", log_target=False)
+        else:
+            self.loss_fn = nn.CrossEntropyLoss()
         self.epoch = 0
         self.node_feats = None
 
@@ -1267,6 +1271,7 @@ class Trainer_GAT:
         # print(batch_size)
         self.batch_mask = None
         self.type = type
+        self.args = args
 
     def get_model_state_dict(self):
         return self.model.state_dict()
@@ -1455,6 +1460,9 @@ class Trainer_GAT:
                 )
         else:
             self.batch_mask = self.train_mask
+        if self.args.dataset == "ogbn-arxiv":
+            y_pred = y_pred.log()
+
         # print("validating for loss size")
         # print(self.client_id)
         # print(y_pred.size())

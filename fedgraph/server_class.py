@@ -19,7 +19,7 @@ from fedgraph.gnn_models import (
     GCN_arxiv,
     SAGE_products,
 )
-from fedgraph.utils_gat import VecGen, compute_node_matrix
+from fedgraph.utils_gat import VecGen, compute_node_matrix, MatGen
 
 
 class Server:
@@ -535,7 +535,7 @@ class Server_GAT:
         self.glob_comm = args.glob_comm
         self.communication_cost = 0
         self.node_mats = {}
-
+        self.args = args
         self.optim_kind = args.optim_kind
         self.Duals = {}
         if args.glob_comm == "FedAvg":
@@ -818,25 +818,36 @@ class Server_GAT:
                     dim = max_degree
                 else:
                     dim = 2 * len(sampled_neigh)
-                M1, M2, K1, K2, Inter = VecGen(
-                    feats1=feats1,
-                    feats2=feats2,
-                    num=len(sampled_neigh),
-                    dim=dim,
-                    deg=self.max_deg,
-                )
+
+                M1, M2, K1, K2, Inter = None, None, None, None, None
+                if self.args.vecgen:
+                    M1, M2, K1, K2, Inter = VecGen(
+                        feats1=feats1,
+                        feats2=feats2,
+                        num=len(sampled_neigh),
+                        dim=dim,
+                        deg=self.max_deg,
+                    )
+                    self.node_mats[node] = [
+                        torch.from_numpy(M1).float().to(device=device),
+                        torch.from_numpy(M2).float().to(device=device),
+                        torch.from_numpy(K1).float().to(device=device),
+                        torch.from_numpy(K2).float().to(device=device),
+                        torch.from_numpy(Inter).float().to(device=device),
+                    ]
+                else:
+                    M1, M2, K1, K2 = MatGen(
+                        len(sampled_neigh), self.feats.size()[1], sampled_neigh)
+                    self.node_mats[node] = [
+                        torch.from_numpy(M1).float().to(device=device),
+                        torch.from_numpy(M2).float().to(device=device),
+                        torch.from_numpy(K1).float().to(device=device),
+                        torch.from_numpy(K2).float().to(device=device),
+                    ]
                 # print(torch.from_numpy(M1).float().size())
                 # print(M2.size())
                 # print(K1.size())
                 # print(K2.size())
-
-            self.node_mats[node] = [
-                torch.from_numpy(M1).float().to(device=device),
-                torch.from_numpy(M2).float().to(device=device),
-                torch.from_numpy(K1).float().to(device=device),
-                torch.from_numpy(K2).float().to(device=device),
-                torch.from_numpy(Inter).float().to(device=device),
-            ]
 
         self.distribute_mats(communicate_node_indexes)
         return self.node_mats
@@ -1160,7 +1171,6 @@ class Server_GAT:
         # Now, we can start training!
 
         print("Starting training!")
-
         for ep in range(self.train_iters):
             refs = []
             for id in range(len(self.trainers)):
