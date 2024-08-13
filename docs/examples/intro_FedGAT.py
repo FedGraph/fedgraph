@@ -450,7 +450,7 @@ for d in ["pubmed"]:
     args.train_rounds = 60
     args.global_rounds = 60
     args.model_lr = 0.04
-    args.model_regularisation = 3.e-3
+    args.model_regularisation = 3.0e-3
     run_fedgraph()
 
 time.sleep(100000)
