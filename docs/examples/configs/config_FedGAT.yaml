@@ -18,7 +18,7 @@ max_deg: 16
 # dataset: ogbn-arxiv
 dataset: cora
 n_trainer: 20
-num_layers: 3
+num_layers: 2
 num_hops: 2
 gpu: false
 momentum: 0.0
@@ -29,7 +29,7 @@ optim_kind: Adam
 glob_comm: FedAvg
 optim_reset: False
 dampening: 0.0
-limit_node_degree: 40
+limit_node_degree: 150
 # method: DistributedGAT
 # method: CentralizedGAT
 method: FedGAT

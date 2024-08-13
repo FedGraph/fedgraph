@@ -122,7 +122,7 @@ def run_fedgraph():
 
         # print("Starting training!")
         epoch = 0
-        num_epochs = 30
+        num_epochs = args.train_rounds
 
         train_mask = idx_train
         validate_mask = idx_val
@@ -137,7 +137,8 @@ def run_fedgraph():
             optimizer.zero_grad()
             y_pred = gat(data)
 
-            t_loss = LossFunc(y_pred[train_mask], one_hot_labels[train_mask], gat, args)
+            t_loss = LossFunc(y_pred[train_mask],
+                              one_hot_labels[train_mask], gat, args)
 
             t_loss.backward()
             optimizer.step()
@@ -182,15 +183,47 @@ def run_fedgraph():
                         * 100
                     )
                     print(
-                        f"train_loss: {t_loss}, val_loss: {v_loss}, test_loss: {test_loss}"
-                    )
-                    print(
                         f" Log// {m}, {args.dataset}, {1}, {ep}, {test_acc}, {0}, {args.iid_beta} //end"
                     )
 
             epoch += 1
 
     def run(node_mats):
+        @ray.remote(
+            num_gpus=0,
+            num_cpus=0.1,
+            scheduling_strategy="SPREAD",
+        )
+        class Trainer(Trainer_GAT):
+            def __init__(
+                self,
+                client_id,
+                subgraph,
+                node_indexes,
+                train_indexes,
+                val_indexes,
+                test_indexes,
+                labels,
+                features_shape,
+                args,
+                device,
+                type,
+                batch_size,
+            ):
+                super().__init__(  # type: ignore
+                    client_id=client_id,
+                    subgraph=subgraph,
+                    node_indexes=node_indexes,
+                    train_indexes=train_indexes,
+                    val_indexes=val_indexes,
+                    test_indexes=test_indexes,
+                    labels=labels,
+                    features_shape=features_shape,
+                    args=args,
+                    device=device,
+                    type=type,
+                    batch_size=batch_size,
+                )
         # print(f"client_id: {client_id}")
         # print(f"subgraph: {subgraph}")
         # print(f"node_indexes: {node_indexes} (size: {len(node_indexes)})")
@@ -204,7 +237,96 @@ def run_fedgraph():
         # time.sleep(100)
 
         # print(f"Epoch {ep} completed!")
+        split_node_indexes = label_dirichlet_partition(
+            labels,
+            len(labels),
+            labels.max().item() + 1,
+            args.n_trainer,
+            beta=args.iid_beta,
+        )
 
+        for i in range(args.n_trainer):
+            split_node_indexes[i] = np.array(split_node_indexes[i])
+            split_node_indexes[i].sort()
+            split_node_indexes[i] = torch.tensor(split_node_indexes[i])
+
+        # Device setup
+        device = torch.device("cpu" if True else "cpu")
+        print(f"device: {device}")
+
+        (
+            communicate_node_indexes,
+            in_com_train_node_indexes,
+            in_com_test_node_indexes,
+            in_com_val_node_indexes,
+            edge_indexes_clients,
+            in_com_labels,
+            induce_node_indexes,
+            origin_train_indexes,
+            origin_val_indexes,
+            origin_test_indexes,
+            origin_labels,
+        ) = get_in_comm_indexes(
+            edge_index,
+            split_node_indexes,
+            args.n_trainer,
+            # args.num_hops:
+            0,
+            idx_train,
+            idx_test,
+            idx_val,
+            one_hot_labels,
+        )
+        if True:
+
+            args.method = "DistributedGAT"
+            #######################################################################
+            # Distributed GAT Test
+            #######################################################################
+            gat = CentralizedGATModel(
+                in_feat=normalized_features.shape[1],
+                out_feat=one_hot_labels.shape[1],
+                hidden_dim=args.hidden_dim,
+                num_head=args.num_heads,
+                max_deg=args.max_deg,
+                attn_func=args.attn_func_parameter,
+                domain=args.attn_func_domain,
+                num_layers=args.num_layers,
+            ).to(device="cpu")
+            clients = [
+                Trainer.remote(
+                    # Trainer(
+                    client_id=client_id,
+                    subgraph=data.subgraph(
+                        communicate_node_indexes[client_id]),
+                    node_indexes=communicate_node_indexes[client_id],
+                    train_indexes=origin_train_indexes[client_id],
+                    val_indexes=origin_val_indexes[client_id],
+                    test_indexes=origin_test_indexes[client_id],
+                    labels=origin_labels[client_id],
+                    features_shape=normalized_features.shape[1],
+                    args=args,
+                    device=device,
+                    type=args.method,
+                    batch_size=args.batch_size,
+                )
+                for client_id in range(len(split_node_indexes))
+            ]
+            server = Server_GAT(
+                graph=data,
+                model=gat,
+                feats=normalized_features,
+                labels=one_hot_labels,
+                feature_dim=normalized_features.shape[1],
+                class_num=one_hot_labels.shape[1],
+                device=device,
+                trainers=clients,
+                type=args.method,
+                args=args,
+            )
+
+            # server.ResetAll(gat_model, train_params=args)
+            server.TrainCoordinate()
         if True:
             args.method = "FedGAT"
             #######################################################################
@@ -278,135 +400,8 @@ def run_fedgraph():
     # experiment start here
     for n_trainer in [2, 4, 6, 8, 10]:
         args.n_trainer = n_trainer
-
-        @ray.remote(
-            num_gpus=0,
-            num_cpus=0.1,
-            scheduling_strategy="SPREAD",
-        )
-        class Trainer(Trainer_GAT):
-            def __init__(
-                self,
-                client_id,
-                subgraph,
-                node_indexes,
-                train_indexes,
-                val_indexes,
-                test_indexes,
-                labels,
-                features_shape,
-                args,
-                device,
-                type,
-                batch_size,
-            ):
-                super().__init__(  # type: ignore
-                    client_id=client_id,
-                    subgraph=subgraph,
-                    node_indexes=node_indexes,
-                    train_indexes=train_indexes,
-                    val_indexes=val_indexes,
-                    test_indexes=test_indexes,
-                    labels=labels,
-                    features_shape=features_shape,
-                    args=args,
-                    device=device,
-                    type=type,
-                    batch_size=batch_size,
-                )
-
-        if True:
-            args.method = "DistributedGAT"
-            #######################################################################
-            # Distributed GAT Test
-            #######################################################################
-            gat = CentralizedGATModel(
-                in_feat=normalized_features.shape[1],
-                out_feat=one_hot_labels.shape[1],
-                hidden_dim=args.hidden_dim,
-                num_head=args.num_heads,
-                max_deg=args.max_deg,
-                attn_func=args.attn_func_parameter,
-                domain=args.attn_func_domain,
-                num_layers=args.num_layers,
-            ).to(device="cpu")
-            clients = [
-                Trainer.remote(
-                    # Trainer(
-                    client_id=client_id,
-                    subgraph=data.subgraph(communicate_node_indexes[client_id]),
-                    node_indexes=communicate_node_indexes[client_id],
-                    train_indexes=origin_train_indexes[client_id],
-                    val_indexes=origin_val_indexes[client_id],
-                    test_indexes=origin_test_indexes[client_id],
-                    labels=origin_labels[client_id],
-                    features_shape=normalized_features.shape[1],
-                    args=args,
-                    device=device,
-                    type=args.method,
-                    batch_size=args.batch_size,
-                )
-                for client_id in range(len(split_node_indexes))
-            ]
-            server = Server_GAT(
-                graph=data,
-                model=gat,
-                feats=normalized_features,
-                labels=one_hot_labels,
-                feature_dim=normalized_features.shape[1],
-                class_num=one_hot_labels.shape[1],
-                device=device,
-                trainers=clients,
-                type=args.method,
-                args=args,
-            )
-
-            # server.ResetAll(gat_model, train_params=args)
-            server.TrainCoordinate()
         for iid in [1, 10000]:
             args.iid_beta = iid
-            split_node_indexes = label_dirichlet_partition(
-                labels,
-                len(labels),
-                labels.max().item() + 1,
-                args.n_trainer,
-                beta=args.iid_beta,
-            )
-
-            for i in range(args.n_trainer):
-                split_node_indexes[i] = np.array(split_node_indexes[i])
-                split_node_indexes[i].sort()
-                split_node_indexes[i] = torch.tensor(split_node_indexes[i])
-
-            # Device setup
-            device = torch.device("cpu" if True else "cpu")
-            print(f"device: {device}")
-
-            (
-                communicate_node_indexes,
-                in_com_train_node_indexes,
-                in_com_test_node_indexes,
-                in_com_val_node_indexes,
-                edge_indexes_clients,
-                in_com_labels,
-                induce_node_indexes,
-                origin_train_indexes,
-                origin_val_indexes,
-                origin_test_indexes,
-                origin_labels,
-            ) = get_in_comm_indexes(
-                edge_index,
-                split_node_indexes,
-                args.n_trainer,
-                # args.num_hops:
-                0,
-                idx_train,
-                idx_test,
-                idx_val,
-                one_hot_labels,
-            )
-
-            print_client_statistics(split_node_indexes, idx_train, idx_val, idx_test)
             node_mats = run(node_mats)
 
 
