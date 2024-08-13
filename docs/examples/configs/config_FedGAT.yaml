@@ -35,3 +35,4 @@ limit_node_degree: 150
 method: FedGAT
 batch_size: False
 vecgen: False
+communication_grad: True

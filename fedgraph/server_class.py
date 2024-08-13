@@ -572,7 +572,7 @@ class Server_GAT:
     @torch.no_grad()
     def zero_params(self):
         """Zeros out the parameters of the central model."""
-        for p in self.model.parameters():
+        for p in self.Model.parameters():
             p.zero_()
 
     @torch.no_grad()
@@ -1044,40 +1044,49 @@ class Server_GAT:
             p.requires_grad = False
 
         if self.glob_comm == "FedAvg":
-            self.Optim.zero_grad()
+            if self.args.communication_grad:  # avg gradient
+                self.Optim.zero_grad()
 
-            with torch.no_grad():
+                with torch.no_grad():
+                    for p in self.Model.parameters():
+                        # print(p.requires_grad)
+
+                        p.grad = torch.zeros(p.size())
+
+                        p.grad.data.zero_()
+                # time.sleep(100)
+                with torch.no_grad():
+                    for id in range(len(self.trainers)):
+                        for p, p_id in zip(
+                            self.Model.parameters(),
+                            ray.get(self.trainers[id].get_model_grads.remote()),
+                        ):
+                            self.communication_cost += (
+                                p_id.nelement() * p_id.element_size()
+                            )
+                            p.grad += (
+                                self.model_loss_weights[id]
+                                * p_id
+                                / self.num_local_iters
+                            )
+
+                self.Optim.step()
+            else:  # avg model
+                params = [trainer.get_params.remote() for trainer in self.trainers]
+                self.zero_params()
+
+                while True:
+                    ready, left = ray.wait(params, num_returns=1, timeout=None)
+                    if ready:
+                        for t in ready:
+                            for p, mp in zip(ray.get(t), self.Model.parameters()):
+                                mp.data += p.cpu()
+                    params = left
+                    if not params:
+                        break
+
                 for p in self.Model.parameters():
-                    # print(p.requires_grad)
-
-                    p.grad = torch.zeros(p.size())
-
-                    p.grad.data.zero_()
-            # time.sleep(100)
-            with torch.no_grad():
-                for id in range(len(self.trainers)):
-                    # S = ray.get(
-                    #     self.trainers[id].get_model_state_dict.remote())
-                    # for p in S:
-                    #     print(p)
-                    # print(
-                    #     ray.get(self.trainers[id].get_model_parameters.remote()))
-                    # for p in ray.get(self.trainers[id].get_model_parameters.remote()).parameters():
-                    #     print(p.grad)
-                    # print(
-
-                    for p, p_id in zip(
-                        self.Model.parameters(),
-                        ray.get(self.trainers[id].get_model_grads.remote()),
-                    ):
-                        # print("printing trainer grad")
-                        # print(ray.get(self.trainers[id].get_model_grads.remote()))
-                        self.communication_cost += p_id.nelement() * p_id.element_size()
-                        p.grad += (
-                            self.model_loss_weights[id] * p_id / self.num_local_iters
-                        )
-
-            self.Optim.step()
+                    p /= len(self.trainers)
 
         elif self.glob_comm == "ADMM":
             with torch.no_grad():
