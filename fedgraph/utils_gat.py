@@ -407,6 +407,9 @@ def get_in_comm_indexes(
     )
 
 
+# Prepared for distributed pretraining
+
+
 @ray.remote(
     num_cpus=1,
     scheduling_strategy="SPREAD",

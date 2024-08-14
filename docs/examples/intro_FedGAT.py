@@ -432,13 +432,6 @@ def run_fedgraph():
 #     args.num_heads = 3
 #     args.num_layers = 3
 #     run_fedgraph()
-for d in ["ogbn-arxiv"]:
-    args.dataset = d
-    args.hidden_dim = 256
-    args.num_heads = 3
-    args.num_layers = 3
-    args.batch_size = 2048
-    run_fedgraph()
 for d in ["cora"]:
     args.dataset = d
 
