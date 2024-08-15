@@ -2,12 +2,12 @@ apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 
 metadata:
-  name: test7
+  name: test9
   region: us-west-2
 
 nodeGroups:
   - name: head-nodes
-    instanceType: g4dn.12xlarge
+    instanceType: m5.16xlarge
     desiredCapacity: 1
     minSize: 0
     maxSize: 1

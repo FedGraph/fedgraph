@@ -1601,18 +1601,18 @@ class Trainer_GAT:
         self.Optim.step()
 
         with torch.no_grad():
-            v_loss = FedGATLoss(
-                self.loss_fn,
-                self.glob_comm,
-                self.loss_weight,
-                y_pred[self.validate_mask],
-                self.labels[self.validate_mask],
-                self.model,
-                self.global_params,
-                self.duals,
-                self.aug_lagrange_rho,
-                self.dual_weight,
-            )
+            # v_loss = FedGATLoss(
+            #     self.loss_fn,
+            #     self.glob_comm,
+            #     self.loss_weight,
+            #     y_pred[self.validate_mask],
+            #     self.labels[self.validate_mask],
+            #     self.model,
+            #     self.global_params,
+            #     self.duals,
+            #     self.aug_lagrange_rho,
+            #     self.dual_weight,
+            # )
 
             pred_labels = torch.argmax(y_pred, dim=1)
             true_labels = torch.argmax(self.labels, dim=1)
