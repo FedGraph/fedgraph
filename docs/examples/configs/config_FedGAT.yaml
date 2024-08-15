@@ -34,5 +34,5 @@ limit_node_degree: 150
 # method: CentralizedGAT
 method: FedGAT
 batch_size: False
-vecgen: False
+vecgen: True
 communication_grad: True
