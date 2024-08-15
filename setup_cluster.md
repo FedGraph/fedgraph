@@ -78,7 +78,7 @@ kubectl port-forward service/raycluster-autoscaler-head-svc 8265:8265
 Forward Ports for Ray Dashboard, Prometheus, and Grafana
 
 ```bash
-kubectl port-forward raycluster-autoscaler-head-gjkz2 8080:8080
+kubectl port-forward raycluster-autoscaler-head-99zj9 8080:8080
 kubectl port-forward prometheus-prometheus-kube-prometheus-prometheus-0 -n prometheus-system 9090:9090
 kubectl port-forward deployment/prometheus-grafana -n prometheus-system 3000:3000
 ```
@@ -137,5 +137,5 @@ eksctl delete cluster --region us-west-2 --name test6
 To stop a job:
 
 ```bash
-ray job stop raysubmit_g6VpKNnNy8fsjha9 --address http://localhost:8265
+ray job stop raysubmit_3ffL8qQAhtDvSSGv --address http://localhost:8265
 ```

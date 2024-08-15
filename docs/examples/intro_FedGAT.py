@@ -79,13 +79,13 @@ def run_fedgraph():
         idx_val,
         idx_test,
     ) = FedAT_load_data_test(args.dataset)
-    # print(data)
     # calculate_statistics(data)
     # print_mask_statistics(data)
     row, col, edge_attr = adj.coo()
     edge_index = torch.stack([row, col], dim=0)
     node_mats = None
-
+    print("printing final args")
+    print(args)
     if True:
         #######################################################################
         # Centralized GAT Test
@@ -132,13 +132,14 @@ def run_fedgraph():
         validate_mask = idx_val
         test_mask = idx_test
 
-        if args.batch_size:
-            train_mask = torch.tensor(random.sample(list(idx_train), args.batch_size))
         # for p in gat.parameters():
         #     print(p.requires_grad)
-
         print("Starting training!")
         for ep in range(num_epochs):
+            if args.batch_size:
+                train_mask = torch.tensor(
+                    random.sample(list(idx_train), args.batch_size)
+                )
             gat.train()
             optimizer.zero_grad()
             y_pred = gat(data)
@@ -155,7 +156,7 @@ def run_fedgraph():
             optimizer.step()
 
             with torch.no_grad():
-                gat.train()
+                gat.eval()
                 if args.dataset == "ogbn-arxiv":
                     v_loss = LossFunc(
                         y_pred[validate_mask].log(),
@@ -185,8 +186,6 @@ def run_fedgraph():
                 gat.eval()
 
                 with torch.no_grad():
-                    y_pred = gat(data)
-
                     test_loss = LossFunc(
                         y_pred[test_mask], one_hot_labels[test_mask], gat, args
                     )
@@ -210,7 +209,7 @@ def run_fedgraph():
     def run(node_mats):
         @ray.remote(
             num_gpus=0,
-            num_cpus=3,
+            num_cpus=1.1,
             scheduling_strategy="SPREAD",
         )
         class Trainer(Trainer_GAT):
@@ -428,9 +427,11 @@ def run_fedgraph():
 #     args.hidden_dim = 256
 #     args.limit_node_degree = 40
 #     args.batch_size = 2048
-#     args.model_lr = 0.01
+#     args.model_lr = 0.002
 #     args.num_heads = 3
 #     args.num_layers = 3
+#     args.train_rounds = 50
+#     args.global_rounds = 50
 #     run_fedgraph()
 for d in ["cora"]:
     args.dataset = d
@@ -439,14 +440,14 @@ for d in ["cora"]:
 for d in ["citeseer"]:
     args.dataset = d
     run_fedgraph()
-for d in ["pubmed"]:
-    args.dataset = d
-    args.hidden_dim = 8
-    args.train_rounds = 60
-    args.global_rounds = 60
-    args.model_lr = 0.04
-    args.model_regularisation = 3.0e-3
-    run_fedgraph()
+# for d in ["pubmed"]:
+#     args.dataset = d
+#     args.hidden_dim = 8
+#     args.train_rounds = 30
+#     args.global_rounds = 30
+#     args.model_lr = 0.04
+#     args.model_regularisation = 3.0e-3
+#     run_fedgraph()
 
 time.sleep(100000)
 
