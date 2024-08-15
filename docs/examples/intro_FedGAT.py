@@ -432,6 +432,7 @@ def run_fedgraph():
 #     args.num_layers = 3
 #     args.train_rounds = 50
 #     args.global_rounds = 50
+#     args.device: cuda
 #     run_fedgraph()
 for d in ["cora"]:
     args.dataset = d

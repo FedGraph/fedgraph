@@ -750,7 +750,7 @@ class Server_GAT:
         # Saves computation
 
         print("Starting pre-train communication!")
-
+        graph.to(device)
         d = self.feats.size()[1]
         degrees = self.compute_degrees(graph.edge_index, graph.num_nodes)
 
@@ -758,7 +758,7 @@ class Server_GAT:
         # print("The maximum degree is:", max_degree)
         max_degree = int(self.sample_probab * max_degree)
         for node in range(graph.num_nodes):
-            # print(node)
+            print(node)
             neighbours = self.get_predecessors(graph, node)
 
             sampled_bool = np.array(
@@ -789,10 +789,6 @@ class Server_GAT:
                 sampled_neigh = random.sample(
                     list(sampled_neigh), args.limit_node_degree
                 )
-
-            elif self.device == torch.device("cuda"):
-                if len(sampled_neigh) > max_degree:
-                    sampled_neigh = random.sample(list(sampled_neigh), max_degree)
 
             feats1 = np.zeros((len(sampled_neigh), d))
             feats2 = np.zeros((len(sampled_neigh), d))
@@ -837,7 +833,7 @@ class Server_GAT:
                 # print(M2.size())
                 # print(K1.size())
                 # print(K2.size())
-
+        graph.to("cpu")
         self.distribute_mats(communicate_node_indexes)
         return self.node_mats
         # Assigned all the node matrices!
