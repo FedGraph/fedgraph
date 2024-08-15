@@ -209,8 +209,8 @@ def run_fedgraph():
     def run(node_mats):
         @ray.remote(
             num_gpus=0,
-            num_cpus=1.1,
-            scheduling_strategy="SPREAD",
+            num_cpus=0.1,
+            scheduling_strategy="DEFAULT",
         )
         class Trainer(Trainer_GAT):
             def __init__(
@@ -414,7 +414,7 @@ def run_fedgraph():
         return node_mats
 
     # experiment start here
-    for n_trainer in [2, 4, 6, 8, 10]:
+    for n_trainer in [60, 80, 100]:
         # for n_trainer in [5,10,15,20]:
         args.n_trainer = n_trainer
         for iid in [1, 10000]:
@@ -436,7 +436,7 @@ def run_fedgraph():
 #     run_fedgraph()
 for d in ["cora"]:
     args.dataset = d
-
+    args.vecgen = True
     run_fedgraph()
 for d in ["citeseer"]:
     args.dataset = d
