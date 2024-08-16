@@ -1514,18 +1514,18 @@ class Trainer_GAT:
                 self.Optim.step()
 
             with torch.no_grad():
-                v_loss = FedGATLoss(
-                    self.loss_fn,
-                    self.glob_comm,
-                    self.loss_weight,
-                    y_pred[self.validate_mask],
-                    self.labels[self.validate_mask],
-                    self.model,
-                    self.global_params,
-                    self.duals,
-                    self.aug_lagrange_rho,
-                    self.dual_weight,
-                )
+                # v_loss = FedGATLoss(
+                #     self.loss_fn,
+                #     self.glob_comm,
+                #     self.loss_weight,
+                #     y_pred[self.validate_mask],
+                #     self.labels[self.validate_mask],
+                #     self.model,
+                #     self.global_params,
+                #     self.duals,
+                #     self.aug_lagrange_rho,
+                #     self.dual_weight,
+                # )
 
                 pred_labels = torch.argmax(y_pred, dim=1)
                 true_labels = torch.argmax(self.labels, dim=1)
@@ -1533,9 +1533,9 @@ class Trainer_GAT:
                 self.t_acc = torch.sum(
                     pred_labels[self.batch_mask] == true_labels[self.batch_mask]
                 ) / len(self.train_mask)
-                self.v_acc = torch.sum(
-                    pred_labels[self.validate_mask] == true_labels[self.validate_mask]
-                ) / len(self.validate_mask)
+                # self.v_acc = torch.sum(
+                #     pred_labels[self.validate_mask] == true_labels[self.validate_mask]
+                # ) / len(self.validate_mask)
         # when the train_mask is empty, pass the training
         else:
             pass
@@ -1563,10 +1563,18 @@ class Trainer_GAT:
             #         v_acc=100 * self.v_acc,
             #     )
             # )
-        test_accracy = self.ModelTest()
-        self.epoch += 1
+        test_accracy = 0.0
+        if len(self.test_mask) >= 1:
+            # model test
+            test_accracy = self.ModelTest()
+            self.epoch += 1
+            return test_accracy, len(self.test_mask)
+        else:
+            # not consider this trainer
+            self.epoch += 1
+            return test_accracy, 0
         # , 100 * self.v_acc, 100 * self.t_acc
-        return test_accracy, len(self.test_mask)
+
 
     def train_iterate_fedavg(self):
         """

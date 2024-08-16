@@ -86,125 +86,125 @@ def run_fedgraph():
     node_mats = None
     print("printing final args")
     print(args)
-    if True:
-        #######################################################################
-        # Centralized GAT Test
-        #######################################################################
-        m = "Centralized GAT"
-        gat = CentralizedGATModel(
-            in_feat=normalized_features.shape[1],
-            out_feat=one_hot_labels.shape[1],
-            hidden_dim=args.hidden_dim,
-            num_head=args.num_heads,
-            max_deg=args.max_deg,
-            attn_func=args.attn_func_parameter,
-            domain=args.attn_func_domain,
-            num_layers=args.num_layers,
-        ).to(device="cpu")
-        for p in gat.parameters():
-            p.requires_grad = True
-        optimizer = Adam(
-            gat.parameters(),
-            lr=args.model_lr,
-            weight_decay=args.model_regularisation,
-        )
-        # optimizer = SGD(gat.parameters(), lr=args.model_lr,
-        #                 weight_decay=args.model_regularisation)
-
-        def LossFunc(y_pred, y_true, model, args):
-            # criterion = nn.KLDivLoss(
-            #     reduction="batchmean", log_target=False)
-            if args.dataset == "ogbn-arxiv":
-                criterion = nn.KLDivLoss(reduction="batchmean", log_target=False)
-            else:
-                criterion = nn.CrossEntropyLoss()
-            v = criterion(y_pred, y_true)
-            # for p in model.parameters():
-            #     v += 0.5 * 5e-4 * torch.sum(p ** 2)
-
-            return v
-
-        # print("Starting training!")
-        epoch = 0
-        num_epochs = args.train_rounds
-
-        train_mask = idx_train
-        validate_mask = idx_val
-        test_mask = idx_test
-
-        # for p in gat.parameters():
-        #     print(p.requires_grad)
-        print("Starting training!")
-        for ep in range(num_epochs):
-            if args.batch_size:
-                train_mask = torch.tensor(
-                    random.sample(list(idx_train), args.batch_size)
-                )
-            gat.train()
-            optimizer.zero_grad()
-            y_pred = gat(data)
-            if args.dataset == "ogbn-arxiv":
-                t_loss = LossFunc(
-                    y_pred[train_mask].log(), one_hot_labels[train_mask], gat, args
-                )
-            else:
-                t_loss = LossFunc(
-                    y_pred[train_mask], one_hot_labels[train_mask], gat, args
-                )
-
-            t_loss.backward()
-            optimizer.step()
-
-            with torch.no_grad():
-                gat.eval()
-                if args.dataset == "ogbn-arxiv":
-                    v_loss = LossFunc(
-                        y_pred[validate_mask].log(),
-                        one_hot_labels[validate_mask],
-                        gat,
-                        args,
-                    )
-                else:
-                    v_loss = LossFunc(
-                        y_pred[validate_mask], one_hot_labels[validate_mask], gat, args
-                    )
-
-                pred_labels = torch.argmax(y_pred, dim=1)
-                true_labels = torch.argmax(one_hot_labels, dim=1)
-
-                t_acc = torch.sum(
-                    pred_labels[train_mask] == true_labels[train_mask]
-                ).item() / len(train_mask)
-                v_acc = torch.sum(
-                    pred_labels[validate_mask] == true_labels[validate_mask]
-                ).item() / len(validate_mask)
-
-                # print(
-                #     f"Client 0: Epoch {epoch}: Train loss: {t_loss.item():.4f}, Train acc: {t_acc*100:.2f}%, "
-                #     f"Val loss: {v_loss.item():.4f}, Val acc {v_acc*100:.2f}%"
-                # )
-                gat.eval()
-
-                with torch.no_grad():
-                    test_loss = LossFunc(
-                        y_pred[test_mask], one_hot_labels[test_mask], gat, args
-                    )
-
-                    pred_labels = torch.argmax(y_pred, dim=1)
-                    true_labels = torch.argmax(one_hot_labels, dim=1)
-
-                    test_acc = (
-                        torch.sum(
-                            pred_labels[test_mask] == true_labels[test_mask]
-                        ).item()
-                        / len(test_mask)
-                        * 100
-                    )
-                    print(
-                        f" Log// {m}, {args.dataset}, {1}, {ep}, {test_acc}, {0}, {args.iid_beta} //end"
-                    )
-
-            epoch += 1
+    # if True:
+    #     #######################################################################
+    #     # Centralized GAT Test
+    #     #######################################################################
+    #     m = "Centralized GAT"
+    #     gat = CentralizedGATModel(
+    #         in_feat=normalized_features.shape[1],
+    #         out_feat=one_hot_labels.shape[1],
+    #         hidden_dim=args.hidden_dim,
+    #         num_head=args.num_heads,
+    #         max_deg=args.max_deg,
+    #         attn_func=args.attn_func_parameter,
+    #         domain=args.attn_func_domain,
+    #         num_layers=args.num_layers,
+    #     ).to(device="cpu")
+    #     for p in gat.parameters():
+    #         p.requires_grad = True
+    #     optimizer = Adam(
+    #         gat.parameters(),
+    #         lr=args.model_lr,
+    #         weight_decay=args.model_regularisation,
+    #     )
+    #     # optimizer = SGD(gat.parameters(), lr=args.model_lr,
+    #     #                 weight_decay=args.model_regularisation)
+    #
+    #     def LossFunc(y_pred, y_true, model, args):
+    #         # criterion = nn.KLDivLoss(
+    #         #     reduction="batchmean", log_target=False)
+    #         if args.dataset == "ogbn-arxiv":
+    #             criterion = nn.KLDivLoss(reduction="batchmean", log_target=False)
+    #         else:
+    #             criterion = nn.CrossEntropyLoss()
+    #         v = criterion(y_pred, y_true)
+    #         # for p in model.parameters():
+    #         #     v += 0.5 * 5e-4 * torch.sum(p ** 2)
+    #
+    #         return v
+    #
+    #     # print("Starting training!")
+    #     epoch = 0
+    #     num_epochs = args.train_rounds
+    #
+    #     train_mask = idx_train
+    #     validate_mask = idx_val
+    #     test_mask = idx_test
+    #
+    #     # for p in gat.parameters():
+    #     #     print(p.requires_grad)
+    #     print("Starting training!")
+    #     for ep in range(num_epochs):
+    #         if args.batch_size:
+    #             train_mask = torch.tensor(
+    #                 random.sample(list(idx_train), args.batch_size)
+    #             )
+    #         gat.train()
+    #         optimizer.zero_grad()
+    #         y_pred = gat(data)
+    #         if args.dataset == "ogbn-arxiv":
+    #             t_loss = LossFunc(
+    #                 y_pred[train_mask].log(), one_hot_labels[train_mask], gat, args
+    #             )
+    #         else:
+    #             t_loss = LossFunc(
+    #                 y_pred[train_mask], one_hot_labels[train_mask], gat, args
+    #             )
+    #
+    #         t_loss.backward()
+    #         optimizer.step()
+    #
+    #         with torch.no_grad():
+    #             gat.eval()
+    #             if args.dataset == "ogbn-arxiv":
+    #                 v_loss = LossFunc(
+    #                     y_pred[validate_mask].log(),
+    #                     one_hot_labels[validate_mask],
+    #                     gat,
+    #                     args,
+    #                 )
+    #             else:
+    #                 v_loss = LossFunc(
+    #                     y_pred[validate_mask], one_hot_labels[validate_mask], gat, args
+    #                 )
+    #
+    #             pred_labels = torch.argmax(y_pred, dim=1)
+    #             true_labels = torch.argmax(one_hot_labels, dim=1)
+    #
+    #             t_acc = torch.sum(
+    #                 pred_labels[train_mask] == true_labels[train_mask]
+    #             ).item() / len(train_mask)
+    #             v_acc = torch.sum(
+    #                 pred_labels[validate_mask] == true_labels[validate_mask]
+    #             ).item() / len(validate_mask)
+    #
+    #             # print(
+    #             #     f"Client 0: Epoch {epoch}: Train loss: {t_loss.item():.4f}, Train acc: {t_acc*100:.2f}%, "
+    #             #     f"Val loss: {v_loss.item():.4f}, Val acc {v_acc*100:.2f}%"
+    #             # )
+    #             gat.eval()
+    #
+    #             with torch.no_grad():
+    #                 test_loss = LossFunc(
+    #                     y_pred[test_mask], one_hot_labels[test_mask], gat, args
+    #                 )
+    #
+    #                 pred_labels = torch.argmax(y_pred, dim=1)
+    #                 true_labels = torch.argmax(one_hot_labels, dim=1)
+    #
+    #                 test_acc = (
+    #                     torch.sum(
+    #                         pred_labels[test_mask] == true_labels[test_mask]
+    #                     ).item()
+    #                     / len(test_mask)
+    #                     * 100
+    #                 )
+    #                 print(
+    #                     f" Log// {m}, {args.dataset}, {1}, {ep}, {test_acc}, {0}, {args.iid_beta} //end"
+    #                 )
+    #
+    #         epoch += 1
 
     def run(node_mats):
         @ray.remote(
@@ -414,26 +414,26 @@ def run_fedgraph():
         return node_mats
 
     # experiment start here
-    for n_trainer in [60, 80, 100]:
+    for n_trainer in [4,2]:
         # for n_trainer in [5,10,15,20]:
         args.n_trainer = n_trainer
-        for iid in [1, 10000]:
+        for iid in [10000]:
             args.iid_beta = iid
             node_mats = run(node_mats)
 
 
-# for d in ["ogbn-arxiv"]:
-#     args.dataset = d
-#     args.hidden_dim = 256
-#     args.limit_node_degree = 40
-#     args.batch_size = 2048
-#     args.model_lr = 0.002
-#     args.num_heads = 3
-#     args.num_layers = 3
-#     args.train_rounds = 50
-#     args.global_rounds = 50
-#     args.device: cuda
-#     run_fedgraph()
+for d in ["ogbn-arxiv"]:
+    args.dataset = d
+    args.hidden_dim = 256
+    args.limit_node_degree = 40
+    args.batch_size = 2048
+    args.model_lr = 0.002
+    args.num_heads = 3
+    args.num_layers = 3
+    args.train_rounds = 50
+    args.global_rounds = 50
+    args.vecgen = True
+    run_fedgraph()
 for d in ["cora"]:
     args.dataset = d
     args.vecgen = True
