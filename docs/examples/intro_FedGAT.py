@@ -414,9 +414,10 @@ def run_fedgraph():
         return node_mats
 
     # experiment start here
-    for n_trainer in [4,2]:
+    for n_trainer in [4, 2]:
         # for n_trainer in [5,10,15,20]:
         args.n_trainer = n_trainer
+
         for iid in [10000]:
             args.iid_beta = iid
             node_mats = run(node_mats)
@@ -427,19 +428,20 @@ for d in ["ogbn-arxiv"]:
     args.hidden_dim = 256
     args.limit_node_degree = 40
     args.batch_size = 2048
-    args.model_lr = 0.002
+    args.model_lr = 0.005
     args.num_heads = 3
-    args.num_layers = 3
-    args.train_rounds = 50
-    args.global_rounds = 50
+    args.num_layers = 2
+    args.train_rounds = 100
+    args.global_rounds = 100
     args.vecgen = True
     run_fedgraph()
-for d in ["cora"]:
-    args.dataset = d
-    args.vecgen = True
-    run_fedgraph()
+# for d in ["cora"]:
+#     args.dataset = d
+#     args.vecgen = True
+#     run_fedgraph()
 for d in ["citeseer"]:
     args.dataset = d
+    args.vecgen = True
     run_fedgraph()
 # for d in ["pubmed"]:
 #     args.dataset = d

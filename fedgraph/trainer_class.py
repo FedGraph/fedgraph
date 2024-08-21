@@ -1564,7 +1564,7 @@ class Trainer_GAT:
             #     )
             # )
         test_accracy = 0.0
-        if len(self.test_mask) >= 1:
+        if self.test_mask.dim() > 0 and len(self.test_mask) >= 1:
             # model test
             test_accracy = self.ModelTest()
             self.epoch += 1
