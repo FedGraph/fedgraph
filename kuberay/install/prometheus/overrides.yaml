@@ -498,7 +498,7 @@ alertmanager:
   serviceMonitor:
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
-    interval: ""
+    interval:  "2s"
     selfMonitor: true
 
     ## Additional labels
@@ -958,7 +958,7 @@ grafana:
       # timeout: 30
 
       # If not defined, will use prometheus.prometheusSpec.scrapeInterval or its default
-      # defaultDatasourceScrapeInterval: 15s
+      defaultDatasourceScrapeInterval: "2s"
 
       ## Annotations for Grafana datasource configmaps
       ##
@@ -1034,7 +1034,7 @@ grafana:
 
     # Scrape interval. If not set, the Prometheus default scrape interval is used.
     #
-    interval: ""
+    interval: "2s"
     scheme: http
     tlsConfig: {}
     scrapeTimeout: 30s
@@ -1065,7 +1065,7 @@ kubeApiServer:
   serviceMonitor:
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
-    interval: ""
+    interval:  "2s"
 
     ## SampleLimit defines per-scrape limit on number of scraped samples that will be accepted.
     ##
@@ -1138,7 +1138,7 @@ kubelet:
   serviceMonitor:
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
-    interval: ""
+    interval:  "2s"
 
     ## SampleLimit defines per-scrape limit on number of scraped samples that will be accepted.
     ##
@@ -1344,7 +1344,7 @@ kubeControllerManager:
     enabled: true
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
-    interval: ""
+    interval:  "2s"
 
     ## SampleLimit defines per-scrape limit on number of scraped samples that will be accepted.
     ##
@@ -1418,7 +1418,7 @@ coreDns:
   serviceMonitor:
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
-    interval: ""
+    interval:  "2s"
 
     ## SampleLimit defines per-scrape limit on number of scraped samples that will be accepted.
     ##
@@ -1484,7 +1484,7 @@ kubeDns:
   serviceMonitor:
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
-    interval: ""
+    interval:  "2s"
 
     ## SampleLimit defines per-scrape limit on number of scraped samples that will be accepted.
     ##
@@ -1589,7 +1589,7 @@ kubeEtcd:
     enabled: true
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
-    interval: ""
+    interval:  "2s"
 
     ## SampleLimit defines per-scrape limit on number of scraped samples that will be accepted.
     ##
@@ -1673,7 +1673,7 @@ kubeScheduler:
     enabled: true
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
-    interval: ""
+    interval:  "2s"
 
     ## SampleLimit defines per-scrape limit on number of scraped samples that will be accepted.
     ##
@@ -1757,7 +1757,7 @@ kubeProxy:
     enabled: true
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
-    interval: ""
+    interval:  "2s"
 
     ## SampleLimit defines per-scrape limit on number of scraped samples that will be accepted.
     ##
@@ -1827,7 +1827,7 @@ kube-state-metrics:
 
       ## Scrape interval. If not set, the Prometheus default scrape interval is used.
       ##
-      interval: ""
+      interval:  "2s"
 
       ## SampleLimit defines per-scrape limit on number of scraped samples that will be accepted.
       ##
@@ -1910,7 +1910,7 @@ prometheus-node-exporter:
 
       ## Scrape interval. If not set, the Prometheus default scrape interval is used.
       ##
-      interval: ""
+      interval:  "2s"
 
       ## SampleLimit defines per-scrape limit on number of scraped samples that will be accepted.
       ##
@@ -2187,7 +2187,7 @@ prometheusOperator:
 
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
-    interval: ""
+    interval:  "2s"
 
     ## SampleLimit defines per-scrape limit on number of scraped samples that will be accepted.
     ##
@@ -2774,7 +2774,7 @@ prometheus:
   serviceMonitor:
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
-    interval: ""
+    interval:  "2s"
     selfMonitor: true
 
     ## Additional labels
@@ -2847,7 +2847,7 @@ prometheus:
     ## Defaults to 30s.
     ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/release-0.44/pkg/prometheus/promcfg.go#L180-L183
     ##
-    scrapeInterval: ""
+    scrapeinterval:  "2s"
 
     ## Number of seconds to wait for target to respond before erroring
     ##
@@ -2855,7 +2855,7 @@ prometheus:
 
     ## Interval between consecutive evaluations.
     ##
-    evaluationInterval: ""
+    evaluationinterval:  "2s"
 
     ## ListenLocal makes the Prometheus server listen on loopback, so that it does not bind against the Pod IP.
     ##
@@ -3732,7 +3732,7 @@ thanosRuler:
   serviceMonitor:
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
-    interval: ""
+    interval:  "2s"
     selfMonitor: true
 
     ## Additional labels
@@ -3858,7 +3858,7 @@ thanosRuler:
 
     ## Interval between consecutive evaluations.
     ##
-    evaluationInterval: ""
+    evaluationinterval:  "2s"
 
     ## Storage is the definition of how storage will be used by the ThanosRuler instances.
     ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/user-guides/storage.md

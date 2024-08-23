@@ -1,1 +1,0 @@
-../../helm-chart/ray-cluster/README.md
