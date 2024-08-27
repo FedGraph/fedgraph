@@ -17,7 +17,7 @@ aws ecr-public get-login-password --region us-east-1 | docker login --username A
 Build Docker with amd64 architecture and push to ECR
 
 ```bash
-docker buildx build --platform linux/amd64 -t public.ecr.aws/i7t1s5i1/fedgraph:lp . --push
+docker buildx build --platform linux/amd64 -t public.ecr.aws/i7t1s5i1/fedgraph:gcn . --push
 ```
 
 ## Step-by-Step Guide to Set Up the Ray Cluster
@@ -26,13 +26,13 @@ Create an EKS Cluster with eksctl:
 
 ```bash
 eksctl create cluster -f eks_cluster_config.yaml
-eksctl create cluster --name test --region us-east-1 --nodegroup-name standard-workers --node-type g4dn.xlarge --nodes 1 --nodes-min 1 --nodes-max 4 --managed
+# eksctl create cluster --name test --region us-east-1 --nodegroup-name standard-workers --node-type g4dn.xlarge --nodes 1 --nodes-min 1 --nodes-max 4 --managed
 ```
 
 Update kubeconfig for AWS EKS:
 
 ```bash
-aws eks --region us-west-2 update-kubeconfig --name test
+aws eks --region us-west-2 update-kubeconfig --name gcn
 ```
 
 Clone the KubeRay Repository and Install Prometheus
@@ -78,7 +78,7 @@ kubectl port-forward service/raycluster-autoscaler-head-svc 8265:8265
 Forward Ports for Ray Dashboard, Prometheus, and Grafana
 
 ```bash
-kubectl port-forward raycluster-autoscaler-head-4x5rb 8080:8080
+kubectl port-forward raycluster-autoscaler-head-f94fg 8080:8080
 kubectl port-forward prometheus-prometheus-kube-prometheus-prometheus-0 -n prometheus-system 9090:9090
 kubectl port-forward deployment/prometheus-grafana -n prometheus-system 3000:3000
 ```
@@ -95,7 +95,7 @@ Submit a Ray Job:
 cd fedgraph
 ray job submit --runtime-env-json '{
   "working_dir": "./"
-}' --address http://localhost:8265 -- python docs/examples/intro_LP.py
+}' --address http://localhost:8265 -- python docs/examples/intro_FedGCN.py
 
 ```
 
