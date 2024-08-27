@@ -8,24 +8,26 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 
 (Time estimate: 15 minutes)
 """
+import os
+from io import BytesIO
+from huggingface_hub import HfApi, HfFolder, upload_file, hf_hub_download
 from datetime import datetime
 import argparse
 import time
 from typing import Any
-
+from fedgraph.train_func import test, train
 import numpy as np
 import ray
 import torch
 import torch_geometric
 from fedgraph.monitor_class import Monitor
 from fedgraph.server_class import Server
-from fedgraph.trainer_class import Trainer_General
 from fedgraph.utils_nc import (
     get_1hop_feature_sum,
     get_in_comm_indexes,
     label_dirichlet_partition,
 )
-
+from fedgraph.gnn_models import GCN, GIN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
 ray.init()
 
 
@@ -52,6 +54,354 @@ parser.add_argument("-l", "--logdir", default="./runs", type=str)
 args = parser.parse_args()
 
 
+def load_trainer_data_from_hugging_face(trainer_id):
+    repo_name = f'Ryanli3/fed_graph_data_trainer_{trainer_id}'
+
+    def download_and_load_tensor(file_name):
+        file_path = hf_hub_download(
+            repo_id=repo_name, filename=file_name, repo_type="dataset")
+        with open(file_path, 'rb') as f:
+            buffer = BytesIO(f.read())
+            tensor = torch.load(buffer)
+        return tensor
+
+    print(f"Loading client data {trainer_id}")
+    local_node_index = download_and_load_tensor('local_node_index.pt')
+    communicate_node_index = download_and_load_tensor(
+        'communicate_node_index.pt')
+    adj = download_and_load_tensor('adj.pt')
+    train_labels = download_and_load_tensor('train_labels.pt')
+    test_labels = download_and_load_tensor('test_labels.pt')
+    features = download_and_load_tensor('features.pt')
+    idx_train = download_and_load_tensor('idx_train.pt')
+    idx_test = download_and_load_tensor('idx_test.pt')
+
+    return local_node_index, communicate_node_index, adj, train_labels, test_labels, features, idx_train, idx_test
+
+
+def save_trainer_data_to_hugging_face(trainer_id, local_node_index, communicate_node_index, adj, train_labels, test_labels, features, idx_train, idx_test):
+    repo_name = f'Ryanli3/fed_graph_data_trainer_{trainer_id}'
+    user = HfFolder.get_token()
+    
+    api = HfApi()
+    try:
+        api.create_repo(repo_id=repo_name, token=user,
+                        repo_type="dataset", exist_ok=True)
+    except Exception as e:
+        print(f"Failed to create or access the repository: {str(e)}")
+        return
+
+    def save_tensor_to_hf(tensor, file_name):
+        buffer = BytesIO()
+        torch.save(tensor, buffer)
+        buffer.seek(0)
+        api.upload_file(
+            path_or_fileobj=buffer,
+            path_in_repo=file_name,
+            repo_id=repo_name,
+            repo_type="dataset",
+            token=user
+        )
+
+    save_tensor_to_hf(local_node_index, 'local_node_index.pt')
+    save_tensor_to_hf(communicate_node_index, 'communicate_node_index.pt')
+    save_tensor_to_hf(adj, 'adj.pt')
+    save_tensor_to_hf(train_labels, 'train_labels.pt')
+    save_tensor_to_hf(test_labels, 'test_labels.pt')
+    save_tensor_to_hf(features, 'features.pt')
+    save_tensor_to_hf(idx_train, 'idx_train.pt')
+    save_tensor_to_hf(idx_test, 'idx_test.pt')
+
+    print(f"Uploaded data for trainer {trainer_id}")
+
+
+
+def save_all_trainers_data(split_node_indexes, communicate_node_indexes, edge_indexes_clients, labels, features, in_com_train_node_indexes, in_com_test_node_indexes, n_trainer):
+    for i in range(n_trainer):
+        save_trainer_data_to_hugging_face(
+            trainer_id=i,
+            local_node_index=split_node_indexes[i],
+            communicate_node_index=communicate_node_indexes[i],
+            adj=edge_indexes_clients[i],
+            train_labels=labels[communicate_node_indexes[i]
+                                ][in_com_train_node_indexes[i]],
+            test_labels=labels[communicate_node_indexes[i]
+                               ][in_com_test_node_indexes[i]],
+            features=features[split_node_indexes[i]],
+            idx_train=in_com_train_node_indexes[i],
+            idx_test=in_com_test_node_indexes[i],
+        )
+
+
+
+
+
+class Trainer_General:
+    """
+    A general trainer class for training GCN in a federated learning setup, which includes functionalities
+    required for training GCN models on a subset of a distributed dataset, handling local training and testing,
+    parameter updates, and feature aggregation.
+
+    Parameters
+    ----------
+    rank : int
+        Unique identifier for the training instance (typically representing a trainer in federated learning).
+    local_node_index : torch.Tensor
+        Indices of nodes local to this trainer.
+    communicate_node_index : torch.Tensor
+        Indices of nodes that participate in communication during training.
+    adj : torch.Tensor
+        The adjacency matrix representing the graph structure.
+    train_labels : torch.Tensor
+        Labels of the training data.
+    test_labels : torch.Tensor
+        Labels of the testing data.
+    features : torch.Tensor
+        Node features for the entire graph.
+    idx_train : torch.Tensor
+        Indices of training nodes.
+    idx_test : torch.Tensor
+        Indices of test nodes.
+    args_hidden : int
+        Number of hidden units in the GCN model.
+    global_node_num : int
+        Total number of nodes in the global graph.
+    class_num : int
+        Number of classes for classification.
+    device : torch.device
+        The device (CPU or GPU) on which the model will be trained.
+    args : Any
+        Additional arguments required for model initialization and training.
+    """
+
+    def __init__(
+        self,
+        rank: int,
+        args_hidden: int,
+        global_node_num: int,
+        class_num: int,
+        device: torch.device,
+        args: Any,
+    ):
+        # from gnn_models import GCN_Graph_Classification
+        torch.manual_seed(rank)
+        local_node_index, communicate_node_index, adj, train_labels, test_labels, features, idx_train, idx_test = load_trainer_data_from_hugging_face(rank)
+        # seems that new trainer process will not inherit sys.path from parent, need to reimport!
+        if args.num_hops >= 1 and args.fedtype == "fedgcn":
+            self.model = AggreGCN(
+                nfeat=features.shape[1],
+                nhid=args_hidden,
+                nclass=class_num,
+                dropout=0.5,
+                NumLayers=args.num_layers,
+            ).to(device)
+        else:
+            if args.dataset == "ogbn-arxiv":
+                self.model = GCN_arxiv(
+                    nfeat=features.shape[1],
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=args.num_layers,
+                ).to(device)
+            elif args.dataset == "ogbn-products":
+                self.model = SAGE_products(
+                    nfeat=features.shape[1],
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=args.num_layers,
+                ).to(device)
+            else:
+                self.model = GCN(
+                    nfeat=features.shape[1],
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=args.num_layers,
+                ).to(device)
+
+        self.rank = rank  # rank = trainer ID
+
+        self.device = device
+
+        self.optimizer = torch.optim.SGD(
+            self.model.parameters(), lr=args.learning_rate, weight_decay=5e-4
+        )
+
+        self.criterion = torch.nn.CrossEntropyLoss()
+
+        self.train_losses: list = []
+        self.train_accs: list = []
+
+        self.test_losses: list = []
+        self.test_accs: list = []
+
+        self.local_node_index = local_node_index.to(device)
+        self.communicate_node_index = communicate_node_index.to(device)
+
+        self.adj = adj.to(device)
+        self.train_labels = train_labels.to(device)
+        self.test_labels = test_labels.to(device)
+        self.features = features.to(device)
+        self.idx_train = idx_train.to(device)
+        self.idx_test = idx_test.to(device)
+
+        self.local_step = args.local_step
+        self.global_node_num = global_node_num
+        self.class_num = class_num
+
+    @torch.no_grad()
+    def update_params(self, params: tuple, current_global_epoch: int) -> None:
+        """
+        Updates the model parameters with global parameters received from the server.
+
+        Parameters
+        ----------
+        params : tuple
+            A tuple containing the global parameters from the server.
+        current_global_epoch : int
+            The current global epoch number.
+        """
+        # load global parameter from global server
+        self.model.to("cpu")
+        for (
+            p,
+            mp,
+        ) in zip(params, self.model.parameters()):
+            mp.data = p
+        self.model.to(self.device)
+
+    def get_local_feature_sum(self) -> torch.Tensor:
+        """
+        Computes the sum of features of all 1-hop neighbors for each node.
+
+        Returns
+        -------
+        one_hop_neighbor_feature_sum : torch.Tensor
+            The sum of features of 1-hop neighbors for each node
+        """
+
+        # create a large matrix with known local node features
+        new_feature_for_trainer = torch.zeros(
+            self.global_node_num, self.features.shape[1]
+        ).to(
+            self.device
+        )  # TODO:check if all the tensors are in the same device
+        new_feature_for_trainer[self.local_node_index] = self.features
+        # sum of features of all 1-hop nodes for each node
+        one_hop_neighbor_feature_sum = get_1hop_feature_sum(
+            new_feature_for_trainer, self.adj
+        )
+        return one_hop_neighbor_feature_sum
+
+    def load_feature_aggregation(self, feature_aggregation: torch.Tensor) -> None:
+        """
+        Loads the aggregated features into the trainer.
+
+        Parameters
+        ----------
+        feature_aggregation : torch.Tensor
+            The aggregated features to be loaded.
+        """
+        self.feature_aggregation = feature_aggregation
+
+    def relabel_adj(self) -> None:
+        """
+        Relabels the adjacency matrix based on the communication node index.
+        """
+        _, self.adj, __, ___ = torch_geometric.utils.k_hop_subgraph(
+            self.communicate_node_index, 0, self.adj, relabel_nodes=True
+        )
+
+    def train(self, current_global_round: int) -> None:
+        """
+        Performs local training for a specified number of iterations. This method
+        updates the model using the loaded feature aggregation and the adjacency matrix.
+
+        Parameters
+        ----------
+        current_global_round : int
+            The current global training round.
+        """
+        # clean cache
+        torch.cuda.empty_cache()
+        self.model.to(self.device)
+        self.feature_aggregation = self.feature_aggregation.to(self.device)
+        for iteration in range(self.local_step):
+            self.model.train()
+            loss_train, acc_train = train(
+                iteration,
+                self.model,
+                self.optimizer,
+                self.feature_aggregation,
+                self.adj,
+                self.train_labels,
+                self.idx_train,
+            )
+            self.train_losses.append(loss_train)
+            self.train_accs.append(acc_train)
+
+            loss_test, acc_test = self.local_test()
+            self.test_losses.append(loss_test)
+            self.test_accs.append(acc_test)
+
+    def local_test(self) -> list:
+        """
+        Evaluates the model on the local test dataset.
+
+        Returns
+        -------
+        (list) : list
+            A list containing the test loss and accuracy [local_test_loss, local_test_acc].
+        """
+        local_test_loss, local_test_acc = test(
+            self.model,
+            self.feature_aggregation,
+            self.adj,
+            self.test_labels,
+            self.idx_test,
+        )
+        return [local_test_loss, local_test_acc]
+
+    def get_params(self) -> tuple:
+        """
+        Retrieves the current parameters of the model.
+
+        Returns
+        -------
+        (tuple) : tuple
+            A tuple containing the current parameters of the model.
+        """
+        self.optimizer.zero_grad(set_to_none=True)
+        return tuple(self.model.parameters())
+
+    def get_all_loss_accuray(self) -> list:
+        """
+        Returns all recorded training and testing losses and accuracies.
+
+        Returns
+        -------
+        (list) : list
+            A list containing arrays of training losses, training accuracies, testing losses, and testing accuracies.
+        """
+        return [
+            np.array(self.train_losses),
+            np.array(self.train_accs),
+            np.array(self.test_losses),
+            np.array(self.test_accs),
+        ]
+
+    def get_rank(self) -> int:
+        """
+        Returns the rank (trainer ID) of the trainer.
+
+        Returns
+        -------
+        (int) : int
+            The rank (trainer ID) of this trainer instance.
+        """
+        return self.rank
 def FedGCN_load_data(dataset_str: str) -> tuple:
     if dataset_str in [
         "ogbn-arxiv",
@@ -73,11 +423,16 @@ def FedGCN_load_data(dataset_str: str) -> tuple:
             split_idx["valid"],
             split_idx["test"],
         )
+        # idx_train = (idx_train['paper'])
+        # idx_val = (idx_val['paper'])
+        # idx_test = (idx_test['paper'])
+
         idx_train = torch.LongTensor(idx_train)
         idx_val = torch.LongTensor(idx_val)
         idx_test = torch.LongTensor(idx_test)
         data = dataset[0]
-
+        # print(dataset)
+        # print(data.y)
         features = data.x
         labels = data.y.reshape(-1)
         if dataset_str == "ogbn-arxiv":
@@ -113,7 +468,7 @@ def run():
     row, col, edge_attr = adj.coo()
     edge_index = torch.stack([row, col], dim=0)
 
-    num_cpus_per_client = 4
+    num_cpus_per_client = 0.1
     # specifying a target GPU
     args.gpu = False  # Test
     print(f"gpu usage: {args.gpu}")
@@ -153,6 +508,16 @@ def run():
         idx_train,
         idx_test,
     )
+    save_all_trainers_data(
+    split_node_indexes=split_node_indexes,
+    communicate_node_indexes=communicate_node_indexes,
+    edge_indexes_clients=edge_indexes_clients,
+    labels=labels,
+    features=features,
+    in_com_train_node_indexes=in_com_train_node_indexes,
+    in_com_test_node_indexes=in_com_test_node_indexes,
+    n_trainer=args.n_trainer
+)
 
     #######################################################################
     # Define and Send Data to Trainers
@@ -172,16 +537,6 @@ def run():
     trainers = [
         Trainer.remote(  # type: ignore
             rank=i,
-            local_node_index=split_node_indexes[i],
-            communicate_node_index=communicate_node_indexes[i],
-            adj=edge_indexes_clients[i],
-            train_labels=labels[communicate_node_indexes[i]
-                                ][in_com_train_node_indexes[i]],
-            test_labels=labels[communicate_node_indexes[i]
-                               ][in_com_test_node_indexes[i]],
-            features=features[split_node_indexes[i]],
-            idx_train=in_com_train_node_indexes[i],
-            idx_test=in_com_test_node_indexes[i],
             args_hidden=args_hidden,
             global_node_num=len(features),
             class_num=class_num,
@@ -208,9 +563,10 @@ def run():
     # of specific nodes back to each client.
 
     # starting monitor:
-    monitor = Monitor()
-    monitor.pretrain_time_start()
+    # monitor = Monitor()
+    # monitor.pretrain_time_start()
     start_time = datetime.now()
+    print("starting get_local_feature_sum")
     local_neighbor_feature_sums = [
         trainer.get_local_feature_sum.remote() for trainer in server.trainers
     ]
@@ -236,8 +592,8 @@ def run():
     end_time = datetime.now()
     time_difference = end_time - start_time
     print(f"pretraining time: {time_difference}")
-    time.sleep(30)
-    monitor.pretrain_time_end()
+    # time.sleep(30)
+    # monitor.pretrain_time_end()
 
     #######################################################################
     # Federated Training
@@ -246,15 +602,15 @@ def run():
     # at every global round.
 
     print("global_rounds", args.global_rounds)
-    monitor.train_time_start()
+    # monitor.train_time_start()
     start_time = datetime.now()
     for i in range(args.global_rounds):
         server.train(i)
     end_time = datetime.now()
     time_difference = end_time - start_time
     print(f"training time: {time_difference}")
-    time.sleep(30)
-    monitor.train_time_end()
+    # time.sleep(30)
+    # monitor.train_time_end()
 
     #######################################################################
     # Summarize Experiment Results
@@ -278,7 +634,7 @@ def run():
     print(average_final_test_loss, average_final_test_accuracy)
 
 
-for d in ["ogbn-mag"]:
+for d in ["ogbn-arxiv"]:
     args.dataset = d
     for b in [10000]:
         args.iid_beta = b
