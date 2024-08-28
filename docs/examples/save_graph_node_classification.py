@@ -6,8 +6,52 @@ import torch
 import torch_geometric
 from fedgraph.utils_nc import (
     get_in_comm_indexes,
-    label_dirichlet_partition,
 )
+
+
+def label_dirichlet_partition(
+    labels: np.array, N: int, K: int, n_parties: int, beta: float
+) -> list:
+    min_size = 0
+    min_require_size = 10
+
+    split_data_indexes = []
+
+    # Separate the indices of nodes with label -1
+    idx_minus_one = np.where(labels == -1)[0]
+    np.random.shuffle(idx_minus_one)
+    split_minus_one = np.array_split(idx_minus_one, n_parties)
+
+    while min_size < min_require_size:
+        idx_batch: list[list[int]] = [[] for _ in range(n_parties)]
+        for k in range(K):
+            idx_k = np.where(labels == k)[0]
+            np.random.shuffle(idx_k)
+            proportions = np.random.dirichlet(np.repeat(beta, n_parties))
+
+            proportions = np.array(
+                [
+                    p * (len(idx_j) < N / n_parties)
+                    for p, idx_j in zip(proportions, idx_batch)
+                ]
+            )
+
+            proportions = proportions / proportions.sum()
+
+            proportions = (np.cumsum(proportions) * len(idx_k)).astype(int)[:-1]
+
+            idx_batch = [
+                idx_j + idx.tolist()
+                for idx_j, idx in zip(idx_batch, np.split(idx_k, proportions))
+            ]
+            min_size = min([len(idx_j) for idx_j in idx_batch])
+
+    # Append the indices of nodes with label -1 to the respective groups
+    for j in range(n_parties):
+        idx_batch[j] = np.concatenate((idx_batch[j], split_minus_one[j]))
+        np.random.shuffle(idx_batch[j])
+        split_data_indexes.append(idx_batch[j])
+    return split_data_indexes
 
 
 
@@ -94,6 +138,7 @@ def FedGCN_load_data(dataset_str: str) -> tuple:
         data = dataset[0]
 
         features = data.x
+        print(features.shape)
         labels = data.y.reshape(-1)
         if dataset_str == "ogbn-arxiv":
             adj = data.adj_t.to_symmetric()
@@ -104,7 +149,10 @@ def FedGCN_load_data(dataset_str: str) -> tuple:
 def run():
     features, adj, labels, idx_train, idx_val, idx_test = FedGCN_load_data(
         args.dataset)
-    class_num = labels.max().item() + 1
+    class_num = int(np.nanmax(labels)) + 1
+    print("class_num", class_num)
+    labels[torch.isnan(labels)] = -1
+    labels = labels.long()
 
     row, col, edge_attr = adj.coo()
     edge_index = torch.stack([row, col], dim=0)
@@ -119,6 +167,7 @@ def run():
 
     for i in range(args.n_trainer):
         split_node_indexes[i] = np.array(split_node_indexes[i])
+        print(split_node_indexes[i].shape)
         split_node_indexes[i].sort()
         split_node_indexes[i] = torch.tensor(split_node_indexes[i])
 
