@@ -186,6 +186,7 @@ class Trainer_General:
         # from gnn_models import GCN_Graph_Classification
         torch.manual_seed(rank)
         local_node_index, communicate_node_index, adj, train_labels, test_labels, features, idx_train, idx_test = load_trainer_data_from_hugging_face(rank)
+        
         # seems that new trainer process will not inherit sys.path from parent, need to reimport!
         if args.num_hops >= 1 and args.fedtype == "fedgcn":
             self.model = AggreGCN(
