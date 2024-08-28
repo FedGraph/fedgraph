@@ -28,6 +28,8 @@ from fedgraph.utils_nc import (
     label_dirichlet_partition,
 )
 from fedgraph.gnn_models import GCN, GIN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
+from torch_geometric.loader import NeighborLoader
+from torch_geometric.data import Data
 ray.init()
 
 
@@ -55,7 +57,7 @@ args = parser.parse_args()
 
 
 def load_trainer_data_from_hugging_face(trainer_id):
-    repo_name = f'Ryanli3/fed_graph_data_trainer_{trainer_id}'
+    repo_name = f'FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{args.num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}'
 
     def download_and_load_tensor(file_name):
         file_path = hf_hub_download(
@@ -63,6 +65,7 @@ def load_trainer_data_from_hugging_face(trainer_id):
         with open(file_path, 'rb') as f:
             buffer = BytesIO(f.read())
             tensor = torch.load(buffer)
+        print(f"Loaded {file_name}, size: {tensor.size()}")
         return tensor
 
     print(f"Loading client data {trainer_id}")
@@ -77,6 +80,7 @@ def load_trainer_data_from_hugging_face(trainer_id):
     idx_test = download_and_load_tensor('idx_test.pt')
 
     return local_node_index, communicate_node_index, adj, train_labels, test_labels, features, idx_train, idx_test
+
 
 
 def save_trainer_data_to_hugging_face(trainer_id, local_node_index, communicate_node_index, adj, train_labels, test_labels, features, idx_train, idx_test):
@@ -329,19 +333,32 @@ class Trainer_General:
         torch.cuda.empty_cache()
         self.model.to(self.device)
         self.feature_aggregation = self.feature_aggregation.to(self.device)
+        loader = NeighborLoader(
+            Data(
+            x=self.features, edge_index=self.adj, y=self.train_labels, 
+            train_mask=self.idx_train, test_mask=self.idx_test
+            ),
+            num_neighbors=[30] * 2, 
+            batch_size=128,  
+            input_nodes=self.idx_train,
+        )
         for iteration in range(self.local_step):
             self.model.train()
-            loss_train, acc_train = train(
-                iteration,
-                self.model,
-                self.optimizer,
-                self.feature_aggregation,
-                self.adj,
-                self.train_labels,
-                self.idx_train,
-            )
-            self.train_losses.append(loss_train)
-            self.train_accs.append(acc_train)
+            for sampled_data in loader:
+                sampled_data = sampled_data.to(self.device)
+
+                loss_train, acc_train = train(
+                    iteration,
+                    self.model,
+                    self.optimizer,
+                    sampled_data.x,
+                    sampled_data.edge_index,
+                    sampled_data.y[sampled_data.train_mask],
+                    sampled_data.train_mask,
+                )
+
+                self.train_losses.append(loss_train)
+                self.train_accs.append(acc_train)
 
             loss_test, acc_test = self.local_test()
             self.test_losses.append(loss_test)
@@ -403,6 +420,10 @@ class Trainer_General:
             The rank (trainer ID) of this trainer instance.
         """
         return self.rank
+    
+
+
+
 def FedGCN_load_data(dataset_str: str) -> tuple:
     if dataset_str in [
         "ogbn-arxiv",
