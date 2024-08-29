@@ -9,6 +9,7 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 (Time estimate: 15 minutes)
 """
 import os
+import sys
 from io import BytesIO
 from huggingface_hub import HfApi, HfFolder, upload_file, hf_hub_download
 from datetime import datetime
@@ -30,6 +31,14 @@ from fedgraph.utils_nc import (
 from fedgraph.gnn_models import GCN, GIN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
 from torch_geometric.loader import NeighborLoader
 from torch_geometric.data import Data
+import pickle as pkl
+import networkx as nx
+import numpy as np
+import pandas as pd
+import scipy.sparse as sp
+import torch
+import torch_geometric
+import torch_sparse
 ray.init()
 
 
@@ -45,23 +54,42 @@ parser.add_argument("-c", "--global_rounds", default=100, type=int)
 parser.add_argument("-i", "--local_step", default=3, type=int)
 parser.add_argument("-lr", "--learning_rate", default=0.1, type=float)
 
-parser.add_argument("-n", "--n_trainer", default=3, type=int)
+parser.add_argument("-n", "--n_trainer", default=2, type=int)
 parser.add_argument("-nl", "--num_layers", default=2, type=int)
-parser.add_argument("-nhop", "--num_hops", default=2, type=int)
+parser.add_argument("-nhop", "--num_hops", default=1, type=int)
 parser.add_argument("-g", "--gpu", action="store_true")  # if -g, use gpu
-parser.add_argument("-iid_b", "--iid_beta", default=10000, type=float)
+parser.add_argument("-iid_b", "--iid_beta", default=1.0, type=float)
 
 parser.add_argument("-l", "--logdir", default="./runs", type=str)
 
 args = parser.parse_args()
 
 
+def FedGCN_parse_index_file(filename: str) -> list:
+    """
+    Reads and parses an index file
+
+    Parameters
+    ----------
+    filename : str
+        Name or path of the file to parse.
+
+    Returns
+    -------
+    index : list
+        List of integers, each integer in the list represents int of the lines of the input file.
+    """
+    index = []
+    for line in open(filename):
+        index.append(int(line.strip()))
+    return index
+
 def load_trainer_data_from_hugging_face(trainer_id):
     repo_name = f'FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{args.num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}'
 
     def download_and_load_tensor(file_name):
         file_path = hf_hub_download(
-            repo_id=repo_name, filename=file_name, repo_type="dataset")
+            repo_id=repo_name, repo_type="dataset", filename=file_name)
         with open(file_path, 'rb') as f:
             buffer = BytesIO(f.read())
             tensor = torch.load(buffer)
@@ -84,7 +112,7 @@ def load_trainer_data_from_hugging_face(trainer_id):
 
 
 def save_trainer_data_to_hugging_face(trainer_id, local_node_index, communicate_node_index, adj, train_labels, test_labels, features, idx_train, idx_test):
-    repo_name = f'Ryanli3/fed_graph_data_trainer_{trainer_id}'
+    repo_name = f'FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{args.num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}'
     user = HfFolder.get_token()
     
     api = HfApi()
@@ -338,13 +366,22 @@ class Trainer_General:
             x=self.features, edge_index=self.adj, y=self.train_labels, 
             train_mask=self.idx_train, test_mask=self.idx_test
             ),
-            num_neighbors=[30] * 2, 
-            batch_size=128,  
+            # testing for really small batch and sampling
+            num_neighbors=[2] *2, 
+            batch_size=5,  
             input_nodes=self.idx_train,
         )
         for iteration in range(self.local_step):
             self.model.train()
-            for sampled_data in loader:
+            dataloader_iterator = iter(loader)
+
+            for i in range(1):
+                # just test the 1st one but still doesn't work
+                sampled_data = next(dataloader_iterator)
+                print(sampled_data.batch_size)
+                print(sampled_data.n_id)    
+                print(sampled_data.edge_index)
+
                 sampled_data = sampled_data.to(self.device)
 
                 loss_train, acc_train = train(
@@ -425,7 +462,59 @@ class Trainer_General:
 
 
 def FedGCN_load_data(dataset_str: str) -> tuple:
-    if dataset_str in [
+    if dataset_str in ["cora", "citeseer", "pubmed"]:
+        # download dataset from torch_geometric
+        dataset = torch_geometric.datasets.Planetoid("./data", dataset_str)
+        names = ["x", "y", "tx", "ty", "allx", "ally", "graph"]
+        objects = []
+        for i in range(len(names)):
+            with open(
+                "data/{}/raw/ind.{}.{}".format(dataset_str, dataset_str, names[i]), "rb"
+            ) as f:
+                if sys.version_info > (3, 0):
+                    objects.append(pkl.load(f, encoding="latin1"))
+                else:
+                    objects.append(pkl.load(f))
+
+        x, y, tx, ty, allx, ally, graph = tuple(objects)
+        test_idx_reorder = FedGCN_parse_index_file(
+            "data/{}/raw/ind.{}.test.index".format(dataset_str, dataset_str)
+        )
+        test_idx_range = np.sort(test_idx_reorder)
+
+        if dataset_str == "citeseer":
+            # Fix citeseer dataset (there are some isolated nodes in the graph)
+            # Find isolated nodes, add them as zero-vecs into the right position
+            test_idx_range_full = range(
+                min(test_idx_reorder), max(test_idx_reorder) + 1
+            )
+            tx_extended = sp.lil_matrix((len(test_idx_range_full), x.shape[1]))
+            tx_extended[test_idx_range - min(test_idx_range), :] = tx
+            tx = tx_extended
+            ty_extended = np.zeros((len(test_idx_range_full), y.shape[1]))
+            ty_extended[test_idx_range - min(test_idx_range), :] = ty
+            ty = ty_extended
+
+        features = sp.vstack((allx, tx)).tolil()
+        features[test_idx_reorder, :] = features[test_idx_range, :]
+        adj = nx.adjacency_matrix(nx.from_dict_of_lists(graph))
+
+        labels = np.vstack((ally, ty))
+        labels[test_idx_reorder, :] = labels[test_idx_range, :]
+
+        idx_test = torch.LongTensor(test_idx_range.tolist())
+        idx_train = torch.LongTensor(range(len(y)))
+        idx_val = torch.LongTensor(range(len(y), len(y) + 500))
+
+        # features = normalize(features)
+        # adj = normalize(adj)    # no normalize adj here, normalize it in the training process
+
+        features = torch.tensor(features.toarray()).float()
+        adj = torch.tensor(adj.toarray()).float()
+        adj = torch_sparse.tensor.SparseTensor.from_dense(adj)
+        labels = torch.tensor(labels)
+        labels = torch.argmax(labels, dim=1)
+    elif dataset_str in [
         "ogbn-arxiv",
         "ogbn-products",
         "ogbn-mag",
@@ -656,9 +745,9 @@ def run():
     print(average_final_test_loss, average_final_test_accuracy)
 
 
-for d in ["ogbn-arxiv"]:
+for d in ["cora"]:
     args.dataset = d
-    for b in [10000]:
+    for b in [1.0]:
         args.iid_beta = b
         print(f"at dataset: {d}, beta: {b}")
         run()
