@@ -39,6 +39,7 @@ import scipy.sparse as sp
 import torch
 import torch_geometric
 import torch_sparse
+import dgl
 ray.init()
 
 
@@ -361,26 +362,33 @@ class Trainer_General:
         torch.cuda.empty_cache()
         self.model.to(self.device)
         self.feature_aggregation = self.feature_aggregation.to(self.device)
-        loader = NeighborLoader(
-            Data(
-            x=self.features, edge_index=self.adj, y=self.train_labels, 
-            train_mask=self.idx_train, test_mask=self.idx_test
-            ),
-            # testing for really small batch and sampling
-            num_neighbors=[2] *2, 
-            batch_size=5,  
-            input_nodes=self.idx_train,
-        )
+
+        g = dgl.graph((self.adj[0], self.adj[1]))
+        print(g)
+        g.ndata['features'] = self.features
+        g.ndata['labels'] = self.train_labels
+        g.ndata['train_mask'] = self.idx_train
+        g.ndata['test_mask'] = self.idx_test
+        print(g)
+        time.sleep(100)
+        sampler = dgl.dataloading.MultiLayerFullNeighborSampler(args.num_hops)
+
+        dataloader = dgl.dataloading.DataLoader(
+            g, torch.nonzero(self.idx_train).squeeze(), sampler,
+            batch_size=6,
+            shuffle=True,
+            drop_last=False,
+            num_workers=0) # local no parrallel
+
+        input_nodes, output_nodes, blocks = next(iter(dataloader))
+        print(blocks)
         for iteration in range(self.local_step):
             self.model.train()
-            dataloader_iterator = iter(loader)
+            dataloader_iterator = iter(dataloader)
 
             for i in range(1):
                 # just test the 1st one but still doesn't work
                 sampled_data = next(dataloader_iterator)
-                print(sampled_data.batch_size)
-                print(sampled_data.n_id)    
-                print(sampled_data.edge_index)
 
                 sampled_data = sampled_data.to(self.device)
 
@@ -619,16 +627,17 @@ def run():
         idx_train,
         idx_test,
     )
-    save_all_trainers_data(
-    split_node_indexes=split_node_indexes,
-    communicate_node_indexes=communicate_node_indexes,
-    edge_indexes_clients=edge_indexes_clients,
-    labels=labels,
-    features=features,
-    in_com_train_node_indexes=in_com_train_node_indexes,
-    in_com_test_node_indexes=in_com_test_node_indexes,
-    n_trainer=args.n_trainer
-)
+# TODO: save the tensor to file
+#     save_all_trainers_data(
+#     split_node_indexes=split_node_indexes,
+#     communicate_node_indexes=communicate_node_indexes,
+#     edge_indexes_clients=edge_indexes_clients,
+#     labels=labels,
+#     features=features,
+#     in_com_train_node_indexes=in_com_train_node_indexes,
+#     in_com_test_node_indexes=in_com_test_node_indexes,
+#     n_trainer=args.n_trainer
+# )
 
     #######################################################################
     # Define and Send Data to Trainers
