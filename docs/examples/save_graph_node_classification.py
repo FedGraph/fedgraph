@@ -1,12 +1,12 @@
-from io import BytesIO
-from huggingface_hub import HfApi, HfFolder
 import argparse
+from io import BytesIO
+
 import numpy as np
 import torch
 import torch_geometric
-from fedgraph.utils_nc import (
-    get_in_comm_indexes,
-)
+from huggingface_hub import HfApi, HfFolder
+
+from fedgraph.utils_nc import get_in_comm_indexes
 
 
 def label_dirichlet_partition(
@@ -54,16 +54,25 @@ def label_dirichlet_partition(
     return split_data_indexes
 
 
-
-def save_trainer_data_to_hugging_face(trainer_id, local_node_index, communicate_node_index, adj, train_labels,
-                                      test_labels, features, idx_train, idx_test):
-    repo_name = f'FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{args.num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}'
+def save_trainer_data_to_hugging_face(
+    trainer_id,
+    local_node_index,
+    communicate_node_index,
+    adj,
+    train_labels,
+    test_labels,
+    features,
+    idx_train,
+    idx_test,
+):
+    repo_name = f"FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{args.num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}"
     user = HfFolder.get_token()
 
     api = HfApi()
     try:
-        api.create_repo(repo_id=repo_name, token=user,
-                        repo_type="dataset", exist_ok=True)
+        api.create_repo(
+            repo_id=repo_name, token=user, repo_type="dataset", exist_ok=True
+        )
     except Exception as e:
         print(f"Failed to create or access the repository: {str(e)}")
         return
@@ -77,38 +86,47 @@ def save_trainer_data_to_hugging_face(trainer_id, local_node_index, communicate_
             path_in_repo=file_name,
             repo_id=repo_name,
             repo_type="dataset",
-            token=user
+            token=user,
         )
 
-    save_tensor_to_hf(local_node_index, 'local_node_index.pt')
-    save_tensor_to_hf(communicate_node_index, 'communicate_node_index.pt')
-    save_tensor_to_hf(adj, 'adj.pt')
-    save_tensor_to_hf(train_labels, 'train_labels.pt')
-    save_tensor_to_hf(test_labels, 'test_labels.pt')
-    save_tensor_to_hf(features, 'features.pt')
-    save_tensor_to_hf(idx_train, 'idx_train.pt')
-    save_tensor_to_hf(idx_test, 'idx_test.pt')
+    save_tensor_to_hf(local_node_index, "local_node_index.pt")
+    save_tensor_to_hf(communicate_node_index, "communicate_node_index.pt")
+    save_tensor_to_hf(adj, "adj.pt")
+    save_tensor_to_hf(train_labels, "train_labels.pt")
+    save_tensor_to_hf(test_labels, "test_labels.pt")
+    save_tensor_to_hf(features, "features.pt")
+    save_tensor_to_hf(idx_train, "idx_train.pt")
+    save_tensor_to_hf(idx_test, "idx_test.pt")
 
     print(f"Uploaded data for trainer {trainer_id}")
 
 
-def save_all_trainers_data(split_node_indexes, communicate_node_indexes, edge_indexes_clients, labels, features,
-                           in_com_train_node_indexes, in_com_test_node_indexes, n_trainer):
+def save_all_trainers_data(
+    split_node_indexes,
+    communicate_node_indexes,
+    edge_indexes_clients,
+    labels,
+    features,
+    in_com_train_node_indexes,
+    in_com_test_node_indexes,
+    n_trainer,
+):
     for i in range(n_trainer):
         save_trainer_data_to_hugging_face(
             trainer_id=i,
             local_node_index=split_node_indexes[i],
             communicate_node_index=communicate_node_indexes[i],
             adj=edge_indexes_clients[i],
-            train_labels=labels[communicate_node_indexes[i]
-            ][in_com_train_node_indexes[i]],
-            test_labels=labels[communicate_node_indexes[i]
-            ][in_com_test_node_indexes[i]],
+            train_labels=labels[communicate_node_indexes[i]][
+                in_com_train_node_indexes[i]
+            ],
+            test_labels=labels[communicate_node_indexes[i]][
+                in_com_test_node_indexes[i]
+            ],
             features=features[split_node_indexes[i]],
             idx_train=in_com_train_node_indexes[i],
             idx_test=in_com_test_node_indexes[i],
         )
-
 
 
 def FedGCN_load_data(dataset_str: str) -> tuple:
@@ -146,9 +164,9 @@ def FedGCN_load_data(dataset_str: str) -> tuple:
             adj = data.adj_t
     return features.float(), adj, labels, idx_train, idx_val, idx_test
 
+
 def run():
-    features, adj, labels, idx_train, idx_val, idx_test = FedGCN_load_data(
-        args.dataset)
+    features, adj, labels, idx_train, idx_val, idx_test = FedGCN_load_data(args.dataset)
     class_num = int(np.nanmax(labels)) + 1
     print("class_num", class_num)
     labels[torch.isnan(labels)] = -1
@@ -185,15 +203,16 @@ def run():
         idx_test,
     )
     save_all_trainers_data(
-    split_node_indexes=split_node_indexes,
-    communicate_node_indexes=communicate_node_indexes,
-    edge_indexes_clients=edge_indexes_clients,
-    labels=labels,
-    features=features,
-    in_com_train_node_indexes=in_com_train_node_indexes,
-    in_com_test_node_indexes=in_com_test_node_indexes,
-    n_trainer=args.n_trainer
-)
+        split_node_indexes=split_node_indexes,
+        communicate_node_indexes=communicate_node_indexes,
+        edge_indexes_clients=edge_indexes_clients,
+        labels=labels,
+        features=features,
+        in_com_train_node_indexes=in_com_train_node_indexes,
+        in_com_test_node_indexes=in_com_test_node_indexes,
+        n_trainer=args.n_trainer,
+    )
+
 
 np.random.seed(42)
 torch.manual_seed(42)

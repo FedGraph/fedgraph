@@ -8,38 +8,38 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 
 (Time estimate: 15 minutes)
 """
-import os
-import sys
-from io import BytesIO
-from huggingface_hub import HfApi, HfFolder, upload_file, hf_hub_download
-from datetime import datetime
 import argparse
+import os
+import pickle as pkl
+import sys
 import time
+from datetime import datetime
+from io import BytesIO
 from typing import Any
-from fedgraph.train_func import test, train
+
+import dgl
+import networkx as nx
 import numpy as np
+import pandas as pd
 import ray
+import scipy.sparse as sp
 import torch
 import torch_geometric
+import torch_sparse
+from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
+from torch_geometric.data import Data
+from torch_geometric.loader import NeighborLoader
+
+from fedgraph.gnn_models import GCN, GIN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
 from fedgraph.monitor_class import Monitor
 from fedgraph.server_class import Server
+from fedgraph.train_func import test, train
 from fedgraph.utils_nc import (
     get_1hop_feature_sum,
     get_in_comm_indexes,
     label_dirichlet_partition,
 )
-from fedgraph.gnn_models import GCN, GIN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
-from torch_geometric.loader import NeighborLoader
-from torch_geometric.data import Data
-import pickle as pkl
-import networkx as nx
-import numpy as np
-import pandas as pd
-import scipy.sparse as sp
-import torch
-import torch_geometric
-import torch_sparse
-import dgl
+
 ray.init()
 
 
@@ -85,41 +85,61 @@ def FedGCN_parse_index_file(filename: str) -> list:
         index.append(int(line.strip()))
     return index
 
+
 def load_trainer_data_from_hugging_face(trainer_id):
-    repo_name = f'FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{args.num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}'
+    repo_name = f"FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{args.num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}"
 
     def download_and_load_tensor(file_name):
         file_path = hf_hub_download(
-            repo_id=repo_name, repo_type="dataset", filename=file_name)
-        with open(file_path, 'rb') as f:
+            repo_id=repo_name, repo_type="dataset", filename=file_name
+        )
+        with open(file_path, "rb") as f:
             buffer = BytesIO(f.read())
             tensor = torch.load(buffer)
         print(f"Loaded {file_name}, size: {tensor.size()}")
         return tensor
 
     print(f"Loading client data {trainer_id}")
-    local_node_index = download_and_load_tensor('local_node_index.pt')
-    communicate_node_index = download_and_load_tensor(
-        'communicate_node_index.pt')
-    adj = download_and_load_tensor('adj.pt')
-    train_labels = download_and_load_tensor('train_labels.pt')
-    test_labels = download_and_load_tensor('test_labels.pt')
-    features = download_and_load_tensor('features.pt')
-    idx_train = download_and_load_tensor('idx_train.pt')
-    idx_test = download_and_load_tensor('idx_test.pt')
+    local_node_index = download_and_load_tensor("local_node_index.pt")
+    communicate_node_index = download_and_load_tensor("communicate_node_index.pt")
+    adj = download_and_load_tensor("adj.pt")
+    train_labels = download_and_load_tensor("train_labels.pt")
+    test_labels = download_and_load_tensor("test_labels.pt")
+    features = download_and_load_tensor("features.pt")
+    idx_train = download_and_load_tensor("idx_train.pt")
+    idx_test = download_and_load_tensor("idx_test.pt")
 
-    return local_node_index, communicate_node_index, adj, train_labels, test_labels, features, idx_train, idx_test
+    return (
+        local_node_index,
+        communicate_node_index,
+        adj,
+        train_labels,
+        test_labels,
+        features,
+        idx_train,
+        idx_test,
+    )
 
 
-
-def save_trainer_data_to_hugging_face(trainer_id, local_node_index, communicate_node_index, adj, train_labels, test_labels, features, idx_train, idx_test):
-    repo_name = f'FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{args.num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}'
+def save_trainer_data_to_hugging_face(
+    trainer_id,
+    local_node_index,
+    communicate_node_index,
+    adj,
+    train_labels,
+    test_labels,
+    features,
+    idx_train,
+    idx_test,
+):
+    repo_name = f"FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{args.num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}"
     user = HfFolder.get_token()
-    
+
     api = HfApi()
     try:
-        api.create_repo(repo_id=repo_name, token=user,
-                        repo_type="dataset", exist_ok=True)
+        api.create_repo(
+            repo_id=repo_name, token=user, repo_type="dataset", exist_ok=True
+        )
     except Exception as e:
         print(f"Failed to create or access the repository: {str(e)}")
         return
@@ -133,40 +153,47 @@ def save_trainer_data_to_hugging_face(trainer_id, local_node_index, communicate_
             path_in_repo=file_name,
             repo_id=repo_name,
             repo_type="dataset",
-            token=user
+            token=user,
         )
 
-    save_tensor_to_hf(local_node_index, 'local_node_index.pt')
-    save_tensor_to_hf(communicate_node_index, 'communicate_node_index.pt')
-    save_tensor_to_hf(adj, 'adj.pt')
-    save_tensor_to_hf(train_labels, 'train_labels.pt')
-    save_tensor_to_hf(test_labels, 'test_labels.pt')
-    save_tensor_to_hf(features, 'features.pt')
-    save_tensor_to_hf(idx_train, 'idx_train.pt')
-    save_tensor_to_hf(idx_test, 'idx_test.pt')
+    save_tensor_to_hf(local_node_index, "local_node_index.pt")
+    save_tensor_to_hf(communicate_node_index, "communicate_node_index.pt")
+    save_tensor_to_hf(adj, "adj.pt")
+    save_tensor_to_hf(train_labels, "train_labels.pt")
+    save_tensor_to_hf(test_labels, "test_labels.pt")
+    save_tensor_to_hf(features, "features.pt")
+    save_tensor_to_hf(idx_train, "idx_train.pt")
+    save_tensor_to_hf(idx_test, "idx_test.pt")
 
     print(f"Uploaded data for trainer {trainer_id}")
 
 
-
-def save_all_trainers_data(split_node_indexes, communicate_node_indexes, edge_indexes_clients, labels, features, in_com_train_node_indexes, in_com_test_node_indexes, n_trainer):
+def save_all_trainers_data(
+    split_node_indexes,
+    communicate_node_indexes,
+    edge_indexes_clients,
+    labels,
+    features,
+    in_com_train_node_indexes,
+    in_com_test_node_indexes,
+    n_trainer,
+):
     for i in range(n_trainer):
         save_trainer_data_to_hugging_face(
             trainer_id=i,
             local_node_index=split_node_indexes[i],
             communicate_node_index=communicate_node_indexes[i],
             adj=edge_indexes_clients[i],
-            train_labels=labels[communicate_node_indexes[i]
-                                ][in_com_train_node_indexes[i]],
-            test_labels=labels[communicate_node_indexes[i]
-                               ][in_com_test_node_indexes[i]],
+            train_labels=labels[communicate_node_indexes[i]][
+                in_com_train_node_indexes[i]
+            ],
+            test_labels=labels[communicate_node_indexes[i]][
+                in_com_test_node_indexes[i]
+            ],
             features=features[split_node_indexes[i]],
             idx_train=in_com_train_node_indexes[i],
             idx_test=in_com_test_node_indexes[i],
         )
-
-
-
 
 
 class Trainer_General:
@@ -218,8 +245,17 @@ class Trainer_General:
     ):
         # from gnn_models import GCN_Graph_Classification
         torch.manual_seed(rank)
-        local_node_index, communicate_node_index, adj, train_labels, test_labels, features, idx_train, idx_test = load_trainer_data_from_hugging_face(rank)
-        
+        (
+            local_node_index,
+            communicate_node_index,
+            adj,
+            train_labels,
+            test_labels,
+            features,
+            idx_train,
+            idx_test,
+        ) = load_trainer_data_from_hugging_face(rank)
+
         # seems that new trainer process will not inherit sys.path from parent, need to reimport!
         if args.num_hops >= 1 and args.fedtype == "fedgcn":
             self.model = AggreGCN(
@@ -365,20 +401,23 @@ class Trainer_General:
 
         g = dgl.graph((self.adj[0], self.adj[1]))
         print(g)
-        g.ndata['features'] = self.features
-        g.ndata['labels'] = self.train_labels
-        g.ndata['train_mask'] = self.idx_train
-        g.ndata['test_mask'] = self.idx_test
+        g.ndata["features"] = self.features
+        g.ndata["labels"] = self.train_labels
+        g.ndata["train_mask"] = self.idx_train
+        g.ndata["test_mask"] = self.idx_test
         print(g)
         time.sleep(100)
         sampler = dgl.dataloading.MultiLayerFullNeighborSampler(args.num_hops)
 
         dataloader = dgl.dataloading.DataLoader(
-            g, torch.nonzero(self.idx_train).squeeze(), sampler,
+            g,
+            torch.nonzero(self.idx_train).squeeze(),
+            sampler,
             batch_size=6,
             shuffle=True,
             drop_last=False,
-            num_workers=0) # local no parrallel
+            num_workers=0,
+        )  # local no parrallel
 
         input_nodes, output_nodes, blocks = next(iter(dataloader))
         print(blocks)
@@ -465,8 +504,6 @@ class Trainer_General:
             The rank (trainer ID) of this trainer instance.
         """
         return self.rank
-    
-
 
 
 def FedGCN_load_data(dataset_str: str) -> tuple:
@@ -559,9 +596,8 @@ def FedGCN_load_data(dataset_str: str) -> tuple:
         else:
             adj = data.adj_t
 
-
-
     return features.float(), adj, labels, idx_train, idx_val, idx_test
+
 
 def run():
     #######################################################################
@@ -575,8 +611,7 @@ def run():
     # tutorial <https://pytorch-geometric.readthedocs.io/en/latest/notes
     # /create_dataset.html>`__ in PyG.
 
-    features, adj, labels, idx_train, idx_val, idx_test = FedGCN_load_data(
-        args.dataset)
+    features, adj, labels, idx_train, idx_val, idx_test = FedGCN_load_data(args.dataset)
     class_num = labels.max().item() + 1
 
     if args.dataset in ["simulate", "cora", "citeseer", "pubmed", "reddit"]:
@@ -627,17 +662,17 @@ def run():
         idx_train,
         idx_test,
     )
-# TODO: save the tensor to file
-#     save_all_trainers_data(
-#     split_node_indexes=split_node_indexes,
-#     communicate_node_indexes=communicate_node_indexes,
-#     edge_indexes_clients=edge_indexes_clients,
-#     labels=labels,
-#     features=features,
-#     in_com_train_node_indexes=in_com_train_node_indexes,
-#     in_com_test_node_indexes=in_com_test_node_indexes,
-#     n_trainer=args.n_trainer
-# )
+    # TODO: save the tensor to file
+    #     save_all_trainers_data(
+    #     split_node_indexes=split_node_indexes,
+    #     communicate_node_indexes=communicate_node_indexes,
+    #     edge_indexes_clients=edge_indexes_clients,
+    #     labels=labels,
+    #     features=features,
+    #     in_com_train_node_indexes=in_com_train_node_indexes,
+    #     in_com_test_node_indexes=in_com_test_node_indexes,
+    #     n_trainer=args.n_trainer
+    # )
 
     #######################################################################
     # Define and Send Data to Trainers
@@ -672,8 +707,7 @@ def run():
     # Server class is defined for federated aggregation (e.g., FedAvg)
     # without knowing the local trainer data
 
-    server = Server(features.shape[1], args_hidden,
-                    class_num, device, trainers, args)
+    server = Server(features.shape[1], args_hidden, class_num, device, trainers, args)
 
     #######################################################################
     # Pre-Train Communication of FedGCN
@@ -692,8 +726,7 @@ def run():
     ]
     global_feature_sum = torch.zeros_like(features)
     while True:
-        ready, left = ray.wait(local_neighbor_feature_sums,
-                               num_returns=1, timeout=None)
+        ready, left = ray.wait(local_neighbor_feature_sums, num_returns=1, timeout=None)
         if ready:
             for t in ready:
                 global_feature_sum += ray.get(t)
