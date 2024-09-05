@@ -32,7 +32,9 @@ eksctl create cluster -f eks_cluster_config.yaml
 Update kubeconfig for AWS EKS:
 
 ```bash
+
 aws eks --region us-west-2 update-kubeconfig --name gcn
+
 ```
 
 Clone the KubeRay Repository and Install Prometheus

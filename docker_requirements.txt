@@ -109,7 +109,6 @@ tensorboard==2.16.2
 tensorboard-data-server==0.7.2
 textual==0.60.1
 threadpoolctl==3.5.0
-
 torch-cluster
 torch-scatter
 torch-sparse
