@@ -2,12 +2,12 @@ apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 
 metadata:
-  name: test
+  name: gcn
   region: us-west-2
 
 nodeGroups:
   - name: head-nodes
-    instanceType: g4dn.xlarge
+    instanceType: m5.16xlarge
     desiredCapacity: 1
     minSize: 0
     maxSize: 1
@@ -16,10 +16,10 @@ nodeGroups:
       ray-node-type: head
 
   - name: worker-nodes
-    instanceType: g4dn.xlarge
-    desiredCapacity: 2
+    instanceType: m5.16xlarge
+    desiredCapacity: 1
     minSize: 0
-    maxSize: 3
+    maxSize: 1
     volumeSize: 1024
     amiFamily: Bottlerocket
     labels:

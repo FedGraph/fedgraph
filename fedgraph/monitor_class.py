@@ -1,4 +1,5 @@
 import datetime
+import time
 from typing import Dict, Optional
 
 import requests  # type: ignore
@@ -44,13 +45,16 @@ class Monitor:
         self.initial_network_data = self._get_network_data()
         print("Pretrain start time recorded and initial network data collected.")
 
-    def pretrain_time_end(self) -> None:
+    def pretrain_time_end(self, interval_seconds=30) -> None:
         if self.pretrain_start_time is not None:
             self.pretrain_end_time = datetime.datetime.now()
             pretrain_duration = (
                 self.pretrain_end_time - self.pretrain_start_time
             ).total_seconds() * 1000
             self.pretrain_time_cost_gauge.set(pretrain_duration)
+            print(f"//pretrain_time: {pretrain_duration} //end")
+            time.sleep(interval_seconds)
+            print("Sleeping through intervals")
             self.final_network_data = self._get_network_data()
             for pod in self.final_network_data:
                 if pod in self.initial_network_data:
@@ -59,7 +63,7 @@ class Monitor:
                     )
                     self.pretrain_node_network_gauge.set(network_diff)
                     print(f"pretrain round {self.current_round}")
-                    print(pod, network_diff)
+                    print(f"//Log {pod} network: {network_diff} //end")
                     break
 
             print("Pretrain end time recorded and duration set to gauge.")
@@ -71,14 +75,15 @@ class Monitor:
         print(self.initial_network_data)
         print("Train start time recorded and initial network data collected.")
 
-    def train_time_end(self) -> None:
+    def train_time_end(self, interval_seconds=30) -> None:
         if self.train_start_time is not None:
             self.train_end_time = datetime.datetime.now()
             train_duration = (
                 self.train_end_time - self.train_start_time
             ).total_seconds() * 1000
             self.train_time_cost_gauge.set(train_duration)
-
+            print(f"//train_time: {train_duration} //end")
+            time.sleep(interval_seconds)
             self.final_network_data = self._get_network_data()
             for pod in self.final_network_data:
                 if pod in self.initial_network_data:
@@ -87,7 +92,7 @@ class Monitor:
                     )
                     self.train_node_network_gauge.set(network_diff)
                     print(f"train round {self.current_round}")
-                    print(pod, network_diff)
+                    print(f"//Log {pod} network: {network_diff} //end")
                     break
             print(
                 "Train end time recorded, duration set to gauge, and network data difference calculated."
