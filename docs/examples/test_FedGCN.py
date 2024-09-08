@@ -55,7 +55,7 @@ parser.add_argument("-c", "--global_rounds", default=100, type=int)
 parser.add_argument("-i", "--local_step", default=3, type=int)
 parser.add_argument("-lr", "--learning_rate", default=0.1, type=float)
 
-parser.add_argument("-n", "--n_trainer", default=2, type=int)
+parser.add_argument("-n", "--n_trainer", default=3, type=int)
 parser.add_argument("-nl", "--num_layers", default=2, type=int)
 parser.add_argument("-nhop", "--num_hops", default=1, type=int)
 parser.add_argument("-g", "--gpu", action="store_true")  # if -g, use gpu
@@ -108,7 +108,7 @@ def load_trainer_data_from_hugging_face(trainer_id):
     features = download_and_load_tensor("features.pt")
     idx_train = download_and_load_tensor("idx_train.pt")
     idx_test = download_and_load_tensor("idx_test.pt")
-
+    # time.sleep(5)
     return (
         local_node_index,
         communicate_node_index,
@@ -398,47 +398,87 @@ class Trainer_General:
         torch.cuda.empty_cache()
         self.model.to(self.device)
         self.feature_aggregation = self.feature_aggregation.to(self.device)
-
+        print(f"size of feature aggregation: {self.feature_aggregation.size()}")
         g = dgl.graph((self.adj[0], self.adj[1]))
-        print(g)
-        g.ndata["features"] = self.features
-        g.ndata["labels"] = self.train_labels
-        g.ndata["train_mask"] = self.idx_train
-        g.ndata["test_mask"] = self.idx_test
-        print(g)
-        time.sleep(100)
+        # g.ndata["features"] = self.feature_aggregation
+        # train_mask = torch.zeros(g.num_nodes(), dtype=torch.bool)
+        # test_mask = torch.zeros(g.num_nodes(), dtype=torch.bool)
+
+        # train_mask[self.idx_train] = True
+        # test_mask[self.idx_test] = True
+
+        # g.ndata['train_mask'] = train_mask
+        # g.ndata['test_mask'] = test_mask
         sampler = dgl.dataloading.MultiLayerFullNeighborSampler(args.num_hops)
 
         dataloader = dgl.dataloading.DataLoader(
             g,
-            torch.nonzero(self.idx_train).squeeze(),
+            self.idx_train,
             sampler,
-            batch_size=6,
-            shuffle=True,
+            batch_size=256,
+            shuffle=False,
             drop_last=False,
             num_workers=0,
         )  # local no parrallel
+        trainIdx_to_index_map = (
+            {  # define train index map from real label to list index
+                actual_value.item(): index
+                for index, actual_value in enumerate(self.idx_train)
+            }
+        )
+        communicateNode_to_index_map = (
+            {  # define communicate node index map from real label to list index
+                actual_value.item(): index
+                for index, actual_value in enumerate(self.communicate_node_index)
+            }
+        )
 
-        input_nodes, output_nodes, blocks = next(iter(dataloader))
-        print(blocks)
         for iteration in range(self.local_step):
             self.model.train()
-            dataloader_iterator = iter(dataloader)
 
-            for i in range(1):
-                # just test the 1st one but still doesn't work
-                sampled_data = next(dataloader_iterator)
-
-                sampled_data = sampled_data.to(self.device)
-
+            for _, output_nodes, subgraph in dataloader:
+                (
+                    induced_nodes,
+                    _,
+                    __,
+                    ___,
+                ) = torch_geometric.utils.k_hop_subgraph(
+                    output_nodes, 0, self.adj, relabel_nodes=False
+                )
+                # used for debugging
+                ###############################################################
+                print("new batch")
+                print("Induced Nodes:", induced_nodes)
+                print("Output Nodes:", output_nodes)
+                print("communicate node index: ", self.communicate_node_index)
+                print("train index: ", self.idx_train)
+                print(f"subgraph: {subgraph}")
+                for node in output_nodes:
+                    if node.item() not in trainIdx_to_index_map:
+                        print(
+                            f"Missing output_node in trainIdx_to_index_map: {node.item()}"
+                        )
+                print(f"communicate_node_index: {self.communicate_node_index}")
+                for node in induced_nodes:
+                    if node.item() not in communicateNode_to_index_map:
+                        print(
+                            f"Missing induced_node in communicateNode_to_index_map: {node.item()}"
+                        )
+                ###############################################################
+                trainIdx_mapped_indices = [
+                    trainIdx_to_index_map[node.item()] for node in output_nodes
+                ]
+                communicateNode_mapped_indices = [
+                    communicateNode_to_index_map[node.item()] for node in induced_nodes
+                ]
                 loss_train, acc_train = train(
                     iteration,
                     self.model,
                     self.optimizer,
-                    sampled_data.x,
-                    sampled_data.edge_index,
-                    sampled_data.y[sampled_data.train_mask],
-                    sampled_data.train_mask,
+                    self.feature_aggregation[communicateNode_mapped_indices],
+                    self.adj,
+                    self.train_labels[trainIdx_mapped_indices],
+                    output_nodes,  # output node is the train index for the mini-batch
                 )
 
                 self.train_losses.append(loss_train)
@@ -663,16 +703,16 @@ def run():
         idx_test,
     )
     # TODO: save the tensor to file
-    #     save_all_trainers_data(
-    #     split_node_indexes=split_node_indexes,
-    #     communicate_node_indexes=communicate_node_indexes,
-    #     edge_indexes_clients=edge_indexes_clients,
-    #     labels=labels,
-    #     features=features,
-    #     in_com_train_node_indexes=in_com_train_node_indexes,
-    #     in_com_test_node_indexes=in_com_test_node_indexes,
-    #     n_trainer=args.n_trainer
-    # )
+    save_all_trainers_data(
+        split_node_indexes=split_node_indexes,
+        communicate_node_indexes=communicate_node_indexes,
+        edge_indexes_clients=edge_indexes_clients,
+        labels=labels,
+        features=features,
+        in_com_train_node_indexes=in_com_train_node_indexes,
+        in_com_test_node_indexes=in_com_test_node_indexes,
+        n_trainer=args.n_trainer,
+    )
 
     #######################################################################
     # Define and Send Data to Trainers
