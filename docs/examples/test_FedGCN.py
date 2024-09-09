@@ -55,7 +55,7 @@ parser.add_argument("-c", "--global_rounds", default=100, type=int)
 parser.add_argument("-i", "--local_step", default=3, type=int)
 parser.add_argument("-lr", "--learning_rate", default=0.1, type=float)
 
-parser.add_argument("-n", "--n_trainer", default=3, type=int)
+parser.add_argument("-n", "--n_trainer", default=2, type=int)
 parser.add_argument("-nl", "--num_layers", default=2, type=int)
 parser.add_argument("-nhop", "--num_hops", default=1, type=int)
 parser.add_argument("-g", "--gpu", action="store_true")  # if -g, use gpu
@@ -400,7 +400,7 @@ class Trainer_General:
         self.feature_aggregation = self.feature_aggregation.to(self.device)
         print(f"size of feature aggregation: {self.feature_aggregation.size()}")
         g = dgl.graph((self.adj[0], self.adj[1]))
-        # g.ndata["features"] = self.feature_aggregation
+        g.ndata["features_aggregation"] = self.feature_aggregation
         # train_mask = torch.zeros(g.num_nodes(), dtype=torch.bool)
         # test_mask = torch.zeros(g.num_nodes(), dtype=torch.bool)
 
@@ -426,30 +426,30 @@ class Trainer_General:
                 for index, actual_value in enumerate(self.idx_train)
             }
         )
-        communicateNode_to_index_map = (
-            {  # define communicate node index map from real label to list index
-                actual_value.item(): index
-                for index, actual_value in enumerate(self.communicate_node_index)
-            }
-        )
+        # communicateNode_to_index_map = (
+        #     {  # define communicate node index map from real label to list index
+        #         actual_value.item(): index
+        #         for index, actual_value in enumerate(self.communicate_node_index)
+        #     }
+        # )
 
         for iteration in range(self.local_step):
             self.model.train()
 
             for _, output_nodes, subgraph in dataloader:
-                (
-                    induced_nodes,
-                    _,
-                    __,
-                    ___,
-                ) = torch_geometric.utils.k_hop_subgraph(
-                    output_nodes, 0, self.adj, relabel_nodes=False
-                )
+                # (
+                #     induced_nodes,
+                #     _,
+                #     __,
+                #     ___,
+                # ) = torch_geometric.utils.k_hop_subgraph(
+                #     output_nodes, 0, self.adj, relabel_nodes=False
+                # )
                 # used for debugging
                 ###############################################################
                 print("new batch")
-                print("Induced Nodes:", induced_nodes)
-                print("Output Nodes:", output_nodes)
+                # print("Induced Nodes:", induced_nodes.size())
+                print("Output Nodes:", output_nodes.size())
                 print("communicate node index: ", self.communicate_node_index)
                 print("train index: ", self.idx_train)
                 print(f"subgraph: {subgraph}")
@@ -459,25 +459,35 @@ class Trainer_General:
                             f"Missing output_node in trainIdx_to_index_map: {node.item()}"
                         )
                 print(f"communicate_node_index: {self.communicate_node_index}")
-                for node in induced_nodes:
-                    if node.item() not in communicateNode_to_index_map:
-                        print(
-                            f"Missing induced_node in communicateNode_to_index_map: {node.item()}"
-                        )
+                # for node in induced_nodes:
+                #     if node.item() not in communicateNode_to_index_map:
+                #         print(
+                #             f"Missing induced_node in communicateNode_to_index_map: {node.item()}"
+                #         )
+                # communicateNode_mapped_indices = [
+                #     communicateNode_to_index_map[node.item()] for node in induced_nodes
+                # ]
+                # time.sleep(10)
                 ###############################################################
                 trainIdx_mapped_indices = [
                     trainIdx_to_index_map[node.item()] for node in output_nodes
                 ]
-                communicateNode_mapped_indices = [
-                    communicateNode_to_index_map[node.item()] for node in induced_nodes
+
+                src_nodes, dst_nodes = subgraph[0].edges()
+                batch_feature_aggregation = subgraph[0].ndata["features_aggregation"][
+                    "_N"
                 ]
+                print(batch_feature_aggregation.size())
+                batch_adj_matrix = torch.stack([src_nodes, dst_nodes], dim=0)
                 loss_train, acc_train = train(
                     iteration,
                     self.model,
                     self.optimizer,
-                    self.feature_aggregation[communicateNode_mapped_indices],
-                    self.adj,
-                    self.train_labels[trainIdx_mapped_indices],
+                    batch_feature_aggregation,  # adj matrix fitted into the splitter and extracted from the subgraph
+                    batch_adj_matrix,  # adj matrix directly gained from the subgraph
+                    self.train_labels[
+                        trainIdx_mapped_indices
+                    ],  # mapped from the real index to subgraph index
                     output_nodes,  # output node is the train index for the mini-batch
                 )
 

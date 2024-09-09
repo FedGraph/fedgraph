@@ -135,3 +135,12 @@ Finally, Delete the EKS Cluster:
 ```bash
 eksctl delete cluster --region us-west-2 --name gcn
 ```
+
+## Step 1: Pushing Data to Hugging Face Hub CLI
+
+Use the following command to install the Hugging Face Hub CLI tool if you haven't done so already:
+
+```bash
+pip install huggingface_hub
+huggingface-cli login
+```
