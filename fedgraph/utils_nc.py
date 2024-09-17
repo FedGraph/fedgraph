@@ -1,5 +1,6 @@
 import glob
 import re
+import time
 from pathlib import Path
 
 import attridict
@@ -83,7 +84,12 @@ def setdiff1d(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
 
 
 def label_dirichlet_partition(
-    labels: np.array, N: int, K: int, n_parties: int, beta: float
+    labels: np.array,
+    N: int,
+    K: int,
+    n_parties: int,
+    beta: float,
+    sigma: int,
 ) -> list:
     """
     Partitions data based on labels by using the Dirichlet distribution, to ensure even distribution of samples
@@ -112,22 +118,35 @@ def label_dirichlet_partition(
 
     split_data_indexes = []
 
+    # generating unbalanced portion of the clients' node numbers but keep the iid-distributions
+    # controlled by the sigma number
+
+    if sigma > 0:
+        weights = np.random.lognormal(mean=0, sigma=sigma, size=n_parties)
+    else:
+        # is balanced number, keep weights to be equally 1
+        weights = np.ones(n_parties)
+
+    weights /= weights.sum()
     while min_size < min_require_size:
         idx_batch: list[list[int]] = [[] for _ in range(n_parties)]
         for k in range(K):
             idx_k = np.where(labels == k)[0]
             np.random.shuffle(idx_k)
             proportions = np.random.dirichlet(np.repeat(beta, n_parties))
+            if sigma == 0:
+                # keep the same client's node number
+                proportions = np.array(
+                    [
+                        p * (len(idx_j) < N / n_parties)
+                        for p, idx_j in zip(proportions, idx_batch)
+                    ]
+                )
 
-            proportions = np.array(
-                [
-                    p * (len(idx_j) < N / n_parties)
-                    for p, idx_j in zip(proportions, idx_batch)
-                ]
-            )
-
+            for i in range(n_parties):
+                proportions[i] *= weights[i]
             proportions = proportions / proportions.sum()
-
+            # print(proportions)
             proportions = (np.cumsum(proportions) * len(idx_k)).astype(int)[:-1]
 
             idx_batch = [
@@ -139,6 +158,8 @@ def label_dirichlet_partition(
     for j in range(n_parties):
         np.random.shuffle(idx_batch[j])
         split_data_indexes.append(idx_batch[j])
+    # for s in split_data_indexes:
+    #     print(len(s))
     return split_data_indexes
 
 
@@ -311,7 +332,7 @@ def get_in_comm_indexes(
 
         inter = intersect1d(
             split_node_indexes[i], idx_train
-        )  ###only count the train data of nodes in current server(not communicate nodes)
+        )  # only count the train data of nodes in current server(not communicate nodes)
 
         in_com_train_node_indexes.append(
             torch.searchsorted(communicate_node_indexes[i], inter).clone()

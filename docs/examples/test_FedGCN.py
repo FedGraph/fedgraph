@@ -32,7 +32,6 @@ from torch_geometric.loader import NeighborLoader
 
 from fedgraph.gnn_models import GCN, GIN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
 from fedgraph.monitor_class import Monitor
-from fedgraph.server_class import Server
 from fedgraph.train_func import test, train
 from fedgraph.utils_nc import (
     get_1hop_feature_sum,
@@ -51,15 +50,15 @@ parser.add_argument("-d", "--dataset", default="cora", type=str)
 
 parser.add_argument("-f", "--fedtype", default="fedgcn", type=str)
 
-parser.add_argument("-c", "--global_rounds", default=100, type=int)
+parser.add_argument("-c", "--global_rounds", default=10, type=int)
 parser.add_argument("-i", "--local_step", default=3, type=int)
 parser.add_argument("-lr", "--learning_rate", default=0.1, type=float)
 
 parser.add_argument("-n", "--n_trainer", default=2, type=int)
 parser.add_argument("-nl", "--num_layers", default=2, type=int)
-parser.add_argument("-nhop", "--num_hops", default=1, type=int)
+parser.add_argument("-nhop", "--num_hops", default=2, type=int)
 parser.add_argument("-g", "--gpu", action="store_true")  # if -g, use gpu
-parser.add_argument("-iid_b", "--iid_beta", default=1.0, type=float)
+parser.add_argument("-iid_b", "--iid_beta", default=10000, type=float)
 
 parser.add_argument("-l", "--logdir", default="./runs", type=str)
 
@@ -101,36 +100,37 @@ def load_trainer_data_from_hugging_face(trainer_id):
 
     print(f"Loading client data {trainer_id}")
     local_node_index = download_and_load_tensor("local_node_index.pt")
-    communicate_node_index = download_and_load_tensor("communicate_node_index.pt")
-    adj = download_and_load_tensor("adj.pt")
+    communicate_node_global_index = download_and_load_tensor(
+        "communicate_node_index.pt"
+    )
+    global_edge_index_client = download_and_load_tensor("adj.pt")
     train_labels = download_and_load_tensor("train_labels.pt")
     test_labels = download_and_load_tensor("test_labels.pt")
     features = download_and_load_tensor("features.pt")
-    idx_train = download_and_load_tensor("idx_train.pt")
-    idx_test = download_and_load_tensor("idx_test.pt")
-    # time.sleep(5)
+    in_com_train_node_local_indexes = download_and_load_tensor("idx_train.pt")
+    in_com_test_node_local_indexes = download_and_load_tensor("idx_test.pt")
     return (
         local_node_index,
-        communicate_node_index,
-        adj,
+        communicate_node_global_index,
+        global_edge_index_client,
         train_labels,
         test_labels,
         features,
-        idx_train,
-        idx_test,
+        in_com_train_node_local_indexes,
+        in_com_test_node_local_indexes,
     )
 
 
 def save_trainer_data_to_hugging_face(
     trainer_id,
     local_node_index,
-    communicate_node_index,
-    adj,
+    communicate_node_global_index,
+    global_edge_index_client,
     train_labels,
     test_labels,
     features,
-    idx_train,
-    idx_test,
+    in_com_train_node_local_indexes,
+    in_com_test_node_local_indexes,
 ):
     repo_name = f"FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{args.num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}"
     user = HfFolder.get_token()
@@ -157,43 +157,175 @@ def save_trainer_data_to_hugging_face(
         )
 
     save_tensor_to_hf(local_node_index, "local_node_index.pt")
-    save_tensor_to_hf(communicate_node_index, "communicate_node_index.pt")
-    save_tensor_to_hf(adj, "adj.pt")
+    save_tensor_to_hf(communicate_node_global_index, "communicate_node_index.pt")
+    save_tensor_to_hf(global_edge_index_client, "adj.pt")
     save_tensor_to_hf(train_labels, "train_labels.pt")
     save_tensor_to_hf(test_labels, "test_labels.pt")
     save_tensor_to_hf(features, "features.pt")
-    save_tensor_to_hf(idx_train, "idx_train.pt")
-    save_tensor_to_hf(idx_test, "idx_test.pt")
+    save_tensor_to_hf(in_com_train_node_local_indexes, "idx_train.pt")
+    save_tensor_to_hf(in_com_test_node_local_indexes, "idx_test.pt")
 
     print(f"Uploaded data for trainer {trainer_id}")
 
 
 def save_all_trainers_data(
     split_node_indexes,
-    communicate_node_indexes,
-    edge_indexes_clients,
+    communicate_node_global_indexes,
+    global_edge_indexes_clients,
     labels,
     features,
-    in_com_train_node_indexes,
-    in_com_test_node_indexes,
+    in_com_train_node_local_indexes,
+    in_com_test_node_local_indexes,
     n_trainer,
 ):
     for i in range(n_trainer):
         save_trainer_data_to_hugging_face(
             trainer_id=i,
             local_node_index=split_node_indexes[i],
-            communicate_node_index=communicate_node_indexes[i],
-            adj=edge_indexes_clients[i],
-            train_labels=labels[communicate_node_indexes[i]][
-                in_com_train_node_indexes[i]
+            communicate_node_global_index=communicate_node_global_indexes[i],
+            global_edge_index_client=global_edge_indexes_clients[i],
+            train_labels=labels[communicate_node_global_indexes[i]][
+                in_com_train_node_local_indexes[i]
             ],
-            test_labels=labels[communicate_node_indexes[i]][
-                in_com_test_node_indexes[i]
+            test_labels=labels[communicate_node_global_indexes[i]][
+                in_com_test_node_local_indexes[i]
             ],
             features=features[split_node_indexes[i]],
-            idx_train=in_com_train_node_indexes[i],
-            idx_test=in_com_test_node_indexes[i],
+            in_com_train_node_local_indexes=in_com_train_node_local_indexes[i],
+            in_com_test_node_local_indexes=in_com_test_node_local_indexes[i],
         )
+
+
+class Server:
+    """
+    This is a server class for federated learning which is responsible for aggregating model parameters
+    from different trainers, updating the central model, and then broadcasting the updated model parameters
+    back to the trainers.
+
+    Parameters
+    ----------
+    feature_dim : int
+        The dimensionality of the feature vectors in the dataset.
+    args_hidden : int
+        The number of hidden units.
+    class_num : int
+        The number of classes for classification in the dataset.
+    device : torch.device
+        The device initialized for the server model.
+    trainers : list[Trainer_General]
+        A list of `Trainer_General` instances representing the trainers.
+    args : Any
+        Additional arguments required for initializing the server model and other configurations.
+
+    Attributes
+    ----------
+    model : [AggreGCN, GCN_arxiv, SAGE_products, GCN]
+        The central GCN model that is trained in a federated manner.
+    trainers : list[Trainer_General]
+        The list of trainer instances.
+    num_of_trainers : int
+        The number of trainers.
+    """
+
+    def __init__(
+        self,
+        feature_dim: int,
+        args_hidden: int,
+        class_num: int,
+        device: torch.device,
+        trainers: list,
+        args: Any,
+    ) -> None:
+        # server model on cpu
+        if args.num_hops >= 1 and args.fedtype == "fedgcn":
+            self.model = AggreGCN(
+                nfeat=feature_dim,
+                nhid=args_hidden,
+                nclass=class_num,
+                dropout=0.5,
+                NumLayers=args.num_layers,
+            )
+        else:
+            if args.dataset == "ogbn-arxiv":
+                self.model = GCN_arxiv(
+                    nfeat=feature_dim,
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=args.num_layers,
+                )
+            elif args.dataset == "ogbn-products":
+                self.model = SAGE_products(
+                    nfeat=feature_dim,
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=args.num_layers,
+                )
+            else:
+                self.model = GCN(
+                    nfeat=feature_dim,
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=args.num_layers,
+                )
+
+        self.trainers = trainers
+        self.num_of_trainers = len(trainers)
+        self.broadcast_params(-1)
+
+    @torch.no_grad()
+    def zero_params(self) -> None:
+        """
+        Zeros out the parameters of the central model.
+        """
+        for p in self.model.parameters():
+            p.zero_()
+
+    @torch.no_grad()
+    def train(self, current_global_epoch: int) -> None:
+        """
+        Training round which perform aggregating parameters from trainers, updating the central model,
+        and then broadcasting the updated parameters back to the trainers.
+
+        Parameters
+        ----------
+        current_global_epoch : int
+            The current global epoch number during the federated learning process.
+        """
+        for trainer in self.trainers:
+            trainer.train.remote(current_global_epoch)
+        params = [trainer.get_params.remote() for trainer in self.trainers]
+        self.zero_params()
+
+        while True:
+            ready, left = ray.wait(params, num_returns=1, timeout=None)
+            if ready:
+                for t in ready:
+                    for p, mp in zip(ray.get(t), self.model.parameters()):
+                        mp.data += p.cpu()
+            params = left
+            if not params:
+                break
+
+        for p in self.model.parameters():
+            p /= self.num_of_trainers
+        self.broadcast_params(current_global_epoch)
+
+    def broadcast_params(self, current_global_epoch: int) -> None:
+        """
+        Broadcasts the current parameters of the central model to all trainers.
+
+        Parameters
+        ----------
+        current_global_epoch : int
+            The current global epoch number during the federated learning process.
+        """
+        for trainer in self.trainers:
+            trainer.update_params.remote(
+                tuple(self.model.parameters()), current_global_epoch
+            )  # run in submit order
 
 
 class Trainer_General:
@@ -247,13 +379,13 @@ class Trainer_General:
         torch.manual_seed(rank)
         (
             local_node_index,
-            communicate_node_index,
-            adj,
+            communicate_node_global_index,
+            global_edge_index_client,
             train_labels,
             test_labels,
             features,
-            idx_train,
-            idx_test,
+            in_com_train_node_local_indexes,
+            in_com_test_node_local_indexes,
         ) = load_trainer_data_from_hugging_face(rank)
 
         # seems that new trainer process will not inherit sys.path from parent, need to reimport!
@@ -308,14 +440,16 @@ class Trainer_General:
         self.test_accs: list = []
 
         self.local_node_index = local_node_index.to(device)
-        self.communicate_node_index = communicate_node_index.to(device)
+        self.communicate_node_index = communicate_node_global_index.to(device)
 
-        self.adj = adj.to(device)
+        self.adj = global_edge_index_client.to(device)
         self.train_labels = train_labels.to(device)
         self.test_labels = test_labels.to(device)
         self.features = features.to(device)
-        self.idx_train = idx_train.to(device)
-        self.idx_test = idx_test.to(device)
+        self.in_com_train_node_local_indexes = in_com_train_node_local_indexes.to(
+            device
+        )
+        self.in_com_test_node_local_indexes = in_com_test_node_local_indexes.to(device)
 
         self.local_step = args.local_step
         self.global_node_num = global_node_num
@@ -355,9 +489,7 @@ class Trainer_General:
         # create a large matrix with known local node features
         new_feature_for_trainer = torch.zeros(
             self.global_node_num, self.features.shape[1]
-        ).to(
-            self.device
-        )  # TODO:check if all the tensors are in the same device
+        ).to(self.device)
         new_feature_for_trainer[self.local_node_index] = self.features
         # sum of features of all 1-hop nodes for each node
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
@@ -398,103 +530,89 @@ class Trainer_General:
         torch.cuda.empty_cache()
         self.model.to(self.device)
         self.feature_aggregation = self.feature_aggregation.to(self.device)
-        print(f"size of feature aggregation: {self.feature_aggregation.size()}")
+
         g = dgl.graph((self.adj[0], self.adj[1]))
+        # dgl graph index is local, max_index is equal to the client's feature aggregation size
         g.ndata["features_aggregation"] = self.feature_aggregation
-        # train_mask = torch.zeros(g.num_nodes(), dtype=torch.bool)
-        # test_mask = torch.zeros(g.num_nodes(), dtype=torch.bool)
 
-        # train_mask[self.idx_train] = True
-        # test_mask[self.idx_test] = True
-
-        # g.ndata['train_mask'] = train_mask
-        # g.ndata['test_mask'] = test_mask
-        sampler = dgl.dataloading.MultiLayerFullNeighborSampler(args.num_hops)
+        sampler = dgl.dataloading.MultiLayerFullNeighborSampler(2)
 
         dataloader = dgl.dataloading.DataLoader(
             g,
-            self.idx_train,
+            # this is local train index relative to client's subgraph
+            self.in_com_train_node_local_indexes,
             sampler,
-            batch_size=256,
+            batch_size=4096,
             shuffle=False,
             drop_last=False,
-            num_workers=0,
-        )  # local no parrallel
-        trainIdx_to_index_map = (
-            {  # define train index map from real label to list index
-                actual_value.item(): index
-                for index, actual_value in enumerate(self.idx_train)
-            }
+            num_workers=0,  # local no parrallel
         )
-        # communicateNode_to_index_map = (
-        #     {  # define communicate node index map from real label to list index
-        #         actual_value.item(): index
-        #         for index, actual_value in enumerate(self.communicate_node_index)
-        #     }
-        # )
+        trainIdx_to_index_map = {  # define train index map from client's local graph index to train label's index after the mini-batch splitting
+            actual_value.item(): index
+            for index, actual_value in enumerate(self.in_com_train_node_local_indexes)
+        }
 
         for iteration in range(self.local_step):
             self.model.train()
 
-            for _, output_nodes, subgraph in dataloader:
-                # (
-                #     induced_nodes,
-                #     _,
-                #     __,
-                #     ___,
-                # ) = torch_geometric.utils.k_hop_subgraph(
-                #     output_nodes, 0, self.adj, relabel_nodes=False
-                # )
-                # used for debugging
-                ###############################################################
-                print("new batch")
-                # print("Induced Nodes:", induced_nodes.size())
-                print("Output Nodes:", output_nodes.size())
-                print("communicate node index: ", self.communicate_node_index)
-                print("train index: ", self.idx_train)
-                print(f"subgraph: {subgraph}")
-                for node in output_nodes:
-                    if node.item() not in trainIdx_to_index_map:
-                        print(
-                            f"Missing output_node in trainIdx_to_index_map: {node.item()}"
-                        )
-                print(f"communicate_node_index: {self.communicate_node_index}")
-                # for node in induced_nodes:
-                #     if node.item() not in communicateNode_to_index_map:
-                #         print(
-                #             f"Missing induced_node in communicateNode_to_index_map: {node.item()}"
-                #         )
-                # communicateNode_mapped_indices = [
-                #     communicateNode_to_index_map[node.item()] for node in induced_nodes
-                # ]
-                # time.sleep(10)
-                ###############################################################
-                trainIdx_mapped_indices = [
-                    trainIdx_to_index_map[node.item()] for node in output_nodes
-                ]
-
-                src_nodes, dst_nodes = subgraph[0].edges()
+            for ix, output_nodes, subgraph in dataloader:
                 batch_feature_aggregation = subgraph[0].ndata["features_aggregation"][
                     "_N"
                 ]
-                print(batch_feature_aggregation.size())
+                src_nodes, dst_nodes = subgraph[0].edges()
+
+                # the size of batch_adj_matrix is [2,edges], the maximium index is equal to the batch_feature_aggregation
                 batch_adj_matrix = torch.stack([src_nodes, dst_nodes], dim=0)
+                distinct_values = torch.unique(batch_adj_matrix)
+                # print("distinct node index values from edge index:", distinct_values)
+                # print(
+                #     f"batch_feature_aggregation size: {batch_feature_aggregation.size()}")
+                # map nodes index of client's graph to train labels' index
+                trainIdx_mapped_indices = [
+                    trainIdx_to_index_map[node.item()] for node in output_nodes
+                ]
+                # get the original index relavant to the global graph
+                nid_map = subgraph[0].ndata[dgl.NID]["_N"]
+                # print(subgraph[0].ndata[dgl.NID])
+                # print(ix)
+                # print(output_nodes)
+                # print("nid_map 的大小:", nid_map.size())
+                # print(f" mini-batch node client_graph's index: {output_nodes}")
+                # generate train_index relevant to the mini-batch subgraph
+                output_nodes_mapped_indices = [
+                    torch.where(nid_map == node)[0].item() for node in output_nodes
+                ]
+                # print(f"相对于mini-batch的index: {output_nodes_mapped_indices}")
+                print(self.feature_aggregation.size())
+                print(batch_feature_aggregation.size())
+                distinct_values = torch.unique(batch_adj_matrix)
+                print("distinct node index values from edge index:", distinct_values)
+                distinct_values2 = torch.unique(self.adj)
+                print("distinct node index values from original:", distinct_values2)
+                print(len(list(distinct_values2)))
                 loss_train, acc_train = train(
                     iteration,
                     self.model,
                     self.optimizer,
-                    batch_feature_aggregation,  # adj matrix fitted into the splitter and extracted from the subgraph
-                    batch_adj_matrix,  # adj matrix directly gained from the subgraph
+                    # self.feature_aggregation,
+                    # self.adj,
+                    batch_feature_aggregation,  # agg-feat matrix extracted from the mini-subgraph
+                    batch_adj_matrix,  # adj matrix directly gained from the mini-subgraph
                     self.train_labels[
                         trainIdx_mapped_indices
-                    ],  # mapped from the real index to subgraph index
-                    output_nodes,  # output node is the train index for the mini-batch
+                    ],  # extract train_label in mini-batch
+                    output_nodes_mapped_indices,  # train index relative to the mini-batch
+                    # self.train_labels,
+                    # self.in_com_train_node_local_indexes,
                 )
+                print(f"acc_train: {acc_train}")
 
                 self.train_losses.append(loss_train)
                 self.train_accs.append(acc_train)
 
             loss_test, acc_test = self.local_test()
+            print(f"acc_test: {acc_test}")
+
             self.test_losses.append(loss_test)
             self.test_accs.append(acc_test)
 
@@ -512,7 +630,7 @@ class Trainer_General:
             self.feature_aggregation,
             self.adj,
             self.test_labels,
-            self.idx_test,
+            self.in_com_test_node_local_indexes,
         )
         return [local_test_loss, local_test_acc]
 
@@ -691,8 +809,10 @@ def run():
     # and community_partition_non_iid to split the large graph into multiple trainers
 
     split_node_indexes = label_dirichlet_partition(
-        labels, len(labels), class_num, args.n_trainer, beta=args.iid_beta
+        labels, len(labels), class_num, args.n_trainer, beta=args.iid_beta, sigma=0
     )
+
+    time.sleep(100)
 
     for i in range(args.n_trainer):
         split_node_indexes[i] = np.array(split_node_indexes[i])
@@ -700,10 +820,10 @@ def run():
         split_node_indexes[i] = torch.tensor(split_node_indexes[i])
 
     (
-        communicate_node_indexes,
-        in_com_train_node_indexes,
-        in_com_test_node_indexes,
-        edge_indexes_clients,
+        communicate_node_global_indexes,
+        in_com_train_node_local_indexes,
+        in_com_test_node_local_indexes,
+        global_edge_indexes_clients,
     ) = get_in_comm_indexes(
         edge_index,
         split_node_indexes,
@@ -712,15 +832,14 @@ def run():
         idx_train,
         idx_test,
     )
-    # TODO: save the tensor to file
     save_all_trainers_data(
         split_node_indexes=split_node_indexes,
-        communicate_node_indexes=communicate_node_indexes,
-        edge_indexes_clients=edge_indexes_clients,
+        communicate_node_global_indexes=communicate_node_global_indexes,
+        global_edge_indexes_clients=global_edge_indexes_clients,
         labels=labels,
         features=features,
-        in_com_train_node_indexes=in_com_train_node_indexes,
-        in_com_test_node_indexes=in_com_test_node_indexes,
+        in_com_train_node_local_indexes=in_com_train_node_local_indexes,
+        in_com_test_node_local_indexes=in_com_test_node_local_indexes,
         n_trainer=args.n_trainer,
     )
 
@@ -787,7 +906,7 @@ def run():
     # test if aggregation is correct
     for i in range(args.n_trainer):
         server.trainers[i].load_feature_aggregation.remote(
-            global_feature_sum[communicate_node_indexes[i]]
+            global_feature_sum[communicate_node_global_indexes[i]]
         )
     print("clients received feature aggregation from server")
     [trainer.relabel_adj.remote() for trainer in server.trainers]
@@ -821,8 +940,8 @@ def run():
     # The server collects the local test loss and accuracy from all clients
     # then calculate the overall test loss and accuracy.
 
-    train_data_weights = [len(i) for i in in_com_train_node_indexes]
-    test_data_weights = [len(i) for i in in_com_test_node_indexes]
+    train_data_weights = [len(i) for i in in_com_train_node_local_indexes]
+    test_data_weights = [len(i) for i in in_com_test_node_local_indexes]
 
     results = [trainer.local_test.remote() for trainer in server.trainers]
     results = np.array([ray.get(result) for result in results])
@@ -839,8 +958,7 @@ def run():
 
 for d in ["cora"]:
     args.dataset = d
-    for b in [1.0]:
-        args.iid_beta = b
+    for b in [10000]:
         print(f"at dataset: {d}, beta: {b}")
         run()
 ray.shutdown()

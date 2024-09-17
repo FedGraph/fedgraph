@@ -1,18 +1,23 @@
 import argparse
 import random
 import time
-from typing import Any, List, Union
+from io import BytesIO
+from typing import Any, Dict, List, Union
 
 import numpy as np
 import ray
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric
+from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
+from torch_geometric.data import Data
 from torchmetrics.functional.retrieval import retrieval_auroc
 from torchmetrics.retrieval import RetrievalHitRate
 
 from fedgraph.gnn_models import GCN, GIN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
 from fedgraph.train_func import test, train
+from fedgraph.utils_gat import FedGATLoss
 from fedgraph.utils_lp import (
     check_data_files_existance,
     get_data,
@@ -20,6 +25,42 @@ from fedgraph.utils_lp import (
     get_global_user_item_mapping,
 )
 from fedgraph.utils_nc import get_1hop_feature_sum
+
+
+def load_trainer_data_from_hugging_face(trainer_id, args):
+    repo_name = f"FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{args.num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}"
+
+    def download_and_load_tensor(file_name):
+        file_path = hf_hub_download(
+            repo_id=repo_name, repo_type="dataset", filename=file_name
+        )
+        with open(file_path, "rb") as f:
+            buffer = BytesIO(f.read())
+            tensor = torch.load(buffer)
+        print(f"Loaded {file_name}, size: {tensor.size()}")
+        return tensor
+
+    print(f"Loading client data {trainer_id}")
+    local_node_index = download_and_load_tensor("local_node_index.pt")
+    communicate_node_global_index = download_and_load_tensor(
+        "communicate_node_index.pt"
+    )
+    global_edge_index_client = download_and_load_tensor("adj.pt")
+    train_labels = download_and_load_tensor("train_labels.pt")
+    test_labels = download_and_load_tensor("test_labels.pt")
+    features = download_and_load_tensor("features.pt")
+    in_com_train_node_local_indexes = download_and_load_tensor("idx_train.pt")
+    in_com_test_node_local_indexes = download_and_load_tensor("idx_test.pt")
+    return (
+        local_node_index,
+        communicate_node_global_index,
+        global_edge_index_client,
+        train_labels,
+        test_labels,
+        features,
+        in_com_train_node_local_indexes,
+        in_com_test_node_local_indexes,
+    )
 
 
 class Trainer_General:
@@ -63,14 +104,14 @@ class Trainer_General:
     def __init__(
         self,
         rank: int,
-        local_node_index: torch.Tensor,
-        communicate_node_index: torch.Tensor,
-        adj: torch.Tensor,
-        train_labels: torch.Tensor,
-        test_labels: torch.Tensor,
-        features: torch.Tensor,
-        idx_train: torch.Tensor,
-        idx_test: torch.Tensor,
+        # local_node_index: torch.Tensor,
+        # communicate_node_index: torch.Tensor,
+        # adj: torch.Tensor,
+        # train_labels: torch.Tensor,
+        # test_labels: torch.Tensor,
+        # features: torch.Tensor,
+        # idx_train: torch.Tensor,
+        # idx_test: torch.Tensor,
         args_hidden: int,
         global_node_num: int,
         class_num: int,
@@ -79,7 +120,16 @@ class Trainer_General:
     ):
         # from gnn_models import GCN_Graph_Classification
         torch.manual_seed(rank)
-
+        (
+            local_node_index,
+            communicate_node_index,
+            adj,
+            train_labels,
+            test_labels,
+            features,
+            idx_train,
+            idx_test,
+        ) = load_trainer_data_from_hugging_face(rank, args)
         # seems that new trainer process will not inherit sys.path from parent, need to reimport!
         if args.num_hops >= 1 and args.fedtype == "fedgcn":
             self.model = AggreGCN(
@@ -235,10 +285,11 @@ class Trainer_General:
             )
             self.train_losses.append(loss_train)
             self.train_accs.append(acc_train)
-
+            # print(f"acc_train: {acc_train}")
             loss_test, acc_test = self.local_test()
             self.test_losses.append(loss_test)
             self.test_accs.append(acc_test)
+            # print(f"acc_test: {acc_test}")
 
     def local_test(self) -> list:
         """
@@ -948,7 +999,6 @@ class Trainer_LP:
         check_data_files_existance(country_codes, file_path)
         # global user_id and item_id
         self.data = get_data(self.country_code, user_id_mapping, item_id_mapping)
-
         self.model = GNN_LP(
             number_of_users, number_of_items, meta_data, hidden_channels
         )

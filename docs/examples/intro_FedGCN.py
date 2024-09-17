@@ -11,11 +11,13 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 
 import argparse
 import time
+from io import BytesIO
 from typing import Any
 
 import numpy as np
 import ray
 import torch
+from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
 
 from fedgraph.data_process import FedGCN_load_data
 from fedgraph.monitor_class import Monitor
@@ -95,7 +97,7 @@ else:
 
 
 split_node_indexes = label_dirichlet_partition(
-    labels, len(labels), class_num, args.n_trainer, beta=args.iid_beta
+    labels, len(labels), class_num, args.n_trainer, beta=args.iid_beta, sigma=0
 )
 
 for i in range(args.n_trainer):
@@ -104,10 +106,10 @@ for i in range(args.n_trainer):
     split_node_indexes[i] = torch.tensor(split_node_indexes[i])
 
 (
-    communicate_node_indexes,
-    in_com_train_node_indexes,
-    in_com_test_node_indexes,
-    edge_indexes_clients,
+    communicate_node_global_indexes,
+    in_com_train_node_local_indexes,
+    in_com_test_node_local_indexes,
+    global_edge_indexes_clients,
 ) = get_in_comm_indexes(
     edge_index,
     split_node_indexes,
@@ -118,11 +120,96 @@ for i in range(args.n_trainer):
 )
 
 
+def save_trainer_data_to_hugging_face(
+    trainer_id,
+    local_node_index,
+    communicate_node_global_index,
+    global_edge_index_client,
+    train_labels,
+    test_labels,
+    features,
+    in_com_train_node_local_indexes,
+    in_com_test_node_local_indexes,
+):
+    repo_name = f"FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{args.num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}"
+    user = HfFolder.get_token()
+
+    api = HfApi()
+    try:
+        api.create_repo(
+            repo_id=repo_name, token=user, repo_type="dataset", exist_ok=True
+        )
+    except Exception as e:
+        print(f"Failed to create or access the repository: {str(e)}")
+        return
+
+    def save_tensor_to_hf(tensor, file_name):
+        buffer = BytesIO()
+        torch.save(tensor, buffer)
+        buffer.seek(0)
+        api.upload_file(
+            path_or_fileobj=buffer,
+            path_in_repo=file_name,
+            repo_id=repo_name,
+            repo_type="dataset",
+            token=user,
+        )
+
+    save_tensor_to_hf(local_node_index, "local_node_index.pt")
+    save_tensor_to_hf(communicate_node_global_index, "communicate_node_index.pt")
+    save_tensor_to_hf(global_edge_index_client, "adj.pt")
+    save_tensor_to_hf(train_labels, "train_labels.pt")
+    save_tensor_to_hf(test_labels, "test_labels.pt")
+    save_tensor_to_hf(features, "features.pt")
+    save_tensor_to_hf(in_com_train_node_local_indexes, "idx_train.pt")
+    save_tensor_to_hf(in_com_test_node_local_indexes, "idx_test.pt")
+
+    print(f"Uploaded data for trainer {trainer_id}")
+
+
+def save_all_trainers_data(
+    split_node_indexes,
+    communicate_node_global_indexes,
+    global_edge_indexes_clients,
+    labels,
+    features,
+    in_com_train_node_local_indexes,
+    in_com_test_node_local_indexes,
+    n_trainer,
+):
+    for i in range(n_trainer):
+        save_trainer_data_to_hugging_face(
+            trainer_id=i,
+            local_node_index=split_node_indexes[i],
+            communicate_node_global_index=communicate_node_global_indexes[i],
+            global_edge_index_client=global_edge_indexes_clients[i],
+            train_labels=labels[communicate_node_global_indexes[i]][
+                in_com_train_node_local_indexes[i]
+            ],
+            test_labels=labels[communicate_node_global_indexes[i]][
+                in_com_test_node_local_indexes[i]
+            ],
+            features=features[split_node_indexes[i]],
+            in_com_train_node_local_indexes=in_com_train_node_local_indexes[i],
+            in_com_test_node_local_indexes=in_com_test_node_local_indexes[i],
+        )
+
+
 #######################################################################
 # Define and Send Data to Trainers
 # --------------------------------
 # FedGraph first determines the resources for each trainer, then send
 # the data to each remote trainer.
+save_all_trainers_data(
+    split_node_indexes=split_node_indexes,
+    communicate_node_global_indexes=communicate_node_global_indexes,
+    global_edge_indexes_clients=global_edge_indexes_clients,
+    labels=labels,
+    features=features,
+    in_com_train_node_local_indexes=in_com_train_node_local_indexes,
+    in_com_test_node_local_indexes=in_com_test_node_local_indexes,
+    n_trainer=args.n_trainer,
+)
 
 
 @ray.remote(
@@ -138,14 +225,6 @@ class Trainer(Trainer_General):
 trainers = [
     Trainer.remote(  # type: ignore
         rank=i,
-        local_node_index=split_node_indexes[i],
-        communicate_node_index=communicate_node_indexes[i],
-        adj=edge_indexes_clients[i],
-        train_labels=labels[communicate_node_indexes[i]][in_com_train_node_indexes[i]],
-        test_labels=labels[communicate_node_indexes[i]][in_com_test_node_indexes[i]],
-        features=features[split_node_indexes[i]],
-        idx_train=in_com_train_node_indexes[i],
-        idx_test=in_com_test_node_indexes[i],
         args_hidden=args_hidden,
         global_node_num=len(features),
         class_num=class_num,
@@ -171,8 +250,8 @@ server = Server(features.shape[1], args_hidden, class_num, device, trainers, arg
 # of specific nodes back to each client.
 
 # starting monitor:
-monitor = Monitor()
-monitor.pretrain_time_start()
+# monitor = Monitor()
+# monitor.pretrain_time_start()
 local_neighbor_feature_sums = [
     trainer.get_local_feature_sum.remote() for trainer in server.trainers
 ]
@@ -191,12 +270,12 @@ if args.num_hops != 0:
     assert (global_feature_sum != get_1hop_feature_sum(features, edge_index)).sum() == 0
 for i in range(args.n_trainer):
     server.trainers[i].load_feature_aggregation.remote(
-        global_feature_sum[communicate_node_indexes[i]]
+        global_feature_sum[communicate_node_global_indexes[i]]
     )
 print("clients received feature aggregation from server")
 [trainer.relabel_adj.remote() for trainer in server.trainers]
 # ending monitor:
-monitor.pretrain_time_end(30)
+# monitor.pretrain_time_end(30)
 
 #######################################################################
 # Federated Training
@@ -205,10 +284,10 @@ monitor.pretrain_time_end(30)
 # at every global round.
 
 print("global_rounds", args.global_rounds)
-monitor.train_time_start()
+# monitor.train_time_start()
 for i in range(args.global_rounds):
     server.train(i)
-monitor.train_time_end(30)
+# monitor.train_time_end(30)
 
 #######################################################################
 # Summarize Experiment Results
@@ -216,8 +295,8 @@ monitor.train_time_end(30)
 # The server collects the local test loss and accuracy from all clients
 # then calculate the overall test loss and accuracy.
 
-train_data_weights = [len(i) for i in in_com_train_node_indexes]
-test_data_weights = [len(i) for i in in_com_test_node_indexes]
+train_data_weights = [len(i) for i in in_com_train_node_local_indexes]
+test_data_weights = [len(i) for i in in_com_test_node_local_indexes]
 
 results = [trainer.local_test.remote() for trainer in server.trainers]
 results = np.array([ray.get(result) for result in results])
