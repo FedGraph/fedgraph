@@ -89,14 +89,15 @@ def label_dirichlet_partition(
     K: int,
     n_parties: int,
     beta: float,
-    sigma: int,
+    # can be "lognormal", "powerlaw", "exponential", "average"
+    distribution_type: str = "powerlaw",
 ) -> list:
     """
-    Partitions data based on labels by using the Dirichlet distribution, to ensure even distribution of samples
+    Partitions data based on labels by using the Dirichlet distribution, to ensure even distribution of samples.
 
     Parameters
     ----------
-    labels : NumPy array
+    labels : np.array
         An array with labels or categories for each data point.
     N : int
         Total number of data points in the dataset.
@@ -106,36 +107,46 @@ def label_dirichlet_partition(
         The number of groups into which the data should be partitioned.
     beta : float
         Dirichlet distribution parameter value.
+    distribution_type : str
+        Type of distribution to generate the weights ('lognormal', 'powerlaw', 'exponential', 'average').
 
     Returns
     -------
     split_data_indexes : list
-        List indices of data points assigned into groups.
-
+        List of indices of data points assigned into groups.
     """
     min_size = 0
     min_require_size = 10
 
     split_data_indexes = []
 
-    # generating unbalanced portion of the clients' node numbers but keep the iid-distributions
-    # controlled by the sigma number
-
-    if sigma > 0:
-        weights = np.random.lognormal(mean=0, sigma=sigma, size=n_parties)
+    # Generate unbalanced portion of the clients' node numbers based on distribution_type
+    if distribution_type == "lognormal":
+        # Lognormal distribution
+        weights = np.random.lognormal(mean=0, sigma=2, size=n_parties)
+    elif distribution_type == "powerlaw":
+        # Power-law distribution (Zipf's law)
+        weights = np.random.power(a=1.24, size=n_parties)
+    elif distribution_type == "exponential":
+        # Exponential distribution
+        weights = np.random.exponential(scale=1.0, size=n_parties)
+    elif distribution_type == "average":
+        # Evenly distributed (average) weights
+        weights = np.ones(n_parties)
     else:
-        # is balanced number, keep weights to be equally 1
+        # Balanced distribution (equal weights)
         weights = np.ones(n_parties)
 
-    weights /= weights.sum()
+    weights /= weights.sum()  # Normalize the weights
+
     while min_size < min_require_size:
         idx_batch: list[list[int]] = [[] for _ in range(n_parties)]
         for k in range(K):
             idx_k = np.where(labels == k)[0]
             np.random.shuffle(idx_k)
             proportions = np.random.dirichlet(np.repeat(beta, n_parties))
-            if sigma == 0:
-                # keep the same client's node number
+            if distribution_type == "average":
+                # Keep the same client's node number
                 proportions = np.array(
                     [
                         p * (len(idx_j) < N / n_parties)
@@ -145,8 +156,7 @@ def label_dirichlet_partition(
 
             for i in range(n_parties):
                 proportions[i] *= weights[i]
-            proportions = proportions / proportions.sum()
-            # print(proportions)
+            proportions = proportions / proportions.sum()  # Normalize proportions
             proportions = (np.cumsum(proportions) * len(idx_k)).astype(int)[:-1]
 
             idx_batch = [
@@ -158,8 +168,7 @@ def label_dirichlet_partition(
     for j in range(n_parties):
         np.random.shuffle(idx_batch[j])
         split_data_indexes.append(idx_batch[j])
-    # for s in split_data_indexes:
-    #     print(len(s))
+
     return split_data_indexes
 
 

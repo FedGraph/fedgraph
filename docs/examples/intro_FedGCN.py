@@ -97,7 +97,12 @@ else:
 
 
 split_node_indexes = label_dirichlet_partition(
-    labels, len(labels), class_num, args.n_trainer, beta=args.iid_beta, sigma=0
+    labels,
+    len(labels),
+    class_num,
+    args.n_trainer,
+    beta=args.iid_beta,
+    distribution_type="powerlaw",
 )
 
 for i in range(args.n_trainer):
