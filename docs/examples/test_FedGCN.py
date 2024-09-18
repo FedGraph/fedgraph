@@ -809,10 +809,13 @@ def run():
     # and community_partition_non_iid to split the large graph into multiple trainers
 
     split_node_indexes = label_dirichlet_partition(
-        labels, len(labels), class_num, args.n_trainer, beta=args.iid_beta, sigma=0
+        labels,
+        len(labels),
+        class_num,
+        args.n_trainer,
+        beta=args.iid_beta,
+        distribution_type=args.distribution_type,
     )
-
-    time.sleep(100)
 
     for i in range(args.n_trainer):
         split_node_indexes[i] = np.array(split_node_indexes[i])
@@ -952,13 +955,30 @@ def run():
     average_final_test_accuracy = np.average(
         [row[1] for row in results], weights=test_data_weights, axis=0
     )
-
+    print("average_final_test_loss, average_final_test_accuracy")
     print(average_final_test_loss, average_final_test_accuracy)
 
 
-for d in ["cora"]:
-    args.dataset = d
-    for b in [10000]:
-        print(f"at dataset: {d}, beta: {b}")
-        run()
+for dataset_name in ["cora"]:
+    args.dataset = dataset_name
+    for beta in [1, 100, 10000]:
+        args.iid_beta = beta
+        for trainer_num in [2, 4, 6, 8, 10]:
+            args.n_trainer = trainer_num
+            for distribution_type in [
+                "lognormal",
+                "powerlaw",
+                "exponential",
+                "average",
+            ]:
+                args.distribution_type = distribution_type
+                for num_hops in [0, 1, 2]:
+                    args.num_hops = num_hops
+
+                    print(
+                        f"Running experiment with: Dataset={args.dataset}, IID Beta={args.iid_beta}, "
+                        f"Number of Trainers={args.n_trainer}, Distribution Type={args.distribution_type}, "
+                        f"Num Hops={args.num_hops}"
+                    )
+                    run()
 ray.shutdown()
