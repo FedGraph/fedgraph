@@ -139,6 +139,7 @@ def train(
     output = model(features, adj)
     loss_train = F.nll_loss(output[idx_train], train_labels)
     acc_train = accuracy(output[idx_train], train_labels)
+    loss_train.requires_grad = True
     loss_train.backward()
     optimizer.step()
     optimizer.zero_grad()
