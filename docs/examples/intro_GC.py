@@ -1,6 +1,6 @@
 """
 Federated Graph Classification Example
-================
+======================================
 
 In this tutorial, you will learn the basic workflow of
 Federated Graph Classification with a runnable example. This tutorial assumes that
@@ -37,7 +37,7 @@ from fedgraph.utils_gc import *
 
 #######################################################################
 # Load configuration
-# ------------
+# ------------------
 # Here we load the configuration file for the experiment.
 # The configuration file contains the parameters for the experiment.
 # The algorithm and dataset are specified by the user here. And the configuration
@@ -59,7 +59,7 @@ print(args)
 
 #######################################################################
 # Set random seed
-# ------------
+# ---------------
 # Here we set the random seed for reproducibility.
 # Notice that to compare the performance of different methods, the random seed
 # for splitting data must be fixed.
@@ -75,7 +75,7 @@ args.device = "cuda" if torch.cuda.is_available() else "cpu"
 
 #######################################################################
 # Set output directory
-# ------------
+# --------------------
 # Here we set the output directory for the results.
 # The output consists of the statistics of the data on trainers and the
 # accuracy of the model on the test set.
@@ -154,7 +154,7 @@ if args.save_files:
 
 #######################################################################
 # Setup server and trainers
-# ------------
+# -------------------------
 # Here we set up the server and trainers for the experiment.
 # The server is responsible for federated aggregation (e.g., FedAvg) without knowing the local trainer data.
 # The trainers are responsible for local training and testing.
@@ -175,7 +175,7 @@ print("\nDone setting up devices.")
 
 #######################################################################
 # Federated Training for Graph Classification
-# ------------
+# -------------------------------------------
 # Here we run the federated training for graph classification.
 # The server starts training of all trainers and aggregates the parameters.
 # The output consists of the accuracy of the model on the test set.
@@ -241,7 +241,7 @@ else:
 
 #######################################################################
 # Save the output
-# ------------
+# ---------------
 # Here we save the results to a file, and the output directory can be specified by the user.
 # If save_files == False, the output will not be saved and will only be printed in the console.
 if args.save_files:
