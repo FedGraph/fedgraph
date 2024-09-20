@@ -10,7 +10,7 @@ https://data.pyg.org/whl/torch-2.0.0%2Bcpu/torch_spline_conv-1.2.2%2Bpt20cpu-cp3
 torchmetrics
 setuptools
 sphinxcontrib-bibtex
-sklearn
+scikit-learn
 matplotlib
 sphinx_gallery
 ray
