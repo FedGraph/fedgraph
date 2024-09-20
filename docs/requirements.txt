@@ -19,5 +19,5 @@ attridict
 fedgraph
 dtaidistance
 gdown
-numpy==1
+numpy==1.26
 pandas
