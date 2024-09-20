@@ -1,5 +1,5 @@
 # dependencies required for documentation
-furo
+sphinx_rtd_theme
 https://download.pytorch.org/whl/cpu/torch-2.0.0%2Bcpu-cp310-cp310-linux_x86_64.whl
 torch_geometric
 https://data.pyg.org/whl/torch-2.0.0%2Bcpu/pyg_lib-0.2.0%2Bpt20cpu-cp310-cp310-linux_x86_64.whl
