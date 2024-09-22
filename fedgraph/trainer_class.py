@@ -12,6 +12,7 @@ import torch.nn.functional as F
 import torch_geometric
 from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
 from torch_geometric.data import Data
+from torch_geometric.loader import NeighborLoader
 from torchmetrics.functional.retrieval import retrieval_auroc
 from torchmetrics.retrieval import RetrievalHitRate
 
@@ -194,6 +195,7 @@ class Trainer_General:
         self.local_step = args.local_step
         self.global_node_num = global_node_num
         self.class_num = class_num
+        self.args = args
 
     @torch.no_grad()
     def update_params(self, params: tuple, current_global_epoch: int) -> None:
@@ -272,17 +274,71 @@ class Trainer_General:
         torch.cuda.empty_cache()
         self.model.to(self.device)
         self.feature_aggregation = self.feature_aggregation.to(self.device)
+        if hasattr(self.args, "batch_size") and self.args.batch_size > 0:
+            # batch preparation
+            train_mask = torch.zeros(self.feature_aggregation.size(0), dtype=torch.bool)
+            train_mask[self.idx_train] = True
+
+            node_labels = torch.full(
+                (self.feature_aggregation.size(0),), -1, dtype=torch.long
+            )
+
+            mask_indices = train_mask.nonzero(as_tuple=True)[0]
+            node_labels[train_mask] = self.train_labels[: len(mask_indices)]
+            data = Data(
+                x=self.feature_aggregation,
+                edge_index=self.adj,
+                train_mask=train_mask,
+                y=node_labels,
+            )
         for iteration in range(self.local_step):
             self.model.train()
-            loss_train, acc_train = train(
-                iteration,
-                self.model,
-                self.optimizer,
-                self.feature_aggregation,
-                self.adj,
-                self.train_labels,
-                self.idx_train,
-            )
+            if hasattr(self.args, "batch_size") and self.args.batch_size > 0:
+                # print(f"Training with batch size {self.args.batch_size}")
+                loader = NeighborLoader(
+                    data,
+                    num_neighbors=[-1] * self.args.num_layers,
+                    batch_size=2048,
+                    input_nodes=self.idx_train,
+                    shuffle=False,
+                    num_workers=0,
+                )
+                batch_iter = iter(loader)
+                batch = next(batch_iter, None)
+                while batch is not None:
+                    batch_feature_aggregation = batch.x
+                    batch_adj_matrix = batch.edge_index
+
+                    # print(f"Batch Feature Aggregation (Node Features): {batch_feature_aggregation.size()}")
+                    # print(f"Batch Adjacency Matrix (Edge Index): {batch_adj_matrix}")
+                    # print(f"Training Labels (Filtered by train_mask): {batch.y[batch.train_mask]}")
+                    # print(f"Train Mask: {batch.train_mask}")
+                    loss_train, acc_train = train(
+                        iteration,
+                        self.model,
+                        self.optimizer,
+                        batch_feature_aggregation,
+                        batch_adj_matrix,
+                        batch.y[batch.train_mask],
+                        batch.train_mask,
+                    )
+                    # print(f"acc_train: {acc_train}")
+
+                    self.train_losses.append(loss_train)
+                    self.train_accs.append(acc_train)
+                    batch = next(batch_iter, None)
+            else:
+                # print("Training with full batch")
+                loss_train, acc_train = train(
+                    iteration,
+                    self.model,
+                    self.optimizer,
+                    self.feature_aggregation,
+                    self.adj,
+                    self.train_labels,
+                    self.idx_train,
+                )
+
             self.train_losses.append(loss_train)
             self.train_accs.append(acc_train)
             # print(f"acc_train: {acc_train}")

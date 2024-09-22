@@ -41,6 +41,7 @@ parser.add_argument("-d", "--dataset", default="cora", type=str)
 parser.add_argument("-f", "--fedtype", default="fedgcn", type=str)
 
 parser.add_argument("-c", "--global_rounds", default=100, type=int)
+# parser.add_argument("-b", "--batch_size", default=32, type=int)
 parser.add_argument("-i", "--local_step", default=3, type=int)
 parser.add_argument("-lr", "--learning_rate", default=0.1, type=float)
 

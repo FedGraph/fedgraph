@@ -39,7 +39,7 @@ from fedgraph.utils_nc import (
     label_dirichlet_partition,
 )
 
-ray.init()
+# ray.init()
 
 
 np.random.seed(42)
@@ -50,8 +50,8 @@ parser.add_argument("-d", "--dataset", default="cora", type=str)
 
 parser.add_argument("-f", "--fedtype", default="fedgcn", type=str)
 
-parser.add_argument("-c", "--global_rounds", default=10, type=int)
-parser.add_argument("-i", "--local_step", default=3, type=int)
+parser.add_argument("-c", "--global_rounds", default=100, type=int)
+parser.add_argument("-i", "--local_step", default=1, type=int)
 parser.add_argument("-lr", "--learning_rate", default=0.1, type=float)
 
 parser.add_argument("-n", "--n_trainer", default=2, type=int)
@@ -245,6 +245,8 @@ class Server:
                 dropout=0.5,
                 NumLayers=args.num_layers,
             )
+            # for name, param in self.model.named_parameters():
+            #     print(f"Layer: {name}, requires_grad: {param.requires_grad}")
         else:
             if args.dataset == "ogbn-arxiv":
                 self.model = GCN_arxiv(
@@ -283,7 +285,7 @@ class Server:
         for p in self.model.parameters():
             p.zero_()
 
-    @torch.no_grad()
+    # @torch.no_grad()
     def train(self, current_global_epoch: int) -> None:
         """
         Training round which perform aggregating parameters from trainers, updating the central model,
@@ -295,22 +297,16 @@ class Server:
             The current global epoch number during the federated learning process.
         """
         for trainer in self.trainers:
-            trainer.train.remote(current_global_epoch)
-        params = [trainer.get_params.remote() for trainer in self.trainers]
+            trainer.train(current_global_epoch)
+        params_list = [trainer.get_params() for trainer in self.trainers]
         self.zero_params()
 
-        while True:
-            ready, left = ray.wait(params, num_returns=1, timeout=None)
-            if ready:
-                for t in ready:
-                    for p, mp in zip(ray.get(t), self.model.parameters()):
-                        mp.data += p.cpu()
-            params = left
-            if not params:
-                break
+        for params in params_list:
+            for p, mp in zip(params, self.model.parameters()):
+                mp.data = mp.data + p.cpu()
 
         for p in self.model.parameters():
-            p /= self.num_of_trainers
+            p.data /= self.num_of_trainers
         self.broadcast_params(current_global_epoch)
 
     def broadcast_params(self, current_global_epoch: int) -> None:
@@ -323,7 +319,7 @@ class Server:
             The current global epoch number during the federated learning process.
         """
         for trainer in self.trainers:
-            trainer.update_params.remote(
+            trainer.update_params(
                 tuple(self.model.parameters()), current_global_epoch
             )  # run in submit order
 
@@ -430,6 +426,9 @@ class Trainer_General:
         self.optimizer = torch.optim.SGD(
             self.model.parameters(), lr=args.learning_rate, weight_decay=5e-4
         )
+        # self.optimizer = torch.optim.Adam(
+        #     self.model.parameters(), lr=args.learning_rate, weight_decay=5e-4
+        # )
 
         self.criterion = torch.nn.CrossEntropyLoss()
 
@@ -455,7 +454,7 @@ class Trainer_General:
         self.global_node_num = global_node_num
         self.class_num = class_num
 
-    @torch.no_grad()
+    # @torch.no_grad()
     def update_params(self, params: tuple, current_global_epoch: int) -> None:
         """
         Updates the model parameters with global parameters received from the server.
@@ -516,102 +515,183 @@ class Trainer_General:
             self.communicate_node_index, 0, self.adj, relabel_nodes=True
         )
 
-    def train(self, current_global_round: int) -> None:
-        """
-        Performs local training for a specified number of iterations. This method
-        updates the model using the loaded feature aggregation and the adjacency matrix.
+    # def train(self, current_global_round: int) -> None:
+    #     """
+    #     Performs local training for a specified number of iterations. This method
+    #     updates the model using the loaded feature aggregation and the adjacency matrix.
 
-        Parameters
-        ----------
-        current_global_round : int
-            The current global training round.
-        """
-        # clean cache
-        torch.cuda.empty_cache()
+    #     Parameters
+    #     ----------
+    #     current_global_round : int
+    #         The current global training round.
+    #     """
+    #     # clean cache
+    #     torch.cuda.empty_cache()
+    #     self.model.to(self.device)
+    #     self.feature_aggregation = self.feature_aggregation.to(self.device)
+
+    #     g = dgl.graph((self.adj[0], self.adj[1]))
+    #     # dgl graph index is local, max_index is equal to the client's feature aggregation size
+    #     g.ndata["features_aggregation"] = self.feature_aggregation
+
+    #     sampler = dgl.dataloading.MultiLayerFullNeighborSampler(2)
+
+    #     dataloader = dgl.dataloading.DataLoader(
+    #         g,
+    #         # this is local train index relative to client's subgraph
+    #         self.in_com_train_node_local_indexes,
+    #         sampler,
+    #         batch_size=4096,
+    #         shuffle=False,
+    #         drop_last=False,
+    #         num_workers=0,  # local no parrallel
+    #     )
+    #     trainIdx_to_index_map = {  # define train index map from client's local graph index to train label's index after the mini-batch splitting
+    #         actual_value.item(): index
+    #         for index, actual_value in enumerate(self.in_com_train_node_local_indexes)
+    #     }
+
+    #     for iteration in range(self.local_step):
+    #         self.model.train()
+
+    #         for ix, output_nodes, subgraph in dataloader:
+    #             batch_feature_aggregation = subgraph[0].ndata["features_aggregation"][
+    #                 "_N"
+    #             ]
+    #             src_nodes, dst_nodes = subgraph[0].edges()
+
+    #             # the size of batch_adj_matrix is [2,edges], the maximium index is equal to the batch_feature_aggregation
+    #             batch_adj_matrix = torch.stack([src_nodes, dst_nodes], dim=0)
+    #             distinct_values = torch.unique(batch_adj_matrix)
+    #             # print("distinct node index values from edge index:", distinct_values)
+    #             # print(
+    #             #     f"batch_feature_aggregation size: {batch_feature_aggregation.size()}")
+    #             # map nodes index of client's graph to train labels' index
+    #             trainIdx_mapped_indices = [
+    #                 trainIdx_to_index_map[node.item()] for node in output_nodes
+    #             ]
+    #             # get the original index relavant to the global graph
+    #             nid_map = subgraph[0].ndata[dgl.NID]["_N"]
+    #             # print(subgraph[0].ndata[dgl.NID])
+    #             # print(ix)
+    #             # print(output_nodes)
+    #             # print("nid_map 的大小:", nid_map.size())
+    #             # print(f" mini-batch node client_graph's index: {output_nodes}")
+    #             # generate train_index relevant to the mini-batch subgraph
+    #             output_nodes_mapped_indices = [
+    #                 torch.where(nid_map == node)[0].item() for node in output_nodes
+    #             ]
+    #             # print(f"相对于mini-batch的index: {output_nodes_mapped_indices}")
+    #             print(self.feature_aggregation.size())
+    #             print(batch_feature_aggregation.size())
+    #             distinct_values = torch.unique(batch_adj_matrix)
+    #             print("distinct node index values from edge index:", distinct_values)
+    #             distinct_values2 = torch.unique(self.adj)
+    #             print("distinct node index values from original:", distinct_values2)
+    #             print(len(list(distinct_values2)))
+    #             loss_train, acc_train = train(
+    #                 iteration,
+    #                 self.model,
+    #                 self.optimizer,
+    #                 # self.feature_aggregation,
+    #                 # self.adj,
+    #                 batch_feature_aggregation,  # agg-feat matrix extracted from the mini-subgraph
+    #                 batch_adj_matrix,  # adj matrix directly gained from the mini-subgraph
+    #                 self.train_labels[
+    #                     trainIdx_mapped_indices
+    #                 ],  # extract train_label in mini-batch
+    #                 output_nodes_mapped_indices,  # train index relative to the mini-batch
+    #                 # self.train_labels,
+    #                 # self.in_com_train_node_local_indexes,
+    #             )
+    #             print(f"acc_train: {acc_train}")
+
+    #             self.train_losses.append(loss_train)
+    #             self.train_accs.append(acc_train)
+
+    #         loss_test, acc_test = self.local_test()
+    #         print(f"acc_test: {acc_test}")
+
+    #         self.test_losses.append(loss_test)
+    #         self.test_accs.append(acc_test)
+    def train(self, current_global_round: int) -> None:
+        print(f"current_global_round for trainer {self.rank}: {current_global_round}")
+
+        # torch.cuda.empty_cache()
         self.model.to(self.device)
         self.feature_aggregation = self.feature_aggregation.to(self.device)
+        train_mask = torch.zeros(self.feature_aggregation.size(0), dtype=torch.bool)
+        train_mask[self.in_com_train_node_local_indexes] = True
 
-        g = dgl.graph((self.adj[0], self.adj[1]))
-        # dgl graph index is local, max_index is equal to the client's feature aggregation size
-        g.ndata["features_aggregation"] = self.feature_aggregation
-
-        sampler = dgl.dataloading.MultiLayerFullNeighborSampler(2)
-
-        dataloader = dgl.dataloading.DataLoader(
-            g,
-            # this is local train index relative to client's subgraph
-            self.in_com_train_node_local_indexes,
-            sampler,
-            batch_size=4096,
-            shuffle=False,
-            drop_last=False,
-            num_workers=0,  # local no parrallel
+        node_labels = torch.full(
+            (self.feature_aggregation.size(0),), -1, dtype=torch.long
         )
-        trainIdx_to_index_map = {  # define train index map from client's local graph index to train label's index after the mini-batch splitting
-            actual_value.item(): index
-            for index, actual_value in enumerate(self.in_com_train_node_local_indexes)
-        }
+
+        mask_indices = train_mask.nonzero(as_tuple=True)[0]
+        node_labels[train_mask] = self.train_labels[: len(mask_indices)]
+        data = Data(
+            x=self.feature_aggregation,
+            edge_index=self.adj,
+            train_mask=train_mask,
+            y=node_labels,
+        )
+
+        loader = NeighborLoader(
+            data,
+            num_neighbors=[-1] * args.num_layers,
+            batch_size=16,
+            input_nodes=self.in_com_train_node_local_indexes,
+            shuffle=False,
+            num_workers=0,
+        )
+
+        # trainIdx_to_index_map = {
+        #     actual_value.item(): index
+        #     for index, actual_value in enumerate(self.in_com_train_node_local_indexes)
+        # }
 
         for iteration in range(self.local_step):
             self.model.train()
+            # for name, param in self.model.named_parameters():
+            #     print(f"Model parameter {name} requires_grad: {param.requires_grad}")
 
-            for ix, output_nodes, subgraph in dataloader:
-                batch_feature_aggregation = subgraph[0].ndata["features_aggregation"][
-                    "_N"
-                ]
-                src_nodes, dst_nodes = subgraph[0].edges()
+            loss_train, acc_train = train(
+                iteration,
+                self.model,
+                self.optimizer,
+                self.feature_aggregation,
+                self.adj,
+                self.train_labels,
+                self.in_com_train_node_local_indexes,
+            )
 
-                # the size of batch_adj_matrix is [2,edges], the maximium index is equal to the batch_feature_aggregation
-                batch_adj_matrix = torch.stack([src_nodes, dst_nodes], dim=0)
-                distinct_values = torch.unique(batch_adj_matrix)
-                # print("distinct node index values from edge index:", distinct_values)
-                # print(
-                #     f"batch_feature_aggregation size: {batch_feature_aggregation.size()}")
-                # map nodes index of client's graph to train labels' index
-                trainIdx_mapped_indices = [
-                    trainIdx_to_index_map[node.item()] for node in output_nodes
-                ]
-                # get the original index relavant to the global graph
-                nid_map = subgraph[0].ndata[dgl.NID]["_N"]
-                # print(subgraph[0].ndata[dgl.NID])
-                # print(ix)
-                # print(output_nodes)
-                # print("nid_map 的大小:", nid_map.size())
-                # print(f" mini-batch node client_graph's index: {output_nodes}")
-                # generate train_index relevant to the mini-batch subgraph
-                output_nodes_mapped_indices = [
-                    torch.where(nid_map == node)[0].item() for node in output_nodes
-                ]
-                # print(f"相对于mini-batch的index: {output_nodes_mapped_indices}")
-                print(self.feature_aggregation.size())
-                print(batch_feature_aggregation.size())
-                distinct_values = torch.unique(batch_adj_matrix)
-                print("distinct node index values from edge index:", distinct_values)
-                distinct_values2 = torch.unique(self.adj)
-                print("distinct node index values from original:", distinct_values2)
-                print(len(list(distinct_values2)))
-                loss_train, acc_train = train(
-                    iteration,
-                    self.model,
-                    self.optimizer,
-                    # self.feature_aggregation,
-                    # self.adj,
-                    batch_feature_aggregation,  # agg-feat matrix extracted from the mini-subgraph
-                    batch_adj_matrix,  # adj matrix directly gained from the mini-subgraph
-                    self.train_labels[
-                        trainIdx_mapped_indices
-                    ],  # extract train_label in mini-batch
-                    output_nodes_mapped_indices,  # train index relative to the mini-batch
-                    # self.train_labels,
-                    # self.in_com_train_node_local_indexes,
-                )
-                print(f"acc_train: {acc_train}")
+            # batch_iter = iter(loader)
+            # batch = next(batch_iter, None)
+            # while batch is not None:
+            #     batch_feature_aggregation = batch.x
+            #     batch_adj_matrix = batch.edge_index
 
-                self.train_losses.append(loss_train)
-                self.train_accs.append(acc_train)
+            #     # print(f"Batch Feature Aggregation (Node Features): {batch_feature_aggregation.size()}")
+            #     # print(f"Batch Adjacency Matrix (Edge Index): {batch_adj_matrix}")
+            #         # print(f"Training Labels (Filtered by train_mask): {batch.y[batch.train_mask]}")
+            #         # print(f"Train Mask: {batch.train_mask}")
+            #     loss_train, acc_train = train(
+            #         iteration,
+            #         self.model,
+            #         self.optimizer,
+            #         batch_feature_aggregation,
+            #         batch_adj_matrix,
+            #         batch.y[batch.train_mask],
+            #         batch.train_mask,
+            #     )
+            #     print(f"acc_train: {acc_train}")
 
+            #     self.train_losses.append(loss_train)
+            #     self.train_accs.append(acc_train)
+            #     batch = next(batch_iter, None)
             loss_test, acc_test = self.local_test()
             print(f"acc_test: {acc_test}")
+            time.sleep(2)
 
             self.test_losses.append(loss_test)
             self.test_accs.append(acc_test)
@@ -643,7 +723,7 @@ class Trainer_General:
         (tuple) : tuple
             A tuple containing the current parameters of the model.
         """
-        self.optimizer.zero_grad(set_to_none=True)
+        # self.optimizer.zero_grad(set_to_none=True)
         return tuple(self.model.parameters())
 
     def get_all_loss_accuray(self) -> list:
@@ -852,17 +932,17 @@ def run():
     # FedGraph first determines the resources for each trainer, then send
     # the data to each remote trainer.
 
-    @ray.remote(
-        num_gpus=num_gpus_per_client,
-        num_cpus=num_cpus_per_client,
-        scheduling_strategy="SPREAD",
-    )
+    # @ray.remote(
+    #     num_gpus=num_gpus_per_client,
+    #     num_cpus=num_cpus_per_client,
+    #     scheduling_strategy="SPREAD",
+    # )
     class Trainer(Trainer_General):
         def __init__(self, *args: Any, **kwds: Any):
             super().__init__(*args, **kwds)
 
     trainers = [
-        Trainer.remote(  # type: ignore
+        Trainer(  # type: ignore
             rank=i,
             args_hidden=args_hidden,
             global_node_num=len(features),
@@ -894,25 +974,20 @@ def run():
     start_time = datetime.now()
     print("starting get_local_feature_sum")
     local_neighbor_feature_sums = [
-        trainer.get_local_feature_sum.remote() for trainer in server.trainers
+        trainer.get_local_feature_sum() for trainer in server.trainers
     ]
     global_feature_sum = torch.zeros_like(features)
-    while True:
-        ready, left = ray.wait(local_neighbor_feature_sums, num_returns=1, timeout=None)
-        if ready:
-            for t in ready:
-                global_feature_sum += ray.get(t)
-        local_neighbor_feature_sums = left
-        if not local_neighbor_feature_sums:
-            break
+    for t in local_neighbor_feature_sums:
+        global_feature_sum += t
+
     print("server aggregates all local neighbor feature sums")
     # test if aggregation is correct
     for i in range(args.n_trainer):
-        server.trainers[i].load_feature_aggregation.remote(
+        server.trainers[i].load_feature_aggregation(
             global_feature_sum[communicate_node_global_indexes[i]]
         )
     print("clients received feature aggregation from server")
-    [trainer.relabel_adj.remote() for trainer in server.trainers]
+    [trainer.relabel_adj() for trainer in server.trainers]
     # ending monitor:
     end_time = datetime.now()
     time_difference = end_time - start_time
@@ -946,8 +1021,7 @@ def run():
     train_data_weights = [len(i) for i in in_com_train_node_local_indexes]
     test_data_weights = [len(i) for i in in_com_test_node_local_indexes]
 
-    results = [trainer.local_test.remote() for trainer in server.trainers]
-    results = np.array([ray.get(result) for result in results])
+    results = [trainer.local_test() for trainer in server.trainers]
 
     average_final_test_loss = np.average(
         [row[0] for row in results], weights=test_data_weights, axis=0
@@ -961,18 +1035,19 @@ def run():
 
 for dataset_name in ["cora"]:
     args.dataset = dataset_name
-    for beta in [1, 100, 10000]:
+    for beta in [10000, 1, 100, 10000]:
         args.iid_beta = beta
         for trainer_num in [2, 4, 6, 8, 10]:
             args.n_trainer = trainer_num
             for distribution_type in [
+                "average",
                 "lognormal",
                 "powerlaw",
                 "exponential",
                 "average",
             ]:
                 args.distribution_type = distribution_type
-                for num_hops in [0, 1, 2]:
+                for num_hops in [2]:
                     args.num_hops = num_hops
 
                     print(
@@ -981,4 +1056,5 @@ for dataset_name in ["cora"]:
                         f"Num Hops={args.num_hops}"
                     )
                     run()
-ray.shutdown()
+                    time.sleep(100)
+# ray.shutdown()
