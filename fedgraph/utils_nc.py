@@ -126,7 +126,10 @@ def label_dirichlet_partition(
         weights = np.random.lognormal(mean=0, sigma=2, size=n_parties)
     elif distribution_type == "powerlaw":
         # Power-law distribution (Zipf's law)
-        weights = np.random.power(a=1.24, size=n_parties)
+        # city-level index is 1.24, ref: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7822261
+        # country-level index is 0.1577, causing an infinite while loop
+        # Trimming the tail by 10% resulted in an a value of 0.31653612251668856
+        weights = np.random.power(a=0.31653612251668856, size=n_parties)
     elif distribution_type == "exponential":
         # Exponential distribution
         weights = np.random.exponential(scale=1.0, size=n_parties)

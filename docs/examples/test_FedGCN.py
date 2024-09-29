@@ -1058,3 +1058,39 @@ for dataset_name in ["cora"]:
                     run()
                     time.sleep(100)
 # ray.shutdown()
+
+
+if False:
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
+    from scipy.stats import powerlaw
+
+    def fit_powerlaw(data):
+        data = np.array(data)
+        param = powerlaw.fit(data)
+        a = param[0]
+        return a, param
+
+    csv_file_path = "world_population.csv"
+    df = pd.read_csv(csv_file_path)
+
+    population_list = sorted(df["2022 Population"].dropna().tolist())
+    trimmed_population_list = population_list[23:-23]
+    print(min(trimmed_population_list))
+    print(max(trimmed_population_list))
+
+    a, param = fit_powerlaw(trimmed_population_list)
+    print("Fitted power-law parameter a:", a)
+
+    x = np.linspace(min(population_list), 100000000, 100)
+    pdf_fitted = powerlaw.pdf(x, *param)
+
+    plt.plot(x, pdf_fitted, "r-", label="Fitted Power-law")
+
+    plt.title("Real Distribution vs Fitted Power-law Distribution")
+    plt.xlabel("Population")
+    plt.ylabel("Density")
+    plt.legend()
+
+    plt.show()
