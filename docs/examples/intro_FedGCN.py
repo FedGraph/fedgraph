@@ -206,16 +206,16 @@ def save_all_trainers_data(
 # --------------------------------
 # FedGraph first determines the resources for each trainer, then send
 # the data to each remote trainer.
-save_all_trainers_data(
-    split_node_indexes=split_node_indexes,
-    communicate_node_global_indexes=communicate_node_global_indexes,
-    global_edge_indexes_clients=global_edge_indexes_clients,
-    labels=labels,
-    features=features,
-    in_com_train_node_local_indexes=in_com_train_node_local_indexes,
-    in_com_test_node_local_indexes=in_com_test_node_local_indexes,
-    n_trainer=args.n_trainer,
-)
+# save_all_trainers_data(
+#     split_node_indexes=split_node_indexes,
+#     communicate_node_global_indexes=communicate_node_global_indexes,
+#     global_edge_indexes_clients=global_edge_indexes_clients,
+#     labels=labels,
+#     features=features,
+#     in_com_train_node_local_indexes=in_com_train_node_local_indexes,
+#     in_com_test_node_local_indexes=in_com_test_node_local_indexes,
+#     n_trainer=args.n_trainer,
+# )
 
 
 @ray.remote(
@@ -236,6 +236,16 @@ trainers = [
         class_num=class_num,
         device=device,
         args=args,
+        local_node_index=split_node_indexes[i],
+        communicate_node_index=communicate_node_global_indexes[i],
+        adj=global_edge_indexes_clients[i],
+        train_labels=labels[communicate_node_global_indexes[i]
+                            ][in_com_train_node_local_indexes[i]],
+        test_labels=labels[communicate_node_global_indexes[i]
+                           ][in_com_test_node_local_indexes[i]],
+        features=features[split_node_indexes[i]],
+        idx_train=in_com_train_node_local_indexes[i],
+        idx_test=in_com_test_node_local_indexes[i],
     )
     for i in range(args.n_trainer)
 ]

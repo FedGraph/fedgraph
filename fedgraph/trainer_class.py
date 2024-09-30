@@ -18,7 +18,6 @@ from torchmetrics.retrieval import RetrievalHitRate
 
 from fedgraph.gnn_models import GCN, GIN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
 from fedgraph.train_func import test, train
-from fedgraph.utils_gat import FedGATLoss
 from fedgraph.utils_lp import (
     check_data_files_existance,
     get_data,
@@ -118,19 +117,31 @@ class Trainer_General:
         class_num: int,
         device: torch.device,
         args: Any,
+        local_node_index: torch.Tensor = None,
+        communicate_node_index: torch.Tensor = None,
+        adj: torch.Tensor = None,
+        train_labels: torch.Tensor = None,
+        test_labels: torch.Tensor = None,
+        features: torch.Tensor = None,
+        idx_train: torch.Tensor = None,
+        idx_test: torch.Tensor = None,
     ):
         # from gnn_models import GCN_Graph_Classification
         torch.manual_seed(rank)
-        (
-            local_node_index,
-            communicate_node_index,
-            adj,
-            train_labels,
-            test_labels,
-            features,
-            idx_train,
-            idx_test,
-        ) = load_trainer_data_from_hugging_face(rank, args)
+        if local_node_index is None or communicate_node_index is None or adj is None or \
+           train_labels is None or test_labels is None or features is None or \
+           idx_train is None or idx_test is None:
+            (
+                local_node_index,
+                communicate_node_index,
+                adj,
+                train_labels,
+                test_labels,
+                features,
+                idx_train,
+                idx_test,
+            ) = load_trainer_data_from_hugging_face(rank, args)
+
         # seems that new trainer process will not inherit sys.path from parent, need to reimport!
         if args.num_hops >= 1 and args.fedtype == "fedgcn":
             self.model = AggreGCN(

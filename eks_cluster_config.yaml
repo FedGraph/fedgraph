@@ -7,7 +7,7 @@ metadata:
 
 nodeGroups:
   - name: head-nodes
-    instanceType: m5.16xlarge
+    instanceType: m5.8xlarge
     desiredCapacity: 1
     minSize: 0
     maxSize: 1
@@ -16,7 +16,7 @@ nodeGroups:
       ray-node-type: head
 
   - name: worker-nodes
-    instanceType: m5.16xlarge
+    instanceType: m5.8xlarge
     desiredCapacity: 1
     minSize: 0
     maxSize: 1
