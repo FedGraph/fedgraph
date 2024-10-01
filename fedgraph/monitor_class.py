@@ -1,10 +1,10 @@
 import datetime
 import time
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 import requests  # type: ignore
 from ray.util.metrics import Gauge
-
+import threading
 
 class Monitor:
     def __init__(self) -> None:
@@ -22,6 +22,14 @@ class Monitor:
             "train_node_network",
             description="Network data sent during training per pod.",
         )
+        self.pretrain_memory_gauge = Gauge(
+            "pretrain_memory_usage",
+            description="Memory usage during pretraining."
+        )
+        self.train_memory_gauge = Gauge(
+            "train_memory_usage",
+            description="Memory usage during training."
+        )
         self.pretrain_start_time: Optional[datetime.datetime] = None
         self.pretrain_end_time: Optional[datetime.datetime] = None
         self.train_start_time: Optional[datetime.datetime] = None
@@ -29,6 +37,18 @@ class Monitor:
         self.current_round = 0
         self.initial_network_data: Dict[str, float] = {}
         self.final_network_data: Dict[str, float] = {}
+        self.memory_usage_list: List[float] = []
+
+        
+        self.memory_thread = threading.Thread(target=self.collect_memory, daemon=True)
+        self.memory_thread.start()
+
+    def collect_memory(self,interval_seconds=30):
+        while True:
+            memory_data = self._fetch_memory_usage()
+            # total_memory = sum(memory_data.values())
+            self.memory_usage_list.append(memory_data)
+            time.sleep(interval_seconds)
 
     def _get_network_data(self) -> Dict[str, float]:
         response = requests.get(
@@ -40,10 +60,23 @@ class Monitor:
             for item in data["data"]["result"]
         }
 
+    def _fetch_memory_usage(self) -> Dict[str, float]:
+        response = requests.get(
+            f"http://prometheus-kube-prometheus-prometheus.prometheus-system:9090/api/v1/query?query=ray_node_mem_used"
+        )
+        data = response.json()
+        return {
+            item["metric"]["pod"]: float(item["value"][1])
+            for item in data["data"]["result"]
+        }
+
+
+
     def pretrain_time_start(self) -> None:
         self.pretrain_start_time = datetime.datetime.now()
         self.initial_network_data = self._get_network_data()
         print("Pretrain start time recorded and initial network data collected.")
+        self.memory_usage_list = []
 
     def pretrain_time_end(self, interval_seconds=30) -> None:
         if self.pretrain_start_time is not None:
@@ -56,6 +89,7 @@ class Monitor:
             time.sleep(interval_seconds)
             print("Sleeping through intervals")
             self.final_network_data = self._get_network_data()
+            print(self.memory_usage_list)
             for pod in self.final_network_data:
                 if pod in self.initial_network_data:
                     network_diff = (
@@ -73,6 +107,7 @@ class Monitor:
         self.train_start_time = datetime.datetime.now()
         self.initial_network_data = self._get_network_data()
         print(self.initial_network_data)
+        self.memory_usage_list = []
         print("Train start time recorded and initial network data collected.")
 
     def train_time_end(self, interval_seconds=30) -> None:
@@ -85,6 +120,7 @@ class Monitor:
             print(f"//train_time: {train_duration} //end")
             time.sleep(interval_seconds)
             self.final_network_data = self._get_network_data()
+            print(self.memory_usage_list)
             for pod in self.final_network_data:
                 if pod in self.initial_network_data:
                     network_diff = (

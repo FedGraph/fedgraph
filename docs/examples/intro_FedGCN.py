@@ -266,8 +266,8 @@ server = Server(features.shape[1], args_hidden, class_num, device, trainers, arg
 # of specific nodes back to each client.
 
 # starting monitor:
-# monitor = Monitor()
-# monitor.pretrain_time_start()
+monitor = Monitor()
+monitor.pretrain_time_start()
 local_neighbor_feature_sums = [
     trainer.get_local_feature_sum.remote() for trainer in server.trainers
 ]
@@ -291,7 +291,7 @@ for i in range(args.n_trainer):
 print("clients received feature aggregation from server")
 [trainer.relabel_adj.remote() for trainer in server.trainers]
 # ending monitor:
-# monitor.pretrain_time_end(30)
+monitor.pretrain_time_end(30)
 
 #######################################################################
 # Federated Training
@@ -300,10 +300,10 @@ print("clients received feature aggregation from server")
 # at every global round.
 
 print("global_rounds", args.global_rounds)
-# monitor.train_time_start()
+monitor.train_time_start()
 for i in range(args.global_rounds):
     server.train(i)
-# monitor.train_time_end(30)
+monitor.train_time_end(30)
 
 #######################################################################
 # Summarize Experiment Results
@@ -324,6 +324,7 @@ average_final_test_accuracy = np.average(
     [row[1] for row in results], weights=test_data_weights, axis=0
 )
 
-print(average_final_test_loss, average_final_test_accuracy)
+# print(average_final_test_loss, average_final_test_accuracy)
+print(f"// average_final_test_accuracy: {average_final_test_accuracy}//end")
 
 ray.shutdown()
