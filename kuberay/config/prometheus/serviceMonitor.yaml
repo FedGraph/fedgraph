@@ -1,0 +1,31 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ray-head-monitor
+  namespace: prometheus-system
+  labels:
+    # `release: $HELM_RELEASE`: Prometheus can only detect ServiceMonitor with this label.
+    release: prometheus
+spec:
+  jobLabel: ray-head
+  # Only select Kubernetes Services in the "default" namespace.
+  namespaceSelector:
+    matchNames:
+      - default
+  # Only select Kubernetes Services with "matchLabels".
+  selector:
+    matchLabels:
+      ray.io/node-type: head
+  # A list of endpoints allowed as part of this ServiceMonitor.
+  endpoints:
+    - port: metrics
+      interval: 1s # Set the scrape interval to 1 second
+      scrapeTimeout: 1s # Set the scrape timeout to 1 second
+    - port: as-metrics # autoscaler metrics
+      interval: 1s
+      scrapeTimeout: 1s
+    - port: dash-metrics # dashboard metrics
+      interval: 1s
+      scrapeTimeout: 1s
+  targetLabels:
+    - ray.io/cluster

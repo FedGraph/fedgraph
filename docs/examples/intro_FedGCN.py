@@ -9,17 +9,16 @@ you have basic familiarity with PyTorch and PyTorch Geometric (PyG).
 (Time estimate: 15 minutes)
 """
 
-
 import argparse
+import time
 from typing import Any
 
 import numpy as np
 import ray
 import torch
 
-ray.init()
-
 from fedgraph.data_process import FedGCN_load_data
+from fedgraph.monitor_class import Monitor
 from fedgraph.server_class import Server
 from fedgraph.trainer_class import Trainer_General
 from fedgraph.utils_nc import (
@@ -27,6 +26,9 @@ from fedgraph.utils_nc import (
     get_in_comm_indexes,
     label_dirichlet_partition,
 )
+
+ray.init()
+
 
 np.random.seed(42)
 torch.manual_seed(42)
@@ -38,7 +40,7 @@ parser.add_argument("-f", "--fedtype", default="fedgcn", type=str)
 
 parser.add_argument("-c", "--global_rounds", default=100, type=int)
 parser.add_argument("-i", "--local_step", default=3, type=int)
-parser.add_argument("-lr", "--learning_rate", default=0.5, type=float)
+parser.add_argument("-lr", "--learning_rate", default=0.1, type=float)
 
 parser.add_argument("-n", "--n_trainer", default=2, type=int)
 parser.add_argument("-nl", "--num_layers", default=2, type=int)
@@ -73,11 +75,13 @@ else:
 row, col, edge_attr = adj.coo()
 edge_index = torch.stack([row, col], dim=0)
 
-num_cpus_per_client = 1
+num_cpus_per_client = 4
 # specifying a target GPU
+args.gpu = False  # Test
+print(f"gpu usage: {args.gpu}")
 if args.gpu:
     device = torch.device("cuda")
-    edge_index = edge_index.to("cuda:0")
+    edge_index = edge_index.to("cuda")
     num_gpus_per_client = 1
 else:
     device = torch.device("cpu")
@@ -166,6 +170,9 @@ server = Server(features.shape[1], args_hidden, class_num, device, trainers, arg
 # aggregates all local feature sums and send the global feature sum
 # of specific nodes back to each client.
 
+# starting monitor:
+monitor = Monitor()
+monitor.pretrain_time_start()
 local_neighbor_feature_sums = [
     trainer.get_local_feature_sum.remote() for trainer in server.trainers
 ]
@@ -188,7 +195,8 @@ for i in range(args.n_trainer):
     )
 print("clients received feature aggregation from server")
 [trainer.relabel_adj.remote() for trainer in server.trainers]
-
+# ending monitor:
+monitor.pretrain_time_end(30)
 
 #######################################################################
 # Federated Training
@@ -197,9 +205,10 @@ print("clients received feature aggregation from server")
 # at every global round.
 
 print("global_rounds", args.global_rounds)
-
+monitor.train_time_start()
 for i in range(args.global_rounds):
     server.train(i)
+monitor.train_time_end(30)
 
 #######################################################################
 # Summarize Experiment Results

@@ -12,9 +12,10 @@ setuptools
 sphinxcontrib-bibtex
 matplotlib
 sphinx_gallery
-ray
+ray[default]
 tensorboard
 attridict
 fedgraph
 dtaidistance
 gdown
+pandas

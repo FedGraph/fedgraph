@@ -2,6 +2,7 @@ from . import (
     data_process,
     federated_methods,
     gnn_models,
+    monitor_class,
     server_class,
     train_func,
     trainer_class,

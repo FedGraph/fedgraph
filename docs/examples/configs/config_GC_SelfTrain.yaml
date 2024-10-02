@@ -14,7 +14,7 @@
   seed_split_data: 42
 
 # model_parameters
-  num_trainers: 10
+  num_trainers: 2
   local_epoch: 1
   lr: 0.001
   weight_decay: 0.0005
