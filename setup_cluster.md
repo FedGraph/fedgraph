@@ -14,9 +14,14 @@ Login to ECR
 aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
 ```
 
-Build Docker with amd64 architecture and push to ECR
+Build Docker with amd64 architecture on the cloud and push to ECR
 
 ```bash
+# You can add the cloud builder using the CLI, with the docker buildx create command.
+docker buildx create --driver cloud ryanli3/fedgraph
+# Set your new cloud builder as default on your local machine.
+docker buildx use cloud-ryanli3-fedgraph --global
+# Build and push image to ECR
 docker buildx build --platform linux/amd64 -t public.ecr.aws/i7t1s5i1/fedgraph:gcn . --push
 ```
 
@@ -80,7 +85,7 @@ kubectl port-forward service/raycluster-autoscaler-head-svc 8265:8265
 Forward Ports for Ray Dashboard, Prometheus, and Grafana
 
 ```bash
-kubectl port-forward raycluster-autoscaler-head-qrvzj 8080:8080
+kubectl port-forward raycluster-autoscaler-head-4thzw 8080:8080
 kubectl port-forward prometheus-prometheus-kube-prometheus-prometheus-0 -n prometheus-system 9090:9090
 kubectl port-forward deployment/prometheus-grafana -n prometheus-system 3000:3000
 ```
