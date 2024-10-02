@@ -1,10 +1,12 @@
 import datetime
+import re
+import threading
 import time
-from typing import Dict, Optional, List
+from typing import Any, Dict, List, Optional
 
 import requests  # type: ignore
 from ray.util.metrics import Gauge
-import threading
+
 
 class Monitor:
     def __init__(self) -> None:
@@ -23,12 +25,10 @@ class Monitor:
             description="Network data sent during training per pod.",
         )
         self.pretrain_memory_gauge = Gauge(
-            "pretrain_memory_usage",
-            description="Memory usage during pretraining."
+            "pretrain_memory_usage", description="Memory usage during pretraining."
         )
         self.train_memory_gauge = Gauge(
-            "train_memory_usage",
-            description="Memory usage during training."
+            "train_memory_usage", description="Memory usage during training."
         )
         self.pretrain_start_time: Optional[datetime.datetime] = None
         self.pretrain_end_time: Optional[datetime.datetime] = None
@@ -37,16 +37,16 @@ class Monitor:
         self.current_round = 0
         self.initial_network_data: Dict[str, float] = {}
         self.final_network_data: Dict[str, float] = {}
-        self.memory_usage_list: List[float] = []
+        self.memory_usage_list: List[Any] = []
 
-        
         self.memory_thread = threading.Thread(target=self.collect_memory, daemon=True)
         self.memory_thread.start()
 
-    def collect_memory(self,interval_seconds=30):
+    def collect_memory(self, interval_seconds=30):
         while True:
             memory_data = self._fetch_memory_usage()
             # total_memory = sum(memory_data.values())
+            # print(f"in collect_memory's data:{memory_data}")
             self.memory_usage_list.append(memory_data)
             time.sleep(interval_seconds)
 
@@ -70,8 +70,6 @@ class Monitor:
             for item in data["data"]["result"]
         }
 
-
-
     def pretrain_time_start(self) -> None:
         self.pretrain_start_time = datetime.datetime.now()
         self.initial_network_data = self._get_network_data()
@@ -87,9 +85,33 @@ class Monitor:
             self.pretrain_time_cost_gauge.set(pretrain_duration)
             print(f"//pretrain_time: {pretrain_duration} //end")
             time.sleep(interval_seconds)
-            print("Sleeping through intervals")
+            # print("Sleeping through intervals")
             self.final_network_data = self._get_network_data()
-            print(self.memory_usage_list)
+            # print(f"memory_list:{self.memory_usage_list}")
+            large_memory_values = [
+                max(memory_data[pod] for pod in memory_data if re.search(r"large", pod))
+                for memory_data in self.memory_usage_list
+                if any(re.search(r"large", pod) for pod in memory_data)
+            ]
+
+            head_memory_values = [
+                max(memory_data[pod] for pod in memory_data if re.search(r"head", pod))
+                for memory_data in self.memory_usage_list
+                if any(re.search(r"head", pod) for pod in memory_data)
+            ]
+
+            if large_memory_values:
+                print(
+                    f"//Log Max trainer memory value: {max(large_memory_values)} //end"
+                )
+            else:
+                print("No trainer memory values found.")
+            if head_memory_values:
+                print(
+                    f"// Log Max server memory value: {max(head_memory_values)} //end"
+                )
+            else:
+                print("No server memory values found.")
             for pod in self.final_network_data:
                 if pod in self.initial_network_data:
                     network_diff = (
@@ -117,10 +139,32 @@ class Monitor:
                 self.train_end_time - self.train_start_time
             ).total_seconds() * 1000
             self.train_time_cost_gauge.set(train_duration)
-            print(f"//train_time: {train_duration} //end")
+            print(f"//Log train_time: {train_duration} //end")
             time.sleep(interval_seconds)
             self.final_network_data = self._get_network_data()
-            print(self.memory_usage_list)
+            # print(f"memory_list:{self.memory_usage_list}")
+            large_memory_values = [
+                max(memory_data[pod] for pod in memory_data if re.search(r"large", pod))
+                for memory_data in self.memory_usage_list
+                if any(re.search(r"large", pod) for pod in memory_data)
+            ]
+
+            head_memory_values = [
+                max(memory_data[pod] for pod in memory_data if re.search(r"head", pod))
+                for memory_data in self.memory_usage_list
+                if any(re.search(r"head", pod) for pod in memory_data)
+            ]
+
+            if large_memory_values:
+                print(
+                    f"//Log Max trainer memory value: {max(large_memory_values)} //end"
+                )
+            else:
+                print("No trainer memory values found.")
+            if head_memory_values:
+                print(f"//Log Max server memory value: {max(head_memory_values)} //end")
+            else:
+                print("No server memory values found.")
             for pod in self.final_network_data:
                 if pod in self.initial_network_data:
                     network_diff = (

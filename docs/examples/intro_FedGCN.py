@@ -239,10 +239,12 @@ trainers = [
         local_node_index=split_node_indexes[i],
         communicate_node_index=communicate_node_global_indexes[i],
         adj=global_edge_indexes_clients[i],
-        train_labels=labels[communicate_node_global_indexes[i]
-                            ][in_com_train_node_local_indexes[i]],
-        test_labels=labels[communicate_node_global_indexes[i]
-                           ][in_com_test_node_local_indexes[i]],
+        train_labels=labels[communicate_node_global_indexes[i]][
+            in_com_train_node_local_indexes[i]
+        ],
+        test_labels=labels[communicate_node_global_indexes[i]][
+            in_com_test_node_local_indexes[i]
+        ],
         features=features[split_node_indexes[i]],
         idx_train=in_com_train_node_local_indexes[i],
         idx_test=in_com_test_node_local_indexes[i],
