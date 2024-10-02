@@ -243,7 +243,8 @@ class Server_GC:
         for trainer in trainers:
             dW = {}
             for k in self.W.keys():
-                dW[k] = trainer.dW[k]
+                trainer_dW = ray.get(trainer.get_dW.remote())
+                dW[k] = trainer_dW[k]
             trainer_dWs.append(dW)
 
         return self.__pairwise_angles(trainer_dWs)

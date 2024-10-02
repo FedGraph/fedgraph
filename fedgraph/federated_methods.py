@@ -543,6 +543,7 @@ def run_GC_Fed_algorithm(
     def highlight_max(s: pd.Series) -> list:
         is_max = s == s.max()
         return ["background-color: yellow" if v else "" for v in is_max]
+
     monitor.train_time_end(30)
     fs = frame.style.apply(highlight_max).data
     print(fs)
@@ -645,7 +646,11 @@ def run_GCFL_algorithm(
                 if algorithm_type == "gcfl" or all(
                     len(value) >= seq_length for value in seqs_grads.values()
                 ):
-                    server.cache_model(idc, trainers[idc[0]].W, acc_trainers)
+                    server.cache_model(
+                        idc,
+                        ray.get(trainers[idc[0]].get_total_weight.remote()),
+                        acc_trainers,
+                    )
                     if algorithm_type == "gcfl":
                         c1, c2 = server.min_cut(
                             server.compute_pairwise_similarities(trainers)[idc][:, idc],

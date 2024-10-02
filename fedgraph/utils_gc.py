@@ -1,6 +1,7 @@
 import argparse
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
@@ -214,11 +215,17 @@ def split_data(
     If the dataset needs to be split into training, validation, and test sets, the function should be called twice.
     """
     y = torch.cat([graph.y for graph in graphs])
+    y_indices = np.unique(y, return_inverse=True)[1]
+    class_counts = np.bincount(y_indices)
+    if np.min(class_counts) < 2:
+        stratify = None
+    else:
+        stratify = y
     graphs_train, graphs_test = train_test_split(
         graphs,
         train_size=train_size,
         test_size=test_size,
-        stratify=y,
+        stratify=stratify,
         shuffle=shuffle,
         random_state=seed,
     )

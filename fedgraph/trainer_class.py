@@ -128,9 +128,16 @@ class Trainer_General:
     ):
         # from gnn_models import GCN_Graph_Classification
         torch.manual_seed(rank)
-        if local_node_index is None or communicate_node_index is None or adj is None or \
-           train_labels is None or test_labels is None or features is None or \
-           idx_train is None or idx_test is None:
+        if (
+            local_node_index is None
+            or communicate_node_index is None
+            or adj is None
+            or train_labels is None
+            or test_labels is None
+            or features is None
+            or idx_train is None
+            or idx_test is None
+        ):
             (
                 local_node_index,
                 communicate_node_index,
@@ -713,6 +720,9 @@ class Trainer_GC:
 
     def get_total_weight(self) -> Any:
         return self.W
+
+    def get_dW(self) -> Any:
+        return self.dW
 
     def get_name(self) -> str:
         return self.name
