@@ -51,12 +51,12 @@ spec:
             # resource accounting. K8s requests are not used by Ray.
             resources:
               limits:
-                cpu: "28"
+                cpu: "2"
                 memory: "100Gi"
                 # nvidia.com/gpu: "1"
 
               requests:
-                cpu: "28"
+                cpu: "2"
                 memory: "100Gi"
                 # nvidia.com/gpu: "1"
             env:
@@ -146,12 +146,12 @@ spec:
               # resource accounting. K8s requests are not used by Ray.
               resources:
                 limits:
-                  cpu: "28"
-                  memory: "100Gi"
+                  cpu: "90"
+                  memory: "360Gi"
                   # nvidia.com/gpu: "1"
                 requests:
-                  cpu: "28"
-                  memory: "100Gi"
+                  cpu: "90"
+                  memory: "360Gi"
                   # nvidia.com/gpu: "1"
               # environment variables to set in the container.Optional.
               # Refer to https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/

@@ -38,7 +38,7 @@ Update kubeconfig for AWS EKS:
 
 ```bash
 
-aws eks --region us-west-2 update-kubeconfig --name gcn
+aws eks --region us-west-2 update-kubeconfig --name gc
 
 ```
 
@@ -102,7 +102,7 @@ Submit a Ray Job:
 cd fedgraph
 ray job submit --runtime-env-json '{
   "working_dir": "./"
-}' --address http://localhost:8265 -- python docs/examples/intro_FedGCN.py
+}' --address http://localhost:8265 -- python docs/examples/benchmark_GC.py
 
 ```
 

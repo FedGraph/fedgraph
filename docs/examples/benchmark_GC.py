@@ -14,6 +14,7 @@ import copy
 import os
 import random
 import sys
+import time
 from pathlib import Path
 
 import attridict
@@ -21,7 +22,7 @@ import numpy as np
 import ray
 import torch
 import yaml
-import time
+
 from fedgraph.data_process import data_loader_GC
 from fedgraph.federated_methods import (
     run_GC_Fed_algorithm,
@@ -53,7 +54,6 @@ ray.init()
 
 
 def run(algorithm, args):
-
     #######################################################################
     # Set random seed
     # ------------
@@ -61,14 +61,14 @@ def run(algorithm, args):
     # Notice that to compare the performance of different methods, the random seed
     # for splitting data must be fixed.
 
-    seed_split_data = 42  # seed for splitting data must be fixed
+    args.seed = 42  # seed for splitting data must be fixed
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
     base_model = GIN
     args.device = "cuda" if torch.cuda.is_available() else "cpu"
-    num_cpus_per_trainer = 3
+    num_cpus_per_trainer = 2.1
     # specifying a target GPU
     if torch.cuda.is_available():
         print("using GPU")
@@ -94,8 +94,7 @@ def run(algorithm, args):
         if algorithm in ["SelfTrain"]:
             outdir = os.path.join(outdir, f"{args.dataset}")
         elif algorithm in ["FedAvg", "FedProx"]:
-            outdir = os.path.join(
-                outdir, f"{args.dataset}-{args.num_trainers}trainers")
+            outdir = os.path.join(outdir, f"{args.dataset}-{args.num_trainers}trainers")
         elif algorithm in ["GCFL"]:
             outdir = os.path.join(
                 outdir,
@@ -146,8 +145,7 @@ def run(algorithm, args):
     # That is, `base_model` must have all the required methods and attributes as the default `GIN`
     # For the detailed expected format of the model, please refer to the `fedgraph/gnn_models.py`
 
-    server = Server_GC(base_model(nlayer=args.nlayer,
-                                  nhid=args.hidden), args.device)
+    server = Server_GC(base_model(nlayer=args.nlayer, nhid=args.hidden), args.device)
     print("setup server done")
 
     @ray.remote(
@@ -169,8 +167,7 @@ def run(algorithm, args):
 
             """build optimizer"""
             optimizer = torch.optim.Adam(
-                params=filter(lambda p: p.requires_grad,
-                              cmodel_gc.parameters()),
+                params=filter(lambda p: p.requires_grad, cmodel_gc.parameters()),
                 lr=args.lr,
                 weight_decay=args.weight_decay,
             )
@@ -277,20 +274,28 @@ def run(algorithm, args):
 
 
 for dataset_name in [
-    "IMDB-BINARY", "IMDB-MULTI",
-    "MUTAG", "BZR", "COX2", "DHFR",
-    "PTC-MR", "AIDS", "NCI1", "ENZYMES",
-    "DD", "PROTEINS", "COLLAB"
+    "IMDB-BINARY",
+    "IMDB-MULTI",
+    "MUTAG",
+    "BZR",
+    "COX2",
+    "DHFR",
+    # "PTC-MR",
+    "AIDS",
+    "NCI1",
+    "ENZYMES",
+    "DD",
+    "PROTEINS",
+    "COLLAB",
 ]:
     for algorithm in ["SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs"]:
-        config_file = os.path.join(
-            current_dir, f"configs/config_GC_{algorithm}.yaml")
+        config_file = os.path.join(current_dir, f"configs/config_GC_{algorithm}.yaml")
         with open(config_file, "r") as file:
             args = attridict(yaml.safe_load(file))
 
         # print(args)
         args.dataset = dataset_name
-        for trainer_num in [2, 4, 6, 8, 10]:
+        for trainer_num in [2, 4, 8, 16, 32]:
             args.num_trainers = trainer_num
             # for distribution_type in [
             #     "average",
@@ -303,10 +308,10 @@ for dataset_name in [
             #     args.num_hops = num_hops
 
             print(
-                f"Running experiment with: Algorithm={
-                    algorithm}, Dataset={args.dataset},"
+                f"Running experiment with: Algorithm={algorithm}, Dataset={args.dataset},"
                 f"Number of Trainers={args.num_trainers}"
             )
-            run(algorithm, args)
+            for i in range(5):
+                run(algorithm, args)
             time.sleep(30)
 ray.shutdown()
