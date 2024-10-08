@@ -149,7 +149,9 @@ def run_NC(args: attridict, data: tuple) -> None:
         ]
         global_feature_sum = torch.zeros_like(features)
         while True:
-            ready, left = ray.wait(local_neighbor_feature_sums, num_returns=1, timeout=None)
+            ready, left = ray.wait(
+                local_neighbor_feature_sums, num_returns=1, timeout=None
+            )
             if ready:
                 for t in ready:
                     global_feature_sum += ray.get(t)
