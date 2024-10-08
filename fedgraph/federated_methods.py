@@ -56,11 +56,7 @@ def run_NC(args: attridict, data: tuple) -> None:
     args
     data
     """
-    try:
-        ray.init(address="auto")
-    except:
-        # run on local
-        ray.init()
+    ray.init()
 
     (
         edge_index,
@@ -271,7 +267,7 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
     #     print(f"The statistics of the data are written to {outdir_stats}")
 
     #################### setup server and trainers ####################
-    ray.init(address="auto")
+    ray.init()
 
     @ray.remote(
         num_gpus=num_gpus_per_trainer,
@@ -746,7 +742,7 @@ def run_LP(args: attridict) -> None:
             [0]: The list of clients
             [1]: The server
         """
-        ray.init(address="auto")
+        ray.init()
         number_of_clients = len(country_codes)
         number_of_users, number_of_items = len(user_id_mapping.keys()), len(
             item_id_mapping.keys()
