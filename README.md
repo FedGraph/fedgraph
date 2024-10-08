@@ -41,12 +41,13 @@ pip install fedgraph
 
 ## Quick Start
 ```python
-from fedgraph.federated_methods import FedGCN_Train
-from fedgraph.utils import federated_data_loader
+from fedgraph.federated_methods import run_fedgraph
+from fedgraph.data_process import data_loader
 import attridict
 
 config={'dataset': 'cora',
-        'fedtype': 'fedgcn',
+        'fedgraph_task': 'NC',
+        'method': 'FedGCN',
         'global_rounds': 100,
         'local_step': 3,
         'learning_rate': 0.5,
@@ -59,8 +60,8 @@ config={'dataset': 'cora',
 
 config = attridict(config)
 
-data = federated_data_loader(config)
-FedGCN_Train(config, data)
+data = data_loader(config)
+run_fedgraph(config, data)
 ```
 
 ## Cite

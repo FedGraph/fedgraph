@@ -36,7 +36,7 @@ torch.manual_seed(42)
 parser = argparse.ArgumentParser()
 parser.add_argument("-d", "--dataset", default="cora", type=str)
 
-parser.add_argument("-f", "--fedtype", default="fedgcn", type=str)
+parser.add_argument("-f", "--method", default="fedgcn", type=str)
 
 parser.add_argument("-c", "--global_rounds", default=100, type=int)
 parser.add_argument("-i", "--local_step", default=3, type=int)

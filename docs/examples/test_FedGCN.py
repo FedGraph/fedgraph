@@ -257,7 +257,7 @@ class Trainer_General:
         ) = load_trainer_data_from_hugging_face(rank)
 
         # seems that new trainer process will not inherit sys.path from parent, need to reimport!
-        if args.num_hops >= 1 and args.fedtype == "fedgcn":
+        if args.num_hops >= 1 and args.method == "fedgcn":
             self.model = AggreGCN(
                 nfeat=features.shape[1],
                 nhid=args_hidden,

@@ -39,25 +39,24 @@ def run_fedgraph(args: attridict, data: Any) -> None:
     data: Any
         The data.
     """
-    if args.fedgraph_task == "FedGCN":
-        run_FedGCN(args, data)
+    if args.fedgraph_task == "NC":
+        run_NC(args, data)
     elif args.fedgraph_task == "GC":
         run_GC(args, data)
     elif args.fedgraph_task == "LP":
         run_LP(args)
 
 
-def run_FedGCN(args: attridict, data: tuple) -> None:
+def run_NC(args: attridict, data: tuple) -> None:
     """
-    Train a FedGCN model.
+    Train a Federated Node Classification model.
 
     Parameters
     ----------
     args
     data
     """
-
-    ray.init(address="auto")
+    ray.init()
 
     (
         edge_index,
@@ -133,38 +132,40 @@ def run_FedGCN(args: attridict, data: tuple) -> None:
     # without knowing the local trainer data
 
     server = Server(features.shape[1], args_hidden, class_num, device, trainers, args)
+    if args.method == "FedGCN":
+        #######################################################################
+        # Pre-Train Communication of FedGCN
+        # ---------------------------------
+        # Clients send their local feature sum to the server, and the server
+        # aggregates all local feature sums and send the global feature sum
+        # of specific nodes back to each trainer.
 
-    #######################################################################
-    # Pre-Train Communication of FedGCN
-    # ---------------------------------
-    # Clients send their local feature sum to the server, and the server
-    # aggregates all local feature sums and send the global feature sum
-    # of specific nodes back to each trainer.
-
-    local_neighbor_feature_sums = [
-        trainer.get_local_feature_sum.remote() for trainer in server.trainers
-    ]
-    global_feature_sum = torch.zeros_like(features)
-    while True:
-        ready, left = ray.wait(local_neighbor_feature_sums, num_returns=1, timeout=None)
-        if ready:
-            for t in ready:
-                global_feature_sum += ray.get(t)
-        local_neighbor_feature_sums = left
-        if not local_neighbor_feature_sums:
-            break
-    print("server aggregates all local neighbor feature sums")
-    # test if aggregation is correct
-    if args.num_hops != 0:
-        assert (
-            global_feature_sum != get_1hop_feature_sum(features, edge_index)
-        ).sum() == 0
-    for i in range(args.n_trainer):
-        server.trainers[i].load_feature_aggregation.remote(
-            global_feature_sum[communicate_node_indexes[i]]
-        )
-    print("trainers received feature aggregation from server")
-    [trainer.relabel_adj.remote() for trainer in server.trainers]
+        local_neighbor_feature_sums = [
+            trainer.get_local_feature_sum.remote() for trainer in server.trainers
+        ]
+        global_feature_sum = torch.zeros_like(features)
+        while True:
+            ready, left = ray.wait(
+                local_neighbor_feature_sums, num_returns=1, timeout=None
+            )
+            if ready:
+                for t in ready:
+                    global_feature_sum += ray.get(t)
+            local_neighbor_feature_sums = left
+            if not local_neighbor_feature_sums:
+                break
+        print("server aggregates all local neighbor feature sums")
+        # test if aggregation is correct
+        if args.num_hops != 0:
+            assert (
+                global_feature_sum != get_1hop_feature_sum(features, edge_index)
+            ).sum() == 0
+        for i in range(args.n_trainer):
+            server.trainers[i].load_feature_aggregation.remote(
+                global_feature_sum[communicate_node_indexes[i]]
+            )
+        print("trainers received feature aggregation from server")
+        [trainer.relabel_adj.remote() for trainer in server.trainers]
 
     #######################################################################
     # Federated Training
@@ -266,7 +267,7 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
     #     print(f"The statistics of the data are written to {outdir_stats}")
 
     #################### setup server and trainers ####################
-    ray.init(address="auto")
+    ray.init()
 
     @ray.remote(
         num_gpus=num_gpus_per_trainer,
@@ -741,7 +742,7 @@ def run_LP(args: attridict) -> None:
             [0]: The list of clients
             [1]: The server
         """
-        ray.init(address="auto")
+        ray.init()
         number_of_clients = len(country_codes)
         number_of_users, number_of_items = len(user_id_mapping.keys()), len(
             item_id_mapping.keys()
