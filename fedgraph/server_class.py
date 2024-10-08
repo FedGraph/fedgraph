@@ -51,7 +51,7 @@ class Server:
         args: Any,
     ) -> None:
         # server model on cpu
-        if args.num_hops >= 1 and args.fedtype == "fedgcn":
+        if args.num_hops >= 1 and args.method == "fedgcn":
             self.model = AggreGCN(
                 nfeat=feature_dim,
                 nhid=args_hidden,

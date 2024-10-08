@@ -48,6 +48,7 @@ setup(
         "gdown",
         "pandas",
         "twine==5.0.0",
+        "scikit-learn",
     ],
     extras_require={"dev": ["build", "mypy", "pre-commit", "pytest"]},
 )

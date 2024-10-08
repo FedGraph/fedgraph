@@ -81,7 +81,7 @@ class Trainer_General:
         torch.manual_seed(rank)
 
         # seems that new trainer process will not inherit sys.path from parent, need to reimport!
-        if args.num_hops >= 1 and args.fedtype == "fedgcn":
+        if args.num_hops >= 1 and args.method == "fedgcn":
             self.model = AggreGCN(
                 nfeat=features.shape[1],
                 nhid=args_hidden,

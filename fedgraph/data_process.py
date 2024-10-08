@@ -44,7 +44,7 @@ def data_loader(args: attridict) -> Any:
     Note
     ----
     The function will call the corresponding data loader function based on the task.
-    If the task is "FedGCN", the function will call data_loader_FedGCN.
+    If the task is "NC", the function will call data_loader_NC.
     If the task is "GC", the function will call data_loader_GC.
     If the task is "LP", only the country code needs to be specified at this stage, and the function will return None.
     """
@@ -52,13 +52,13 @@ def data_loader(args: attridict) -> Any:
         return None
 
     data_loader_function = {
-        "FedGCN": data_loader_FedGCN,
+        "NC": data_loader_NC,
         "GC": data_loader_GC,
     }
     return data_loader_function[args.fedgraph_task](args)
 
 
-def data_loader_FedGCN(args: attridict) -> tuple:
+def data_loader_NC(args: attridict) -> tuple:
     #######################################################################
     # Data Loading
     # ------------
@@ -70,7 +70,7 @@ def data_loader_FedGCN(args: attridict) -> tuple:
     # tutorial <https://pytorch-geometric.readthedocs.io/en/latest/notes
     # /create_dataset.html>`__ in PyG.
     print("config: ", args)
-    features, adj, labels, idx_train, idx_val, idx_test = FedGCN_load_data(args.dataset)
+    features, adj, labels, idx_train, idx_val, idx_test = NC_load_data(args.dataset)
     class_num = labels.max().item() + 1
 
     row, col, edge_attr = adj.coo()
@@ -155,7 +155,7 @@ def data_loader_GC(args: attridict) -> dict:
         )
 
 
-def FedGCN_parse_index_file(filename: str) -> list:
+def NC_parse_index_file(filename: str) -> list:
     """
     Reads and parses an index file
 
@@ -175,7 +175,7 @@ def FedGCN_parse_index_file(filename: str) -> list:
     return index
 
 
-def FedGCN_load_data(dataset_str: str) -> tuple:
+def NC_load_data(dataset_str: str) -> tuple:
     """
     Loads input data from 'gcn/data' directory and processes these datasets into a format
     suitable for training GCN and similar models.
@@ -227,7 +227,7 @@ def FedGCN_load_data(dataset_str: str) -> tuple:
                     objects.append(pkl.load(f))
 
         x, y, tx, ty, allx, ally, graph = tuple(objects)
-        test_idx_reorder = FedGCN_parse_index_file(
+        test_idx_reorder = NC_parse_index_file(
             "data/{}/raw/ind.{}.test.index".format(dataset_str, dataset_str)
         )
         test_idx_range = np.sort(test_idx_reorder)
