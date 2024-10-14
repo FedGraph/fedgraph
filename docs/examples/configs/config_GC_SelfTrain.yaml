@@ -15,7 +15,7 @@
 
 # model_parameters
   num_trainers: 2
-  local_epoch: 1
+  local_epoch: 200
   lr: 0.001
   weight_decay: 0.0005
   nlayer: 3

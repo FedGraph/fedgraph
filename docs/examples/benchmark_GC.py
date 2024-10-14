@@ -68,7 +68,7 @@ def run(algorithm, args):
     torch.cuda.manual_seed(args.seed)
     base_model = GIN
     args.device = "cuda" if torch.cuda.is_available() else "cpu"
-    num_cpus_per_trainer = 2.1
+    num_cpus_per_trainer = 55
     # specifying a target GPU
     if torch.cuda.is_available():
         print("using GPU")
@@ -280,22 +280,23 @@ for dataset_name in [
     "BZR",
     "COX2",
     "DHFR",
-    # "PTC-MR",
     "AIDS",
-    "NCI1",
-    "ENZYMES",
-    "DD",
-    "PROTEINS",
-    "COLLAB",
+    # "PTC-MR", not found
+    # "ENZYMES", error with 10 clients
+    # "DD",
+    # "PROTEINS",
+    # "COLLAB",
+    # "NCI1",
 ]:
-    for algorithm in ["SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs"]:
+    # for algorithm in ["SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs"]:
+    for algorithm in ["SelfTrain"]:
         config_file = os.path.join(current_dir, f"configs/config_GC_{algorithm}.yaml")
         with open(config_file, "r") as file:
             args = attridict(yaml.safe_load(file))
 
         # print(args)
         args.dataset = dataset_name
-        for trainer_num in [2, 4, 8, 16, 32]:
+        for trainer_num in [10]:
             args.num_trainers = trainer_num
             # for distribution_type in [
             #     "average",
@@ -307,11 +308,11 @@ for dataset_name in [
             # for num_hops in [2]:
             #     args.num_hops = num_hops
 
-            print(
-                f"Running experiment with: Algorithm={algorithm}, Dataset={args.dataset},"
-                f"Number of Trainers={args.num_trainers}"
-            )
-            for i in range(5):
+            for i in range(4):
+                print(
+                    f"Running experiment with: Algorithm={algorithm}, Dataset={args.dataset},"
+                    f"Number of Trainers={args.num_trainers}"
+                )
                 run(algorithm, args)
             time.sleep(30)
 ray.shutdown()

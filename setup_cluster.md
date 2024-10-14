@@ -38,7 +38,7 @@ Update kubeconfig for AWS EKS:
 
 ```bash
 
-aws eks --region us-west-2 update-kubeconfig --name gc
+aws eks --region us-west-2 update-kubeconfig --name large
 
 ```
 
@@ -85,7 +85,7 @@ kubectl port-forward service/raycluster-autoscaler-head-svc 8265:8265
 Forward Ports for Ray Dashboard, Prometheus, and Grafana
 
 ```bash
-kubectl port-forward raycluster-autoscaler-head-4thzw 8080:8080
+kubectl port-forward raycluster-autoscaler-head-7mxcr 8080:8080
 kubectl port-forward prometheus-prometheus-kube-prometheus-prometheus-0 -n prometheus-system 9090:9090
 kubectl port-forward deployment/prometheus-grafana -n prometheus-system 3000:3000
 ```
@@ -104,6 +104,12 @@ ray job submit --runtime-env-json '{
   "working_dir": "./"
 }' --address http://localhost:8265 -- python docs/examples/benchmark_GC.py
 
+```
+
+Stop a Ray Job:
+
+```bash
+ray job stop raysubmit_Ffrb3KFpvCaqrCAX --address http://localhost:8265
 ```
 
 ## How to Delete the Ray Cluster
@@ -138,7 +144,7 @@ kubectl get pods -A
 Finally, Delete the EKS Cluster:
 
 ```bash
-eksctl delete cluster --region us-west-2 --name gcn
+eksctl delete cluster --region us-west-2 --name large
 ```
 
 ## Step 1: Pushing Data to Hugging Face Hub CLI
