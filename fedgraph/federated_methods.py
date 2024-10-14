@@ -417,12 +417,15 @@ def run_GC_selftrain(trainers: list, server: Any, local_epoch: int) -> dict:
     """
 
     # all trainers are initialized with the same weights
+    monitor = Monitor()
+    monitor.pretrain_time_start()
     global_params_id = ray.put(server.W)
     for trainer in trainers:
         trainer.update_params.remote(global_params_id)
-
+    monitor.pretrain_time_end(30)
     all_accs = {}
     acc_refs = []
+    monitor.train_time_start()
     for trainer in trainers:
         trainer.local_train.remote(local_epoch=local_epoch)
         acc_ref = trainer.local_test.remote()
@@ -443,6 +446,7 @@ def run_GC_selftrain(trainers: list, server: Any, local_epoch: int) -> dict:
         if not acc_refs:
             break
 
+    monitor.train_time_end(30)
     frame = pd.DataFrame(all_accs).T.iloc[:, [2]]
     frame.columns = ["test_acc"]
     print(frame)
@@ -487,11 +491,13 @@ def run_GC_Fed_algorithm(
     frame: pd.DataFrame
         Pandas dataframe with test accuracies
     """
-
+    monitor = Monitor()
+    monitor.pretrain_time_start()
     global_params_id = ray.put(server.W)
     for trainer in trainers:
         trainer.update_params.remote(global_params_id)
-
+    monitor.pretrain_time_end(30)
+    monitor.train_time_start()
     for c_round in range(1, communication_rounds + 1):
         if (c_round) % 10 == 0:
             # print the current round every 10 rounds
@@ -539,6 +545,7 @@ def run_GC_Fed_algorithm(
         is_max = s == s.max()
         return ["background-color: yellow" if v else "" for v in is_max]
 
+    monitor.train_time_end(30)
     fs = frame.style.apply(highlight_max).data
     print(fs)
     print(f"Average test accuracy: {gc_avg_accuracy(frame, trainers)}")
@@ -589,7 +596,8 @@ def run_GCFL_algorithm(
         raise ValueError(
             "Invalid algorithm_type. Must be 'gcfl', 'gcfl_plus', or 'gcfl_plus_dWs'."
         )
-
+    monitor = Monitor()
+    monitor.pretrain_time_start()
     cluster_indices = [np.arange(len(trainers)).astype("int")]
     trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
 
@@ -601,9 +609,9 @@ def run_GCFL_algorithm(
 
         for trainer in trainers:
             trainer.update_params(global_params_id)
-
+    monitor.pretrain_time_end(30)
     acc_trainers: List[Any] = []
-
+    monitor.train_time_start()
     for c_round in range(1, communication_rounds + 1):
         if (c_round) % 10 == 0:
             print(f"  > Training round {c_round} finished.")
@@ -639,7 +647,11 @@ def run_GCFL_algorithm(
                 if algorithm_type == "gcfl" or all(
                     len(value) >= seq_length for value in seqs_grads.values()
                 ):
-                    server.cache_model(idc, trainers[idc[0]].W, acc_trainers)
+                    server.cache_model(
+                        idc,
+                        ray.get(trainers[idc[0]].get_total_weight.remote()),
+                        acc_trainers,
+                    )
                     if algorithm_type == "gcfl":
                         c1, c2 = server.min_cut(
                             server.compute_pairwise_similarities(trainers)[idc][:, idc],
@@ -682,6 +694,8 @@ def run_GCFL_algorithm(
         server.cache_model(
             idc, ray.get(trainers[idc[0]].get_total_weight.remote()), acc_trainers
         )
+
+    monitor.train_time_end(30)
     results = np.zeros([len(trainers), len(server.model_cache)])
     for i, (idcs, W, accs) in enumerate(server.model_cache):
         results[idcs, i] = np.array(accs)
@@ -865,7 +879,7 @@ def run_LP(args: attridict) -> None:
         else:
             result_writer = None
             time_writer = None
-        monitor.pretrain_time_end()
+        monitor.pretrain_time_end(30)
         # from 2012-04-03 to 2012-04-13
         for day in range(prediction_days):  # make predictions for each day
             # get the train and test data for each client at the current time step
@@ -902,7 +916,7 @@ def run_LP(args: attridict) -> None:
                     result_writer=result_writer,
                     time_writer=time_writer,
                 )
-                monitor.train_time_end()
+                monitor.train_time_end(30)
 
             if current_loss >= 0.01:
                 print("training is not complete")

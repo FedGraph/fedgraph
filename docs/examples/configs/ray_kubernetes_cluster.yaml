@@ -42,22 +42,24 @@ spec:
         annotations:
           key: value
       spec:
+        nodeSelector:
+          beta.kubernetes.io/instance-type: "m5.8xlarge"
         containers:
           - name: ray-head
-            image: public.ecr.aws/i7t1s5i1/fedgraph:gcn
+            image: public.ecr.aws/i7t1s5i1/fedgraph:benchmark2
             # Optimal resource allocation will depend on your Kubernetes infrastructure and might
             # require some experimentation.
             # Setting requests=limits is recommended with Ray. K8s limits are used for Ray-internal
             # resource accounting. K8s requests are not used by Ray.
             resources:
               limits:
-                cpu: "43"
-                memory: "220Gi"
+                cpu: "28"
+                memory: "100Gi"
                 # nvidia.com/gpu: "1"
 
               requests:
-                cpu: "43"
-                memory: "220Gi"
+                cpu: "28"
+                memory: "100Gi"
                 # nvidia.com/gpu: "1"
             env:
               - name: CPU_REQUEST
@@ -111,9 +113,9 @@ spec:
                   command: ["/bin/sh", "-c", "ray stop"]
   workerGroupSpecs:
     # the pod replicas in this group typed worker
-    - replicas: 1
-      minReplicas: 1
-      maxReplicas: 1
+    - replicas: 10
+      minReplicas: 10
+      maxReplicas: 10
       # logical group name, for this called large-group, also can be functional
       groupName: large-group
       # if worker pods need to be added, we can simply increment the replicas
@@ -135,23 +137,24 @@ spec:
             rayCluster: raycluster-complete # will be injected if missing
             rayNodeType: worker # will be injected if missing
             groupName: small-group # will be injected if missing
+            ray-node-type: large-group
           # annotations for pod
           annotations:
             key: value
         spec:
           containers:
             - name: machine-learning # must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character (e.g. 'my-name',  or '123-abc'
-              image: public.ecr.aws/i7t1s5i1/fedgraph:gcn
+              image: public.ecr.aws/i7t1s5i1/fedgraph:benchmark2
               # Setting requests=limits is recommended with Ray. K8s limits are used for Ray-internal
               # resource accounting. K8s requests are not used by Ray.
               resources:
                 limits:
-                  cpu: "43"
-                  memory: "220Gi"
+                  cpu: "60"
+                  memory: "230Gi"
                   # nvidia.com/gpu: "1"
                 requests:
-                  cpu: "43"
-                  memory: "220Gi"
+                  cpu: "60"
+                  memory: "230Gi"
                   # nvidia.com/gpu: "1"
               # environment variables to set in the container.Optional.
               # Refer to https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/

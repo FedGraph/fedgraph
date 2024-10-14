@@ -60,6 +60,7 @@ cover/
 
 # Django stuff:
 *.log
+*.csv
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -195,3 +196,4 @@ data/
 tutorials/
 runs/
 docs/examples/dataset
+docs/examples/figure_*

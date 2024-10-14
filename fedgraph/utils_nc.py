@@ -1,5 +1,6 @@
 import glob
 import re
+import time
 from pathlib import Path
 
 import attridict
@@ -83,14 +84,20 @@ def setdiff1d(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
 
 
 def label_dirichlet_partition(
-    labels: np.array, N: int, K: int, n_parties: int, beta: float
+    labels: np.array,
+    N: int,
+    K: int,
+    n_parties: int,
+    beta: float,
+    # can be "lognormal", "powerlaw", "exponential", "average"
+    distribution_type: str = "powerlaw",
 ) -> list:
     """
-    Partitions data based on labels by using the Dirichlet distribution, to ensure even distribution of samples
+    Partitions data based on labels by using the Dirichlet distribution, to ensure even distribution of samples.
 
     Parameters
     ----------
-    labels : NumPy array
+    labels : np.array
         An array with labels or categories for each data point.
     N : int
         Total number of data points in the dataset.
@@ -100,17 +107,40 @@ def label_dirichlet_partition(
         The number of groups into which the data should be partitioned.
     beta : float
         Dirichlet distribution parameter value.
+    distribution_type : str
+        Type of distribution to generate the weights ('lognormal', 'powerlaw', 'exponential', 'average').
 
     Returns
     -------
     split_data_indexes : list
-        List indices of data points assigned into groups.
-
+        List of indices of data points assigned into groups.
     """
     min_size = 0
     min_require_size = 10
 
     split_data_indexes = []
+
+    # Generate unbalanced portion of the clients' node numbers based on distribution_type
+    if distribution_type == "lognormal":
+        # Lognormal distribution
+        weights = np.random.lognormal(mean=0, sigma=2, size=n_parties)
+    elif distribution_type == "powerlaw":
+        # Power-law distribution (Zipf's law)
+        # city-level index is 1.24, ref: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7822261
+        # country-level index is 0.1577, causing an infinite while loop
+        # Trimming the tail by 10% resulted in an a value of 0.31653612251668856
+        weights = np.random.power(a=0.31653612251668856, size=n_parties)
+    elif distribution_type == "exponential":
+        # Exponential distribution
+        weights = np.random.exponential(scale=1.0, size=n_parties)
+    elif distribution_type == "average":
+        # Evenly distributed (average) weights
+        weights = np.ones(n_parties)
+    else:
+        # Balanced distribution (equal weights)
+        weights = np.ones(n_parties)
+
+    weights /= weights.sum()  # Normalize the weights
 
     while min_size < min_require_size:
         idx_batch: list[list[int]] = [[] for _ in range(n_parties)]
@@ -118,16 +148,18 @@ def label_dirichlet_partition(
             idx_k = np.where(labels == k)[0]
             np.random.shuffle(idx_k)
             proportions = np.random.dirichlet(np.repeat(beta, n_parties))
+            if distribution_type == "average":
+                # Keep the same client's node number
+                proportions = np.array(
+                    [
+                        p * (len(idx_j) < N / n_parties)
+                        for p, idx_j in zip(proportions, idx_batch)
+                    ]
+                )
 
-            proportions = np.array(
-                [
-                    p * (len(idx_j) < N / n_parties)
-                    for p, idx_j in zip(proportions, idx_batch)
-                ]
-            )
-
-            proportions = proportions / proportions.sum()
-
+            for i in range(n_parties):
+                proportions[i] *= weights[i]
+            proportions = proportions / proportions.sum()  # Normalize proportions
             proportions = (np.cumsum(proportions) * len(idx_k)).astype(int)[:-1]
 
             idx_batch = [
@@ -139,6 +171,7 @@ def label_dirichlet_partition(
     for j in range(n_parties):
         np.random.shuffle(idx_batch[j])
         split_data_indexes.append(idx_batch[j])
+
     return split_data_indexes
 
 
@@ -311,7 +344,7 @@ def get_in_comm_indexes(
 
         inter = intersect1d(
             split_node_indexes[i], idx_train
-        )  ###only count the train data of nodes in current server(not communicate nodes)
+        )  # only count the train data of nodes in current server(not communicate nodes)
 
         in_com_train_node_indexes.append(
             torch.searchsorted(communicate_node_indexes[i], inter).clone()

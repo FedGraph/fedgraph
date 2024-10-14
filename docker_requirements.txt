@@ -124,3 +124,5 @@ virtualenv==20.26.2
 Werkzeug==3.0.3
 wrapt==1.16.0
 yarl==1.9.4
+ogb
+huggingface_hub

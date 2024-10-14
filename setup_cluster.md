@@ -14,9 +14,14 @@ Login to ECR
 aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
 ```
 
-Build Docker with amd64 architecture and push to ECR
+Build Docker with amd64 architecture on the cloud and push to ECR
 
 ```bash
+# You can add the cloud builder using the CLI, with the docker buildx create command.
+docker buildx create --driver cloud ryanli3/fedgraph
+# Set your new cloud builder as default on your local machine.
+docker buildx use cloud-ryanli3-fedgraph --global
+# Build and push image to ECR
 docker buildx build --platform linux/amd64 -t public.ecr.aws/i7t1s5i1/fedgraph:gcn . --push
 ```
 
@@ -33,7 +38,7 @@ Update kubeconfig for AWS EKS:
 
 ```bash
 
-aws eks --region us-west-2 update-kubeconfig --name gcn
+aws eks --region us-west-2 update-kubeconfig --name large
 
 ```
 
@@ -80,7 +85,7 @@ kubectl port-forward service/raycluster-autoscaler-head-svc 8265:8265
 Forward Ports for Ray Dashboard, Prometheus, and Grafana
 
 ```bash
-kubectl port-forward raycluster-autoscaler-head-f94fg 8080:8080
+kubectl port-forward raycluster-autoscaler-head-7mxcr 8080:8080
 kubectl port-forward prometheus-prometheus-kube-prometheus-prometheus-0 -n prometheus-system 9090:9090
 kubectl port-forward deployment/prometheus-grafana -n prometheus-system 3000:3000
 ```
@@ -97,8 +102,14 @@ Submit a Ray Job:
 cd fedgraph
 ray job submit --runtime-env-json '{
   "working_dir": "./"
-}' --address http://localhost:8265 -- python docs/examples/intro_FedGCN.py
+}' --address http://localhost:8265 -- python docs/examples/benchmark_GC.py
 
+```
+
+Stop a Ray Job:
+
+```bash
+ray job stop raysubmit_Ffrb3KFpvCaqrCAX --address http://localhost:8265
 ```
 
 ## How to Delete the Ray Cluster
@@ -133,5 +144,14 @@ kubectl get pods -A
 Finally, Delete the EKS Cluster:
 
 ```bash
-eksctl delete cluster --region us-west-2 --name gcn
+eksctl delete cluster --region us-west-2 --name large
+```
+
+## Step 1: Pushing Data to Hugging Face Hub CLI
+
+Use the following command to install the Hugging Face Hub CLI tool if you haven't done so already:
+
+```bash
+pip install huggingface_hub
+huggingface-cli login
 ```

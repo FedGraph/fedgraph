@@ -1,13 +1,18 @@
 import argparse
 import random
 import time
-from typing import Any, List, Union
+from io import BytesIO
+from typing import Any, Dict, List, Union
 
 import numpy as np
 import ray
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric
+from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
+from torch_geometric.data import Data
+from torch_geometric.loader import NeighborLoader
 from torchmetrics.functional.retrieval import retrieval_auroc
 from torchmetrics.retrieval import RetrievalHitRate
 
@@ -20,6 +25,42 @@ from fedgraph.utils_lp import (
     get_global_user_item_mapping,
 )
 from fedgraph.utils_nc import get_1hop_feature_sum
+
+
+def load_trainer_data_from_hugging_face(trainer_id, args):
+    repo_name = f"FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{args.num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}"
+
+    def download_and_load_tensor(file_name):
+        file_path = hf_hub_download(
+            repo_id=repo_name, repo_type="dataset", filename=file_name
+        )
+        with open(file_path, "rb") as f:
+            buffer = BytesIO(f.read())
+            tensor = torch.load(buffer)
+        print(f"Loaded {file_name}, size: {tensor.size()}")
+        return tensor
+
+    print(f"Loading client data {trainer_id}")
+    local_node_index = download_and_load_tensor("local_node_index.pt")
+    communicate_node_global_index = download_and_load_tensor(
+        "communicate_node_index.pt"
+    )
+    global_edge_index_client = download_and_load_tensor("adj.pt")
+    train_labels = download_and_load_tensor("train_labels.pt")
+    test_labels = download_and_load_tensor("test_labels.pt")
+    features = download_and_load_tensor("features.pt")
+    in_com_train_node_local_indexes = download_and_load_tensor("idx_train.pt")
+    in_com_test_node_local_indexes = download_and_load_tensor("idx_test.pt")
+    return (
+        local_node_index,
+        communicate_node_global_index,
+        global_edge_index_client,
+        train_labels,
+        test_labels,
+        features,
+        in_com_train_node_local_indexes,
+        in_com_test_node_local_indexes,
+    )
 
 
 class Trainer_General:
@@ -63,22 +104,50 @@ class Trainer_General:
     def __init__(
         self,
         rank: int,
-        local_node_index: torch.Tensor,
-        communicate_node_index: torch.Tensor,
-        adj: torch.Tensor,
-        train_labels: torch.Tensor,
-        test_labels: torch.Tensor,
-        features: torch.Tensor,
-        idx_train: torch.Tensor,
-        idx_test: torch.Tensor,
+        # local_node_index: torch.Tensor,
+        # communicate_node_index: torch.Tensor,
+        # adj: torch.Tensor,
+        # train_labels: torch.Tensor,
+        # test_labels: torch.Tensor,
+        # features: torch.Tensor,
+        # idx_train: torch.Tensor,
+        # idx_test: torch.Tensor,
         args_hidden: int,
         global_node_num: int,
         class_num: int,
         device: torch.device,
         args: Any,
+        local_node_index: torch.Tensor = None,
+        communicate_node_index: torch.Tensor = None,
+        adj: torch.Tensor = None,
+        train_labels: torch.Tensor = None,
+        test_labels: torch.Tensor = None,
+        features: torch.Tensor = None,
+        idx_train: torch.Tensor = None,
+        idx_test: torch.Tensor = None,
     ):
         # from gnn_models import GCN_Graph_Classification
         torch.manual_seed(rank)
+        if (
+            local_node_index is None
+            or communicate_node_index is None
+            or adj is None
+            or train_labels is None
+            or test_labels is None
+            or features is None
+            or idx_train is None
+            or idx_test is None
+        ):
+            (
+                local_node_index,
+                communicate_node_index,
+                adj,
+                train_labels,
+                test_labels,
+                features,
+                idx_train,
+                idx_test,
+            ) = load_trainer_data_from_hugging_face(rank, args)
 
         # seems that new trainer process will not inherit sys.path from parent, need to reimport!
         if args.num_hops >= 1 and args.method == "fedgcn":
@@ -144,6 +213,7 @@ class Trainer_General:
         self.local_step = args.local_step
         self.global_node_num = global_node_num
         self.class_num = class_num
+        self.args = args
 
     @torch.no_grad()
     def update_params(self, params: tuple, current_global_epoch: int) -> None:
@@ -222,23 +292,78 @@ class Trainer_General:
         torch.cuda.empty_cache()
         self.model.to(self.device)
         self.feature_aggregation = self.feature_aggregation.to(self.device)
+        if hasattr(self.args, "batch_size") and self.args.batch_size > 0:
+            # batch preparation
+            train_mask = torch.zeros(self.feature_aggregation.size(0), dtype=torch.bool)
+            train_mask[self.idx_train] = True
+
+            node_labels = torch.full(
+                (self.feature_aggregation.size(0),), -1, dtype=torch.long
+            )
+
+            mask_indices = train_mask.nonzero(as_tuple=True)[0]
+            node_labels[train_mask] = self.train_labels[: len(mask_indices)]
+            data = Data(
+                x=self.feature_aggregation,
+                edge_index=self.adj,
+                train_mask=train_mask,
+                y=node_labels,
+            )
         for iteration in range(self.local_step):
             self.model.train()
-            loss_train, acc_train = train(
-                iteration,
-                self.model,
-                self.optimizer,
-                self.feature_aggregation,
-                self.adj,
-                self.train_labels,
-                self.idx_train,
-            )
+            if hasattr(self.args, "batch_size") and self.args.batch_size > 0:
+                # print(f"Training with batch size {self.args.batch_size}")
+                loader = NeighborLoader(
+                    data,
+                    num_neighbors=[-1] * self.args.num_layers,
+                    batch_size=2048,
+                    input_nodes=self.idx_train,
+                    shuffle=False,
+                    num_workers=0,
+                )
+                batch_iter = iter(loader)
+                batch = next(batch_iter, None)
+                while batch is not None:
+                    batch_feature_aggregation = batch.x
+                    batch_adj_matrix = batch.edge_index
+
+                    # print(f"Batch Feature Aggregation (Node Features): {batch_feature_aggregation.size()}")
+                    # print(f"Batch Adjacency Matrix (Edge Index): {batch_adj_matrix}")
+                    # print(f"Training Labels (Filtered by train_mask): {batch.y[batch.train_mask]}")
+                    # print(f"Train Mask: {batch.train_mask}")
+                    loss_train, acc_train = train(
+                        iteration,
+                        self.model,
+                        self.optimizer,
+                        batch_feature_aggregation,
+                        batch_adj_matrix,
+                        batch.y[batch.train_mask],
+                        batch.train_mask,
+                    )
+                    # print(f"acc_train: {acc_train}")
+
+                    self.train_losses.append(loss_train)
+                    self.train_accs.append(acc_train)
+                    batch = next(batch_iter, None)
+            else:
+                # print("Training with full batch")
+                loss_train, acc_train = train(
+                    iteration,
+                    self.model,
+                    self.optimizer,
+                    self.feature_aggregation,
+                    self.adj,
+                    self.train_labels,
+                    self.idx_train,
+                )
+
             self.train_losses.append(loss_train)
             self.train_accs.append(acc_train)
-
+            # print(f"acc_train: {acc_train}")
             loss_test, acc_test = self.local_test()
             self.test_losses.append(loss_test)
             self.test_accs.append(acc_test)
+            # print(f"acc_test: {acc_test}")
 
     def local_test(self) -> list:
         """
@@ -596,6 +721,9 @@ class Trainer_GC:
     def get_total_weight(self) -> Any:
         return self.W
 
+    def get_dW(self) -> Any:
+        return self.dW
+
     def get_name(self) -> str:
         return self.name
 
@@ -948,7 +1076,6 @@ class Trainer_LP:
         check_data_files_existance(country_codes, file_path)
         # global user_id and item_id
         self.data = get_data(self.country_code, user_id_mapping, item_id_mapping)
-
         self.model = GNN_LP(
             number_of_users, number_of_items, meta_data, hidden_channels
         )

@@ -40,10 +40,10 @@ class GCN(torch.nn.Module):
         super(GCN, self).__init__()
 
         self.convs = torch.nn.ModuleList()
-        self.convs.append(GCNConv(nfeat, nhid, normalize=True, cached=True))
+        self.convs.append(GCNConv(nfeat, nhid, normalize=True, cached=False))
         for _ in range(NumLayers - 2):
-            self.convs.append(GCNConv(nhid, nhid, normalize=True, cached=True))
-        self.convs.append(GCNConv(nhid, nclass, normalize=True, cached=True))
+            self.convs.append(GCNConv(nhid, nhid, normalize=True, cached=False))
+        self.convs.append(GCNConv(nhid, nclass, normalize=True, cached=False))
 
         self.dropout = dropout
 
@@ -107,8 +107,8 @@ class AggreGCN(torch.nn.Module):
         self.convs = torch.nn.ModuleList()
         self.convs.append(torch.nn.Linear(nfeat, nhid))
         for _ in range(NumLayers - 2):
-            self.convs.append(GCNConv(nhid, nhid, normalize=True, cached=True))
-        self.convs.append(GCNConv(nhid, nclass, normalize=True, cached=True))
+            self.convs.append(GCNConv(nhid, nhid, normalize=True, cached=False))
+        self.convs.append(GCNConv(nhid, nclass, normalize=True, cached=False))
 
         self.dropout = dropout
 
@@ -300,13 +300,13 @@ class GCN_arxiv(torch.nn.Module):
         super(GCN_arxiv, self).__init__()
 
         self.convs = torch.nn.ModuleList()
-        self.convs.append(GCNConv(nfeat, nhid, cached=True))
+        self.convs.append(GCNConv(nfeat, nhid, cached=False))
         self.bns = torch.nn.ModuleList()
         self.bns.append(torch.nn.BatchNorm1d(nhid))
         for _ in range(NumLayers - 2):
-            self.convs.append(GCNConv(nhid, nhid, cached=True))
+            self.convs.append(GCNConv(nhid, nhid, cached=False))
             self.bns.append(torch.nn.BatchNorm1d(nhid))
-        self.convs.append(GCNConv(nhid, nclass, cached=True))
+        self.convs.append(GCNConv(nhid, nclass, cached=False))
 
         self.dropout = dropout
 
