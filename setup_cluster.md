@@ -85,7 +85,7 @@ kubectl port-forward service/raycluster-autoscaler-head-svc 8265:8265
 Forward Ports for Ray Dashboard, Prometheus, and Grafana
 
 ```bash
-kubectl port-forward raycluster-autoscaler-head-7mxcr 8080:8080
+kubectl port-forward raycluster-autoscaler-head-4bn4k 8080:8080
 kubectl port-forward prometheus-prometheus-kube-prometheus-prometheus-0 -n prometheus-system 9090:9090
 kubectl port-forward deployment/prometheus-grafana -n prometheus-system 3000:3000
 ```
@@ -102,14 +102,14 @@ Submit a Ray Job:
 cd fedgraph
 ray job submit --runtime-env-json '{
   "working_dir": "./"
-}' --address http://localhost:8265 -- python docs/examples/benchmark_GC.py
+}' --address http://localhost:8265 -- python docs/examples/benchmark_NC.py
 
 ```
 
 Stop a Ray Job:
 
 ```bash
-ray job stop raysubmit_Ffrb3KFpvCaqrCAX --address http://localhost:8265
+ray job stop raysubmit_n37qBhVBXti1tPgX --address http://localhost:8265
 ```
 
 ## How to Delete the Ray Cluster
