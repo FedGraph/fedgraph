@@ -3,12 +3,17 @@ import random
 import time
 from io import BytesIO
 from typing import Any, Dict, List, Union
+import pickle
+import logging
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 import numpy as np
 import ray
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import tenseal as ts
 import torch_geometric
 from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
 from torch_geometric.data import Data
@@ -61,7 +66,10 @@ def load_trainer_data_from_hugging_face(trainer_id, args):
         in_com_train_node_local_indexes,
         in_com_test_node_local_indexes,
     )
-
+def load_context(filename='fedgraph/he_context.pkl'):
+    with open(filename, 'rb') as f:
+        context_bytes = pickle.load(f)
+    return ts.context_from(context_bytes)
 
 class Trainer_General:
     """
@@ -214,6 +222,10 @@ class Trainer_General:
         self.global_node_num = global_node_num
         self.class_num = class_num
         self.args = args
+        
+        self.he_context = load_context()
+        self.feature_shape = None
+        self.scale_factor = 1e12
 
     @torch.no_grad()
     def update_params(self, params: tuple, current_global_epoch: int) -> None:
@@ -238,6 +250,40 @@ class Trainer_General:
 
     def get_local_feature_sum(self) -> torch.Tensor:
         """
+        Computes the sum of features of all 1-hop neighbors for each node and normalizes the result.
+
+        Returns
+        -------
+        normalized_sum : torch.Tensor
+            The normalized sum of features of 1-hop neighbors for each node
+        """
+        # Create a large matrix with known local node features
+        new_feature_for_trainer = torch.zeros(
+            self.global_node_num, self.features.shape[1]
+        ).to(self.device)
+        new_feature_for_trainer[self.local_node_index] = self.features
+
+        # Sum of features of all 1-hop nodes for each node
+        one_hop_neighbor_feature_sum = get_1hop_feature_sum(
+            new_feature_for_trainer, self.adj
+        )
+
+        # Normalize features
+        mean = one_hop_neighbor_feature_sum.mean(dim=0, keepdim=True)
+        std = one_hop_neighbor_feature_sum.std(dim=0, keepdim=True)
+        normalized_sum = (one_hop_neighbor_feature_sum - mean) / (std + 1e-8)
+
+        # Log statistics
+        print(f"Original feature sum stats: min={one_hop_neighbor_feature_sum.min():.4f}, "
+            f"max={one_hop_neighbor_feature_sum.max():.4f}, "
+            f"mean={one_hop_neighbor_feature_sum.mean():.4f}")
+        print(f"Normalized feature sum stats: min={normalized_sum.min():.4f}, "
+            f"max={normalized_sum.max():.4f}, "
+            f"mean={normalized_sum.mean():.4f}")
+
+        return normalized_sum
+    def get_local_feature_sum_og(self) -> torch.Tensor:
+        """
         Computes the sum of features of all 1-hop neighbors for each node.
 
         Returns
@@ -258,7 +304,70 @@ class Trainer_General:
             new_feature_for_trainer, self.adj
         )
         return one_hop_neighbor_feature_sum
+    def encrypt_feature_sum(self, feature_sum):
+        logger.info(f"Pre-encryption feature sum stats: min={feature_sum.min():.4f}, "
+                    f"max={feature_sum.max():.4f}, "
+                    f"mean={feature_sum.mean():.4f}")
+        np_features = feature_sum.numpy()
+        
+        enc_vectors = []
+        for row in np_features:
+            scaled_row = (row * self.scale_factor).astype(np.float64)
+            enc_vector = ts.ckks_vector(self.he_context, scaled_row.tolist())
+            enc_vectors.append(enc_vector.serialize())
+        
+        #verify encryption
+        dec_check = self.decrypt_feature_sum(enc_vectors, feature_sum.shape)
+        assert torch.allclose(feature_sum, dec_check, rtol=1e-2, atol=1e-2), "Encryption-decryption mismatch"
+        dec_check = self.decrypt_feature_sum(enc_vectors, feature_sum.shape)
+        print(f"Decrypted feature sum stats: min={dec_check.min():.4f}, "
+            f"max={dec_check.max():.4f}, "
+            f"mean={dec_check.mean():.4f}")
+        print(f"Difference stats: min={(feature_sum - dec_check).abs().min():.4e}, "
+            f"max={(feature_sum - dec_check).abs().max():.4e}, "
+            f"mean={(feature_sum - dec_check).abs().mean():.4e}")
+        return enc_vectors, feature_sum.shape
 
+    def decrypt_feature_sum(self, encrypted_sum, shape):
+        decrypted_rows = []
+        for enc_row in encrypted_sum:
+            dec_row = ts.ckks_vector_from(self.he_context, enc_row).decrypt()
+            decrypted_rows.append(dec_row)
+        
+        # Convert the list of lists to a single numpy array
+        decrypted_array = np.array(decrypted_rows) / self.scale_factor
+        return torch.from_numpy(decrypted_array).float().reshape(shape)
+
+    def load_encrypted_feature_aggregation(self, enc_global_sum, shape):
+        # Decrypt
+        dec_sum = ts.ckks_vector_from(self.he_context, enc_global_sum).decrypt()
+        
+        # Reshape and rescale
+        self.feature_aggregation = torch.tensor(dec_sum).float().reshape(shape) / (self.scale_factor * self.args.n_trainer)
+
+        # Normalize after decryption
+        mean = self.feature_aggregation.mean(dim=0, keepdim=True)
+        std = self.feature_aggregation.std(dim=0, keepdim=True)
+        self.feature_aggregation = (self.feature_aggregation - mean) / (std + 1e-8)
+
+        print(f"Loaded feature aggregation stats: min={self.feature_aggregation.min():.4f}, "
+              f"max={self.feature_aggregation.max():.4f}, "
+              f"mean={self.feature_aggregation.mean():.4f}")
+
+        
+    def verify_feature_aggregation(self):
+        if self.feature_aggregation is None:
+            raise ValueError("feature_aggregation has not been set properly")
+        return True
+
+    def get_feature_aggregation_stats(self):
+        if self.feature_aggregation is None:
+            raise ValueError("feature_aggregation has not been set")
+        return {
+            'min': self.feature_aggregation.min().item(),
+            'max': self.feature_aggregation.max().item(),
+            'mean': self.feature_aggregation.mean().item()
+        }
     def load_feature_aggregation(self, feature_aggregation: torch.Tensor) -> None:
         """
         Loads the aggregated features into the trainer.
@@ -269,7 +378,18 @@ class Trainer_General:
             The aggregated features to be loaded.
         """
         self.feature_aggregation = feature_aggregation
-
+    def get_encrypted_local_feature_sum(self):
+        feature_sum = self.get_local_feature_sum()
+        
+        # Scale without normalization
+        scaled_sum = (feature_sum * self.scale_factor).round().long()
+        
+        # Flatten and encrypt
+        flattened_sum = scaled_sum.flatten()
+        enc_sum = ts.ckks_vector(self.he_context, flattened_sum.tolist()).serialize()
+        
+        return enc_sum, feature_sum.shape
+    
     def relabel_adj(self) -> None:
         """
         Relabels the adjacency matrix based on the communication node index.
@@ -291,6 +411,9 @@ class Trainer_General:
         # clean cache
         torch.cuda.empty_cache()
         self.model.to(self.device)
+        if self.feature_aggregation is None:
+            raise ValueError("feature_aggregation has not been set. Ensure pre-training communication is completed.")
+    
         self.feature_aggregation = self.feature_aggregation.to(self.device)
         if hasattr(self.args, "batch_size") and self.args.batch_size > 0:
             # batch preparation
@@ -421,7 +544,9 @@ class Trainer_General:
             The rank (trainer ID) of this trainer instance.
         """
         return self.rank
+    
 
+    
 
 class Trainer_GC:
     """

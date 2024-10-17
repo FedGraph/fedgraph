@@ -12,6 +12,8 @@ import numpy as np
 import pandas as pd
 import ray
 import torch
+import tenseal as ts
+import pickle
 
 from fedgraph.gnn_models import GIN
 from fedgraph.monitor_class import Monitor
@@ -57,7 +59,7 @@ def run_NC(args: attridict, data: tuple) -> None:
     data
     """
     ray.init()
-
+    torch.manual_seed(42)
     (
         edge_index,
         features,
@@ -85,7 +87,12 @@ def run_NC(args: attridict, data: tuple) -> None:
     else:
         device = torch.device("cpu")
         num_gpus_per_trainer = 0
-
+    def load_context(filename='fedgraph/he_context.pkl'):
+        with open(filename, 'rb') as f:
+            context_bytes = pickle.load(f)
+        return ts.context_from(context_bytes)
+    he_context = load_context()
+    print("Loaded pre-saved HE context.")
     #######################################################################
     # Define and Send Data to Trainers
     # --------------------------------
@@ -100,6 +107,9 @@ def run_NC(args: attridict, data: tuple) -> None:
     class Trainer(Trainer_General):
         def __init__(self, *args: Any, **kwds: Any):
             super().__init__(*args, **kwds)
+            self.use_encryption = kwds['args'].use_encryption
+            if self.use_encryption:
+                self.he_context = load_context()
 
     trainers = [
         Trainer.remote(  # type: ignore
@@ -131,8 +141,9 @@ def run_NC(args: attridict, data: tuple) -> None:
     # Server class is defined for federated aggregation (e.g., FedAvg)
     # without knowing the local trainer data
 
-    server = Server(features.shape[1], args_hidden, class_num, device, trainers, args)
+    server = Server(features.shape[1], args_hidden, class_num, device, trainers, args, he_context)
     if args.method == "FedGCN":
+        
         #######################################################################
         # Pre-Train Communication of FedGCN
         # ---------------------------------
@@ -140,32 +151,110 @@ def run_NC(args: attridict, data: tuple) -> None:
         # aggregates all local feature sums and send the global feature sum
         # of specific nodes back to each trainer.
 
-        local_neighbor_feature_sums = [
-            trainer.get_local_feature_sum.remote() for trainer in server.trainers
-        ]
-        global_feature_sum = torch.zeros_like(features)
-        while True:
-            ready, left = ray.wait(
-                local_neighbor_feature_sums, num_returns=1, timeout=None
-            )
-            if ready:
-                for t in ready:
-                    global_feature_sum += ray.get(t)
-            local_neighbor_feature_sums = left
-            if not local_neighbor_feature_sums:
-                break
-        print("server aggregates all local neighbor feature sums")
+        # local_neighbor_feature_sums = [
+        #     trainer.get_local_feature_sum.remote() for trainer in server.trainers
+        # 
+        # ]
+        if args.use_encryption:
+            print("Starting encrypted feature aggregation...")
+
+            # Clients encrypt and send their local feature sum to the server
+            encrypted_sums_and_shapes = [
+                trainer.get_encrypted_local_feature_sum.remote() for trainer in server.trainers
+            ]
+
+            encrypted_sums, shapes = zip(*ray.get(encrypted_sums_and_shapes))
+
+            # Server aggregates all encrypted local feature sums
+            encrypted_global_feature_sum = server.aggregate_encrypted_feature_sums(encrypted_sums)
+
+            # Server sends the encrypted global feature sum back to each trainer
+            load_feature_refs = []
+            for trainer in server.trainers:
+                load_feature_ref = trainer.load_encrypted_feature_aggregation.remote(encrypted_global_feature_sum, shapes[0])
+                load_feature_refs.append(load_feature_ref)
+
+            # Wait for all trainers to load the feature aggregation
+            ray.get(load_feature_refs)
+
+            print("Trainers received and decrypted feature aggregation from server")
+
+            # Verify feature aggregation statistics
+            feature_stats_refs = [trainer.get_feature_aggregation_stats.remote() for trainer in server.trainers]
+            feature_stats = ray.get(feature_stats_refs)
+            for i, stats in enumerate(feature_stats):
+                print(f"Trainer {i} feature aggregation stats: min={stats['min']:.4f}, max={stats['max']:.4f}, mean={stats['mean']:.4f}")
+
+            # Trainers process the received feature aggregation
+            process_refs = [trainer.relabel_adj.remote() for trainer in server.trainers]
+            ray.get(process_refs)
+
+            print("Trainers processed the feature aggregation")
+
+            # Verify that feature_aggregation is set for all trainers
+            verify_refs = [trainer.verify_feature_aggregation.remote() for trainer in server.trainers]
+            ray.get(verify_refs)
+
+            print("Feature aggregation verified for all trainers")
+        else:
+            local_neighbor_feature_sums = [
+                trainer.get_local_feature_sum_og.remote() for trainer in server.trainers
+            ]
+            global_feature_sum = torch.zeros_like(features)
+            while True:
+                ready, left = ray.wait(
+                    local_neighbor_feature_sums, num_returns=1, timeout=None
+                )
+                if ready:
+                    for t in ready:
+                        global_feature_sum += ray.get(t)
+                local_neighbor_feature_sums = left
+                if not local_neighbor_feature_sums:
+                    break
+            print("server aggregates all local neighbor feature sums")
+            # test if aggregation is correct
+            if args.num_hops != 0:
+                assert (
+                    global_feature_sum != get_1hop_feature_sum(features, edge_index)
+                ).sum() == 0
+            for i in range(args.n_trainer):
+                server.trainers[i].load_feature_aggregation.remote(
+                    global_feature_sum[communicate_node_indexes[i]]
+                )
+            print("trainers received feature aggregation from server")
+            [trainer.relabel_adj.remote() for trainer in server.trainers]
+        # while True:
+        #     ready, left = ray.wait(encrypted_local_feature_sums, num_returns=1, timeout=None)
+        #     if ready:
+        #         for t in ready:
+        #             enc_sum = ray.get(t)
+        #             if encrypted_global_feature_sum is None:
+        #                 encrypted_global_feature_sum = enc_sum
+        #             else:
+        #                 encrypted_global_feature_sum = server.aggregate_encrypted_feature_sums([encrypted_global_feature_sum, enc_sum])
+        #     encrypted_local_feature_sums = left
+        #     if not encrypted_local_feature_sums:
+        #         break
+
+        # print("Server aggregated all encrypted local neighbor feature sums")
+        # global_feature_sum = torch.zeros_like(features)
+        # while True:
+        #     ready, left = ray.wait(
+        #         local_neighbor_feature_sums, num_returns=1, timeout=None
+        #     )
+        #     if ready:
+        #         for t in ready:
+        #             global_feature_sum += ray.get(t)
+        #     local_neighbor_feature_sums = left
+        #     if not local_neighbor_feature_sums:
+        #         break
+        #print("server aggregates all local neighbor feature sums")
         # test if aggregation is correct
-        if args.num_hops != 0:
-            assert (
-                global_feature_sum != get_1hop_feature_sum(features, edge_index)
-            ).sum() == 0
-        for i in range(args.n_trainer):
-            server.trainers[i].load_feature_aggregation.remote(
-                global_feature_sum[communicate_node_indexes[i]]
-            )
-        print("trainers received feature aggregation from server")
-        [trainer.relabel_adj.remote() for trainer in server.trainers]
+        # if args.num_hops != 0:
+        #     assert (
+        #         global_feature_sum != get_1hop_feature_sum(features, edge_index)
+        #     ).sum() == 0
+        
 
     #######################################################################
     # Federated Training

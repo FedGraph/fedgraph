@@ -3,13 +3,19 @@ from typing import Any
 
 import networkx as nx
 import numpy as np
+import pickle
 import ray
 import torch
+import tenseal as ts
 from dtaidistance import dtw
 
 from fedgraph.gnn_models import GCN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
 
 
+def load_context(filename='fedgraph/he_context.pkl'):
+    with open(filename, 'rb') as f:
+        context_bytes = pickle.load(f)
+    return ts.context_from(context_bytes)
 class Server:
     """
     This is a server class for federated learning which is responsible for aggregating model parameters
@@ -49,6 +55,7 @@ class Server:
         device: torch.device,
         trainers: list,
         args: Any,
+        he_context: Any,
     ) -> None:
         # server model on cpu
         if args.num_hops >= 1 and args.method == "fedgcn":
@@ -87,6 +94,10 @@ class Server:
 
         self.trainers = trainers
         self.num_of_trainers = len(trainers)
+        self.use_encryption = args.use_encryption
+        # In both Server and Trainer classes:
+        self.he_context = load_context()
+        print("Loaded HE context with secret key.")
         self.broadcast_params(-1)
 
     @torch.no_grad()
@@ -126,7 +137,14 @@ class Server:
         for p in self.model.parameters():
             p /= self.num_of_trainers
         self.broadcast_params(current_global_epoch)
+        
 
+    def aggregate_encrypted_feature_sums(self, encrypted_sums):
+        aggregated_sum = ts.ckks_vector_from(self.he_context, encrypted_sums[0])
+        for enc_sum in encrypted_sums[1:]:
+            aggregated_sum += ts.ckks_vector_from(self.he_context, enc_sum)
+        return aggregated_sum.serialize()
+    
     def broadcast_params(self, current_global_epoch: int) -> None:
         """
         Broadcasts the current parameters of the central model to all trainers.

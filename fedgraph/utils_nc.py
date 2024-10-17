@@ -8,6 +8,12 @@ import numpy as np
 import scipy.sparse as sp
 import torch
 import torch_geometric
+import logging
+import time
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 
 def normalize(mx: sp.csc_matrix) -> sp.csr_matrix:
@@ -89,89 +95,65 @@ def label_dirichlet_partition(
     K: int,
     n_parties: int,
     beta: float,
-    # can be "lognormal", "powerlaw", "exponential", "average"
     distribution_type: str = "powerlaw",
 ) -> list:
-    """
-    Partitions data based on labels by using the Dirichlet distribution, to ensure even distribution of samples.
+    logger.info(f"Starting label_dirichlet_partition with {n_parties} parties and {K} classes")
+    start_time = time.time()
 
-    Parameters
-    ----------
-    labels : np.array
-        An array with labels or categories for each data point.
-    N : int
-        Total number of data points in the dataset.
-    K : int
-        Total number of unique labels.
-    n_parties : int
-        The number of groups into which the data should be partitioned.
-    beta : float
-        Dirichlet distribution parameter value.
-    distribution_type : str
-        Type of distribution to generate the weights ('lognormal', 'powerlaw', 'exponential', 'average').
-
-    Returns
-    -------
-    split_data_indexes : list
-        List of indices of data points assigned into groups.
-    """
-    min_size = 0
-    min_require_size = 10
-
-    split_data_indexes = []
-
-    # Generate unbalanced portion of the clients' node numbers based on distribution_type
+    min_require_size = max(1, min(10, N // (n_parties * K)))  # Adjust minimum size based on dataset
+    
+    # Generate weights
     if distribution_type == "lognormal":
-        # Lognormal distribution
         weights = np.random.lognormal(mean=0, sigma=2, size=n_parties)
     elif distribution_type == "powerlaw":
-        # Power-law distribution (Zipf's law)
-        # city-level index is 1.24, ref: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7822261
-        # country-level index is 0.1577, causing an infinite while loop
-        # Trimming the tail by 10% resulted in an a value of 0.31653612251668856
         weights = np.random.power(a=0.31653612251668856, size=n_parties)
     elif distribution_type == "exponential":
-        # Exponential distribution
         weights = np.random.exponential(scale=1.0, size=n_parties)
-    elif distribution_type == "average":
-        # Evenly distributed (average) weights
-        weights = np.ones(n_parties)
     else:
-        # Balanced distribution (equal weights)
         weights = np.ones(n_parties)
+    weights /= weights.sum()
 
-    weights /= weights.sum()  # Normalize the weights
+    logger.info(f"Generated weights using {distribution_type} distribution")
 
-    while min_size < min_require_size:
-        idx_batch: list[list[int]] = [[] for _ in range(n_parties)]
+    # Pre-compute label indices
+    label_indices = [np.where(labels == k)[0] for k in range(K)]
+
+    attempts = 0
+    max_attempts = 1000  # Increase max attempts
+    while attempts < max_attempts:
+        attempts += 1
+        idx_batch = [[] for _ in range(n_parties)]
+        
         for k in range(K):
-            idx_k = np.where(labels == k)[0]
+            idx_k = label_indices[k]
             np.random.shuffle(idx_k)
             proportions = np.random.dirichlet(np.repeat(beta, n_parties))
+            
             if distribution_type == "average":
-                # Keep the same client's node number
-                proportions = np.array(
-                    [
-                        p * (len(idx_j) < N / n_parties)
-                        for p, idx_j in zip(proportions, idx_batch)
-                    ]
-                )
+                proportions = np.array([p * (len(idx_j) < N / n_parties) for p, idx_j in zip(proportions, idx_batch)])
 
-            for i in range(n_parties):
-                proportions[i] *= weights[i]
-            proportions = proportions / proportions.sum()  # Normalize proportions
+            proportions *= weights
+            proportions /= proportions.sum()
             proportions = (np.cumsum(proportions) * len(idx_k)).astype(int)[:-1]
 
-            idx_batch = [
-                idx_j + idx.tolist()
-                for idx_j, idx in zip(idx_batch, np.split(idx_k, proportions))
-            ]
-            min_size = min([len(idx_j) for idx_j in idx_batch])
+            idx_batch = [idx_j + idx.tolist() for idx_j, idx in zip(idx_batch, np.split(idx_k, proportions))]
 
-    for j in range(n_parties):
-        np.random.shuffle(idx_batch[j])
-        split_data_indexes.append(idx_batch[j])
+        min_size = min(len(idx_j) for idx_j in idx_batch)
+        
+        if min_size >= min_require_size:
+            break
+        
+        if attempts % 10 == 0:
+            logger.warning(f"Attempt {attempts}: min_size ({min_size}) < min_require_size ({min_require_size})")
 
+    if attempts >= max_attempts:
+        logger.warning(f"Failed to meet min_require_size after {max_attempts} attempts. Using best attempt.")
+
+    logger.info(f"Partitioning completed after {attempts} attempts")
+
+    split_data_indexes = [np.random.permutation(idx_j).tolist() for idx_j in idx_batch]
+    
+    logger.info(f"label_dirichlet_partition completed in {time.time() - start_time:.2f} seconds")
     return split_data_indexes
 
 
