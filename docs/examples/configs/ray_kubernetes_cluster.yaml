@@ -43,7 +43,7 @@ spec:
           key: value
       spec:
         nodeSelector:
-          beta.kubernetes.io/instance-type: "m5.8xlarge"
+          beta.kubernetes.io/instance-type: "m5.24xlarge"
         containers:
           - name: ray-head
             image: public.ecr.aws/i7t1s5i1/fedgraph:benchmark2
@@ -53,13 +53,13 @@ spec:
             # resource accounting. K8s requests are not used by Ray.
             resources:
               limits:
-                cpu: "28"
-                memory: "100Gi"
+                cpu: "54"
+                memory: "350Gi"
                 # nvidia.com/gpu: "1"
 
               requests:
-                cpu: "28"
-                memory: "100Gi"
+                cpu: "54"
+                memory: "350Gi"
                 # nvidia.com/gpu: "1"
             env:
               - name: CPU_REQUEST

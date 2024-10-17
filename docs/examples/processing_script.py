@@ -99,7 +99,7 @@ def load_log_file(file_path):
     return log_content
 
 
-file_path = "SelfTrain.log"
+file_path = "new_memory.log"
 log_content = load_log_file(file_path)
 df = process_log(log_content)
 
@@ -122,6 +122,6 @@ def reorder_dataframe_columns(df):
 
 
 df = reorder_dataframe_columns(df)
-csv_file_path = "10.csv"
+csv_file_path = "new_memory.csv"
 df.to_csv(csv_file_path)
 print(df.iloc[0, :])

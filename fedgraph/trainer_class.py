@@ -113,8 +113,8 @@ class Trainer_General:
         # idx_train: torch.Tensor,
         # idx_test: torch.Tensor,
         args_hidden: int,
-        global_node_num: int,
-        class_num: int,
+        # global_node_num: int,
+        # class_num: int,
         device: torch.device,
         args: Any,
         local_node_index: torch.Tensor = None,
@@ -148,49 +148,9 @@ class Trainer_General:
                 idx_train,
                 idx_test,
             ) = load_trainer_data_from_hugging_face(rank, args)
-
-        # seems that new trainer process will not inherit sys.path from parent, need to reimport!
-        if args.num_hops >= 1 and args.method == "fedgcn":
-            self.model = AggreGCN(
-                nfeat=features.shape[1],
-                nhid=args_hidden,
-                nclass=class_num,
-                dropout=0.5,
-                NumLayers=args.num_layers,
-            ).to(device)
-        else:
-            if args.dataset == "ogbn-arxiv":
-                self.model = GCN_arxiv(
-                    nfeat=features.shape[1],
-                    nhid=args_hidden,
-                    nclass=class_num,
-                    dropout=0.5,
-                    NumLayers=args.num_layers,
-                ).to(device)
-            elif args.dataset == "ogbn-products":
-                self.model = SAGE_products(
-                    nfeat=features.shape[1],
-                    nhid=args_hidden,
-                    nclass=class_num,
-                    dropout=0.5,
-                    NumLayers=args.num_layers,
-                ).to(device)
-            else:
-                self.model = GCN(
-                    nfeat=features.shape[1],
-                    nhid=args_hidden,
-                    nclass=class_num,
-                    dropout=0.5,
-                    NumLayers=args.num_layers,
-                ).to(device)
-
         self.rank = rank  # rank = trainer ID
 
         self.device = device
-
-        self.optimizer = torch.optim.SGD(
-            self.model.parameters(), lr=args.learning_rate, weight_decay=5e-4
-        )
 
         self.criterion = torch.nn.CrossEntropyLoss()
 
@@ -211,9 +171,62 @@ class Trainer_General:
         self.idx_test = idx_test.to(device)
 
         self.local_step = args.local_step
+        self.args_hidden = args_hidden
+        # self.global_node_num = global_node_num
+        # self.class_num = class_num
+        self.args = args
+        self.model = None
+
+    def get_info(self):
+        return {
+            "features_num": len(self.features),
+            "label_num": len(torch.unique(self.train_labels)),
+            "feature_shape": self.features.shape[1],
+            "len_in_com_train_node_local_indexes": len(self.idx_train),
+            "len_in_com_test_node_local_indexes": len(self.idx_test),
+            "communicate_node_global_index": self.communicate_node_index,
+        }
+
+    def init_model(self, global_node_num, class_num):
         self.global_node_num = global_node_num
         self.class_num = class_num
-        self.args = args
+        # seems that new trainer process will not inherit sys.path from parent, need to reimport!
+        if self.args.num_hops >= 1 and self.args.method == "fedgcn":
+            self.model = AggreGCN(
+                nfeat=self.features.shape[1],
+                nhid=self.args_hidden,
+                nclass=class_num,
+                dropout=0.5,
+                NumLayers=self.args.num_layers,
+            ).to(self.device)
+        else:
+            if self.args.dataset == "ogbn-arxiv":
+                self.model = GCN_arxiv(
+                    nfeat=self.features.shape[1],
+                    nhid=self.args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(self.device)
+            elif self.args.dataset == "ogbn-products":
+                self.model = SAGE_products(
+                    nfeat=self.features.shape[1],
+                    nhid=self.args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(self.device)
+            else:
+                self.model = GCN(
+                    nfeat=self.features.shape[1],
+                    nhid=self.args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(self.device)
+        self.optimizer = torch.optim.SGD(
+            self.model.parameters(), lr=self.args.learning_rate, weight_decay=5e-4
+        )
 
     @torch.no_grad()
     def update_params(self, params: tuple, current_global_epoch: int) -> None:
@@ -254,9 +267,11 @@ class Trainer_General:
         )  # TODO:check if all the tensors are in the same device
         new_feature_for_trainer[self.local_node_index] = self.features
         # sum of features of all 1-hop nodes for each node
+        print("calling func")
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
             new_feature_for_trainer, self.adj
         )
+        print("calling end")
         return one_hop_neighbor_feature_sum
 
     def load_feature_aggregation(self, feature_aggregation: torch.Tensor) -> None:

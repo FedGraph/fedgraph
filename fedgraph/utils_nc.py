@@ -1,6 +1,7 @@
 import glob
 import re
 import time
+from io import BytesIO
 from pathlib import Path
 
 import attridict
@@ -8,6 +9,7 @@ import numpy as np
 import scipy.sparse as sp
 import torch
 import torch_geometric
+from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
 
 
 def normalize(mx: sp.csc_matrix) -> sp.csr_matrix:
@@ -443,3 +445,81 @@ def increment_dir(dir: str, comment: str = "") -> str:
         if idxs:
             n = max(idxs) + 1  # increment
     return dir + str(n) + ("_" + comment if comment else "")
+
+
+def save_trainer_data_to_hugging_face(
+    trainer_id,
+    local_node_index,
+    communicate_node_global_index,
+    global_edge_index_client,
+    train_labels,
+    test_labels,
+    features,
+    in_com_train_node_local_indexes,
+    in_com_test_node_local_indexes,
+    args,
+):
+    repo_name = f"FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{args.num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}"
+    user = HfFolder.get_token()
+
+    api = HfApi()
+    try:
+        api.create_repo(
+            repo_id=repo_name, token=user, repo_type="dataset", exist_ok=True
+        )
+    except Exception as e:
+        print(f"Failed to create or access the repository: {str(e)}")
+        return
+
+    def save_tensor_to_hf(tensor, file_name):
+        buffer = BytesIO()
+        torch.save(tensor, buffer)
+        buffer.seek(0)
+        api.upload_file(
+            path_or_fileobj=buffer,
+            path_in_repo=file_name,
+            repo_id=repo_name,
+            repo_type="dataset",
+            token=user,
+        )
+
+    save_tensor_to_hf(local_node_index, "local_node_index.pt")
+    save_tensor_to_hf(communicate_node_global_index, "communicate_node_index.pt")
+    save_tensor_to_hf(global_edge_index_client, "adj.pt")
+    save_tensor_to_hf(train_labels, "train_labels.pt")
+    save_tensor_to_hf(test_labels, "test_labels.pt")
+    save_tensor_to_hf(features, "features.pt")
+    save_tensor_to_hf(in_com_train_node_local_indexes, "idx_train.pt")
+    save_tensor_to_hf(in_com_test_node_local_indexes, "idx_test.pt")
+
+    print(f"Uploaded data for trainer {trainer_id}")
+
+
+def save_all_trainers_data(
+    split_node_indexes,
+    communicate_node_global_indexes,
+    global_edge_indexes_clients,
+    labels,
+    features,
+    in_com_train_node_local_indexes,
+    in_com_test_node_local_indexes,
+    n_trainer,
+    args,
+):
+    for i in range(n_trainer):
+        save_trainer_data_to_hugging_face(
+            trainer_id=i,
+            local_node_index=split_node_indexes[i],
+            communicate_node_global_index=communicate_node_global_indexes[i],
+            global_edge_index_client=global_edge_indexes_clients[i],
+            train_labels=labels[communicate_node_global_indexes[i]][
+                in_com_train_node_local_indexes[i]
+            ],
+            test_labels=labels[communicate_node_global_indexes[i]][
+                in_com_test_node_local_indexes[i]
+            ],
+            features=features[split_node_indexes[i]],
+            in_com_train_node_local_indexes=in_com_train_node_local_indexes[i],
+            in_com_test_node_local_indexes=in_com_test_node_local_indexes[i],
+            args=args,
+        )

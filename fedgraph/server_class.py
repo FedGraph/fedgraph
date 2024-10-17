@@ -87,7 +87,7 @@ class Server:
 
         self.trainers = trainers
         self.num_of_trainers = len(trainers)
-        self.broadcast_params(-1)
+        # self.broadcast_params(-1)
 
     @torch.no_grad()
     def zero_params(self) -> None:
