@@ -14,7 +14,7 @@ config={'dataset': 'cora',
         'gpu': False,
         'iid_beta': 10000,
         'logdir': './runs',
-        'use_encryption': True}
+        'use_encryption': False}
 
 config = attridict(config)
 

@@ -304,6 +304,7 @@ class Trainer_General:
             new_feature_for_trainer, self.adj
         )
         return one_hop_neighbor_feature_sum
+    
     def encrypt_feature_sum(self, feature_sum):
         logger.info(f"Pre-encryption feature sum stats: min={feature_sum.min():.4f}, "
                     f"max={feature_sum.max():.4f}, "
@@ -334,18 +335,18 @@ class Trainer_General:
             dec_row = ts.ckks_vector_from(self.he_context, enc_row).decrypt()
             decrypted_rows.append(dec_row)
         
-        # Convert the list of lists to a single numpy array
+        # convert to single numpy array
         decrypted_array = np.array(decrypted_rows) / self.scale_factor
         return torch.from_numpy(decrypted_array).float().reshape(shape)
 
     def load_encrypted_feature_aggregation(self, enc_global_sum, shape):
-        # Decrypt
+        #decrypt
         dec_sum = ts.ckks_vector_from(self.he_context, enc_global_sum).decrypt()
         
-        # Reshape and rescale
+        # reshape and rescale
         self.feature_aggregation = torch.tensor(dec_sum).float().reshape(shape) / (self.scale_factor * self.args.n_trainer)
 
-        # Normalize after decryption
+        # normalize after decryption
         mean = self.feature_aggregation.mean(dim=0, keepdim=True)
         std = self.feature_aggregation.std(dim=0, keepdim=True)
         self.feature_aggregation = (self.feature_aggregation - mean) / (std + 1e-8)
@@ -381,10 +382,7 @@ class Trainer_General:
     def get_encrypted_local_feature_sum(self):
         feature_sum = self.get_local_feature_sum()
         
-        # Scale without normalization
         scaled_sum = (feature_sum * self.scale_factor).round().long()
-        
-        # Flatten and encrypt
         flattened_sum = scaled_sum.flatten()
         enc_sum = ts.ckks_vector(self.he_context, flattened_sum.tolist()).serialize()
         

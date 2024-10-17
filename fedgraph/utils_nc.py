@@ -119,7 +119,7 @@ def label_dirichlet_partition(
     label_indices = [np.where(labels == k)[0] for k in range(K)]
 
     attempts = 0
-    max_attempts = 1000  # Increase max attempts
+    max_attempts = 1000  #increased // can revoke later
     while attempts < max_attempts:
         attempts += 1
         idx_batch = [[] for _ in range(n_parties)]

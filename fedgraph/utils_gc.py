@@ -340,7 +340,7 @@ def generate_context(poly_modulus_degree=8192, coeff_mod_bit_sizes=[60, 40, 40, 
     context.generate_galois_keys()
     return context
 
-def fhe_enc(context, model_params, total_client_number):
+def encryption_he(context, model_params, total_client_number):
     weight_factors = copy.deepcopy(model_params)
     for key in weight_factors.keys():
         weight_factors[key] = torch.flatten(torch.full_like(weight_factors[key], 1 / total_client_number))
@@ -353,7 +353,7 @@ def fhe_enc(context, model_params, total_client_number):
     
     return enc_model_params
 
-def fhe_fedavg(context, list_enc_model_params):
+def fedavg_he(context, list_enc_model_params):
     n_clients = len(list_enc_model_params)
     enc_global_params = copy.deepcopy(list_enc_model_params[0])
     
@@ -366,7 +366,7 @@ def fhe_fedavg(context, list_enc_model_params):
     
     return enc_global_params
 
-def fhe_dec(context, template_model_params, enc_model_params):
+def decryption_he(context, template_model_params, enc_model_params):
     params_shape = OrderedDict()
     for key in template_model_params.keys():
         params_shape[key] = template_model_params[key].size()

@@ -158,40 +158,31 @@ def run_NC(args: attridict, data: tuple) -> None:
         if args.use_encryption:
             print("Starting encrypted feature aggregation...")
 
-            # Clients encrypt and send their local feature sum to the server
             encrypted_sums_and_shapes = [
                 trainer.get_encrypted_local_feature_sum.remote() for trainer in server.trainers
             ]
 
             encrypted_sums, shapes = zip(*ray.get(encrypted_sums_and_shapes))
-
-            # Server aggregates all encrypted local feature sums
             encrypted_global_feature_sum = server.aggregate_encrypted_feature_sums(encrypted_sums)
 
-            # Server sends the encrypted global feature sum back to each trainer
             load_feature_refs = []
             for trainer in server.trainers:
                 load_feature_ref = trainer.load_encrypted_feature_aggregation.remote(encrypted_global_feature_sum, shapes[0])
                 load_feature_refs.append(load_feature_ref)
-
-            # Wait for all trainers to load the feature aggregation
             ray.get(load_feature_refs)
 
             print("Trainers received and decrypted feature aggregation from server")
 
-            # Verify feature aggregation statistics
             feature_stats_refs = [trainer.get_feature_aggregation_stats.remote() for trainer in server.trainers]
             feature_stats = ray.get(feature_stats_refs)
             for i, stats in enumerate(feature_stats):
                 print(f"Trainer {i} feature aggregation stats: min={stats['min']:.4f}, max={stats['max']:.4f}, mean={stats['mean']:.4f}")
 
-            # Trainers process the received feature aggregation
             process_refs = [trainer.relabel_adj.remote() for trainer in server.trainers]
             ray.get(process_refs)
 
             print("Trainers processed the feature aggregation")
-
-            # Verify that feature_aggregation is set for all trainers
+            #verify feature of all trainers are set
             verify_refs = [trainer.verify_feature_aggregation.remote() for trainer in server.trainers]
             ray.get(verify_refs)
 
