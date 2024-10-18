@@ -2,7 +2,7 @@ import argparse
 import random
 import time
 from typing import Any, List, Union
-
+from torch_geometric.data import Data
 import numpy as np
 import ray
 import torch
@@ -10,8 +10,7 @@ import torch.nn.functional as F
 import torch_geometric
 from torchmetrics.functional.retrieval import retrieval_auroc
 from torchmetrics.retrieval import RetrievalHitRate
-
-from fedgraph.gnn_models import GCN, GIN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
+from fedgraph.gnn_models import GCN, GIN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products, LocSAGEPlus
 from fedgraph.train_func import test, train
 from fedgraph.utils_lp import (
     check_data_files_existance,
@@ -19,7 +18,9 @@ from fedgraph.utils_lp import (
     get_data_loaders_per_time_step,
     get_global_user_item_mapping,
 )
-from fedgraph.utils_nc import get_1hop_feature_sum
+from fedgraph.utils_nc import get_1hop_feature_sum, greedy_loss_fedsage_plus
+from train_func import accuracy, accuracy_missing_node_number
+from data_process import get_subgraph_pyg_data
 
 
 class Trainer_General:
@@ -1153,3 +1154,745 @@ class Trainer_LP:
             return self.model.gnn.state_dict()
         else:
             return self.model.state_dict()
+
+
+
+class Trainer_FedSagePlus:
+    def __init__(self, args, client_id, data, data_dir, message_pool, device):
+        
+        self.task = NodeClsTask(args, client_id, data, data_dir, device)
+        self.task.load_custom_model(LocSAGEPlus(input_dim=self.task.num_feats, 
+                                                hid_dim=self.args.hid_dim, 
+                                                latent_dim=args.latent_dim, 
+                                                output_dim=self.task.num_global_classes, 
+                                                max_pred=args.max_pred, 
+                                                dropout=self.args.dropout))
+        self.args = args
+        self.client_id = client_id
+        self.message_pool = message_pool
+        self.device = device
+        self.splitted_impaired_data, self.num_missing, self.missing_feat, self.original_neighbors, self.impaired_neighbors = self.get_impaired_subgraph()
+        self.send_message() # initial message for first-round neighGen training 
+        
+    def get_custom_loss_fn(self):
+        # if training phase, loss function is sum of greedy loss of neighbour generation and loss of classification
+        if self.phase == 0:
+            def custom_loss_fn(embedding, logits, label, mask):    
+
+                pred_degree = self.task.model.output_pred_degree
+                pred_neig_feat = self.task.model.output_pred_neig_feat
+
+
+                num_impaired_nodes = self.splitted_impaired_data["data"].x.shape[0]
+                impaired_logits = logits[: num_impaired_nodes]
+
+
+                loss_train_missing = F.smooth_l1_loss(pred_degree[mask], self.num_missing[mask])
+                loss_train_feat = greedy_loss_fedsage_plus(pred_neig_feat[mask], 
+                                              self.missing_feat[mask], 
+                                              pred_degree[mask], 
+                                              self.num_missing[mask], 
+                                              max_pred=self.args.max_pred)
+                loss_train_label= F.cross_entropy(impaired_logits[mask], label[mask])
+
+                loss_other = 0
+
+                for client_id in self.message_pool["sampled_clients"]:
+                    if client_id != self.client_id:
+                        others_central_ids = np.random.choice(self.message_pool[f"client_{client_id}"]["num_samples"], int(self.task.train_mask.sum()))
+                        global_target_feat = []
+                        for node_id in others_central_ids:
+                            other_neighbors = self.message_pool[f"client_{client_id}"]["original_neighbors"][node_id]
+                            while len(other_neighbors) == 0:
+                                node_id = np.random.choice(self.message_pool[f"client_{client_id}"]["num_samples"], 1)[0]
+                                other_neighbors = self.message_pool[f"client_{client_id}"]["original_neighbors"][node_id]
+                            others_neig_ids = np.random.choice(list(other_neighbors), self.args.max_pred)
+                            for neig_id in others_neig_ids:
+                                global_target_feat.append(self.message_pool[f"client_{client_id}"]["feat"][neig_id])
+                        global_target_feat = torch.stack(global_target_feat, 0).view(-1, self.args.max_pred, self.task.num_feats)
+                        loss_train_feat_other = greedy_loss_fedsage_plus(pred_neig_feat[mask],
+                                                            global_target_feat,
+                                                            pred_degree[mask],
+                                                            self.num_missing[mask],
+                                                            max_pred=self.args.max_pred)
+
+                        loss_other += loss_train_feat_other    
+
+                loss = (self.args.num_missing_trade_off * loss_train_missing + \
+                       self.args.missing_feat_trade_off * loss_train_feat + \
+                       self.args.cls_trade_off * loss_train_label + \
+                       self.args.missing_feat_trade_off * loss_other) / len(self.message_pool["sampled_clients"])
+                       
+                acc_degree = accuracy_missing_node_number(pred_degree[mask], self.num_missing[mask])
+                acc_cls = accuracy(impaired_logits[mask], label[mask])
+
+                print(f"[client {self.client_id} neighGen phase]\tacc_degree: {acc_degree:.4f}\tacc_cls: {acc_cls:.4f}\tloss_train: {loss:.4f}\tloss_degree: {loss_train_missing:.4f}\tloss_feat: {loss_train_feat:.4f}\tloss_cls: {loss_train_label:.4f}\tloss_other: {loss_other:.4f}")
+
+                return loss
+        else:
+            # When phase=0 neighbour generation is finished, loss function is loss of classification
+            def custom_loss_fn(embedding, logits, label, mask):    
+                return F.cross_entropy(logits[mask], label[mask])
+        return custom_loss_fn
+
+
+
+    def execute(self):
+        # switch phase
+        if self.message_pool["round"] < self.args.gen_rounds:
+            self.phase = 0
+            self.task.override_evaluate = self.get_phase_0_override_evaluate()
+        elif self.message_pool["round"] == self.args.gen_rounds:
+            self.phase = 1
+            self.splitted_filled_data = self.get_filled_subgraph()
+            self.task.model.phase = 1
+            def get_evaluate_splitted_data():
+                return self.splitted_filled_data
+            self.task.evaluate_splitted_data = get_evaluate_splitted_data()
+            self.task.override_evaluate = self.get_phase_1_override_evaluate()
+            
+        # execute
+        if not hasattr(self, "phase"): # miss the generator training phase due to partial participation
+            self.phase = 1
+            self.splitted_filled_data = self.get_filled_subgraph()
+            self.task.model.phase = 1
+            def get_evaluate_splitted_data():
+                return self.splitted_filled_data
+            self.task.evaluate_splitted_data = get_evaluate_splitted_data()
+            self.task.override_evaluate = self.get_phase_1_override_evaluate()
+            
+            
+        if self.phase == 0:
+            self.task.loss_fn = self.get_custom_loss_fn()
+            self.task.train(self.splitted_impaired_data)
+        else:
+            with torch.no_grad():
+                for (local_param_with_name, global_param) in zip(self.task.model.named_parameters(), self.message_pool["server"]["weight"]):
+                    name = local_param_with_name[0]
+                    local_param = local_param_with_name[1]
+                    if "classifier" in name:
+                        local_param.data.copy_(global_param)
+                        
+            self.task.loss_fn = self.get_custom_loss_fn()
+            self.task.train(self.splitted_filled_data)
+
+            
+            
+            
+            
+
+
+    def send_message(self):
+        self.message_pool[f"client_{self.client_id}"] = {
+                "num_samples": self.task.num_samples,
+                "weight": list(self.task.model.parameters()),
+            }
+
+        if "round" not in self.message_pool or (hasattr(self, "phase") and self.phase == 0):
+            self.message_pool[f"client_{self.client_id}"]["feat"] = self.task.data.x  # for 'loss_other'
+            self.message_pool[f"client_{self.client_id}"]["original_neighbors"] = self.original_neighbors  # for 'loss_other'
+
+    def get_impaired_subgraph(self):
+        hide_len = int(self.args.hidden_portion * (self.task.val_mask).sum())
+        could_hide_ids = self.task.val_mask.nonzero().squeeze().tolist()
+        hide_ids = np.random.choice(could_hide_ids, hide_len, replace=False)
+        all_ids = list(range(self.task.num_samples))
+        remained_ids = list(set(all_ids) - set(hide_ids))
+
+        impaired_subgraph = get_subgraph_pyg_data(global_dataset=self.task.data, node_list=remained_ids)
+
+        impaired_subgraph = impaired_subgraph.to(self.device)
+        num_missing_list = []
+        missing_feat_list = []
+
+
+        original_neighbors = {node_id: set() for node_id in range(self.task.data.x.shape[0])}
+        for edge_id in range(self.task.data.edge_index.shape[1]):
+            source = self.task.data.edge_index[0, edge_id].item()
+            target = self.task.data.edge_index[1, edge_id].item()
+            if source != target:
+                original_neighbors[source].add(target)
+                original_neighbors[target].add(source)
+
+        impaired_neighbors = {node_id: set() for node_id in range(impaired_subgraph.x.shape[0])}
+        for edge_id in range(impaired_subgraph.edge_index.shape[1]):
+            source = impaired_subgraph.edge_index[0, edge_id].item()
+            target = impaired_subgraph.edge_index[1, edge_id].item()
+            if source != target:
+                impaired_neighbors[source].add(target)
+                impaired_neighbors[target].add(source)
+
+
+        for impaired_id in range(impaired_subgraph.x.shape[0]):
+            original_id = impaired_subgraph.global_map[impaired_id]
+            num_original_neighbor = len(original_neighbors[original_id])
+            num_impaired_neighbor = len(impaired_neighbors[impaired_id])
+            impaired_neighbor_in_original = set()
+            for impaired_neighbor in impaired_neighbors[impaired_id]:
+                impaired_neighbor_in_original.add(impaired_subgraph.global_map[impaired_neighbor])
+
+            num_missing_neighbors = num_original_neighbor - num_impaired_neighbor
+            num_missing_list.append(num_missing_neighbors)
+            missing_neighbors = original_neighbors[original_id] - impaired_neighbor_in_original
+
+
+
+            if num_missing_neighbors == 0:
+                current_missing_feat = torch.zeros((self.args.max_pred, self.task.num_feats)).to(self.device)
+            else:
+                if num_missing_neighbors <= self.args.max_pred:
+                    zeros = torch.zeros((max(0, self.args.max_pred- num_missing_neighbors), self.task.num_feats)).to(self.device)
+                    current_missing_feat = torch.vstack((self.task.data.x[list(missing_neighbors)], zeros)).view(self.args.max_pred, self.task.num_feats)
+                else:
+                    current_missing_feat = self.task.data.x[list(missing_neighbors)[:self.args.max_pred]].view(self.args.max_pred, self.task.num_feats)
+
+            missing_feat_list.append(current_missing_feat)
+
+        num_missing = torch.tensor(num_missing_list).squeeze().float().to(self.device)
+        missing_feat = torch.stack(missing_feat_list, 0)
+
+        impaired_train_mask = torch.zeros(impaired_subgraph.x.shape[0]).bool().to(self.device)
+        impaired_val_mask = torch.zeros(impaired_subgraph.x.shape[0]).bool().to(self.device)
+        impaired_test_mask = torch.zeros(impaired_subgraph.x.shape[0]).bool().to(self.device)
+
+        for impaired_id in range(impaired_subgraph.x.shape[0]):
+            original_id = impaired_subgraph.global_map[impaired_id]
+
+            if self.task.train_mask[original_id]:
+                impaired_train_mask[impaired_id] = 1
+
+            if self.task.val_mask[original_id]:
+                impaired_val_mask[impaired_id] = 1
+
+            if self.task.test_mask[original_id]:
+                impaired_test_mask[impaired_id] = 1
+
+        splitted_impaired_data = {
+            "data": impaired_subgraph,
+            "train_mask": impaired_train_mask,
+            "val_mask": impaired_val_mask,
+            "test_mask": impaired_test_mask
+        }
+
+        return splitted_impaired_data, num_missing, missing_feat, original_neighbors, impaired_neighbors
+    
+    
+    def get_filled_subgraph(self):
+        with torch.no_grad():
+            embedding, logits = self.task.model.forward(self.splitted_impaired_data["data"])
+            pred_degree_float = self.task.model.output_pred_degree.detach()
+            pred_neig_feat = self.task.model.output_pred_neig_feat.detach()
+            num_impaired_nodes = self.splitted_impaired_data["data"].x.shape[0]
+            global_map = self.splitted_impaired_data["data"].global_map
+            num_original_nodes = self.task.data.x.shape[0]    
+            ptr = num_original_nodes
+            remain_feat = []
+            remain_edges = []
+
+            pred_degree = torch._cast_Int(pred_degree_float)
+            
+
+            for impaired_node_i in range(num_impaired_nodes):
+                original_node_i = global_map[impaired_node_i]
+                
+                for gen_neighbor_j in range(min(self.args.max_pred, pred_degree[impaired_node_i])):
+                    remain_feat.append(pred_neig_feat[impaired_node_i, gen_neighbor_j])
+                    remain_edges.append(torch.tensor([original_node_i, ptr]).view(2, 1).to(self.device))
+                    ptr += 1
+                    
+            
+            
+            if pred_degree.sum() > 0:
+                filled_x = torch.vstack((self.task.data.x, torch.vstack(remain_feat)))
+                filled_edge_index = torch.hstack((self.task.data.edge_index, torch.hstack(remain_edges)))
+                filled_y = torch.hstack((self.task.data.y, torch.zeros(ptr-num_original_nodes).long().to(self.device)))
+                filled_train_mask = torch.hstack((self.task.train_mask, torch.zeros(ptr-num_original_nodes).bool().to(self.device)))
+                filled_val_mask = torch.hstack((self.task.val_mask, torch.zeros(ptr-num_original_nodes).bool().to(self.device)))
+                filled_test_mask = torch.hstack((self.task.test_mask, torch.zeros(ptr-num_original_nodes).bool().to(self.device)))
+            else:
+                filled_x = torch.clone(self.task.data.x)
+                filled_edge_index = torch.clone(self.task.data.edge_index)
+                filled_y = torch.clone(self.task.data.y)
+                filled_train_mask = torch.clone(self.task.train_mask)
+                filled_val_mask = torch.clone(self.task.val_mask)
+                filled_test_mask = torch.clone(self.task.test_mask)
+                
+            filled_data = Data(x=filled_x, edge_index=filled_edge_index, y=filled_y)
+                
+            splitted_filled_data = {
+                "data": filled_data,
+                "train_mask": filled_train_mask,
+                "val_mask": filled_val_mask,
+                "test_mask": filled_test_mask
+            }
+
+            return splitted_filled_data
+        
+    def get_phase_0_override_evaluate(self):
+        def override_evaluate(splitted_data=None, mute=False):
+            if splitted_data is None:
+                splitted_data = self.task.splitted_data
+            else:
+                names = ["data", "train_mask", "val_mask", "test_mask"]
+                for name in names:
+                    assert name in splitted_data
+                    
+            self.task.model.phase = 1 # temporary modification for evaluation
+            with torch.no_grad():
+                embedding, logits = self.task.model.forward(splitted_data["data"])
+                
+                loss_train = F.cross_entropy(logits[splitted_data["train_mask"]], splitted_data["data"].y[splitted_data["train_mask"]])
+                loss_val = F.cross_entropy(logits[splitted_data["val_mask"]], splitted_data["data"].y[splitted_data["val_mask"]])
+                loss_test = F.cross_entropy(logits[splitted_data["test_mask"]], splitted_data["data"].y[splitted_data["test_mask"]])
+
+            eval_output = {}
+            eval_output["embedding"] = embedding
+            eval_output["logits"] = logits
+            eval_output["loss_train"] = loss_train
+            eval_output["loss_val"]   = loss_val
+            eval_output["loss_test"]  = loss_test
+            
+            
+            metric_train = compute_supervised_metrics(metrics=self.args.metrics, logits=logits[splitted_data["train_mask"]], labels=splitted_data["data"].y[splitted_data["train_mask"]], suffix="train")
+            metric_val = compute_supervised_metrics(metrics=self.args.metrics, logits=logits[splitted_data["val_mask"]], labels=splitted_data["data"].y[splitted_data["val_mask"]], suffix="val")
+            metric_test = compute_supervised_metrics(metrics=self.args.metrics, logits=logits[splitted_data["test_mask"]], labels=splitted_data["data"].y[splitted_data["test_mask"]], suffix="test")
+            eval_output = {**eval_output, **metric_train, **metric_val, **metric_test}
+            
+            info = ""
+            for key, val in eval_output.items():
+                try:
+                    info += f"\t{key}: {val:.4f}"
+                except:
+                    continue
+
+            prefix = f"[client {self.client_id}]" if self.client_id is not None else "[server]"
+            if not mute:
+                print(prefix+info)
+            self.task.model.phase = 0 # reset
+            return eval_output
+        return override_evaluate
+    
+    def get_phase_1_override_evaluate(self):
+        def override_evaluate(splitted_data=None, mute=False):
+            if splitted_data is None:
+                splitted_data = self.splitted_filled_data
+            else:
+                names = ["data", "train_mask", "val_mask", "test_mask"]
+                for name in names:
+                    assert name in splitted_data
+            
+            
+            eval_output = {}
+            self.task.model.eval()
+            with torch.no_grad():
+                embedding, logits = self.task.model.forward(splitted_data["data"])
+                loss_train = self.task.loss_fn(embedding, logits, splitted_data["data"].y, splitted_data["train_mask"])
+                loss_val = self.task.loss_fn(embedding, logits, splitted_data["data"].y, splitted_data["val_mask"])
+                loss_test = self.task.loss_fn(embedding, logits, splitted_data["data"].y, splitted_data["test_mask"])
+
+            
+            eval_output["embedding"] = embedding
+            eval_output["logits"] = logits
+            eval_output["loss_train"] = loss_train
+            eval_output["loss_val"]   = loss_val
+            eval_output["loss_test"]  = loss_test
+            
+            
+            metric_train = compute_supervised_metrics(metrics=self.args.metrics, logits=logits[splitted_data["train_mask"]], labels=splitted_data["data"].y[splitted_data["train_mask"]], suffix="train")
+            metric_val = compute_supervised_metrics(metrics=self.args.metrics, logits=logits[splitted_data["val_mask"]], labels=splitted_data["data"].y[splitted_data["val_mask"]], suffix="val")
+            metric_test = compute_supervised_metrics(metrics=self.args.metrics, logits=logits[splitted_data["test_mask"]], labels=splitted_data["data"].y[splitted_data["test_mask"]], suffix="test")
+            eval_output = {**eval_output, **metric_train, **metric_val, **metric_test}
+            
+            info = ""
+            for key, val in eval_output.items():
+                try:
+                    info += f"\t{key}: {val:.4f}"
+                except:
+                    continue
+
+            prefix = f"[client {self.client_id}]" if self.client_id is not None else "[server]"
+            if not mute:
+                print(prefix+info)
+            return eval_output
+        
+        return override_evaluate
+    
+
+
+
+
+
+class NodeClsTask:
+    """
+    Task class for node classification in a federated learning setup.
+
+    Attributes:
+        client_id (int): ID of the client.
+        data_dir (str): Directory containing the data.
+        args (Namespace): Arguments containing model and training configurations.
+        device (torch.device): Device to run the computations on.
+        data (object): Data specific to the task.
+        model (torch.nn.Module): Model to be trained.
+        optim (torch.optim.Optimizer): Optimizer for the model.
+        train_mask (torch.Tensor): Mask for the training set.
+        val_mask (torch.Tensor): Mask for the validation set.
+        test_mask (torch.Tensor): Mask for the test set.
+        splitted_data (dict): Dictionary containing split data and DataLoaders.
+        processed_data (object): Processed data for training.
+    """
+
+    def __init__(self, args, client_id, data, data_dir, device):
+        """
+        Initialize the NodeClsTask with provided arguments, data, and device.
+
+        Args:
+            args (Namespace): Arguments containing model and training configurations.
+            client_id (int): ID of the client.
+            data (object): Data specific to the task.
+            data_dir (str): Directory containing the data.
+            device (torch.device): Device to run the computations on.
+        """
+        #super(NodeClsTask, self).__init__(args, client_id, data, data_dir, device)
+        self.client_id = client_id
+        self.data_dir = data_dir
+        self.args = args
+        self.device = device
+        
+        if data is not None:
+            self.data = data.to(device)
+            self.model = self.default_model.to(device)
+            self.optim = torch.optim.Adam(self.model.parameters(), lr=self.args.lr, weight_decay=self.args.weight_decay)
+            self.load_train_val_test_split()
+
+        self.override_evaluate = None
+        self.step_preprocess = None
+
+    def load_custom_model(self, custom_model):
+        self.model = custom_model.to(self.device)
+        self.optim = torch.optim.Adam(self.model.parameters(), lr=self.args.lr, weight_decay=self.args.weight_decay)
+
+    def train(self, splitted_data=None):
+        """
+        Train the model on the provided or processed data.
+
+        Args:
+            splitted_data (dict, optional): Dictionary containing split data and DataLoaders. Defaults to None.
+        """
+        if splitted_data is None:
+            splitted_data = self.processed_data  # use processed_data to train model
+        else:
+            names = ["data", "train_mask", "val_mask", "test_mask"]
+            for name in names:
+                assert name in splitted_data
+
+        self.model.train()
+        for _ in range(self.args.num_epochs):
+            self.optim.zero_grad()
+            embedding, logits = self.model.forward(splitted_data["data"])
+            loss_train = self.loss_fn(embedding, logits, splitted_data["data"].y, splitted_data["train_mask"])
+            if self.args.dp_mech != "no_dp":
+                # clip the gradient of each sample in this batch
+                clip_gradients(self.model, loss_train, loss_train.shape[0], self.args.dp_mech, self.args.grad_clip)
+            else:
+                loss_train.backward()
+
+            if self.step_preprocess is not None:
+                self.step_preprocess()
+
+            self.optim.step()
+            if self.args.dp_mech != "no_dp":
+                # add noise to parameters
+                add_noise(self.args, self.model, loss_train.shape[0])
+
+    def evaluate(self, splitted_data=None, mute=False):
+        """
+        Evaluate the model on the provided or processed data.
+
+        Args:
+            splitted_data (dict, optional): Dictionary containing split data and DataLoaders. Defaults to None.
+            mute (bool, optional): If True, suppress the print statements. Defaults to False.
+
+        Returns:
+            dict: Dictionary containing evaluation metrics and results.
+        """
+        if self.override_evaluate is None:
+            if splitted_data is None:
+                splitted_data = self.splitted_data  # use splitted_data to evaluate model
+            else:
+                names = ["data", "train_mask", "val_mask", "test_mask"]
+                for name in names:
+                    assert name in splitted_data
+
+            eval_output = {}
+            self.model.eval()
+            with torch.no_grad():
+                embedding, logits = self.model.forward(splitted_data["data"])
+                loss_train = self.loss_fn(embedding, logits, splitted_data["data"].y, splitted_data["train_mask"])
+                loss_val = self.loss_fn(embedding, logits, splitted_data["data"].y, splitted_data["val_mask"])
+                loss_test = self.loss_fn(embedding, logits, splitted_data["data"].y, splitted_data["test_mask"])
+
+            eval_output["embedding"] = embedding
+            eval_output["logits"] = logits
+            eval_output["loss_train"] = loss_train
+            eval_output["loss_val"] = loss_val
+            eval_output["loss_test"] = loss_test
+
+            metric_train = compute_supervised_metrics(metrics=self.args.metrics, logits=logits[splitted_data["train_mask"]], labels=splitted_data["data"].y[splitted_data["train_mask"]], suffix="train")
+            metric_val = compute_supervised_metrics(metrics=self.args.metrics, logits=logits[splitted_data["val_mask"]], labels=splitted_data["data"].y[splitted_data["val_mask"]], suffix="val")
+            metric_test = compute_supervised_metrics(metrics=self.args.metrics, logits=logits[splitted_data["test_mask"]], labels=splitted_data["data"].y[splitted_data["test_mask"]], suffix="test")
+            eval_output = {**eval_output, **metric_train, **metric_val, **metric_test}
+
+            info = ""
+            for key, val in eval_output.items():
+                try:
+                    info += f"\t{key}: {val:.4f}"
+                except:
+                    continue
+
+            prefix = f"[client {self.client_id}]" if self.client_id is not None else "[server]"
+            if not mute:
+                print(prefix + info)
+            return eval_output
+
+        else:
+            return self.override_evaluate(splitted_data, mute)
+
+    def loss_fn(self, embedding, logits, label, mask):
+        """
+        Calculate the loss for the model.
+
+        Args:
+            embedding (torch.Tensor): Embeddings from the model.
+            logits (torch.Tensor): Logits from the model.
+            label (torch.Tensor): Ground truth labels.
+            mask (torch.Tensor): Mask to filter the logits and labels.
+
+        Returns:
+            torch.Tensor: Calculated loss.
+        """
+        return self.default_loss_fn(logits[mask], label[mask])
+
+    @property
+    def default_model(self):
+        """
+        Get the default model for node and edge level tasks.
+
+        Returns:
+            torch.nn.Module: Default model.
+        """
+        return load_node_edge_level_default_model(self.args, input_dim=self.num_feats, output_dim=self.num_global_classes, client_id=self.client_id)
+
+    @property
+    def default_optim(self):
+        """
+        Get the default optimizer for the task.
+
+        Returns:
+            torch.optim.Optimizer: Default optimizer.
+        """
+        if self.args.optim == "adam":
+            from torch.optim import Adam
+            return Adam
+
+    @property
+    def num_samples(self):
+        """
+        Get the number of samples in the dataset.
+
+        Returns:
+            int: Number of samples.
+        """
+        return self.data.x.shape[0]
+
+    @property
+    def num_feats(self):
+        """
+        Get the number of features in the dataset.
+
+        Returns:
+            int: Number of features.
+        """
+        return self.data.x.shape[1]
+
+    @property
+    def num_global_classes(self):
+        """
+        Get the number of global classes in the dataset.
+
+        Returns:
+            int: Number of global classes.
+        """
+        return self.data.num_global_classes
+
+    @property
+    def default_loss_fn(self):
+        """
+        Get the default loss function for the task.
+
+        Returns:
+            function: Default loss function.
+        """
+        if self.args.dp_mech != "no_dp":
+            return nn.CrossEntropyLoss(reduction="none")
+        else:
+            return nn.CrossEntropyLoss()
+
+    @property
+    def default_train_val_test_split(self):
+        """
+        Get the default train/validation/test split based on the dataset.
+
+        Returns:
+            tuple: Default train/validation/test split ratios.
+        """
+        if self.client_id is None:
+            return None
+
+        if len(self.args.dataset) > 1:
+            name = self.args.dataset[self.client_id]
+        else:
+            name = self.args.dataset[0]
+
+        if name in ["Cora", "CiteSeer", "PubMed", "CS", "Physics", "Photo", "Computers"]:
+            return 0.2, 0.4, 0.4
+        elif name in ["Chameleon", "Squirrel"]:
+            return 0.48, 0.32, 0.20
+        elif name in ["ogbn-arxiv"]:
+            return 0.6, 0.2, 0.2
+        elif name in ["ogbn-products"]:
+            return 0.1, 0.05, 0.85
+        elif name in ["Roman-empire", "Amazon-ratings", "Tolokers", "Actor", "Questions", "Minesweeper"]:
+            return 0.5, 0.25, 0.25
+
+    @property
+    def train_val_test_path(self):
+        """
+        Get the path to the train/validation/test split file.
+
+        Returns:
+            str: Path to the split file.
+        """
+        return osp.join(self.data_dir, f"node_cls")
+
+    def load_train_val_test_split(self):
+        """
+        Load the train/validation/test split from a file.
+        """
+        if self.client_id is None and len(self.args.dataset) == 1:  # server
+            glb_train = []
+            glb_val = []
+            glb_test = []
+
+            for client_id in range(self.args.num_clients):
+                glb_train_path = osp.join(self.train_val_test_path, f"glb_train_{client_id}.pkl")
+                glb_val_path = osp.join(self.train_val_test_path, f"glb_val_{client_id}.pkl")
+                glb_test_path = osp.join(self.train_val_test_path, f"glb_test_{client_id}.pkl")
+
+                with open(glb_train_path, 'rb') as file:
+                    glb_train_data = pickle.load(file)
+                    glb_train += glb_train_data
+
+                with open(glb_val_path, 'rb') as file:
+                    glb_val_data = pickle.load(file)
+                    glb_val += glb_val_data
+
+                with open(glb_test_path, 'rb') as file:
+                    glb_test_data = pickle.load(file)
+                    glb_test += glb_test_data
+
+            train_mask = idx_to_mask_tensor(glb_train, self.num_samples).bool()
+            val_mask = idx_to_mask_tensor(glb_val, self.num_samples).bool()
+            test_mask = idx_to_mask_tensor(glb_test, self.num_samples).bool()
+
+        else:  # client
+            train_path = osp.join(self.train_val_test_path, f"train_{self.client_id}.pt")
+            val_path = osp.join(self.train_val_test_path, f"val_{self.client_id}.pt")
+            test_path = osp.join(self.train_val_test_path, f"test_{self.client_id}.pt")
+            glb_train_path = osp.join(self.train_val_test_path, f"glb_train_{self.client_id}.pkl")
+            glb_val_path = osp.join(self.train_val_test_path, f"glb_val_{self.client_id}.pkl")
+            glb_test_path = osp.join(self.train_val_test_path, f"glb_test_{self.client_id}.pkl")
+
+            if osp.exists(train_path) and osp.exists(val_path) and osp.exists(test_path) \
+                    and osp.exists(glb_train_path) and osp.exists(glb_val_path) and osp.exists(glb_test_path):
+                train_mask = torch.load(train_path)
+                val_mask = torch.load(val_path)
+                test_mask = torch.load(test_path)
+            else:
+                train_mask, val_mask, test_mask = self.local_subgraph_train_val_test_split(self.data, self.args.train_val_test)
+
+                if not osp.exists(self.train_val_test_path):
+                    os.makedirs(self.train_val_test_path)
+
+                torch.save(train_mask, train_path)
+                torch.save(val_mask, val_path)
+                torch.save(test_mask, test_path)
+
+                if len(self.args.dataset) == 1:
+                    # map to global
+                    glb_train_id = []
+                    glb_val_id = []
+                    glb_test_id = []
+                    for id_train in train_mask.nonzero():
+                        glb_train_id.append(self.data.global_map[id_train.item()])
+                    for id_val in val_mask.nonzero():
+                        glb_val_id.append(self.data.global_map[id_val.item()])
+                    for id_test in test_mask.nonzero():
+                        glb_test_id.append(self.data.global_map[id_test.item()])
+                    with open(glb_train_path, 'wb') as file:
+                        pickle.dump(glb_train_id, file)
+                    with open(glb_val_path, 'wb') as file:
+                        pickle.dump(glb_val_id, file)
+                    with open(glb_test_path, 'wb') as file:
+                        pickle.dump(glb_test_id, file)
+
+        self.train_mask = train_mask.to(self.device)
+        self.val_mask = val_mask.to(self.device)
+        self.test_mask = test_mask.to(self.device)
+
+        self.splitted_data = {
+            "data": self.data,
+            "train_mask": self.train_mask,
+            "val_mask": self.val_mask,
+            "test_mask": self.test_mask
+        }
+
+        # processing
+        self.processed_data = processing(args=self.args, splitted_data=self.splitted_data, processed_dir=self.data_dir, client_id=self.client_id)
+
+    def local_subgraph_train_val_test_split(self, local_subgraph, split, shuffle=True):
+        """
+        Split the local subgraph into train, validation, and test sets.
+
+        Args:
+            local_subgraph (object): Local subgraph to be split.
+            split (str or tuple): Split ratios or default split identifier.
+            shuffle (bool, optional): If True, shuffle the subgraph before splitting. Defaults to True.
+
+        Returns:
+            tuple: Masks for the train, validation, and test sets.
+        """
+        num_nodes = local_subgraph.x.shape[0]
+
+        if split == "default_split":
+            train_, val_, test_ = self.default_train_val_test_split
+        else:
+            train_, val_, test_ = extract_floats(split)
+
+        train_mask = idx_to_mask_tensor([], num_nodes)
+        val_mask = idx_to_mask_tensor([], num_nodes)
+        test_mask = idx_to_mask_tensor([], num_nodes)
+        for class_i in range(local_subgraph.num_global_classes):
+            class_i_node_mask = local_subgraph.y == class_i
+            num_class_i_nodes = class_i_node_mask.sum()
+
+            class_i_node_list = mask_tensor_to_idx(class_i_node_mask)
+            if shuffle:
+                np.random.shuffle(class_i_node_list)
+            train_mask += idx_to_mask_tensor(class_i_node_list[:int(train_ * num_class_i_nodes)], num_nodes)
+            val_mask += idx_to_mask_tensor(class_i_node_list[int(train_ * num_class_i_nodes): int((train_ + val_) * num_class_i_nodes)], num_nodes)
+            test_mask += idx_to_mask_tensor(class_i_node_list[int((train_ + val_) * num_class_i_nodes): min(num_class_i_nodes, int((train_ + val_ + test_) * num_class_i_nodes))], num_nodes)
+
+        train_mask = train_mask.bool()
+        val_mask = val_mask.bool()
+        test_mask = test_mask.bool()
+        return train_mask, val_mask, test_mask
