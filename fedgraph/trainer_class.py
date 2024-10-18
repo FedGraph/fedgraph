@@ -16,7 +16,7 @@ from torch_geometric.loader import NeighborLoader
 from torchmetrics.functional.retrieval import retrieval_auroc
 from torchmetrics.retrieval import RetrievalHitRate
 
-from fedgraph.gnn_models import GCN, GIN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
+from fedgraph.gnn_models import GCN, GIN, GNN_LP, AggreGCN, AggreGCN_Arxiv, GCN_arxiv, SAGE_products
 from fedgraph.train_func import test, train
 from fedgraph.utils_lp import (
     check_data_files_existance,
@@ -192,13 +192,23 @@ class Trainer_General:
         self.class_num = class_num
         # seems that new trainer process will not inherit sys.path from parent, need to reimport!
         if self.args.num_hops >= 1 and self.args.method == "fedgcn":
-            self.model = AggreGCN(
-                nfeat=self.features.shape[1],
-                nhid=self.args_hidden,
-                nclass=class_num,
-                dropout=0.5,
-                NumLayers=self.args.num_layers,
-            ).to(self.device)
+            if self.args.dataset == "ogbn-arxiv":
+                print("running AggreGCN_Arxiv")
+                self.model = AggreGCN_Arxiv(
+                    nfeat=self.features.shape[1],
+                    nhid=self.args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(self.device)
+            else:
+                self.model = AggreGCN(
+                    nfeat=self.features.shape[1],
+                    nhid=self.args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(self.device)
         else:
             if self.args.dataset == "ogbn-arxiv":
                 self.model = GCN_arxiv(

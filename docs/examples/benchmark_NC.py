@@ -318,10 +318,10 @@ def run(
     print(f"// Average test accuracy: {average_final_test_accuracy}//end")
 
 
-for dataset in ["ogbn-papers100M"]:
+for dataset in ["ogbn-arxiv"]:
     for n_trainer in [10]:
         for distribution_type in ["average"]:
-            for iid_beta in [1.0]:
+            for iid_beta in [10000.0]:
                 for num_hops in [1]:
                     for batch_size in [-1]:
                         for i in range(1):
