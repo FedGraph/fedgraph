@@ -30,6 +30,30 @@ def accuracy(output: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
     correct = correct.sum()
     return correct / len(labels)
 
+def accuracy_missing_node_number(output, labels):
+    """
+    This function returns the accuracy of number of missing neighbours prediction
+
+    Parameters
+    ----------
+    output: torch.Tensor
+        the output labels predictions of how many missing nodes 
+
+    labels: torch.Tensor
+        ground truth number of missing nodes
+
+    Returns
+    -------
+    (tensor): torch.Tensor
+        Accuracy of the fedsage+ number of missing node prediction
+    """
+    preds = torch._cast_Int(output)
+    correct=0.0
+    for pred,label in zip(preds,labels):
+        if int(pred)==int(label):
+            correct+=1.0
+    return correct / len(labels)
+
 
 def gc_avg_accuracy(frame: pd.DataFrame, trainers: list) -> float:
     """

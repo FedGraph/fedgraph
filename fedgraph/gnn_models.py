@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric
-from torch_geometric.data import HeteroData
+from torch_geometric.data import HeteroData, Data
 from torch_geometric.nn import (
     GCNConv,
     GINConv,
@@ -231,16 +231,16 @@ class SAGE_products(torch.nn.Module):
     """
 
     def __init__(
-        self, nfeat: int, nhid: int, nclass: int, dropout: float, NumLayers: int
+        self, nfeat: int, nhid: int, nclass: int, dropout: float, NumLayers: int, return_logit=False
     ):
         super(SAGE_products, self).__init__()
-
+        #self.return_value = 
         self.convs = torch.nn.ModuleList()
         self.convs.append(SAGEConv(nfeat, nhid))
         for _ in range(NumLayers - 2):
             self.convs.append(SAGEConv(nhid, nhid))
         self.convs.append(SAGEConv(nhid, nclass))
-
+        self.return_logit = return_logit
         self.dropout = dropout
 
     def reset_parameters(self) -> None:
@@ -271,8 +271,12 @@ class SAGE_products(torch.nn.Module):
             x = conv(x, adj_t)
             x = F.relu(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.convs[-1](x, adj_t)
-        return torch.log_softmax(x, dim=-1)
+        
+        logits = self.convs[-1](x, adj_t)
+        if self.return_logit:
+            return x, logits
+        else:
+            return torch.log_softmax(logits, dim=-1)
 
 
 # +
@@ -647,3 +651,225 @@ class GNN_LP(torch.nn.Module):
         edge_feat_item = x_item[edge_label_index[1]]
         # Apply dot-product to get a prediction per supervision edge:
         return (edge_feat_user * edge_feat_item).sum(dim=-1)
+
+
+
+########### FedSage + ###########  
+class dGen(nn.Module):
+    """
+    A linear regression model to generate number of missing nodes
+
+    Parameters
+    ----------
+    latent_dim: int
+        The dimension of the latent space i.e. the number of features
+
+    Returns
+    -------
+    (tensor) : torch.Tensor
+        The prediction dGen model.
+    """
+    def __init__(self, latent_dim):
+        super(dGen,self).__init__()
+        self.reg = nn.Linear(latent_dim, 1)
+
+    def forward(self,x):
+        x = F.relu(self.reg(x))
+        return x
+
+
+
+class fGen(nn.Module):
+    """
+    A linear regression model to generate missing features upto max_pred
+
+    Parameters
+    ----------
+    latent_dim: int
+        The dimension of the latent space i.e. the number of features
+    max_pred: int
+        The maximum number of missing nodes predictions
+    feat_shape: int
+        The shape of the features
+    dropout: float
+        The dropout rate
+
+    Returns
+    -------
+    (tensor) : torch.Tensor
+        The prediction fGen model.
+    
+    """
+    def __init__(self,latent_dim, max_pred, feat_shape, dropout):
+        super(fGen, self).__init__()
+        self.max_pred = max_pred
+        self.feat_shape = feat_shape
+
+        self.fc1 = nn.Linear(latent_dim, 256)
+        self.fc2 = nn.Linear(256,2048)
+        self.fc_flat = nn.Linear(2048, self.max_pred * self.feat_shape)
+
+        self.dropout = dropout
+
+    def forward(self, x):
+        # add random gaussian noise
+        x = x + torch.normal(0, 1, size=x.shape).to(x.device)
+        
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = F.dropout(x, self.dropout, training=self.training)
+        x = torch.tanh(self.fc_flat(x))
+
+        # reshape to (batch_size, max_pred, feat_shape)
+        x = x.view(-1, self.max_pred, self.feat_shape)
+        return x
+
+
+class NeighGen(nn.Module):
+    
+    """
+    A model to generate missing nodes and features, and generate missing edges.
+    The model is used to amend the graph to include missing nodes and edges in the training stage.
+
+
+    Parameters
+    ----------
+    input_dim: int
+        The input dimension for Sage Convolution
+    hid_dim: int
+        The hidden dimension for Sage Convolution
+    latent_dim: int
+        The dimension of the latent space i.e. the number of features
+    max_pred: int
+        The maximum number of missing nodes to predict
+    dropout: float
+        The dropout rate
+
+    Returns
+    -------
+    (tensor) : torch.Tensor
+        The amended graph.
+    
+    
+    """
+    def __init__(self, input_dim, hid_dim, latent_dim, max_pred, dropout):
+        super(NeighGen, self).__init__()
+        self.input_dim = input_dim
+        self.hid_dim = hid_dim
+        self.latent_dim = latent_dim
+        self.max_pred = max_pred
+        self.encoder = SAGE_products(nfeat=input_dim, nhid=hid_dim, nclass=latent_dim, dropout=dropout, NumLayers=2, return_logit=True)
+       
+        self.dGen = dGen(latent_dim)
+        self.fGen = fGen(latent_dim=latent_dim, max_pred=max_pred, feat_shape=input_dim, dropout=dropout)
+        
+        
+
+    def mend(self, impaired_data, pred_degree_float, pred_neig_feat):
+        """
+        A method to amend the graph to include missing nodes and edges in the training stage predicted by dGen and fGen.
+
+        Parameters
+        ----------
+        impaired_data: Data
+            The impaired graph (data) to be amended
+        pred_degree_float: torch.Tensor
+            The predicted degree of the missing nodes generated by dGen
+        pred_neig_feat: torch.Tensor
+            The predicted features of the missing nodes generated by fGen
+
+        Returns
+        -------
+        (tensor) : torch.Tensor
+            The amended graph.
+
+        """
+        num_impaired_nodes = impaired_data.x.shape[0]    
+        ptr = num_impaired_nodes
+        remain_feat = []
+        remain_edges = []
+
+        pred_degree = torch._cast_Int(pred_degree_float).detach()
+        
+        for impaired_node_i in range(num_impaired_nodes):
+            for gen_neighbor_j in range(min(self.max_pred, pred_degree[impaired_node_i])):
+                remain_feat.append(pred_neig_feat[impaired_node_i, gen_neighbor_j])
+                remain_edges.append(torch.tensor([impaired_node_i, ptr]).view(2, 1).to(pred_degree.device))
+                ptr += 1
+                
+        
+        
+        if pred_degree.sum() > 0:
+            mend_x = torch.vstack((impaired_data.x, torch.vstack(remain_feat)))
+            mend_edge_index = torch.hstack((impaired_data.edge_index, torch.hstack(remain_edges)))
+            mend_y = torch.hstack((impaired_data.y, torch.zeros(ptr-num_impaired_nodes).long().to(pred_degree.device)))
+        else:
+            mend_x = torch.clone(impaired_data.x)
+            mend_edge_index = torch.clone(impaired_data.edge_index)
+            mend_y = torch.clone(impaired_data.y)
+        
+        mend_data = Data(x=mend_x, edge_index=mend_edge_index, y=mend_y)
+        return mend_data
+        
+        
+        
+    def forward(self, data):
+        # Graph sage convolution
+        _, node_encoding = self.encoder(data)
+        # generate missing nodes and features
+        pred_degree = self.dGen(node_encoding).squeeze() # [N]
+        pred_neig_feat = self.fGen(node_encoding) # [N, max_pred, feat_dim]
+
+        mend_graph = self.mend(data, pred_degree, pred_neig_feat) # [N+data.x.shape[0], feat_dim] 
+        
+        return pred_degree, pred_neig_feat, mend_graph
+
+
+
+class LocSAGEPlus(nn.Module):
+    """
+    Fianl FedSage+ model to generate missing nodes with features and edges, 
+    and then amend the graph and perform local graphsage convolution to classify nodes.
+
+    Parameters
+    ----------
+    input_dim: int
+        The input dimension for Graph Sage Convolution
+    hid_dim: int
+        The hidden dimension for Graph Sage Convolution
+    latent_dim: int
+        The dimension of the latent space i.e. the number of features
+    max_pred: int
+        The maximum number of missing nodes to predict
+    dropout: float
+        The dropout rate
+
+    Returns
+    -------
+    (tensor) : torch.Tensor
+        node embeddings, logits
+        of the amended graph classification model.
+    """
+    def __init__(self, input_dim, hid_dim, latent_dim, output_dim, max_pred, dropout):
+        super(LocSAGEPlus, self).__init__()
+        
+        self.neighGen = NeighGen(input_dim, hid_dim, latent_dim, max_pred, dropout)
+        self.classifier = SAGE_products(nfeat=input_dim, nhid=hid_dim, nclass=latent_dim, dropout=dropout, NumLayers=2, return_logit=True)
+        
+        self.output_pred_degree = None
+        self.output_pred_neig_feat = None
+        self.output_mend_graph = None 
+        self.phase = 0 # flag for training or testing phase
+        
+    def forward(self, data):
+        if self.phase == 0:
+            pred_degree, pred_neig_feat, mend_graph = self.neighGen.forward(data)
+            mend_embedding, mend_logits = self.classifier.forward(mend_graph)
+            
+            self.output_pred_degree = pred_degree
+            self.output_pred_neig_feat = pred_neig_feat
+            self.output_mend_graph = mend_graph
+            return mend_embedding, mend_logits 
+        else:
+            fill_embedding, fill_logits = self.classifier(data)
+            return fill_embedding, fill_logits
