@@ -5,7 +5,8 @@ import random
 import sys
 from random import choices
 from typing import Any
-
+from torch_geometric.data import Data
+import tqdm
 import attridict
 import networkx as nx
 import numpy as np
@@ -601,3 +602,42 @@ def data_loader_GC_multiple(
         )
 
     return splited_data
+
+def get_subgraph_pyg_data(global_dataset, node_list):
+    """
+    Extract a subgraph from the global dataset given a list of node indices.
+
+    Args:
+        global_dataset (Data): The global graph dataset.
+        node_list (list): List of node indices to include in the subgraph.
+
+    Returns:
+        Data: The subgraph containing the specified nodes and their edges.
+    """
+    global_edge_index = global_dataset.edge_index
+    node_id_set = set(node_list)
+    global_id_to_local_id = {}
+    local_id_to_global_id = {}
+    local_edge_list = []
+    for local_id, global_id in enumerate(node_list):
+        global_id_to_local_id[global_id] = local_id
+        local_id_to_global_id[local_id] = global_id
+        
+    for edge_id in tqdm(range(global_edge_index.shape[1]), desc="Associating local subgraph with global graph..."):
+        src = global_edge_index[0, edge_id].item()
+        tgt = global_edge_index[1, edge_id].item()
+        if src in node_id_set and tgt in node_id_set:
+            local_id_src = global_id_to_local_id[src]
+            local_id_tgt = global_id_to_local_id[tgt]
+            local_edge_list.append((local_id_src, local_id_tgt))
+            
+    local_edge_index = torch.tensor(local_edge_list).T
+    local_subgraph = Data(x=global_dataset.x[node_list], edge_index=local_edge_index, y=global_dataset.y[node_list])
+    local_subgraph.global_map = local_id_to_global_id
+    
+    if hasattr(global_dataset, "num_classes"):
+        local_subgraph.num_global_classes = global_dataset.num_classes
+    else:
+        local_subgraph.num_global_classes = global_dataset.num_global_classes
+    
+    return local_subgraph
