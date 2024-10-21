@@ -7,7 +7,14 @@ import ray
 import torch
 from dtaidistance import dtw
 
-from fedgraph.gnn_models import GCN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
+from fedgraph.gnn_models import (
+    GCN,
+    GNN_LP,
+    AggreGCN,
+    AggreGCN_Arxiv,
+    GCN_arxiv,
+    SAGE_products,
+)
 
 
 class Server:
@@ -41,6 +48,7 @@ class Server:
         The number of trainers.
     """
 
+
     def __init__(
         self,
         feature_dim: int,
@@ -50,40 +58,52 @@ class Server:
         trainers: list,
         args: Any,
     ) -> None:
-        # server model on cpu
-        if args.num_hops >= 1 and args.method == "fedgcn":
-            self.model = AggreGCN(
-                nfeat=feature_dim,
-                nhid=args_hidden,
-                nclass=class_num,
-                dropout=0.5,
-                NumLayers=args.num_layers,
-            )
+        self.args = args
+        if self.args.num_hops >= 1 and self.args.method == "fedgcn":
+            if "ogbn-arxiv" in self.args.dataset:
+                print("Running AggreGCN_Arxiv")
+                self.model = AggreGCN_Arxiv(
+                    nfeat=feature_dim,
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(device)
+            else:
+                self.model = AggreGCN(
+                    nfeat=feature_dim,
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(device)
         else:
-            if args.dataset == "ogbn-arxiv":
+            if "ogbn" in self.args.dataset:
+                print("Running GCN_arxiv")
                 self.model = GCN_arxiv(
                     nfeat=feature_dim,
                     nhid=args_hidden,
                     nclass=class_num,
                     dropout=0.5,
-                    NumLayers=args.num_layers,
-                )
-            elif args.dataset == "ogbn-products":
+                    NumLayers=self.args.num_layers,
+                ).to(device)
+            elif self.args.dataset == "ogbn-products":
                 self.model = SAGE_products(
                     nfeat=feature_dim,
                     nhid=args_hidden,
                     nclass=class_num,
                     dropout=0.5,
-                    NumLayers=args.num_layers,
-                )
+                    NumLayers=self.args.num_layers,
+                ).to(device)
             else:
                 self.model = GCN(
                     nfeat=feature_dim,
                     nhid=args_hidden,
                     nclass=class_num,
                     dropout=0.5,
-                    NumLayers=args.num_layers,
-                )
+                    NumLayers=self.args.num_layers,
+                ).to(device)
+
 
         self.trainers = trainers
         self.num_of_trainers = len(trainers)

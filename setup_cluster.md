@@ -85,7 +85,7 @@ kubectl port-forward service/raycluster-autoscaler-head-svc 8265:8265
 Forward Ports for Ray Dashboard, Prometheus, and Grafana
 
 ```bash
-kubectl port-forward raycluster-autoscaler-head-hnclp 8080:8080
+kubectl port-forward raycluster-autoscaler-head-6nfvs 8080:8080
 kubectl port-forward prometheus-prometheus-kube-prometheus-prometheus-0 -n prometheus-system 9090:9090
 kubectl port-forward deployment/prometheus-grafana -n prometheus-system 3000:3000
 ```
@@ -109,7 +109,7 @@ ray job submit --runtime-env-json '{
 Stop a Ray Job:
 
 ```bash
-ray job stop raysubmit_aKFaB94jPakXuQT1 --address http://localhost:8265
+ray job stop raysubmit_me9cygybgB1sxKfq --address http://localhost:8265
 ```
 
 ## How to Delete the Ray Cluster
@@ -144,6 +144,7 @@ kubectl get pods -A
 Finally, Delete the EKS Cluster:
 
 ```bash
+kubectl get nodes -o name | xargs kubectl delete
 eksctl delete cluster --region us-west-2 --name large
 ```
 

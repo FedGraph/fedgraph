@@ -65,7 +65,8 @@ def run(
     parser.add_argument("-l", "--logdir", default="./runs", type=str)
 
     args = parser.parse_args()
-
+    if args.num_hops == 0:
+        args.method = "fedavg"
     #######################################################################
     # Data Loading
     # ------------
@@ -252,36 +253,40 @@ def run(
     # starting monitor:
     monitor = Monitor()
     monitor.pretrain_time_start()
-    local_neighbor_feature_sums = [
-        trainer.get_local_feature_sum.remote() for trainer in server.trainers
-    ]
-    global_feature_sum = global_feature_sum = torch.zeros(
-        (global_node_num, feature_shape), dtype=torch.float32
-    )
-    while True:
-        print("starting collecting local feature sum")
-        ready, left = ray.wait(local_neighbor_feature_sums, num_returns=1, timeout=None)
-        if ready:
-            for t in ready:
-                global_feature_sum += ray.get(t)
-                print("get one")
-                print(global_feature_sum.size())
-        local_neighbor_feature_sums = left
-        if not local_neighbor_feature_sums:
-            break
-    print("server aggregates all local neighbor feature sums")
-    # test if aggregation is correct
-    # if args.num_hops != 0:
-    #     assert (global_feature_sum != get_1hop_feature_sum(
-    #         features, edge_index)).sum() == 0
-    for i in range(args.n_trainer):
-        server.trainers[i].load_feature_aggregation.remote(
-            global_feature_sum[communicate_node_global_indexes[i]]
+    if args.method != "fedavg":
+        local_neighbor_feature_sums = [
+            trainer.get_local_feature_sum.remote() for trainer in server.trainers
+        ]
+        global_feature_sum = global_feature_sum = torch.zeros(
+            (global_node_num, feature_shape), dtype=torch.float32
         )
-    print("clients received feature aggregation from server")
+        while True:
+            print("starting collecting local feature sum")
+            ready, left = ray.wait(local_neighbor_feature_sums, num_returns=1, timeout=None)
+            if ready:
+                for t in ready:
+                    global_feature_sum += ray.get(t)
+                    print("get one")
+                    print(global_feature_sum.size())
+            local_neighbor_feature_sums = left
+            if not local_neighbor_feature_sums:
+                break
+        print("server aggregates all local neighbor feature sums")
+        # test if aggregation is correct
+        # if args.num_hops != 0:
+        #     assert (global_feature_sum != get_1hop_feature_sum(
+        #         features, edge_index)).sum() == 0
+        for i in range(args.n_trainer):
+            server.trainers[i].load_feature_aggregation.remote(
+                global_feature_sum[communicate_node_global_indexes[i]]
+            )
+        print("clients received feature aggregation from server")
+        
+    else:
+        print("FedAvg skip pretrain communication")
     [trainer.relabel_adj.remote() for trainer in server.trainers]
     # ending monitor:
-    monitor.pretrain_time_end(30)
+    monitor.pretrain_time_end(1)
 
     #######################################################################
     # Federated Training
@@ -318,11 +323,14 @@ def run(
     print(f"// Average test accuracy: {average_final_test_accuracy}//end")
 
 
+
 for dataset in ["ogbn-arxiv"]:
     for n_trainer in [10]:
+        # for distribution_type in ["average", "lognormal", "exponential", "powerlaw"]:
         for distribution_type in ["average"]:
+            # for iid_beta in [10000.0, 100.0, 10.0]:
             for iid_beta in [10000.0]:
-                for num_hops in [1]:
+                for num_hops in [0]:
                     for batch_size in [-1]:
                         for i in range(1):
                             print(

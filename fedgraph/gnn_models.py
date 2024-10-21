@@ -1,4 +1,3 @@
-from torch_geometric.nn import GCNConv
 from typing import Optional
 
 import torch
@@ -179,14 +178,12 @@ class AggreGCN_Arxiv(torch.nn.Module):
         self.convs = torch.nn.ModuleList()
         self.convs.append(torch.nn.Linear(nfeat, nhid))
         self.bns = torch.nn.ModuleList()
-        # self.bns.append(torch.nn.BatchNorm1d(nhid))
+        self.bns.append(torch.nn.BatchNorm1d(nhid))
         for _ in range(NumLayers - 2):
-            self.convs.append(
-                GCNConv(nhid, nhid, normalize=True, cached=False))
+            self.convs.append(GCNConv(nhid, nhid, normalize=True, cached=False))
             self.bns.append(torch.nn.BatchNorm1d(nhid))
         self.convs.append(GCNConv(nhid, nclass, normalize=True, cached=False))
         self.dropout = dropout
-
 
     def reset_parameters(self) -> None:
         for conv in self.convs:
@@ -219,19 +216,16 @@ class AggreGCN_Arxiv(torch.nn.Module):
         for i, conv in enumerate(self.convs[:-1]):
             if i == 0:  # check dimension of adj matrix
                 x = self.convs[0](aggregated_feature)
-                # x = self.bns[i](x)
+                x = self.bns[i](x)
                 x = F.relu(x)
                 x = F.dropout(x, p=self.dropout, training=self.training)
             else:
                 x = conv(x, adj_t)
-                x = self.bns[i-1](x)
+                x = self.bns[i](x)
                 x = F.relu(x)
                 x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.convs[-1](x, adj_t)
         return torch.log_softmax(x, dim=-1)
-
-
-
 
 
 class GCN_products(torch.nn.Module):

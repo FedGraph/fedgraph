@@ -16,7 +16,15 @@ from torch_geometric.loader import NeighborLoader
 from torchmetrics.functional.retrieval import retrieval_auroc
 from torchmetrics.retrieval import RetrievalHitRate
 
-from fedgraph.gnn_models import GCN, GIN, GNN_LP, AggreGCN, AggreGCN_Arxiv, GCN_arxiv, SAGE_products
+from fedgraph.gnn_models import (
+    GCN,
+    GIN,
+    GNN_LP,
+    AggreGCN,
+    AggreGCN_Arxiv,
+    GCN_arxiv,
+    SAGE_products,
+)
 from fedgraph.train_func import test, train
 from fedgraph.utils_lp import (
     check_data_files_existance,
@@ -176,6 +184,10 @@ class Trainer_General:
         # self.class_num = class_num
         self.args = args
         self.model = None
+        self.feature_aggregation = None
+        if self.args.method == "fedavg":
+            print("Loading feature as the feature aggregation for fedavg method")
+            self.feature_aggregation = self.features
 
     def get_info(self):
         return {
@@ -210,7 +222,8 @@ class Trainer_General:
                     NumLayers=self.args.num_layers,
                 ).to(self.device)
         else:
-            if self.args.dataset == "ogbn-arxiv":
+            if "ogbn" in self.args.dataset:  # all ogbn large datasets
+                print("Running GCN_arxiv")
                 self.model = GCN_arxiv(
                     nfeat=self.features.shape[1],
                     nhid=self.args_hidden,
@@ -218,7 +231,7 @@ class Trainer_General:
                     dropout=0.5,
                     NumLayers=self.args.num_layers,
                 ).to(self.device)
-            elif self.args.dataset == "ogbn-products":
+            elif self.args.dataset == "ogbn-products":  # ogbn not coming here
                 self.model = SAGE_products(
                     nfeat=self.features.shape[1],
                     nhid=self.args_hidden,
@@ -226,7 +239,7 @@ class Trainer_General:
                     dropout=0.5,
                     NumLayers=self.args.num_layers,
                 ).to(self.device)
-            else:
+            else:  # small datasets
                 self.model = GCN(
                     nfeat=self.features.shape[1],
                     nhid=self.args_hidden,
@@ -299,9 +312,21 @@ class Trainer_General:
         """
         Relabels the adjacency matrix based on the communication node index.
         """
+        print(f"Max value in adj: {self.adj.max()}")
+        print(f"Max value in communicate_node_index: {self.communicate_node_index.max()}")
+        distinct_values = torch.unique(self.adj.flatten())
+        print(f"Number of distinct values in adj: {distinct_values.numel()}")
+        print(f"distinct communic: {len(self.communicate_node_index)}")
+        time.sleep(30)
         _, self.adj, __, ___ = torch_geometric.utils.k_hop_subgraph(
             self.communicate_node_index, 0, self.adj, relabel_nodes=True
         )
+        print(f"Max value in adj: {self.adj.max()}")
+        print(f"Max value in communicate_node_index: {self.communicate_node_index.max()}")
+        distinct_values = torch.unique(self.adj.flatten())
+        print(f"Number of distinct values in adj: {distinct_values.numel()}")
+        print(f"distinct communic: {len(self.communicate_node_index)}")
+
 
     def train(self, current_global_round: int) -> None:
         """
@@ -372,6 +397,12 @@ class Trainer_General:
                     batch = next(batch_iter, None)
             else:
                 # print("Training with full batch")
+                print(f"feature_aggregation size: {self.feature_aggregation.size()}")
+                print(f"adj shape: {self.adj.size()}")
+                print(f"Max value in adj: {self.adj.max()}")
+                # print(f"Max value in communicate_node_index: {self.communicate_node_index.max()}")
+
+                time.sleep(30)
                 loss_train, acc_train = train(
                     iteration,
                     self.model,
