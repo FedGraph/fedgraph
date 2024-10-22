@@ -192,7 +192,7 @@ class Trainer_General:
     def get_info(self):
         return {
             "features_num": len(self.features),
-            "label_num": self.train_labels.max().item() + 1,
+            "label_num": max(self.train_labels.max().item(),self.test_labels.max().item()) + 1,
             "feature_shape": self.features.shape[1],
             "len_in_com_train_node_local_indexes": len(self.idx_train),
             "len_in_com_test_node_local_indexes": len(self.idx_test),
