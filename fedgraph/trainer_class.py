@@ -192,7 +192,7 @@ class Trainer_General:
     def get_info(self):
         return {
             "features_num": len(self.features),
-            "label_num": len(torch.unique(self.train_labels)),
+            "label_num": self.train_labels.max().item() + 1,
             "feature_shape": self.features.shape[1],
             "len_in_com_train_node_local_indexes": len(self.idx_train),
             "len_in_com_test_node_local_indexes": len(self.idx_test),
@@ -313,21 +313,24 @@ class Trainer_General:
         Relabels the adjacency matrix based on the communication node index.
         """
         print(f"Max value in adj: {self.adj.max()}")
-        print(f"Max value in communicate_node_index: {self.communicate_node_index.max()}")
+        print(
+            f"Max value in communicate_node_index: {self.communicate_node_index.max()}"
+        )
         distinct_values = torch.unique(self.adj.flatten())
         print(f"Number of distinct values in adj: {distinct_values.numel()}")
         print(f"distinct local: {len(self.local_node_index)}")
         print(f"distinct communic: {len(self.communicate_node_index)}")
-        #time.sleep(30)
+        # time.sleep(30)
         _, self.adj, __, ___ = torch_geometric.utils.k_hop_subgraph(
             self.communicate_node_index, 0, self.adj, relabel_nodes=True
         )
         print(f"Max value in adj: {self.adj.max()}")
-        print(f"Max value in communicate_node_index: {self.communicate_node_index.max()}")
+        print(
+            f"Max value in communicate_node_index: {self.communicate_node_index.max()}"
+        )
         distinct_values = torch.unique(self.adj.flatten())
         print(f"Number of distinct values in adj: {distinct_values.numel()}")
         print(f"distinct communic: {len(self.communicate_node_index)}")
-
 
     def train(self, current_global_round: int) -> None:
         """
@@ -341,6 +344,7 @@ class Trainer_General:
         """
         # clean cache
         torch.cuda.empty_cache()
+        assert self.model is not None
         self.model.to(self.device)
         self.feature_aggregation = self.feature_aggregation.to(self.device)
         if hasattr(self.args, "batch_size") and self.args.batch_size > 0:
@@ -402,6 +406,15 @@ class Trainer_General:
                 print(f"adj shape: {self.adj.size()}")
                 print(f"Max value in adj: {self.adj.max()}")
                 # print(f"Max value in communicate_node_index: {self.communicate_node_index.max()}")
+                # Assuming class_num is the number of classes
+                train_labels = self.train_labels
+                class_num = self.class_num
+                assert (
+                    train_labels.min() >= 0
+                ), f"train_labels contains negative values: {train_labels.min()}"
+                assert (
+                    train_labels.max() < class_num
+                ), f"train_labels contains a value out of range: {train_labels.max()} (number of classes: {class_num})"
 
                 # time.sleep(30)
                 loss_train, acc_train = train(
@@ -416,11 +429,11 @@ class Trainer_General:
 
             self.train_losses.append(loss_train)
             self.train_accs.append(acc_train)
-            # print(f"acc_train: {acc_train}")
+            print(f"acc_train: {acc_train}")
             loss_test, acc_test = self.local_test()
             self.test_losses.append(loss_test)
             self.test_accs.append(acc_test)
-            # print(f"acc_test: {acc_test}")
+            print(f"acc_test: {acc_test}")
 
     def local_test(self) -> list:
         """

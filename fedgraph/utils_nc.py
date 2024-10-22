@@ -330,7 +330,13 @@ def get_in_comm_indexes(
             )
             del _
             del __
-
+            # Assert that the number of distinct elements are equal
+            distinct_communicate_node_index = torch.unique(communicate_node_index)
+            # Flatten the 2D current_edge_index to get the unique node indices involved in edges
+            distinct_current_edge_nodes = torch.unique(current_edge_index.flatten())
+            assert len(distinct_communicate_node_index) == len(
+                distinct_current_edge_nodes
+            ), f"Distinct counts do not match: communicate_node_index ({len(distinct_communicate_node_index)}) != current_edge_nodes ({len(distinct_current_edge_nodes)})"
         communicate_node_index = communicate_node_index.to("cpu")
         current_edge_index = current_edge_index.to("cpu")
         communicate_node_indexes.append(communicate_node_index)
