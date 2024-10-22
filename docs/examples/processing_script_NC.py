@@ -32,16 +32,14 @@ def process_log(log_content):
         if pretrain_time_match:
             pretrain_mode = True
             train_mode = False
-            current_experiment["Pretrain Time"] = float(
-                pretrain_time_match.group(1))
+            current_experiment["Pretrain Time"] = float(pretrain_time_match.group(1))
 
         pretrain_max_trainer_memory_match = re.search(
             r"Log Max memory for Large(\d+): (\d+\.\d+)", line
         )
         if pretrain_max_trainer_memory_match and pretrain_mode:
             current_experiment[
-                f"Pretrain Max Trainer Memory{
-                    pretrain_max_trainer_memory_match.group(1)}"
+                f"Pretrain Max Trainer Memory{pretrain_max_trainer_memory_match.group(1)}"
             ] = float(pretrain_max_trainer_memory_match.group(2))
 
         pretrain_max_server_memory_match = re.search(
@@ -52,8 +50,7 @@ def process_log(log_content):
                 pretrain_max_server_memory_match.group(1)
             )
 
-        pretrain_network_match = re.search(
-            r"Log ([^,]+) network: (\d+\.\d+)", line)
+        pretrain_network_match = re.search(r"Log ([^,]+) network: (\d+\.\d+)", line)
         if pretrain_network_match and pretrain_mode:
             current_experiment[
                 f"Pretrain Network {pretrain_network_match.group(1)}"
@@ -71,8 +68,7 @@ def process_log(log_content):
         )
         if train_max_trainer_memory_match and train_mode:
             current_experiment[
-                f"Train Max Trainer Memory{
-                    train_max_trainer_memory_match.group(1)}"
+                f"Train Max Trainer Memory{train_max_trainer_memory_match.group(1)}"
             ] = float(train_max_trainer_memory_match.group(2))
 
         train_max_server_memory_match = re.search(
@@ -83,14 +79,12 @@ def process_log(log_content):
                 train_max_server_memory_match.group(1)
             )
 
-        train_network_match = re.search(
-            r"Log ([^,]+) network: (\d+\.\d+)", line)
+        train_network_match = re.search(r"Log ([^,]+) network: (\d+\.\d+)", line)
         if train_network_match and train_mode:
             current_experiment[
                 f"Train Network {(train_network_match.group(1))}"
             ] = float(train_network_match.group(2))
-        average_accuracy_match = re.search(
-            r"Average test accuracy: (\d+\.\d+)", line)
+        average_accuracy_match = re.search(r"Average test accuracy: (\d+\.\d+)", line)
         if average_accuracy_match:
             current_experiment["Average Test Accuracy"] = float(
                 average_accuracy_match.group(1)

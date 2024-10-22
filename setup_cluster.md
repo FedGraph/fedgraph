@@ -109,7 +109,7 @@ ray job submit --runtime-env-json '{
 Stop a Ray Job:
 
 ```bash
-ray job stop raysubmit_me9cygybgB1sxKfq --address http://localhost:8265
+ray job stop raysubmit_Shzg37Bgue2Js8id --address http://localhost:8265
 ```
 
 ## How to Delete the Ray Cluster
