@@ -80,7 +80,6 @@ def run(
     if not use_huggingface:
         # process on the server
         features, adj, labels, idx_train, idx_val, idx_test = NC_load_data(args.dataset)
-        features, adj, labels, idx_train, idx_val, idx_test = NC_load_data(args.dataset)
         class_num = labels.max().item() + 1
         row, col, edge_attr = adj.coo()
         edge_index = torch.stack([row, col], dim=0)
@@ -121,7 +120,7 @@ def run(
     else:
         args_hidden = 256
 
-    num_cpus_per_client = 55  # m5.16xlarge
+    num_cpus_per_client = 0.1  # m5.16xlarge
     # specifying a target GPU
     args.gpu = False  # Test
     print(f"gpu usage: {args.gpu}")
@@ -251,8 +250,8 @@ def run(
     # of specific nodes back to each client.
 
     # starting monitor:
-    monitor = Monitor()
-    monitor.pretrain_time_start()
+    # monitor = Monitor()
+    # monitor.pretrain_time_start()
     if args.method != "fedavg":
         local_neighbor_feature_sums = [
             trainer.get_local_feature_sum.remote() for trainer in server.trainers
@@ -262,7 +261,9 @@ def run(
         )
         while True:
             print("starting collecting local feature sum")
-            ready, left = ray.wait(local_neighbor_feature_sums, num_returns=1, timeout=None)
+            ready, left = ray.wait(
+                local_neighbor_feature_sums, num_returns=1, timeout=None
+            )
             if ready:
                 for t in ready:
                     global_feature_sum += ray.get(t)
@@ -281,12 +282,12 @@ def run(
                 global_feature_sum[communicate_node_global_indexes[i]]
             )
         print("clients received feature aggregation from server")
-        
+
     else:
         print("FedAvg skip pretrain communication")
     [trainer.relabel_adj.remote() for trainer in server.trainers]
     # ending monitor:
-    monitor.pretrain_time_end(1)
+    # monitor.pretrain_time_end(1)
 
     #######################################################################
     # Federated Training
@@ -295,10 +296,10 @@ def run(
     # at every global round.
 
     print("global_rounds", args.global_rounds)
-    monitor.train_time_start()
+    # monitor.train_time_start()
     for i in range(args.global_rounds):
         server.train(i)
-    monitor.train_time_end(30)
+    # monitor.train_time_end(30)
 
     #######################################################################
     # Summarize Experiment Results
@@ -323,8 +324,7 @@ def run(
     print(f"// Average test accuracy: {average_final_test_accuracy}//end")
 
 
-
-for dataset in ["ogbn-arxiv"]:
+for dataset in ["cora"]:
     for n_trainer in [10]:
         # for distribution_type in ["average", "lognormal", "exponential", "powerlaw"]:
         for distribution_type in ["average"]:

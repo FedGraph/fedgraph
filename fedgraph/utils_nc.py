@@ -310,15 +310,17 @@ def get_in_comm_indexes(
         communicate_node_index = split_node_indexes[i]
         if L_hop == 0:
             (
-                communicate_node_index,
-                current_edge_index,
                 _,
+                current_edge_index,
                 __,
+                ___,
             ) = torch_geometric.utils.k_hop_subgraph(
                 communicate_node_index, 0, edge_index, relabel_nodes=False
             )
             del _
             del __
+            del ___
+
         elif L_hop == 1 or L_hop == 2:
             (
                 communicate_node_index,
@@ -330,6 +332,14 @@ def get_in_comm_indexes(
             )
             del _
             del __
+        distinct_communicate_node_index = torch.unique(communicate_node_index)
+
+        # Flatten the 2D current_edge_index to get the unique node indices involved in edges
+        distinct_current_edge_nodes = torch.unique(current_edge_index.flatten())
+        print(current_edge_index.size())
+        # Assert that the number of distinct elements are equal
+        # assert len(distinct_communicate_node_index) == len(distinct_current_edge_nodes), \
+        #     f"Distinct counts do not match: communicate_node_index ({len(distinct_communicate_node_index)}) != current_edge_nodes ({len(distinct_current_edge_nodes)})"
 
         communicate_node_index = communicate_node_index.to("cpu")
         current_edge_index = current_edge_index.to("cpu")

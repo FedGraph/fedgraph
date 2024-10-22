@@ -48,7 +48,6 @@ class Server:
         The number of trainers.
     """
 
-
     def __init__(
         self,
         feature_dim: int,
@@ -103,7 +102,6 @@ class Server:
                     dropout=0.5,
                     NumLayers=self.args.num_layers,
                 ).to(device)
-
 
         self.trainers = trainers
         self.num_of_trainers = len(trainers)

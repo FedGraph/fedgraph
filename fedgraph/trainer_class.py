@@ -170,7 +170,6 @@ class Trainer_General:
 
         self.local_node_index = local_node_index.to(device)
         self.communicate_node_index = communicate_node_index.to(device)
-
         self.adj = adj.to(device)
         self.train_labels = train_labels.to(device)
         self.test_labels = test_labels.to(device)
@@ -187,6 +186,9 @@ class Trainer_General:
         self.feature_aggregation = None
         if self.args.method == "fedavg":
             print("Loading feature as the feature aggregation for fedavg method")
+            # FedAvg settings check local_index equal to comm_index
+            assert len(local_node_index) == len(communicate_node_index)
+            # time.sleep(30)
             self.feature_aggregation = self.features
 
     def get_info(self):
@@ -313,20 +315,28 @@ class Trainer_General:
         Relabels the adjacency matrix based on the communication node index.
         """
         print(f"Max value in adj: {self.adj.max()}")
-        print(f"Max value in communicate_node_index: {self.communicate_node_index.max()}")
-        distinct_values = torch.unique(self.adj.flatten())
-        print(f"Number of distinct values in adj: {distinct_values.numel()}")
-        print(f"distinct communic: {len(self.communicate_node_index)}")
-        time.sleep(30)
-        _, self.adj, __, ___ = torch_geometric.utils.k_hop_subgraph(
-            self.communicate_node_index, 0, self.adj, relabel_nodes=True
+        print(
+            f"Max value in communicate_node_index: {self.communicate_node_index.max()}"
         )
-        print(f"Max value in adj: {self.adj.max()}")
-        print(f"Max value in communicate_node_index: {self.communicate_node_index.max()}")
         distinct_values = torch.unique(self.adj.flatten())
         print(f"Number of distinct values in adj: {distinct_values.numel()}")
         print(f"distinct communic: {len(self.communicate_node_index)}")
 
+        _, self.adj, __, ___ = torch_geometric.utils.k_hop_subgraph(
+            self.communicate_node_index, 0, self.adj, relabel_nodes=True
+        )
+        print(f"After relabel Max value in adj: {self.adj.max()}")
+        print(
+            f"After relabel Max value in communicate_node_index: {self.communicate_node_index.max()}"
+        )
+        distinct_values = torch.unique(self.adj.flatten())
+        print(
+            f"After relabel distince Number of distinct values in adj: {distinct_values.numel()}"
+        )
+        print(
+            f"After relabel distinct communicate_node_index: {len(self.communicate_node_index)}"
+        )
+        # time.sleep(30)
 
     def train(self, current_global_round: int) -> None:
         """
@@ -402,7 +412,7 @@ class Trainer_General:
                 print(f"Max value in adj: {self.adj.max()}")
                 # print(f"Max value in communicate_node_index: {self.communicate_node_index.max()}")
 
-                time.sleep(30)
+                # time.sleep(30)
                 loss_train, acc_train = train(
                     iteration,
                     self.model,
