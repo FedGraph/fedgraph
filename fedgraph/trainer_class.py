@@ -11,7 +11,7 @@ import torch_geometric
 from torchmetrics.functional.retrieval import retrieval_auroc
 from torchmetrics.retrieval import RetrievalHitRate
 from fedgraph.gnn_models import GCN, GIN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products, LocSAGEPlus
-from fedgraph.train_func import test, train
+from fedgraph.train_func import test, train, accuracy
 from fedgraph.utils_lp import (
     check_data_files_existance,
     get_data,
@@ -1453,9 +1453,9 @@ class Trainer_FedSagePlus:
             eval_output["loss_test"]  = loss_test
             
             
-            metric_train = compute_supervised_metrics(metrics=self.args.metrics, logits=logits[splitted_data["train_mask"]], labels=splitted_data["data"].y[splitted_data["train_mask"]], suffix="train")
-            metric_val = compute_supervised_metrics(metrics=self.args.metrics, logits=logits[splitted_data["val_mask"]], labels=splitted_data["data"].y[splitted_data["val_mask"]], suffix="val")
-            metric_test = compute_supervised_metrics(metrics=self.args.metrics, logits=logits[splitted_data["test_mask"]], labels=splitted_data["data"].y[splitted_data["test_mask"]], suffix="test")
+            metric_train = accuracy(output=logits[splitted_data["train_mask"]], labels=splitted_data["data"].y[splitted_data["train_mask"]])
+            metric_val = accuracy(output=logits[splitted_data["val_mask"]], labels=splitted_data["data"].y[splitted_data["val_mask"]])
+            metric_test = accuracy(output=logits[splitted_data["test_mask"]], labels=splitted_data["data"].y[splitted_data["test_mask"]])
             eval_output = {**eval_output, **metric_train, **metric_val, **metric_test}
             
             info = ""
@@ -1498,9 +1498,9 @@ class Trainer_FedSagePlus:
             eval_output["loss_test"]  = loss_test
             
             
-            metric_train = compute_supervised_metrics(metrics=self.args.metrics, logits=logits[splitted_data["train_mask"]], labels=splitted_data["data"].y[splitted_data["train_mask"]], suffix="train")
-            metric_val = compute_supervised_metrics(metrics=self.args.metrics, logits=logits[splitted_data["val_mask"]], labels=splitted_data["data"].y[splitted_data["val_mask"]], suffix="val")
-            metric_test = compute_supervised_metrics(metrics=self.args.metrics, logits=logits[splitted_data["test_mask"]], labels=splitted_data["data"].y[splitted_data["test_mask"]], suffix="test")
+            metric_train = accuracy(output=logits[splitted_data["train_mask"]], labels=splitted_data["data"].y[splitted_data["train_mask"]])
+            metric_val = accuracy(output=logits[splitted_data["val_mask"]], labels=splitted_data["data"].y[splitted_data["val_mask"]])
+            metric_test = accuracy(output=logits[splitted_data["test_mask"]], labels=splitted_data["data"].y[splitted_data["test_mask"]])
             eval_output = {**eval_output, **metric_train, **metric_val, **metric_test}
             
             info = ""
@@ -1538,7 +1538,6 @@ class NodeClsTask:
         val_mask (torch.Tensor): Mask for the validation set.
         test_mask (torch.Tensor): Mask for the test set.
         splitted_data (dict): Dictionary containing split data and DataLoaders.
-        processed_data (object): Processed data for training.
     """
 
     def __init__(self, args, client_id, data, data_dir, device):
@@ -1560,12 +1559,13 @@ class NodeClsTask:
         
         if data is not None:
             self.data = data.to(device)
-            self.model = self.default_model.to(device)
+            #self.model = self.default_model.to(device)
+            # model will be loaded in Trainer
+            self.model = None
             self.optim = torch.optim.Adam(self.model.parameters(), lr=self.args.lr, weight_decay=self.args.weight_decay)
             self.load_train_val_test_split()
 
         self.override_evaluate = None
-        self.step_preprocess = None
 
     def load_custom_model(self, custom_model):
         self.model = custom_model.to(self.device)
@@ -1578,31 +1578,21 @@ class NodeClsTask:
         Args:
             splitted_data (dict, optional): Dictionary containing split data and DataLoaders. Defaults to None.
         """
-        if splitted_data is None:
-            splitted_data = self.processed_data  # use processed_data to train model
-        else:
-            names = ["data", "train_mask", "val_mask", "test_mask"]
-            for name in names:
-                assert name in splitted_data
+    
+        names = ["data", "train_mask", "val_mask", "test_mask"]
+        # make sure splitted data has all the required keys
+        for name in names:
+            assert name in splitted_data
 
         self.model.train()
+
         for _ in range(self.args.num_epochs):
             self.optim.zero_grad()
             embedding, logits = self.model.forward(splitted_data["data"])
+            # Note, will use CE loss direclty
             loss_train = self.loss_fn(embedding, logits, splitted_data["data"].y, splitted_data["train_mask"])
-            if self.args.dp_mech != "no_dp":
-                # clip the gradient of each sample in this batch
-                clip_gradients(self.model, loss_train, loss_train.shape[0], self.args.dp_mech, self.args.grad_clip)
-            else:
-                loss_train.backward()
-
-            if self.step_preprocess is not None:
-                self.step_preprocess()
-
+            loss_train.backward()
             self.optim.step()
-            if self.args.dp_mech != "no_dp":
-                # add noise to parameters
-                add_noise(self.args, self.model, loss_train.shape[0])
 
     def evaluate(self, splitted_data=None, mute=False):
         """
@@ -1637,9 +1627,9 @@ class NodeClsTask:
             eval_output["loss_val"] = loss_val
             eval_output["loss_test"] = loss_test
 
-            metric_train = compute_supervised_metrics(metrics=self.args.metrics, logits=logits[splitted_data["train_mask"]], labels=splitted_data["data"].y[splitted_data["train_mask"]], suffix="train")
-            metric_val = compute_supervised_metrics(metrics=self.args.metrics, logits=logits[splitted_data["val_mask"]], labels=splitted_data["data"].y[splitted_data["val_mask"]], suffix="val")
-            metric_test = compute_supervised_metrics(metrics=self.args.metrics, logits=logits[splitted_data["test_mask"]], labels=splitted_data["data"].y[splitted_data["test_mask"]], suffix="test")
+            metric_train = accuracy(output=logits[splitted_data["train_mask"]], labels=splitted_data["data"].y[splitted_data["train_mask"]])
+            metric_val = accuracy (output=logits[splitted_data["val_mask"]], labels=splitted_data["data"].y[splitted_data["val_mask"]])
+            metric_test = accuracy(output=logits[splitted_data["test_mask"]], labels=splitted_data["data"].y[splitted_data["test_mask"]])
             eval_output = {**eval_output, **metric_train, **metric_val, **metric_test}
 
             info = ""
@@ -1655,6 +1645,7 @@ class NodeClsTask:
             return eval_output
 
         else:
+            # for custom evaluation on fedsage+ we override the evaluate function
             return self.override_evaluate(splitted_data, mute)
 
     def loss_fn(self, embedding, logits, label, mask):
@@ -1670,29 +1661,8 @@ class NodeClsTask:
         Returns:
             torch.Tensor: Calculated loss.
         """
-        return self.default_loss_fn(logits[mask], label[mask])
-
-    @property
-    def default_model(self):
-        """
-        Get the default model for node and edge level tasks.
-
-        Returns:
-            torch.nn.Module: Default model.
-        """
-        return load_node_edge_level_default_model(self.args, input_dim=self.num_feats, output_dim=self.num_global_classes, client_id=self.client_id)
-
-    @property
-    def default_optim(self):
-        """
-        Get the default optimizer for the task.
-
-        Returns:
-            torch.optim.Optimizer: Default optimizer.
-        """
-        if self.args.optim == "adam":
-            from torch.optim import Adam
-            return Adam
+        loss_fn = torch.nn.CrossEntropyLoss()
+        return loss_fn(logits[mask], label[mask])
 
     @property
     def num_samples(self):
@@ -1723,19 +1693,6 @@ class NodeClsTask:
             int: Number of global classes.
         """
         return self.data.num_global_classes
-
-    @property
-    def default_loss_fn(self):
-        """
-        Get the default loss function for the task.
-
-        Returns:
-            function: Default loss function.
-        """
-        if self.args.dp_mech != "no_dp":
-            return nn.CrossEntropyLoss(reduction="none")
-        else:
-            return nn.CrossEntropyLoss()
 
     @property
     def default_train_val_test_split(self):
@@ -1856,8 +1813,6 @@ class NodeClsTask:
             "test_mask": self.test_mask
         }
 
-        # processing
-        self.processed_data = processing(args=self.args, splitted_data=self.splitted_data, processed_dir=self.data_dir, client_id=self.client_id)
 
     def local_subgraph_train_val_test_split(self, local_subgraph, split, shuffle=True):
         """
