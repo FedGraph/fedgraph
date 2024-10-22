@@ -17,6 +17,8 @@ import torch_sparse
 from torch_geometric.datasets import TUDataset
 from torch_geometric.loader import DataLoader
 from torch_geometric.transforms import OneHotDegree
+from torch_geometric.utils import add_self_loops
+
 
 from fedgraph.utils_gc import (
     get_max_degree,

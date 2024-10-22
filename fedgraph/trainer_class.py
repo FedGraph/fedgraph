@@ -316,8 +316,9 @@ class Trainer_General:
         print(f"Max value in communicate_node_index: {self.communicate_node_index.max()}")
         distinct_values = torch.unique(self.adj.flatten())
         print(f"Number of distinct values in adj: {distinct_values.numel()}")
+        print(f"distinct local: {len(self.local_node_index)}")
         print(f"distinct communic: {len(self.communicate_node_index)}")
-        time.sleep(30)
+        #time.sleep(30)
         _, self.adj, __, ___ = torch_geometric.utils.k_hop_subgraph(
             self.communicate_node_index, 0, self.adj, relabel_nodes=True
         )
@@ -402,7 +403,7 @@ class Trainer_General:
                 print(f"Max value in adj: {self.adj.max()}")
                 # print(f"Max value in communicate_node_index: {self.communicate_node_index.max()}")
 
-                time.sleep(30)
+                # time.sleep(30)
                 loss_train, acc_train = train(
                     iteration,
                     self.model,

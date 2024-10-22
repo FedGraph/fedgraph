@@ -315,7 +315,7 @@ def get_in_comm_indexes(
                 _,
                 __,
             ) = torch_geometric.utils.k_hop_subgraph(
-                communicate_node_index, 0, edge_index, relabel_nodes=False
+                communicate_node_index, 0, edge_index, relabel_nodes=True
             )
             del _
             del __
