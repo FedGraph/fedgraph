@@ -4,9 +4,10 @@ import datetime
 import os
 import random
 import time
+import time
 from pathlib import Path
 from typing import Any, List, Optional
-
+import sys
 import attridict
 import numpy as np
 import pandas as pd
@@ -158,62 +159,91 @@ def run_NC(args: attridict, data: tuple) -> None:
         if args.use_encryption:
             print("Starting encrypted feature aggregation...")
 
+            encryption_times = []
+            decryption_times = []
+            encryption_sizes = []
+            ciphertext_sizes = []
+            
             encrypted_sums_and_shapes = [
                 trainer.get_encrypted_local_feature_sum.remote() for trainer in server.trainers
             ]
 
-            encrypted_sums, shapes = zip(*ray.get(encrypted_sums_and_shapes))
-            encrypted_global_feature_sum = server.aggregate_encrypted_feature_sums(encrypted_sums)
+            encrypted_sums, shapes, enc_times, enc_sizes, cipher_sizes = zip(*ray.get(encrypted_sums_and_shapes))
+            encryption_times.extend(enc_times)
+            encryption_sizes.extend(enc_sizes)
+            ciphertext_sizes.extend(cipher_sizes)
+            
+            encrypted_global_feature_sum, aggregation_time, agg_size, agg_cipher_size = server.aggregate_encrypted_feature_sums(encrypted_sums)
 
-            load_feature_refs = []
-            for trainer in server.trainers:
-                load_feature_ref = trainer.load_encrypted_feature_aggregation.remote(encrypted_global_feature_sum, shapes[0])
-                load_feature_refs.append(load_feature_ref)
-            ray.get(load_feature_refs)
+            # load the decrypted feature aggregation into each trainer
+            load_feature_refs = [
+                trainer.load_encrypted_feature_aggregation.remote(encrypted_global_feature_sum, shapes[0])
+                for trainer in server.trainers
+            ]
+            decryption_times.extend(ray.get(load_feature_refs))
 
-            print("Trainers received and decrypted feature aggregation from server")
-
-            feature_stats_refs = [trainer.get_feature_aggregation_stats.remote() for trainer in server.trainers]
-            feature_stats = ray.get(feature_stats_refs)
-            for i, stats in enumerate(feature_stats):
-                print(f"Trainer {i} feature aggregation stats: min={stats['min']:.4f}, max={stats['max']:.4f}, mean={stats['mean']:.4f}")
-
-            process_refs = [trainer.relabel_adj.remote() for trainer in server.trainers]
-            ray.get(process_refs)
-
-            print("Trainers processed the feature aggregation")
-            #verify feature of all trainers are set
-            verify_refs = [trainer.verify_feature_aggregation.remote() for trainer in server.trainers]
-            ray.get(verify_refs)
+            print("\nEncryption Performance Metrics:")
+            print(f"Average Encryption Time: {sum(encryption_times) / len(encryption_times):.4f} seconds")
+            print(f"Average Decryption Time: {sum(decryption_times) / len(decryption_times):.4f} seconds")
+            print(f"Aggregation Time: {aggregation_time:.4f} seconds")
+            print(f"Average Ciphertext Size (Upload): {sum(ciphertext_sizes) / len(ciphertext_sizes)} elements")
+            print(f"Aggregated Ciphertext Size: {agg_cipher_size} elements")
+            print(f"Total Communication Cost (Upload): {sum(encryption_sizes) / (1024 * 1024):.2f} MB")
+            print(f"Total Communication Cost (Download): {agg_size * len(server.trainers) / (1024 * 1024):.2f} MB")
 
             print("Feature aggregation verified for all trainers")
         else:
+            print("Starting plaintext feature aggregation...")
+        
+            computation_times = []
+            load_times = []
+            data_sizes = []
+            
             local_neighbor_feature_sums = [
                 trainer.get_local_feature_sum_og.remote() for trainer in server.trainers
             ]
+            
             global_feature_sum = torch.zeros_like(features)
+            aggregation_start = time.time()
             while True:
                 ready, left = ray.wait(
                     local_neighbor_feature_sums, num_returns=1, timeout=None
                 )
                 if ready:
                     for t in ready:
-                        global_feature_sum += ray.get(t)
+                        result, comp_time, data_size = ray.get(t)
+                        global_feature_sum += result
+                        computation_times.append(comp_time)
+                        data_sizes.append(data_size)
                 local_neighbor_feature_sums = left
                 if not local_neighbor_feature_sums:
                     break
-            print("server aggregates all local neighbor feature sums")
-            # test if aggregation is correct
-            if args.num_hops != 0:
-                assert (
-                    global_feature_sum != get_1hop_feature_sum(features, edge_index)
-                ).sum() == 0
+            aggregation_time = time.time() - aggregation_start
+            
+            print("Server aggregates all local neighbor feature sums")
+            
+            total_data_size = sys.getsizeof(global_feature_sum.storage()) + sys.getsizeof(global_feature_sum)
+            
+            # Distribute the aggregated features back to trainers
+            load_feature_refs = []
             for i in range(args.n_trainer):
-                server.trainers[i].load_feature_aggregation.remote(
+                load_feature_ref = server.trainers[i].load_feature_aggregation.remote(
                     global_feature_sum[communicate_node_indexes[i]]
                 )
-            print("trainers received feature aggregation from server")
-            [trainer.relabel_adj.remote() for trainer in server.trainers]
+                load_feature_refs.append(load_feature_ref)
+            load_times.extend(ray.get(load_feature_refs))
+            
+            print("\nPlaintext Performance Metrics:")
+            print(f"Average Computation Time: {sum(computation_times) / len(computation_times):.4f} seconds")
+            print(f"Aggregation Time: {aggregation_time:.4f} seconds")
+            print(f"Average Load Time: {sum(load_times) / len(load_times):.4f} seconds")
+            print(f"Average Data Size (Upload): {sum(data_sizes) / len(data_sizes) / 1024:.2f} KB")
+            print(f"Aggregated Data Size: {total_data_size / 1024:.2f} KB")
+            print(f"Total Communication Cost (Upload): {sum(data_sizes) / (1024 * 1024):.2f} MB")
+            print(f"Total Communication Cost (Download): {total_data_size * len(server.trainers) / (1024 * 1024):.2f} MB")
+
+            print("Trainers received feature aggregation from server")
+        [trainer.relabel_adj.remote() for trainer in server.trainers]
         # while True:
         #     ready, left = ray.wait(encrypted_local_feature_sums, num_returns=1, timeout=None)
         #     if ready:

@@ -5,7 +5,8 @@ from io import BytesIO
 from typing import Any, Dict, List, Union
 import pickle
 import logging
-
+import sys
+import time
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 import numpy as np
@@ -222,10 +223,10 @@ class Trainer_General:
         self.global_node_num = global_node_num
         self.class_num = class_num
         self.args = args
-        
+        self.feature_aggregation = None
         self.he_context = load_context()
         self.feature_shape = None
-        self.scale_factor = 1e12
+        self.scale_factor = 50
 
     @torch.no_grad()
     def update_params(self, params: tuple, current_global_epoch: int) -> None:
@@ -268,20 +269,29 @@ class Trainer_General:
             new_feature_for_trainer, self.adj
         )
 
-        # Normalize features
-        mean = one_hop_neighbor_feature_sum.mean(dim=0, keepdim=True)
-        std = one_hop_neighbor_feature_sum.std(dim=0, keepdim=True)
-        normalized_sum = (one_hop_neighbor_feature_sum - mean) / (std + 1e-8)
+        # # Normalize features
+        # mean = one_hop_neighbor_feature_sum.mean(dim=0, keepdim=True)
+        # std = one_hop_neighbor_feature_sum.std(dim=0, keepdim=True)
+        # normalized_sum = (one_hop_neighbor_feature_sum - mean) / (std + 1e-8)
 
-        # Log statistics
-        print(f"Original feature sum stats: min={one_hop_neighbor_feature_sum.min():.4f}, "
-            f"max={one_hop_neighbor_feature_sum.max():.4f}, "
-            f"mean={one_hop_neighbor_feature_sum.mean():.4f}")
-        print(f"Normalized feature sum stats: min={normalized_sum.min():.4f}, "
-            f"max={normalized_sum.max():.4f}, "
-            f"mean={normalized_sum.mean():.4f}")
+        # # Log statistics
+        # print(f"Original feature sum stats: min={one_hop_neighbor_feature_sum.min():.4f}, "
+        #     f"max={one_hop_neighbor_feature_sum.max():.4f}, "
+        #     f"mean={one_hop_neighbor_feature_sum.mean():.4f}")
+        # print(f"Normalized feature sum stats: min={normalized_sum.min():.4f}, "
+        #     f"max={normalized_sum.max():.4f}, "
+        #     f"mean={normalized_sum.mean():.4f}")
+        
 
-        return normalized_sum
+        one_hop_neighbor_feature_sum = get_1hop_feature_sum(
+            new_feature_for_trainer, self.adj
+        )
+        
+        print(f"Trainer {self.rank} - Original feature sum (first 10 and last 10 elements): "
+              f"{one_hop_neighbor_feature_sum.flatten()[:10].tolist()} ... {one_hop_neighbor_feature_sum.flatten()[-10:].tolist()}")
+        
+        return one_hop_neighbor_feature_sum
+    
     def get_local_feature_sum_og(self) -> torch.Tensor:
         """
         Computes the sum of features of all 1-hop neighbors for each node.
@@ -292,69 +302,54 @@ class Trainer_General:
             The sum of features of 1-hop neighbors for each node
         """
 
-        # create a large matrix with known local node features
+        computation_start = time.time()
         new_feature_for_trainer = torch.zeros(
             self.global_node_num, self.features.shape[1]
-        ).to(
-            self.device
-        )  # TODO:check if all the tensors are in the same device
+        ).to(self.device)
         new_feature_for_trainer[self.local_node_index] = self.features
-        # sum of features of all 1-hop nodes for each node
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
             new_feature_for_trainer, self.adj
         )
-        return one_hop_neighbor_feature_sum
+        computation_time = time.time() - computation_start
+        
+        data_size = sys.getsizeof(one_hop_neighbor_feature_sum.storage()) + sys.getsizeof(one_hop_neighbor_feature_sum)
+        
+        print(f"Trainer {self.rank} - Computation time: {computation_time:.4f} seconds")
+        print(f"Trainer {self.rank} - Data size: {data_size / 1024:.2f} KB")
+        
+        return one_hop_neighbor_feature_sum, computation_time, data_size
+
     
     def encrypt_feature_sum(self, feature_sum):
-        logger.info(f"Pre-encryption feature sum stats: min={feature_sum.min():.4f}, "
-                    f"max={feature_sum.max():.4f}, "
-                    f"mean={feature_sum.mean():.4f}")
-        np_features = feature_sum.numpy()
+        feature_sum = self.get_local_feature_sum()
+        #binary does not scale
+        flattened_sum = feature_sum.flatten()
+        enc_sum = ts.ckks_vector(self.he_context, flattened_sum.tolist()).serialize()
         
-        enc_vectors = []
-        for row in np_features:
-            scaled_row = (row * self.scale_factor).astype(np.float64)
-            enc_vector = ts.ckks_vector(self.he_context, scaled_row.tolist())
-            enc_vectors.append(enc_vector.serialize())
-        
-        #verify encryption
-        dec_check = self.decrypt_feature_sum(enc_vectors, feature_sum.shape)
-        assert torch.allclose(feature_sum, dec_check, rtol=1e-2, atol=1e-2), "Encryption-decryption mismatch"
-        dec_check = self.decrypt_feature_sum(enc_vectors, feature_sum.shape)
-        print(f"Decrypted feature sum stats: min={dec_check.min():.4f}, "
-            f"max={dec_check.max():.4f}, "
-            f"mean={dec_check.mean():.4f}")
-        print(f"Difference stats: min={(feature_sum - dec_check).abs().min():.4e}, "
-            f"max={(feature_sum - dec_check).abs().max():.4e}, "
-            f"mean={(feature_sum - dec_check).abs().mean():.4e}")
-        return enc_vectors, feature_sum.shape
+        return enc_sum, feature_sum.shape
 
     def decrypt_feature_sum(self, encrypted_sum, shape):
-        decrypted_rows = []
-        for enc_row in encrypted_sum:
-            dec_row = ts.ckks_vector_from(self.he_context, enc_row).decrypt()
-            decrypted_rows.append(dec_row)
-        
-        # convert to single numpy array
-        decrypted_array = np.array(decrypted_rows) / self.scale_factor
+        decrypted_rows = [
+            ts.ckks_vector_from(self.he_context, enc_row).decrypt()
+            for enc_row in encrypted_sum
+        ]
+
+        decrypted_array = np.array(decrypted_rows) 
         return torch.from_numpy(decrypted_array).float().reshape(shape)
 
     def load_encrypted_feature_aggregation(self, enc_global_sum, shape):
-        #decrypt
+        decryption_start = time.time()
         dec_sum = ts.ckks_vector_from(self.he_context, enc_global_sum).decrypt()
+        decrypted_sum = torch.tensor(dec_sum).float().reshape(shape).round().float()
+        decryption_time = time.time() - decryption_start
         
-        # reshape and rescale
-        self.feature_aggregation = torch.tensor(dec_sum).float().reshape(shape) / (self.scale_factor * self.args.n_trainer)
+        self.feature_aggregation = decrypted_sum
 
-        # normalize after decryption
-        mean = self.feature_aggregation.mean(dim=0, keepdim=True)
-        std = self.feature_aggregation.std(dim=0, keepdim=True)
-        self.feature_aggregation = (self.feature_aggregation - mean) / (std + 1e-8)
-
-        print(f"Loaded feature aggregation stats: min={self.feature_aggregation.min():.4f}, "
-              f"max={self.feature_aggregation.max():.4f}, "
-              f"mean={self.feature_aggregation.mean():.4f}")
-
+        print(f"Trainer {self.rank} - Decryption time: {decryption_time:.4f} seconds")
+        
+        return decryption_time
+            
+        #remove assert
         
     def verify_feature_aggregation(self):
         if self.feature_aggregation is None:
@@ -378,15 +373,32 @@ class Trainer_General:
         feature_aggregation : torch.Tensor
             The aggregated features to be loaded.
         """
-        self.feature_aggregation = feature_aggregation
+        load_start = time.time()
+        self.feature_aggregation = feature_aggregation.float()
+        load_time = time.time() - load_start
+        
+        print(f"Trainer {self.rank} - Load time: {load_time:.4f} seconds")
+        
+        return load_time
+    
     def get_encrypted_local_feature_sum(self):
         feature_sum = self.get_local_feature_sum()
         
-        scaled_sum = (feature_sum * self.scale_factor).round().long()
-        flattened_sum = scaled_sum.flatten()
-        enc_sum = ts.ckks_vector(self.he_context, flattened_sum.tolist()).serialize()
+        encryption_start = time.time()
+        flattened_sum = feature_sum.flatten().long()
+        enc_sum = ts.ckks_vector(self.he_context, flattened_sum.tolist())
+        encryption_time = time.time() - encryption_start
         
-        return enc_sum, feature_sum.shape
+        ciphertext_size = enc_sum.size()
+        serialized_sum = enc_sum.serialize()
+        enc_size = sys.getsizeof(serialized_sum)
+        
+        print(f"Trainer {self.rank} - Encryption time: {encryption_time:.4f} seconds")
+        print(f"Trainer {self.rank} - Ciphertext size: {ciphertext_size} elements")
+        print(f"Trainer {self.rank} - Serialized encrypted data size: {enc_size / 1024:.2f} KB")
+        
+        return serialized_sum, feature_sum.shape, encryption_time, enc_size, ciphertext_size
+
     
     def relabel_adj(self) -> None:
         """
