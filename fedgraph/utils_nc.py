@@ -410,17 +410,16 @@ def get_1hop_feature_sum(
 
     # encryption
     # encrypted_node_features = [ts.ckks_vector(context, node_features[i].tolist()) for i in range(num_nodes)]
-
-    for node in range(num_nodes):
-        if include_self:
-            print("using spare matrix method")
-            adjacency_matrix = torch.sparse_coo_tensor(
-                edge_index,
-                torch.ones_like(source_nodes, dtype=torch.float32),
-                (num_nodes, num_nodes),
-            ).to(device)
-            summed_features = torch.sparse.mm(adjacency_matrix.float(), node_features)
-        else:
+    if include_self:
+        # print("using spare matrix method")
+        adjacency_matrix = torch.sparse_coo_tensor(
+            edge_index,
+            torch.ones_like(source_nodes, dtype=torch.float32),
+            (num_nodes, num_nodes),
+        ).to(device)
+        summed_features = torch.sparse.mm(adjacency_matrix.float(), node_features)
+    else:
+        for node in range(num_nodes):
             neighbor_indices = torch.where(
                 (source_nodes == node) & (target_nodes != node)
             )  # exclude self-loop
