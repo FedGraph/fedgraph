@@ -30,7 +30,7 @@ docker buildx build --platform linux/amd64 -t public.ecr.aws/i7t1s5i1/fedgraph:g
 Create an EKS Cluster with eksctl:
 
 ```bash
-eksctl create cluster -f eks_cluster_config.yaml
+eksctl create cluster -f eks_cluster_config.yaml --timeout=60m
 # eksctl create cluster --name test --region us-east-1 --nodegroup-name standard-workers --node-type g4dn.xlarge --nodes 1 --nodes-min 1 --nodes-max 4 --managed
 ```
 
@@ -38,10 +38,18 @@ Update kubeconfig for AWS EKS:
 
 ```bash
 
-aws eks --region us-west-2 update-kubeconfig --name large
+aws eks --region us-east-1 update-kubeconfig --name gpularge
 
 ```
+Check or switch current cluster:
 
+```bash
+
+kubectl config current-context
+kubectl config use-context arn:aws:eks:us-west-2:312849146674:cluster/large
+
+
+```
 Clone the KubeRay Repository and Install Prometheus
 
 ```bash
@@ -79,13 +87,13 @@ kubectl apply -f ray_kubernetes_ingress.yaml
 Forward Port for Ray Dashboard:
 
 ```bash
-kubectl port-forward service/raycluster-autoscaler-head-svc 8265:8265
+kubectl port-forward service/raycluster-autoscaler-head-svc 9000:8265
 ```
 
 Forward Ports for Ray Dashboard, Prometheus, and Grafana
 
 ```bash
-kubectl port-forward raycluster-autoscaler-head-6nfvs 8080:8080
+kubectl port-forward raycluster-autoscaler-head-vj5fw 8080:8080
 kubectl port-forward prometheus-prometheus-kube-prometheus-prometheus-0 -n prometheus-system 9090:9090
 kubectl port-forward deployment/prometheus-grafana -n prometheus-system 3000:3000
 ```
@@ -102,14 +110,14 @@ Submit a Ray Job:
 cd fedgraph
 ray job submit --runtime-env-json '{
   "working_dir": "./"
-}' --address http://localhost:8265 -- python docs/examples/benchmark_NC.py
+}' --address http://localhost:9000 -- python docs/examples/benchmark_NC.py
 
 ```
 
 Stop a Ray Job:
 
 ```bash
-ray job stop raysubmit_Shzg37Bgue2Js8id --address http://localhost:8265
+ray job stop raysubmit_UjReNNMam1z5K7E9 --address http://localhost:9000
 ```
 
 ## How to Delete the Ray Cluster
@@ -145,7 +153,7 @@ Finally, Delete the EKS Cluster:
 
 ```bash
 kubectl get nodes -o name | xargs kubectl delete
-eksctl delete cluster --region us-west-2 --name large
+eksctl delete cluster --region us-east-1 --name gpularge
 ```
 
 ## Step 1: Pushing Data to Hugging Face Hub CLI

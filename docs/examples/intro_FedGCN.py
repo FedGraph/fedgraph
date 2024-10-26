@@ -285,7 +285,9 @@ while True:
 print("server aggregates all local neighbor feature sums")
 # test if aggregation is correct
 if args.num_hops != 0:
-    assert (global_feature_sum != get_1hop_feature_sum(features, edge_index)).sum() == 0
+    assert (
+        global_feature_sum != get_1hop_feature_sum(features, edge_index, device)
+    ).sum() == 0
 for i in range(args.n_trainer):
     server.trainers[i].load_feature_aggregation.remote(
         global_feature_sum[communicate_node_global_indexes[i]]

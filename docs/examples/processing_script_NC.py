@@ -102,7 +102,7 @@ def load_log_file(file_path):
     return log_content
 
 
-file_path = "NC_arxiv.log"
+file_path = "NC_arxiv_batch_gpu.log"
 log_content = load_log_file(file_path)
 df = process_log(log_content)
 
@@ -128,6 +128,6 @@ def reorder_dataframe_columns(df):
 
 
 df = reorder_dataframe_columns(df)
-csv_file_path = "NC_2.csv"
+csv_file_path = "NC_arxiv_batch_gpu.csv"
 df.to_csv(csv_file_path)
 print(df.iloc[0, :])

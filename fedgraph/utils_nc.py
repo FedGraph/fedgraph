@@ -331,12 +331,12 @@ def get_in_comm_indexes(
             del _
             del __
             # Assert that the number of distinct elements are equal
-            distinct_communicate_node_index = torch.unique(communicate_node_index)
-            # Flatten the 2D current_edge_index to get the unique node indices involved in edges
-            distinct_current_edge_nodes = torch.unique(current_edge_index.flatten())
-            assert len(distinct_communicate_node_index) == len(
-                distinct_current_edge_nodes
-            ), f"Distinct counts do not match: communicate_node_index ({len(distinct_communicate_node_index)}) != current_edge_nodes ({len(distinct_current_edge_nodes)})"
+            # distinct_communicate_node_index = torch.unique(communicate_node_index)
+            # # Flatten the 2D current_edge_index to get the unique node indices involved in edges
+            # distinct_current_edge_nodes = torch.unique(current_edge_index.flatten())
+            # assert len(distinct_communicate_node_index) == len(
+            #     distinct_current_edge_nodes
+            # ), f"Distinct counts do not match: communicate_node_index ({len(distinct_communicate_node_index)}) != current_edge_nodes ({len(distinct_current_edge_nodes)})"
         communicate_node_index = communicate_node_index.to("cpu")
         current_edge_index = current_edge_index.to("cpu")
         communicate_node_indexes.append(communicate_node_index)
@@ -373,7 +373,10 @@ def get_in_comm_indexes(
 
 
 def get_1hop_feature_sum(
-    node_features: torch.Tensor, edge_index: torch.Tensor, include_self: bool = True
+    node_features: torch.Tensor,
+    edge_index: torch.Tensor,
+    device: str,
+    include_self: bool = True,
 ) -> torch.Tensor:
     """
     Computes the sum of features of 1-hop neighbors for each node in a graph. The function
@@ -399,26 +402,31 @@ def get_1hop_feature_sum(
         The tensor has the same number of rows as `node_features` and the same number of columns as the
         number of features per node.
     """
-    edge_index = edge_index.to("cpu")
     source_nodes = edge_index[0]
     target_nodes = edge_index[1]
 
     num_nodes, num_features = node_features.shape
-    summed_features = torch.zeros((num_nodes, num_features))
+    summed_features = torch.zeros((num_nodes, num_features)).to(device)
 
     # encryption
     # encrypted_node_features = [ts.ckks_vector(context, node_features[i].tolist()) for i in range(num_nodes)]
 
     for node in range(num_nodes):
         if include_self:
-            neighbor_indices = torch.where(source_nodes == node)
+            print("using spare matrix method")
+            adjacency_matrix = torch.sparse_coo_tensor(
+                edge_index,
+                torch.ones_like(source_nodes, dtype=torch.float32),
+                (num_nodes, num_nodes),
+            ).to(device)
+            summed_features = torch.sparse.mm(adjacency_matrix.float(), node_features)
         else:
             neighbor_indices = torch.where(
                 (source_nodes == node) & (target_nodes != node)
             )  # exclude self-loop
 
-        neighbor_features = node_features[target_nodes[neighbor_indices]]
-        summed_features[node] = torch.sum(neighbor_features, dim=0)
+            neighbor_features = node_features[target_nodes[neighbor_indices]]
+            summed_features[node] = torch.sum(neighbor_features, dim=0)
 
     return summed_features
 

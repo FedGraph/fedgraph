@@ -190,9 +190,14 @@ class Trainer_General:
             self.feature_aggregation = self.features
 
     def get_info(self):
+        # assert self.train_labels.numel() > 0, "train_labels is empty"
+        # assert self.test_labels.numel() > 0, "test_labels is empty"
         return {
             "features_num": len(self.features),
-            "label_num": max(self.train_labels.max().item(),self.test_labels.max().item()) + 1,
+            "label_num": max(
+                self.train_labels.max().item(), self.test_labels.max().item()
+            )
+            + 1,
             "feature_shape": self.features.shape[1],
             "len_in_com_train_node_local_indexes": len(self.idx_train),
             "len_in_com_test_node_local_indexes": len(self.idx_test),
@@ -285,16 +290,12 @@ class Trainer_General:
         # create a large matrix with known local node features
         new_feature_for_trainer = torch.zeros(
             self.global_node_num, self.features.shape[1]
-        ).to(
-            self.device
-        )  # TODO:check if all the tensors are in the same device
+        ).to(self.device)
         new_feature_for_trainer[self.local_node_index] = self.features
         # sum of features of all 1-hop nodes for each node
-        print("calling func")
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
-            new_feature_for_trainer, self.adj
+            new_feature_for_trainer, self.adj, self.device
         )
-        print("calling end")
         return one_hop_neighbor_feature_sum
 
     def load_feature_aggregation(self, feature_aggregation: torch.Tensor) -> None:
@@ -312,25 +313,25 @@ class Trainer_General:
         """
         Relabels the adjacency matrix based on the communication node index.
         """
-        print(f"Max value in adj: {self.adj.max()}")
-        print(
-            f"Max value in communicate_node_index: {self.communicate_node_index.max()}"
-        )
-        distinct_values = torch.unique(self.adj.flatten())
-        print(f"Number of distinct values in adj: {distinct_values.numel()}")
-        print(f"distinct local: {len(self.local_node_index)}")
-        print(f"distinct communic: {len(self.communicate_node_index)}")
+        # print(f"Max value in adj: {self.adj.max()}")
+        # print(
+        #     f"Max value in communicate_node_index: {self.communicate_node_index.max()}"
+        # )
+        # distinct_values = torch.unique(self.adj.flatten())
+        # print(f"Number of distinct values in adj: {distinct_values.numel()}")
+        # print(f"distinct local: {len(self.local_node_index)}")
+        # print(f"distinct communic: {len(self.communicate_node_index)}")
         # time.sleep(30)
         _, self.adj, __, ___ = torch_geometric.utils.k_hop_subgraph(
             self.communicate_node_index, 0, self.adj, relabel_nodes=True
         )
-        print(f"Max value in adj: {self.adj.max()}")
-        print(
-            f"Max value in communicate_node_index: {self.communicate_node_index.max()}"
-        )
-        distinct_values = torch.unique(self.adj.flatten())
-        print(f"Number of distinct values in adj: {distinct_values.numel()}")
-        print(f"distinct communic: {len(self.communicate_node_index)}")
+        # print(f"Max value in adj: {self.adj.max()}")
+        # print(
+        #     f"Max value in communicate_node_index: {self.communicate_node_index.max()}"
+        # )
+        # distinct_values = torch.unique(self.adj.flatten())
+        # print(f"Number of distinct values in adj: {distinct_values.numel()}")
+        # print(f"distinct communic: {len(self.communicate_node_index)}")
 
     def train(self, current_global_round: int) -> None:
         """
@@ -349,14 +350,16 @@ class Trainer_General:
         self.feature_aggregation = self.feature_aggregation.to(self.device)
         if hasattr(self.args, "batch_size") and self.args.batch_size > 0:
             # batch preparation
-            train_mask = torch.zeros(self.feature_aggregation.size(0), dtype=torch.bool)
+            train_mask = torch.zeros(
+                self.feature_aggregation.size(0), dtype=torch.bool
+            ).to(self.device)
             train_mask[self.idx_train] = True
 
             node_labels = torch.full(
                 (self.feature_aggregation.size(0),), -1, dtype=torch.long
-            )
+            ).to(self.device)
 
-            mask_indices = train_mask.nonzero(as_tuple=True)[0]
+            mask_indices = train_mask.nonzero(as_tuple=True)[0].to(self.device)
             node_labels[train_mask] = self.train_labels[: len(mask_indices)]
             data = Data(
                 x=self.feature_aggregation,
@@ -402,9 +405,9 @@ class Trainer_General:
                     batch = next(batch_iter, None)
             else:
                 # print("Training with full batch")
-                print(f"feature_aggregation size: {self.feature_aggregation.size()}")
-                print(f"adj shape: {self.adj.size()}")
-                print(f"Max value in adj: {self.adj.max()}")
+                # print(f"feature_aggregation size: {self.feature_aggregation.size()}")
+                # print(f"adj shape: {self.adj.size()}")
+                # print(f"Max value in adj: {self.adj.max()}")
                 # print(f"Max value in communicate_node_index: {self.communicate_node_index.max()}")
                 # Assuming class_num is the number of classes
                 train_labels = self.train_labels
@@ -429,11 +432,11 @@ class Trainer_General:
 
             self.train_losses.append(loss_train)
             self.train_accs.append(acc_train)
-            print(f"acc_train: {acc_train}")
+            # print(f"acc_train: {acc_train}")
             loss_test, acc_test = self.local_test()
             self.test_losses.append(loss_test)
             self.test_accs.append(acc_test)
-            print(f"acc_test: {acc_test}")
+            # print(f"acc_test: {acc_test}")
 
     def local_test(self) -> list:
         """

@@ -105,6 +105,7 @@ class Server:
 
         self.trainers = trainers
         self.num_of_trainers = len(trainers)
+        self.device = device
         # self.broadcast_params(-1)
 
     @torch.no_grad()
@@ -130,7 +131,7 @@ class Server:
             trainer.train.remote(current_global_epoch)
         params = [trainer.get_params.remote() for trainer in self.trainers]
         self.zero_params()
-
+        self.model = self.model.to("cpu")
         while True:
             ready, left = ray.wait(params, num_returns=1, timeout=None)
             if ready:
@@ -140,7 +141,7 @@ class Server:
             params = left
             if not params:
                 break
-
+        self.model = self.model.to(self.device)
         for p in self.model.parameters():
             p /= self.num_of_trainers
         self.broadcast_params(current_global_epoch)

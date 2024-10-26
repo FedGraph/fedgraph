@@ -40,6 +40,7 @@ def run(
     distribution_type,
     use_huggingface=False,
     save=False,
+    gpu=False,
 ):
     np.random.seed(42)
     torch.manual_seed(42)
@@ -120,13 +121,14 @@ def run(
     else:
         args_hidden = 256
 
-    num_cpus_per_client = 55  # m5.16xlarge
+    # num_cpus_per_client = 55  # m5.16xlarge
+    num_cpus_per_client = 0.06  # g4dn.8xlarge
     # specifying a target GPU
-    args.gpu = False  # Test
+    args.gpu = gpu  # Test
     print(f"gpu usage: {args.gpu}")
     if args.gpu:
         device = torch.device("cuda")
-        num_gpus_per_client = 1
+        num_gpus_per_client = 0.01
     else:
         device = torch.device("cpu")
         num_gpus_per_client = 0
@@ -257,7 +259,8 @@ def run(
         ]
         global_feature_sum = torch.zeros(
             (global_node_num, feature_shape), dtype=torch.float32
-        )
+        ).to(device)
+
         while True:
             print("starting collecting local feature sum")
             ready, left = ray.wait(
@@ -266,8 +269,8 @@ def run(
             if ready:
                 for t in ready:
                     global_feature_sum += ray.get(t)
-                    print("get one")
-                    print(global_feature_sum.size())
+                    # print("get one")
+                    # print(global_feature_sum.size())
             local_neighbor_feature_sums = left
             if not local_neighbor_feature_sums:
                 break
@@ -276,10 +279,13 @@ def run(
         # if args.num_hops != 0:
         #     assert (global_feature_sum != get_1hop_feature_sum(
         #         features, edge_index)).sum() == 0
+        global_feature_sum = global_feature_sum.to(device)
         for i in range(args.n_trainer):
-            server.trainers[i].load_feature_aggregation.remote(
-                global_feature_sum[communicate_node_global_indexes[i]]
-            )
+            communicate_nodes = torch.tensor(
+                communicate_node_global_indexes[i], dtype=torch.long
+            ).to(device)
+            trainer_aggregation = global_feature_sum[communicate_nodes]
+            server.trainers[i].load_feature_aggregation.remote(trainer_aggregation)
         print("clients received feature aggregation from server")
         [trainer.relabel_adj.remote() for trainer in server.trainers]
 
@@ -324,29 +330,50 @@ def run(
     print(f"// Average test accuracy: {average_final_test_accuracy}//end")
 
 
-for dataset in ["ogbn-products"]:
-    for n_trainer in [10]:
-        # for distribution_type in ["average", "lognormal", "exponential", "powerlaw"]:
-        for distribution_type in ["average"]:
-            # for iid_beta in [10000.0, 100.0, 10.0]:
-            for iid_beta in [10000.0]:
-                for num_hops in [0]:
-                    for batch_size in [-1]:
+# datasets = ["cora", "citeseer", "ogbn-arxiv", "ogbn-products"]
+datasets = ["ogbn-products"]
+distribution_list_ogbn = ["average", "lognormal", "exponential", "powerlaw"]
+distribution_list_other = ["average", "lognormal", "exponential"]
+iid_betas = [10000.0, 100.0, 10.0]
+num_hops_list = [0, 1]
+# n_trainers = [10]
+n_trainers = [10]
+
+for dataset in datasets:
+    gpu = "ogbn" in dataset
+    distribution_list = (
+        distribution_list_other
+        if n_trainers[0] > 10 or not gpu
+        else distribution_list_ogbn
+    )
+    if dataset == "ogbn-arxiv":
+        batch_sizes = [16, 32, 64, -1]
+    elif dataset == "ogbn-products":
+        batch_sizes = [16, 32, 64, -1]
+    else:
+        batch_sizes = [-1]
+
+    for n_trainer in n_trainers:
+        for distribution_type in distribution_list:
+            for iid_beta in iid_betas:
+                for num_hops in num_hops_list:
+                    for batch_size in batch_sizes:
                         for i in range(1):
                             print(
                                 f"Running experiment with: Dataset={dataset},"
-                                f"Number of Trainers={n_trainer}, Distribution Type={distribution_type},"
-                                f"IID Beta={iid_beta}, Number of Hops={num_hops}, Batch Size={batch_size}"
+                                f" Number of Trainers={n_trainer}, Distribution Type={distribution_type},"
+                                f" IID Beta={iid_beta}, Number of Hops={num_hops}, Batch Size={batch_size}"
                             )
                             run(
-                                dataset,
-                                batch_size,
-                                n_trainer,
-                                num_hops,
-                                iid_beta,
-                                distribution_type,
+                                dataset=dataset,
+                                batch_size=batch_size,
+                                n_trainer=n_trainer,
+                                num_hops=num_hops,
+                                iid_beta=iid_beta,
+                                distribution_type=distribution_type,
                                 use_huggingface=False,
                                 save=False,
+                                gpu=gpu,
                             )
 
 
