@@ -141,22 +141,20 @@ class Server:
         
 
     def aggregate_encrypted_feature_sums(self, encrypted_sums):
+        """Aggregate encrypted features like plaintext version"""
         aggregation_start = time.time()
-        aggregated_sum = ts.ckks_vector_from(self.he_context, encrypted_sums[0])
-        for i, enc_sum in enumerate(encrypted_sums[1:], 1):
-            aggregated_sum += ts.ckks_vector_from(self.he_context, enc_sum)
         
-        aggregation_time = time.time() - aggregation_start
+        # First encrypted sum
+        first_sum = ts.ckks_vector_from(self.he_context, encrypted_sums[0][0])
+        shape = encrypted_sums[0][1]  # Save shape for later
         
-        ciphertext_size = aggregated_sum.size()
-        serialized_sum = aggregated_sum.serialize()
-        agg_size = sys.getsizeof(serialized_sum)
+        # Add remaining sums
+        for enc_sum, _ in encrypted_sums[1:]:
+            next_sum = ts.ckks_vector_from(self.he_context, enc_sum)
+            first_sum += next_sum
         
-        print(f"Server - Aggregation time: {aggregation_time:.4f} seconds")
-        print(f"Server - Aggregated ciphertext size: {ciphertext_size} elements")
-        print(f"Server - Serialized aggregated data size: {agg_size / 1024:.2f} KB")
-        
-        return serialized_sum, aggregation_time, agg_size, ciphertext_size
+        return (first_sum.serialize(), shape), time.time() - aggregation_start
+
         
     def broadcast_params(self, current_global_epoch: int) -> None:
         """

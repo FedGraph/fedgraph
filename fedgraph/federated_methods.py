@@ -158,39 +158,35 @@ def run_NC(args: attridict, data: tuple) -> None:
         # ]
         if args.use_encryption:
             print("Starting encrypted feature aggregation...")
-
-            encryption_times = []
-            decryption_times = []
-            encryption_sizes = []
-            ciphertext_sizes = []
-            
-            encrypted_sums_and_shapes = [
-                trainer.get_encrypted_local_feature_sum.remote() for trainer in server.trainers
-            ]
-
-            encrypted_sums, shapes, enc_times, enc_sizes, cipher_sizes = zip(*ray.get(encrypted_sums_and_shapes))
-            encryption_times.extend(enc_times)
-            encryption_sizes.extend(enc_sizes)
-            ciphertext_sizes.extend(cipher_sizes)
-            
-            encrypted_global_feature_sum, aggregation_time, agg_size, agg_cipher_size = server.aggregate_encrypted_feature_sums(encrypted_sums)
-
-            # load the decrypted feature aggregation into each trainer
-            load_feature_refs = [
-                trainer.load_encrypted_feature_aggregation.remote(encrypted_global_feature_sum, shapes[0])
+    
+            encrypted_data = [
+                trainer.get_encrypted_local_feature_sum.remote() 
                 for trainer in server.trainers
             ]
-            decryption_times.extend(ray.get(load_feature_refs))
-
+            
+            results = ray.get(encrypted_data)
+            encrypted_sums = [(r[0], r[1]) for r in results]  # (encrypted_sum, shape)
+            encryption_times = [r[2] for r in results] 
+    
+            enc_sizes = [len(r[0]) for r in results]  #size of encrypted data
+            
+            # aggregate at server
+            aggregated_result, aggregation_time = server.aggregate_encrypted_feature_sums(encrypted_sums)
+            agg_size = len(aggregated_result[0]) 
+            
+            load_feature_refs = [
+                trainer.load_encrypted_feature_aggregation.remote(aggregated_result)
+                for trainer in server.trainers
+            ]
+            decryption_times = ray.get(load_feature_refs)
+            
+            # print performance metrics
             print("\nEncryption Performance Metrics:")
             print(f"Average Encryption Time: {sum(encryption_times) / len(encryption_times):.4f} seconds")
             print(f"Average Decryption Time: {sum(decryption_times) / len(decryption_times):.4f} seconds")
             print(f"Aggregation Time: {aggregation_time:.4f} seconds")
-            print(f"Average Ciphertext Size (Upload): {sum(ciphertext_sizes) / len(ciphertext_sizes)} elements")
-            print(f"Aggregated Ciphertext Size: {agg_cipher_size} elements")
-            print(f"Total Communication Cost (Upload): {sum(encryption_sizes) / (1024 * 1024):.2f} MB")
+            print(f"Total Communication Cost (Upload): {sum(enc_sizes) / (1024 * 1024):.2f} MB")
             print(f"Total Communication Cost (Download): {agg_size * len(server.trainers) / (1024 * 1024):.2f} MB")
-
             print("Feature aggregation verified for all trainers")
         else:
             print("Starting plaintext feature aggregation...")
@@ -244,38 +240,6 @@ def run_NC(args: attridict, data: tuple) -> None:
 
             print("Trainers received feature aggregation from server")
         [trainer.relabel_adj.remote() for trainer in server.trainers]
-        # while True:
-        #     ready, left = ray.wait(encrypted_local_feature_sums, num_returns=1, timeout=None)
-        #     if ready:
-        #         for t in ready:
-        #             enc_sum = ray.get(t)
-        #             if encrypted_global_feature_sum is None:
-        #                 encrypted_global_feature_sum = enc_sum
-        #             else:
-        #                 encrypted_global_feature_sum = server.aggregate_encrypted_feature_sums([encrypted_global_feature_sum, enc_sum])
-        #     encrypted_local_feature_sums = left
-        #     if not encrypted_local_feature_sums:
-        #         break
-
-        # print("Server aggregated all encrypted local neighbor feature sums")
-        # global_feature_sum = torch.zeros_like(features)
-        # while True:
-        #     ready, left = ray.wait(
-        #         local_neighbor_feature_sums, num_returns=1, timeout=None
-        #     )
-        #     if ready:
-        #         for t in ready:
-        #             global_feature_sum += ray.get(t)
-        #     local_neighbor_feature_sums = left
-        #     if not local_neighbor_feature_sums:
-        #         break
-        #print("server aggregates all local neighbor feature sums")
-        # test if aggregation is correct
-        # if args.num_hops != 0:
-        #     assert (
-        #         global_feature_sum != get_1hop_feature_sum(features, edge_index)
-        #     ).sum() == 0
-        
 
     #######################################################################
     # Federated Training

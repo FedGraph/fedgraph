@@ -3,11 +3,12 @@ import pickle
 
 def create_context():
     scheme = ts.SCHEME_TYPE.CKKS
-    poly_modulus_degree = 32768  #8192
-    #slicing depend on input size 
-    coeff_mod_bit_sizes = [60, 40, 40, 60]  # increased
+    poly_modulus_degree = 32768  # Keep this for matrix size
+    # Optimize for binary additions
+    coeff_mod_bit_sizes = [60, 40, 40, 60]  # Back to simpler chain for binary
     context = ts.context(scheme, poly_modulus_degree, coeff_mod_bit_sizes)
-    context.global_scale = 2**50  #2^30
+    # Scale can be smaller for binary
+    context.global_scale = 2**30  # Reduced since we're dealing with 0s and 1s
     return context
 
 # list/array check for modulus degree
