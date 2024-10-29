@@ -117,21 +117,68 @@ class Server:
             p.zero_()
 
     @torch.no_grad()
-    def train(self, current_global_epoch: int) -> None:
+    def train(
+        self,
+        current_global_epoch: int,
+        sampling_type: str = "random",
+        sample_ratio: float = 1,
+    ) -> None:
         """
-        Training round which perform aggregating parameters from trainers, updating the central model,
-        and then broadcasting the updated parameters back to the trainers.
+        Training round which performs aggregating parameters from sampled trainers (by index),
+        updating the central model, and then broadcasting the updated parameters
+        back to all trainers.
 
         Parameters
         ----------
         current_global_epoch : int
             The current global epoch number during the federated learning process.
+        train_round : int
+            The current round of training used to ensure uniform sampling.
+        sampling_type : str
+            The type of sampling to use ('random' or 'uniform').
+        sample_ratio : float
+            The proportion of trainers to be sampled for each training iteration.
         """
-        for trainer in self.trainers:
-            trainer.train.remote(current_global_epoch)
-        params = [trainer.get_params.remote() for trainer in self.trainers]
+        # Print the current train round
+        print(f"Training round: {current_global_epoch}")
+
+        # Ensure sample ratio is valid
+        assert 0 < sample_ratio <= 1, "Sample ratio must be between 0 and 1"
+
+        # Calculate the number of samples to be proportional to train_round
+        num_samples = int(self.num_of_trainers * sample_ratio)
+
+        if sampling_type == "random":
+            # Randomly sample a subset of trainer indices
+            selected_trainers_indices = random.sample(
+                range(self.num_of_trainers), num_samples
+            )
+        elif sampling_type == "uniform":
+            # Ensure uniform sampling, making sure we cover different parts of trainers in each round
+            selected_trainers_indices = [
+                (i + int(self.num_of_trainers * sample_ratio) * current_global_epoch)
+                % self.num_of_trainers
+                for i in range(num_samples)
+            ]
+
+        else:
+            raise ValueError("sampling_type must be either 'random' or 'uniform'")
+
+        # Initiate training on the selected trainers based on their indices
+        for trainer_idx in selected_trainers_indices:
+            self.trainers[trainer_idx].train.remote(current_global_epoch)
+
+        # Gather parameters from the selected trainers
+        params = [
+            self.trainers[trainer_idx].get_params.remote()
+            for trainer_idx in selected_trainers_indices
+        ]
+
+        # Reset server-side model parameters before aggregation
         self.zero_params()
         self.model = self.model.to("cpu")
+
+        # Aggregate the parameters from the sampled trainers
         while True:
             ready, left = ray.wait(params, num_returns=1, timeout=None)
             if ready:
@@ -141,9 +188,14 @@ class Server:
             params = left
             if not params:
                 break
+
         self.model = self.model.to(self.device)
+
+        # Average the aggregated parameters based on the number of selected trainers
         for p in self.model.parameters():
-            p /= self.num_of_trainers
+            p /= num_samples
+
+        # Broadcast the updated parameters back to all trainers
         self.broadcast_params(current_global_epoch)
 
     def broadcast_params(self, current_global_epoch: int) -> None:
