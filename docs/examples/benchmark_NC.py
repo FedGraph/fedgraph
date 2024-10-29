@@ -121,14 +121,14 @@ def run(
     else:
         args_hidden = 256
 
-    # num_cpus_per_client = 55  # m5.16xlarge
-    num_cpus_per_client = 0.06  # g4dn.8xlarge
+    num_cpus_per_client = 0.55  # m5.16xlarge
+    # num_cpus_per_client = 14  # g4dn.8xlarge
     # specifying a target GPU
     args.gpu = gpu  # Test
     print(f"gpu usage: {args.gpu}")
     if args.gpu:
         device = torch.device("cuda")
-        num_gpus_per_client = 0.01
+        num_gpus_per_client = 1
     else:
         device = torch.device("cpu")
         num_gpus_per_client = 0
@@ -262,7 +262,7 @@ def run(
         ).to(device)
 
         while True:
-            print("starting collecting local feature sum")
+            # print("starting collecting local feature sum")
             ready, left = ray.wait(
                 local_neighbor_feature_sums, num_returns=1, timeout=None
             )
@@ -331,25 +331,29 @@ def run(
 
 
 # datasets = ["cora", "citeseer", "ogbn-arxiv", "ogbn-products"]
-datasets = ["ogbn-products"]
-distribution_list_ogbn = ["average", "lognormal", "exponential", "powerlaw"]
-distribution_list_other = ["average", "lognormal", "exponential"]
-iid_betas = [10000.0, 100.0, 10.0]
-num_hops_list = [0, 1]
+datasets = ["ogbn-arxiv"]
+# distribution_list_ogbn = ["average", "lognormal", "exponential", "powerlaw"]
+distribution_list_ogbn = ["average"]
+distribution_list_other = ["average"]
+iid_betas = [10000.0, 100.0, 1.0]
+num_hops_list = [1]
 # n_trainers = [10]
-n_trainers = [10]
+n_trainers = [1000]
 
 for dataset in datasets:
-    gpu = "ogbn" in dataset
+    # gpu = "ogbn" in dataset
+    gpu = False
     distribution_list = (
         distribution_list_other
         if n_trainers[0] > 10 or not gpu
         else distribution_list_ogbn
     )
     if dataset == "ogbn-arxiv":
-        batch_sizes = [16, 32, 64, -1]
+        batch_sizes = [-1, 16, 32, 64]
     elif dataset == "ogbn-products":
-        batch_sizes = [16, 32, 64, -1]
+        batch_sizes = [8, 16, 32, 64]
+    elif dataset == "ogbn-papers100M":
+        batch_sizes = [8, 16, 32, 64]
     else:
         batch_sizes = [-1]
 

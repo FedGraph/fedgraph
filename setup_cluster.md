@@ -38,7 +38,7 @@ Update kubeconfig for AWS EKS:
 
 ```bash
 
-aws eks --region us-east-1 update-kubeconfig --name gpularge
+aws eks --region us-west-2 update-kubeconfig --name mlarge
 
 ```
 Check or switch current cluster:
@@ -93,7 +93,7 @@ kubectl port-forward service/raycluster-autoscaler-head-svc 9000:8265
 Forward Ports for Ray Dashboard, Prometheus, and Grafana
 
 ```bash
-kubectl port-forward raycluster-autoscaler-head-vj5fw 8080:8080
+kubectl port-forward raycluster-autoscaler-head-zgcxv 8080:8080
 kubectl port-forward prometheus-prometheus-kube-prometheus-prometheus-0 -n prometheus-system 9090:9090
 kubectl port-forward deployment/prometheus-grafana -n prometheus-system 3000:3000
 ```
@@ -117,7 +117,7 @@ ray job submit --runtime-env-json '{
 Stop a Ray Job:
 
 ```bash
-ray job stop raysubmit_UjReNNMam1z5K7E9 --address http://localhost:9000
+ray job stop raysubmit_a5mh7gSXJxkYZvAC --address http://localhost:9000
 ```
 
 ## How to Delete the Ray Cluster

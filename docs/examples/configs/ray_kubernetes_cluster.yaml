@@ -43,7 +43,7 @@ spec:
           key: value
       spec:
         nodeSelector:
-          beta.kubernetes.io/instance-type: "g4dn.4xlarge"
+          beta.kubernetes.io/instance-type: "m5.24xlarge"
         containers:
           - name: ray-head
             image: public.ecr.aws/i7t1s5i1/fedgraph:benchmark2
@@ -53,14 +53,14 @@ spec:
             # resource accounting. K8s requests are not used by Ray.
             resources:
               limits:
-                cpu: "14"
-                memory: "124Gi"
-                nvidia.com/gpu: "1"
+                cpu: "93"
+                memory: "350Gi"
+                # nvidia.com/gpu: "1"
 
               requests:
-                cpu: "14"
-                memory: "124Gi"
-                nvidia.com/gpu: "1"
+                cpu: "93"
+                memory: "350Gi"
+                # nvidia.com/gpu: "1"
             env:
               - name: CPU_REQUEST
                 valueFrom:
@@ -149,13 +149,13 @@ spec:
               # resource accounting. K8s requests are not used by Ray.
               resources:
                 limits:
-                  cpu: "15"
-                  memory: "62Gi"
-                  nvidia.com/gpu: "1"
+                  cpu: "61"
+                  memory: "230Gi"
+                  # nvidia.com/gpu: "1"
                 requests:
-                  cpu: "15"
-                  memory: "62Gi"
-                  nvidia.com/gpu: "1"
+                  cpu: "61"
+                  memory: "230Gi"
+                  # nvidia.com/gpu: "1"
               # environment variables to set in the container.Optional.
               # Refer to https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/
               env:

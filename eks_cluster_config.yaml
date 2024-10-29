@@ -2,12 +2,12 @@ apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 
 metadata:
-  name: gpularge
-  region: us-east-1
+  name: mlarge
+  region: us-west-2
 
 nodeGroups:
   - name: head-nodes
-    instanceType: g4dn.8xlarge
+    instanceType: m5.24xlarge
     desiredCapacity: 1
     minSize: 0
     maxSize: 1
@@ -16,7 +16,7 @@ nodeGroups:
       ray-node-type: head
 
   - name: worker-nodes
-    instanceType: g4dn.4xlarge
+    instanceType: m5.16xlarge
     desiredCapacity: 10
     minSize: 10
     maxSize: 10
