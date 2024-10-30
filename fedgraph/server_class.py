@@ -13,10 +13,20 @@ from dtaidistance import dtw
 from fedgraph.gnn_models import GCN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
 
 
+
 def load_context(filename='fedgraph/he_context.pkl'):
     with open(filename, 'rb') as f:
-        context_bytes = pickle.load(f)
-    return ts.context_from(context_bytes)
+        data = pickle.load(f)
+        context_bytes = data['context']
+        parameters = data['parameters']
+    return ts.context_from(context_bytes), parameters
+def load_optimized_context(self):
+        """Load context with parameters"""
+        with open('fedgraph/he_context.pkl', 'rb') as f:
+            data = pickle.load(f)
+            self.he_context = ts.context_from(data['context'])
+            self.context_params = data['parameters']
+        print("Server loaded optimized context")
 class Server:
     """
     This is a server class for federated learning which is responsible for aggregating model parameters
@@ -96,8 +106,12 @@ class Server:
         self.trainers = trainers
         self.num_of_trainers = len(trainers)
         self.use_encryption = args.use_encryption
-        # In both Server and Trainer classes:
-        self.he_context = load_context()
+        with open('fedgraph/he_context.pkl', 'rb') as f:
+            context_bytes = pickle.load(f)
+        self.he_context = ts.context_from(context_bytes)
+      
+        #self.he_context, self.he_params = load_context()
+        self.aggregation_stats = []
         print("Loaded HE context with secret key.")
         self.broadcast_params(-1)
 
@@ -109,6 +123,86 @@ class Server:
         for p in self.model.parameters():
             p.zero_()
 
+    
+    def prepare_params_for_encryption(self, params):
+        processed_params = []
+        metadata = []
+        
+        for param in params:
+            param_min = param.min()
+            param_max = param.max()
+            param_range = param_max - param_min
+            
+            # handle division by 0
+            if param_range == 0:
+                normalized = param - param_min
+            else:
+                normalized = (param - param_min) / param_range
+        
+            scaled = normalized * 1000
+            
+            processed_params.append(scaled)
+            metadata.append({
+                'min': param_min,
+                'range': param_range
+            })
+    
+        return processed_params, metadata
+    def aggregate_encrypted_feature_sums(self, encrypted_sums):
+        aggregation_start = time.time()
+        
+        first_sum = ts.ckks_vector_from(self.he_context, encrypted_sums[0][0])
+        shape = encrypted_sums[0][1] 
+        
+
+        for enc_sum, _ in encrypted_sums[1:]:
+            next_sum = ts.ckks_vector_from(self.he_context, enc_sum)
+            first_sum += next_sum
+        
+        return (first_sum.serialize(), shape), time.time() - aggregation_start
+
+    def aggregate_encrypted_params(self, encrypted_params_list):
+        aggregation_start = time.time()
+        
+        first_params, metadata = encrypted_params_list[0]
+        n_layers = len(first_params)
+        
+        #each layer
+        aggregated_params = []
+        for layer_idx in range(n_layers):
+            agg_layer = ts.ckks_vector_from(
+                self.he_context, 
+                encrypted_params_list[0][0][layer_idx]
+            )
+        
+            for trainer_params, _ in encrypted_params_list[1:]:
+                next_layer = ts.ckks_vector_from(
+                    self.he_context,
+                    trainer_params[layer_idx]
+                )
+                agg_layer += next_layer
+            
+            #average
+            agg_layer *= (1.0 / self.num_of_trainers)
+            aggregated_params.append(agg_layer.serialize())
+            
+        aggregation_time = time.time() - aggregation_start
+        return aggregated_params, metadata, aggregation_time
+    
+    def get_encrypted_params(self):
+        params = [p.data.cpu().detach() for p in self.model.parameters()]
+        
+        #normalize and scale
+        processed_params, metadata = self.prepare_params_for_encryption(params)
+        
+        encrypted_params = []
+        for param in processed_params:
+            param_list = param.flatten().tolist()
+            
+            encrypted = ts.ckks_vector(self.he_context, param_list).serialize()
+            encrypted_params.append(encrypted)
+        
+        return encrypted_params, metadata
     @torch.no_grad()
     def train(self, current_global_epoch: int) -> None:
         """
@@ -120,40 +214,51 @@ class Server:
         current_global_epoch : int
             The current global epoch number during the federated learning process.
         """
-        for trainer in self.trainers:
-            trainer.train.remote(current_global_epoch)
-        params = [trainer.get_params.remote() for trainer in self.trainers]
-        self.zero_params()
+        train_refs = [trainer.train.remote(current_global_epoch) for trainer in self.trainers]
+        ray.get(train_refs)
+        
+        if self.use_encryption:
+            print("Starting encrypted parameter aggregation...")
+            encrypted_params = [trainer.get_encrypted_params.remote() for trainer in self.trainers]
+            
+            # Wait for all trainers and collect parameters
+            params_list = []
+            while encrypted_params:
+                ready, encrypted_params = ray.wait(encrypted_params)
+                result = ray.get(ready[0])
+                params_list.append(result)
+            
+            # Aggregate parameters
+            aggregated_params, metadata, agg_time = self.aggregate_encrypted_params(params_list)
+            print(f"Parameter aggregation completed in {agg_time:.4f}s")
+            
+            # Distribute back to trainers
+            decrypt_refs = [
+                trainer.load_encrypted_params.remote(
+                    (aggregated_params, metadata), current_global_epoch
+                ) for trainer in self.trainers
+            ]
+            ray.get(decrypt_refs)   
+        else:
 
-        while True:
-            ready, left = ray.wait(params, num_returns=1, timeout=None)
-            if ready:
-                for t in ready:
-                    for p, mp in zip(ray.get(t), self.model.parameters()):
-                        mp.data += p.cpu()
-            params = left
-            if not params:
-                break
+            params = [trainer.get_params.remote() for trainer in self.trainers]
+            self.zero_params()
 
-        for p in self.model.parameters():
-            p /= self.num_of_trainers
-        self.broadcast_params(current_global_epoch)
-        
+            while True:
+                ready, left = ray.wait(params, num_returns=1, timeout=None)
+                if ready:
+                    for t in ready:
+                        for p, mp in zip(ray.get(t), self.model.parameters()):
+                            mp.data += p.cpu()
+                params = left
+                if not params:
+                    break
 
-    def aggregate_encrypted_feature_sums(self, encrypted_sums):
-        """Aggregate encrypted features like plaintext version"""
-        aggregation_start = time.time()
-        
-        # First encrypted sum
-        first_sum = ts.ckks_vector_from(self.he_context, encrypted_sums[0][0])
-        shape = encrypted_sums[0][1]  # Save shape for later
-        
-        # Add remaining sums
-        for enc_sum, _ in encrypted_sums[1:]:
-            next_sum = ts.ckks_vector_from(self.he_context, enc_sum)
-            first_sum += next_sum
-        
-        return (first_sum.serialize(), shape), time.time() - aggregation_start
+            for p in self.model.parameters():
+                p /= self.num_of_trainers
+            self.broadcast_params(current_global_epoch)
+    
+    
 
         
     def broadcast_params(self, current_global_epoch: int) -> None:

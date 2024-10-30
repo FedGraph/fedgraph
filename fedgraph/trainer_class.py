@@ -67,10 +67,20 @@ def load_trainer_data_from_hugging_face(trainer_id, args):
         in_com_train_node_local_indexes,
         in_com_test_node_local_indexes,
     )
+def load_optimized_context(self):
+        """Load context with parameters"""
+        with open('fedgraph/he_context.pkl', 'rb') as f:
+            data = pickle.load(f)
+            self.he_context = ts.context_from(data['context'])
+            self.context_params = data['parameters']
+        print(f"Trainer {self.rank} loaded context with {self.context_params['poly_modulus_degree']} poly modulus degree")
+
 def load_context(filename='fedgraph/he_context.pkl'):
     with open(filename, 'rb') as f:
-        context_bytes = pickle.load(f)
-    return ts.context_from(context_bytes)
+        data = pickle.load(f)
+        context_bytes = data['context']
+        parameters = data['parameters']
+    return ts.context_from(context_bytes), parameters
 
 class Trainer_General:
     """
@@ -224,9 +234,14 @@ class Trainer_General:
         self.class_num = class_num
         self.args = args
         self.feature_aggregation = None
-        self.he_context = load_context()
         self.feature_shape = None
-        self.scale_factor = 50
+        with open('fedgraph/he_context.pkl', 'rb') as f:
+            context_bytes = pickle.load(f)
+        self.he_context = ts.context_from(context_bytes)
+
+        
+        self.scale_factor = 1e3
+        self.param_history = []
 
     @torch.no_grad()
     def update_params(self, params: tuple, current_global_epoch: int) -> None:
@@ -248,7 +263,24 @@ class Trainer_General:
         ) in zip(params, self.model.parameters()):
             mp.data = p
         self.model.to(self.device)
-        
+    def verify_param_ranges(self, params, stage="pre-encryption"):
+        """Verify parameter ranges and print statistics"""
+        stats = []
+        for i, p in enumerate(params):
+            if isinstance(p, torch.Tensor):
+                p = p.detach().cpu()
+            stats.append({
+                'layer': i,
+                'min': float(p.min()),
+                'max': float(p.max()),
+                'mean': float(p.mean()),
+                'std': float(p.std())
+            })
+            print(f"{stage} Layer {i} stats:")
+            print(f"Range: [{stats[-1]['min']:.6f}, {stats[-1]['max']:.6f}]")
+            print(f"Mean: {stats[-1]['mean']:.6f}")
+            print(f"Std: {stats[-1]['std']:.6f}")
+        return stats    
     def get_local_feature_sum(self) -> torch.Tensor:
         """
         Computes the sum of features of all 1-hop neighbors for each node and normalizes the result.
@@ -330,7 +362,7 @@ class Trainer_General:
     
     def encrypt_feature_sum(self, feature_sum):
         feature_sum = self.get_local_feature_sum()
-        #binary does not scale
+        #does not scale
         flattened_sum = feature_sum.flatten()
         enc_sum = ts.ckks_vector(self.he_context, flattened_sum.tolist()).serialize()
         
@@ -345,104 +377,9 @@ class Trainer_General:
         decrypted_array = np.array(decrypted_rows) 
         return torch.from_numpy(decrypted_array).float().reshape(shape)
 
-    # def load_encrypted_feature_aggregation(self, aggregated_data):
-    #     """Load encrypted feature aggregation"""
-    #     aggregated_chunks, metadata = aggregated_data
-    #     decryption_start = time.time()
         
-    #     # Decrypt and reconstruct
-    #     decrypted_chunks = []
-    #     for enc_chunk in aggregated_chunks:
-    #         dec_chunk = ts.ckks_vector_from(self.he_context, enc_chunk).decrypt()
-    #         dec_chunk = [round(x) for x in dec_chunk[:metadata['chunk_size']]]
-    #         decrypted_chunks.append(dec_chunk)
-        
-    #     # Rebuild tensor
-    #     full_dec = torch.tensor(decrypted_chunks[0], dtype=torch.float32)
-    #     for chunk in decrypted_chunks[1:]:
-    #         full_dec = torch.cat([full_dec, torch.tensor(chunk, dtype=torch.float32)])
-        
-    #     # Reshape
-    #     full_dec = full_dec[:metadata['original_size']].reshape(metadata['shape'])
-        
-    #     # Only take what this trainer needs
-    #     self.feature_aggregation = full_dec[self.communicate_node_index]
-        
-    #     # Debug prints
-    #     value_counts = {
-    #         '0s': (self.feature_aggregation == 0).sum().item(),
-    #         '1s': (self.feature_aggregation == 1).sum().item(),
-    #         '2s': (self.feature_aggregation == 2).sum().item(),
-    #         'others': (self.feature_aggregation > 2).sum().item()
-    #     }
-    #     print(f"\nTrainer {self.rank} - Value counts after decryption: {value_counts}")
-        
-    #     print(f"Final stats for Trainer {self.rank}:")
-    #     print(f"Shape: {self.feature_aggregation.shape}")
-    #     print(f"Mean: {self.feature_aggregation.mean().item():.6f}")
-    #     print(f"Min: {self.feature_aggregation.min().item():.6f}")
-    #     print(f"Max: {self.feature_aggregation.max().item():.6f}")
-    #     print(f"Non-zeros: {(self.feature_aggregation != 0).sum().item()}")
-        
-    #     return time.time() - decryption_start
     
-    # def get_encrypted_local_feature_sum(self):
-    #     """Get encrypted local feature sum with simplified approach"""
-    #     # Get feature sum
-    #     new_feature_for_trainer = torch.zeros(
-    #         self.global_node_num, self.features.shape[1]
-    #     ).to(self.device)
-    #     new_feature_for_trainer[self.local_node_index] = self.features
-    #     feature_sum = get_1hop_feature_sum(new_feature_for_trainer, self.adj)
-        
-    #     # Debug prints
-    #     print(f"\nTrainer {self.rank} - Before encryption:")
-    #     print(f"Shape: {feature_sum.shape}")
-    #     print(f"Mean: {feature_sum.mean().item():.6f}")
-    #     print(f"Min: {feature_sum.min().item():.6f}")
-    #     print(f"Max: {feature_sum.max().item():.6f}")
-    #     print(f"Non-zeros: {(feature_sum != 0).sum().item()}")
-        
-    #     # Value counts
-    #     value_counts = {
-    #         '0s': (feature_sum == 0).sum().item(),
-    #         '1s': (feature_sum == 1).sum().item(),
-    #         '2s': (feature_sum == 2).sum().item(),
-    #         'others': (feature_sum > 2).sum().item()
-    #     }
-    #     print(f"Value counts before encryption: {value_counts}")
-        
-    #     encryption_start = time.time()
-        
-    #     # Chunk and encrypt
-    #     chunk_size = 8192
-    #     flattened_sum = feature_sum.flatten()
-    #     num_chunks = (len(flattened_sum) + chunk_size - 1) // chunk_size
-        
-    #     encrypted_chunks = []
-    #     for i in range(num_chunks):
-    #         start_idx = i * chunk_size
-    #         end_idx = min((i + 1) * chunk_size, len(flattened_sum))
-    #         chunk = flattened_sum[start_idx:end_idx].tolist()
-            
-    #         if len(chunk) < chunk_size:
-    #             chunk.extend([0] * (chunk_size - len(chunk)))
-                
-    #         enc_chunk = ts.ckks_vector(self.he_context, chunk).serialize()
-    #         encrypted_chunks.append(enc_chunk)
-        
-    #     encryption_time = time.time() - encryption_start
-    #     total_size = sum(sys.getsizeof(chunk) for chunk in encrypted_chunks)
-        
-    #     metadata = {
-    #         'original_size': len(flattened_sum),
-    #         'chunk_size': chunk_size,
-    #         'shape': feature_sum.shape
-    #     }
-        
-    #     return (encrypted_chunks, metadata), encryption_time, total_size, chunk_size
     def get_encrypted_local_feature_sum(self):
-        """Just like get_local_feature_sum_og but with encryption"""
         # Same feature sum computation as original
         new_feature_for_trainer = torch.zeros(
             self.global_node_num, self.features.shape[1]
@@ -459,17 +396,53 @@ class Trainer_General:
         return encrypted, feature_sum.shape, encryption_time
 
     def load_encrypted_feature_aggregation(self, encrypted_data):
-        """Just like load_feature_aggregation but with decryption"""
         encrypted_sum, shape = encrypted_data
-        
-        # Decrypt
+
         decryption_start = time.time()
         decrypted = ts.ckks_vector_from(self.he_context, encrypted_sum).decrypt()
         
-        # Reshape and store
+        # reshape and store
         self.feature_aggregation = torch.tensor(decrypted).reshape(shape)[self.communicate_node_index]
         
         return time.time() - decryption_start
+
+    def get_encrypted_params(self):
+        """Get encrypted parameters with proper scaling"""
+        params_list = []
+        metadata = []
+        
+        for param in self.model.parameters():
+            param_data = param.cpu().detach()
+            #scale
+            max_abs_val = torch.max(torch.abs(param_data))
+            scale = 1e3 if max_abs_val < 1e-3 else 1e2 
+            
+            scaled_params = (param_data * scale).flatten().tolist()
+            encrypted = ts.ckks_vector(self.he_context, scaled_params).serialize()
+            
+            params_list.append(encrypted)
+            metadata.append({
+                'shape': param_data.shape,
+                'scale': scale
+            })
+            
+        return params_list, metadata
+
+    def load_encrypted_params(self, encrypted_data: tuple, current_global_epoch: int):
+        """Load encrypted parameters with rescaling"""
+        params_list, metadata = encrypted_data
+        
+        self.model.to('cpu')
+        
+        # load each layer's parameters
+        for param, enc_param, meta in zip(self.model.parameters(), params_list, metadata):
+            decrypted = ts.ckks_vector_from(self.he_context, enc_param).decrypt()
+            param_data = torch.tensor(decrypted).reshape(meta['shape'])
+            param_data = param_data / meta['scale']  # Reverse scaling
+            param.data.copy_(param_data)
+            
+        self.model.to(self.device)
+        return True
 
     def relabel_adj(self) -> None:
         """

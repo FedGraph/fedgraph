@@ -88,18 +88,27 @@ def run_NC(args: attridict, data: tuple) -> None:
     else:
         device = torch.device("cpu")
         num_gpus_per_trainer = 0
-    def load_context(filename='fedgraph/he_context.pkl'):
-        with open(filename, 'rb') as f:
-            context_bytes = pickle.load(f)
-        return ts.context_from(context_bytes)
-    he_context = load_context()
-    print("Loaded pre-saved HE context.")
+    
+    # def load_context(filename='fedgraph/he_context.pkl'):
+    #     with open('fedgraph/he_context.pkl', 'rb') as f:
+    #         context_bytes = pickle.load(f)
+    #     self.he_context = ts.context_from(context_bytes)
+    #     print(f"Trainer {self.rank} loaded HE context")
+    #     return 
+    # he_context = load_context()
+    # print("Loaded pre-saved HE context.")
     #######################################################################
     # Define and Send Data to Trainers
     # --------------------------------
     # FedGraph first determines the resources for each trainer, then send
     # the data to each remote trainer.
-
+    if args.use_encryption:
+        with open('fedgraph/he_context.pkl', 'rb') as f:
+            context_bytes = pickle.load(f)
+        he_context = ts.context_from(context_bytes)
+        print("Loaded pre-saved HE context.")
+    else:
+        he_context = None
     @ray.remote(
         num_gpus=num_gpus_per_trainer,
         num_cpus=num_cpus_per_trainer,
@@ -110,7 +119,11 @@ def run_NC(args: attridict, data: tuple) -> None:
             super().__init__(*args, **kwds)
             self.use_encryption = kwds['args'].use_encryption
             if self.use_encryption:
-                self.he_context = load_context()
+                with open('fedgraph/he_context.pkl', 'rb') as f:
+                    context_bytes = pickle.load(f)
+                self.he_context = ts.context_from(context_bytes)
+                print(f"Trainer {self.rank} loaded HE context")
+
 
     trainers = [
         Trainer.remote(  # type: ignore
@@ -248,10 +261,8 @@ def run_NC(args: attridict, data: tuple) -> None:
     # at every global round.
 
     print("global_rounds", args.global_rounds)
-
     for i in range(args.global_rounds):
         server.train(i)
-
     #######################################################################
     # Summarize Experiment Results
     # ----------------------------
