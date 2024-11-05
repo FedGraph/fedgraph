@@ -140,7 +140,7 @@ class Server:
             The proportion of trainers to be sampled for each training iteration.
         """
         # Print the current train round
-        print(f"Training round: {current_global_epoch}")
+        print(f"Training round: {current_global_epoch}, sampling rate: {sample_ratio}")
 
         # Ensure sample ratio is valid
         assert 0 < sample_ratio <= 1, "Sample ratio must be between 0 and 1"

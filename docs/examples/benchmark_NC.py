@@ -121,7 +121,7 @@ def run(
     else:
         args_hidden = 256
 
-    num_cpus_per_client = 0.55  # m5.16xlarge
+    num_cpus_per_client = 550 / n_trainer  # m5.16xlarge
     # num_cpus_per_client = 14  # g4dn.8xlarge
     # specifying a target GPU
     args.gpu = gpu  # Test
@@ -305,6 +305,12 @@ def run(
     monitor.train_time_start()
     for i in range(args.global_rounds):
         server.train(i)
+        results = [trainer.local_test.remote() for trainer in server.trainers]
+        results = np.array([ray.get(result) for result in results])
+        average_final_test_accuracy = np.average(
+            [row[1] for row in results], weights=test_data_weights, axis=0
+        )
+        print(f"//avg test accuracy: {average_final_test_accuracy}//end")
     monitor.train_time_end(30)
 
     #######################################################################
@@ -332,13 +338,13 @@ def run(
 
 # datasets = ["cora", "citeseer", "ogbn-arxiv", "ogbn-products"]
 datasets = ["ogbn-arxiv"]
-# distribution_list_ogbn = ["average", "lognormal", "exponential", "powerlaw"]
+
+n_trainers = [1000]
+num_hops_list = [0, 1]
 distribution_list_ogbn = ["average"]
 distribution_list_other = ["average"]
-iid_betas = [10000.0, 100.0, 1.0]
-num_hops_list = [1]
-# n_trainers = [10]
-n_trainers = [1000]
+# distribution_list_ogbn = ["average", "lognormal", "exponential", "powerlaw"]
+iid_betas = [10000.0, 100.0, 10.0]
 
 for dataset in datasets:
     # gpu = "ogbn" in dataset
@@ -349,18 +355,18 @@ for dataset in datasets:
         else distribution_list_ogbn
     )
     if dataset == "ogbn-arxiv":
-        batch_sizes = [-1, 16, 32, 64]
+        batch_sizes = [-1]
     elif dataset == "ogbn-products":
-        batch_sizes = [8, 16, 32, 64]
+        batch_sizes = [-1]
     elif dataset == "ogbn-papers100M":
-        batch_sizes = [8, 16, 32, 64]
+        batch_sizes = [16, 32, 64, -1]
     else:
         batch_sizes = [-1]
 
     for n_trainer in n_trainers:
-        for distribution_type in distribution_list:
-            for iid_beta in iid_betas:
-                for num_hops in num_hops_list:
+        for num_hops in num_hops_list:
+            for distribution_type in distribution_list:
+                for iid_beta in iid_betas:
                     for batch_size in batch_sizes:
                         for i in range(1):
                             print(

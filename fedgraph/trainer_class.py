@@ -1,4 +1,5 @@
 import argparse
+import os
 import random
 import time
 from io import BytesIO
@@ -436,7 +437,7 @@ class Trainer_General:
             loss_test, acc_test = self.local_test()
             self.test_losses.append(loss_test)
             self.test_accs.append(acc_test)
-            # print(f"acc_test: {acc_test}")
+            # print(f"current round: {current_global_round}, acc_test: {acc_test}")
 
     def local_test(self) -> list:
         """
@@ -1138,17 +1139,18 @@ class Trainer_LP:
         number_of_items: int,
         meta_data: tuple,
         hidden_channels: int = 64,
+        dataset_path: str = "data",
     ):
         self.client_id = client_id
         self.country_code = country_code
-        file_path = f"fedgraph/data/LPDataset"
-        print("checking code and file path")
-        print(country_code)
-        print(file_path)
+        print(f"checking code and file path: {country_code},{dataset_path}")
+        file_path = dataset_path
         country_codes: List[str] = [self.country_code]
         check_data_files_existance(country_codes, file_path)
         # global user_id and item_id
-        self.data = get_data(self.country_code, user_id_mapping, item_id_mapping)
+        self.data = get_data(
+            self.country_code, user_id_mapping, item_id_mapping, file_path
+        )
         self.model = GNN_LP(
             number_of_users, number_of_items, meta_data, hidden_channels
         )

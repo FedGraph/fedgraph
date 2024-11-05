@@ -32,7 +32,8 @@ def process_log(log_content):
         if pretrain_time_match:
             pretrain_mode = True
             train_mode = False
-            current_experiment["Pretrain Time"] = float(pretrain_time_match.group(1))
+            current_experiment["Pretrain Time"] = float(
+                pretrain_time_match.group(1))
 
         pretrain_max_trainer_memory_match = re.search(
             r"Log Max memory for Large(\d+): (\d+\.\d+)", line
@@ -50,7 +51,8 @@ def process_log(log_content):
                 pretrain_max_server_memory_match.group(1)
             )
 
-        pretrain_network_match = re.search(r"Log ([^,]+) network: (\d+\.\d+)", line)
+        pretrain_network_match = re.search(
+            r"Log ([^,]+) network: (\d+\.\d+)", line)
         if pretrain_network_match and pretrain_mode:
             current_experiment[
                 f"Pretrain Network {pretrain_network_match.group(1)}"
@@ -79,16 +81,20 @@ def process_log(log_content):
                 train_max_server_memory_match.group(1)
             )
 
-        train_network_match = re.search(r"Log ([^,]+) network: (\d+\.\d+)", line)
+        train_network_match = re.search(
+            r"Log ([^,]+) network: (\d+\.\d+)", line)
         if train_network_match and train_mode:
             current_experiment[
                 f"Train Network {(train_network_match.group(1))}"
             ] = float(train_network_match.group(2))
-        average_accuracy_match = re.search(r"Average test accuracy: (\d+\.\d+)", line)
+        average_accuracy_match = re.search(
+            r"Predict Day 20 average auc score: (\d+\.\d+) hit rate: (\d+\.\d+)", line)
         if average_accuracy_match:
-            current_experiment["Average Test Accuracy"] = float(
+            print(23)
+            current_experiment["Average Test AUC"] = float(
                 average_accuracy_match.group(1)
             )
+            current_experiment["Hit Rate"] = float(average_accuracy_match.group(2))
 
     if current_experiment:
         experiments.append(current_experiment)
@@ -102,7 +108,7 @@ def load_log_file(file_path):
     return log_content
 
 
-file_path = "1000.log"
+file_path = "LP2.log"
 log_content = load_log_file(file_path)
 df = process_log(log_content)
 
@@ -115,7 +121,8 @@ def reorder_dataframe_columns(df):
         "IID Beta",
         "Number of Hops",
         "Batch Size",
-        "Average Test Accuracy",
+        "Average Test AUC",
+        "Hit Rate",
     ]
 
     new_column_order = desired_columns + [
@@ -127,7 +134,8 @@ def reorder_dataframe_columns(df):
     return df
 
 
+
 df = reorder_dataframe_columns(df)
-csv_file_path = "1000.csv"
+csv_file_path = "LP2.csv"
 df.to_csv(csv_file_path)
 print(df.iloc[0, :])
