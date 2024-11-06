@@ -5,8 +5,8 @@ def create_training_context():
     scheme = ts.SCHEME_TYPE.CKKS
     
     # Keep the same settings that worked for features
-    poly_modulus_degree = 32768
-    coeff_mod_bit_sizes = [60, 40, 40, 40, 60]
+    poly_modulus_degree = 8192
+    coeff_mod_bit_sizes = [60, 40, 40, 60]
     
     context = ts.context(
         scheme=scheme,

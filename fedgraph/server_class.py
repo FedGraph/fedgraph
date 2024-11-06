@@ -214,50 +214,94 @@ class Server:
         current_global_epoch : int
             The current global epoch number during the federated learning process.
         """
+        if not hasattr(self, 'aggregation_stats'):
+            self.aggregation_stats = []
+        
         train_refs = [trainer.train.remote(current_global_epoch) for trainer in self.trainers]
         ray.get(train_refs)
         
         if self.use_encryption:
+            encryption_start = time.time()
             print("Starting encrypted parameter aggregation...")
             encrypted_params = [trainer.get_encrypted_params.remote() for trainer in self.trainers]
             
             # Wait for all trainers and collect parameters
             params_list = []
+            encryption_times = []
+            enc_sizes = []
             while encrypted_params:
                 ready, encrypted_params = ray.wait(encrypted_params)
                 result = ray.get(ready[0])
                 params_list.append(result)
+                enc_size = sum(len(p) for p in result[0])  # Size of encrypted parameters
+                enc_sizes.append(enc_size)
+            encryption_time = time.time() - encryption_start
             
             # Aggregate parameters
             aggregated_params, metadata, agg_time = self.aggregate_encrypted_params(params_list)
             print(f"Parameter aggregation completed in {agg_time:.4f}s")
+            agg_size = sum(len(p) for p in aggregated_params)
             
             # Distribute back to trainers
+            decryption_start = time.time()
             decrypt_refs = [
                 trainer.load_encrypted_params.remote(
                     (aggregated_params, metadata), current_global_epoch
                 ) for trainer in self.trainers
             ]
-            ray.get(decrypt_refs)   
+            decryption_times = ray.get(decrypt_refs)
+            round_metrics = {
+                'encryption_time': encryption_time,
+                'decryption_times': decryption_times,
+                'aggregation_time': agg_time,
+                'upload_size': sum(enc_sizes),
+                'download_size': agg_size * len(self.trainers)
+            }
+            self.aggregation_stats.append(round_metrics)    
         else:
-
+            computation_start = time.time()
             params = [trainer.get_params.remote() for trainer in self.trainers]
             self.zero_params()
 
+            param_sizes = []
+            computation_times = []
             while True:
                 ready, left = ray.wait(params, num_returns=1, timeout=None)
                 if ready:
                     for t in ready:
+                        result = ray.get(t)
+                        param_size = sum(p.element_size() * p.nelement() for p in result)
+                        param_sizes.append(param_size)
+                    
+                        computation_time = time.time() - computation_start
+                        computation_times.append(computation_time)
                         for p, mp in zip(ray.get(t), self.model.parameters()):
                             mp.data += p.cpu()
                 params = left
                 if not params:
                     break
-
+            aggregation_start = time.time()
             for p in self.model.parameters():
                 p /= self.num_of_trainers
+            aggregated_size = sum(p.element_size() * p.nelement() for p in self.model.parameters())
+            aggregation_time = time.time() - aggregation_start
+            
+            # Time to broadcast parameters
+            broadcast_start = time.time()
+            self.broadcast_params(current_global_epoch)
+            broadcast_time = time.time() - broadcast_start
+            
+            # Record metrics for this round
+            round_metrics = {
+                'computation_times': computation_times,
+                'aggregation_time': aggregation_time,
+                'broadcast_time': broadcast_time,
+                'upload_size': sum(param_sizes),
+                'download_size': aggregated_size * self.num_of_trainers
+            }
             self.broadcast_params(current_global_epoch)
     
+        
     
 
         

@@ -330,7 +330,7 @@ class Trainer_General:
         )
         computation_time = time.time() - computation_start
         
-        data_size = sys.getsizeof(one_hop_neighbor_feature_sum.storage()) + sys.getsizeof(one_hop_neighbor_feature_sum)
+        data_size = one_hop_neighbor_feature_sum.element_size() * one_hop_neighbor_feature_sum.nelement()
         
         print(f"Trainer {self.rank} - Computation time: {computation_time:.4f} seconds")
         print(f"Trainer {self.rank} - Data size: {data_size / 1024:.2f} KB")
@@ -341,6 +341,7 @@ class Trainer_General:
         print(f"Min: {one_hop_neighbor_feature_sum.min().item():.6f}")
         print(f"Max: {one_hop_neighbor_feature_sum.max().item():.6f}")
         print(f"Non-zeros: {(one_hop_neighbor_feature_sum != 0).sum().item()}")
+        
         return one_hop_neighbor_feature_sum, computation_time, data_size
     
     def load_feature_aggregation(self, feature_aggregation: torch.Tensor) -> None:
@@ -355,9 +356,10 @@ class Trainer_General:
         load_start = time.time()
         self.feature_aggregation = feature_aggregation.float()
         load_time = time.time() - load_start
-        
+        data_size = self.feature_aggregation.element_size() * self.feature_aggregation.nelement()
         print(f"Trainer {self.rank} - Load time: {load_time:.4f} seconds")
-        
+        print(f"Trainer {self.rank} - Data size: {data_size / 1024:.2f} KB")
+    
         return load_time
     
     def encrypt_feature_sum(self, feature_sum):

@@ -29,6 +29,7 @@ from fedgraph.utils_lp import (
     to_next_day,
 )
 from fedgraph.utils_nc import get_1hop_feature_sum
+from fedgraph.benchmark import BenchmarkMetrics, FedGraphBenchmark
 
 
 def run_fedgraph(args: attridict, data: Any) -> None:
@@ -59,6 +60,7 @@ def run_NC(args: attridict, data: tuple) -> None:
     args
     data
     """
+    start_time = time.time()
     ray.init()
     torch.manual_seed(42)
     (
@@ -89,19 +91,13 @@ def run_NC(args: attridict, data: tuple) -> None:
         device = torch.device("cpu")
         num_gpus_per_trainer = 0
     
-    # def load_context(filename='fedgraph/he_context.pkl'):
-    #     with open('fedgraph/he_context.pkl', 'rb') as f:
-    #         context_bytes = pickle.load(f)
-    #     self.he_context = ts.context_from(context_bytes)
-    #     print(f"Trainer {self.rank} loaded HE context")
-    #     return 
-    # he_context = load_context()
-    # print("Loaded pre-saved HE context.")
+    
     #######################################################################
     # Define and Send Data to Trainers
     # --------------------------------
     # FedGraph first determines the resources for each trainer, then send
     # the data to each remote trainer.
+    
     if args.use_encryption:
         with open('fedgraph/he_context.pkl', 'rb') as f:
             context_bytes = pickle.load(f)
@@ -156,6 +152,7 @@ def run_NC(args: attridict, data: tuple) -> None:
     # without knowing the local trainer data
 
     server = Server(features.shape[1], args_hidden, class_num, device, trainers, args, he_context)
+    pretrain_start = time.time()
     if args.method == "FedGCN":
         
         #######################################################################
@@ -192,18 +189,21 @@ def run_NC(args: attridict, data: tuple) -> None:
                 for trainer in server.trainers
             ]
             decryption_times = ray.get(load_feature_refs)
+            pretrain_time = time.time() - pretrain_start
+            pretrain_upload = sum(enc_sizes) / (1024 * 1024)  # MB
+            pretrain_download = agg_size * len(server.trainers) / (1024 * 1024)  # MB
+            pretrain_comm_cost = pretrain_upload + pretrain_download
             
             # print performance metrics
-            print("\nEncryption Performance Metrics:")
-            print(f"Average Encryption Time: {sum(encryption_times) / len(encryption_times):.4f} seconds")
-            print(f"Average Decryption Time: {sum(decryption_times) / len(decryption_times):.4f} seconds")
-            print(f"Aggregation Time: {aggregation_time:.4f} seconds")
-            print(f"Total Communication Cost (Upload): {sum(enc_sizes) / (1024 * 1024):.2f} MB")
-            print(f"Total Communication Cost (Download): {agg_size * len(server.trainers) / (1024 * 1024):.2f} MB")
-            print("Feature aggregation verified for all trainers")
+            print("\nPre-training Phase Metrics:")
+            print(f"Total Pre-training Time: {pretrain_time:.2f} seconds")
+            print(f"Pre-training Upload: {pretrain_upload:.2f} MB")
+            print(f"Pre-training Download: {pretrain_download:.2f} MB")
+            print(f"Total Pre-training Communication Cost: {pretrain_comm_cost:.2f} MB")
+            
         else:
             print("Starting plaintext feature aggregation...")
-        
+
             computation_times = []
             load_times = []
             data_sizes = []
@@ -231,7 +231,8 @@ def run_NC(args: attridict, data: tuple) -> None:
             
             print("Server aggregates all local neighbor feature sums")
             
-            total_data_size = sys.getsizeof(global_feature_sum.storage()) + sys.getsizeof(global_feature_sum)
+            # Calculate data size using element_size and nelement instead of storage
+            total_data_size = global_feature_sum.element_size() * global_feature_sum.nelement()
             
             # Distribute the aggregated features back to trainers
             load_feature_refs = []
@@ -242,15 +243,20 @@ def run_NC(args: attridict, data: tuple) -> None:
                 load_feature_refs.append(load_feature_ref)
             load_times.extend(ray.get(load_feature_refs))
             
-            print("\nPlaintext Performance Metrics:")
-            print(f"Average Computation Time: {sum(computation_times) / len(computation_times):.4f} seconds")
+            pretrain_time = time.time() - pretrain_start
+            pretrain_upload = sum(data_sizes) / (1024 * 1024)  # MB
+            pretrain_download = total_data_size * len(server.trainers) / (1024 * 1024)  # MB
+            pretrain_comm_cost = pretrain_upload + pretrain_download
+            
+            print("\nPre-training Plaintext Phase Metrics:")
+            print(f"Total Pre-training Time: {pretrain_time:.2f} seconds")
+            print(f"Average Computation Time: {np.mean(computation_times):.4f} seconds")
             print(f"Aggregation Time: {aggregation_time:.4f} seconds")
-            print(f"Average Load Time: {sum(load_times) / len(load_times):.4f} seconds")
-            print(f"Average Data Size (Upload): {sum(data_sizes) / len(data_sizes) / 1024:.2f} KB")
-            print(f"Aggregated Data Size: {total_data_size / 1024:.2f} KB")
-            print(f"Total Communication Cost (Upload): {sum(data_sizes) / (1024 * 1024):.2f} MB")
-            print(f"Total Communication Cost (Download): {total_data_size * len(server.trainers) / (1024 * 1024):.2f} MB")
-
+            print(f"Average Load Time: {np.mean(load_times):.4f} seconds")
+            print(f"Pre-training Upload: {pretrain_upload:.2f} MB")
+            print(f"Pre-training Download: {pretrain_download:.2f} MB")
+            print(f"Total Pre-training Communication Cost: {pretrain_comm_cost:.2f} MB")
+            
             print("Trainers received feature aggregation from server")
         [trainer.relabel_adj.remote() for trainer in server.trainers]
 
@@ -259,10 +265,39 @@ def run_NC(args: attridict, data: tuple) -> None:
     # ------------------
     # The server start training of all trainers and aggregate the parameters
     # at every global round.
-
+    training_start = time.time()
     print("global_rounds", args.global_rounds)
     for i in range(args.global_rounds):
         server.train(i)
+    training_time = time.time() - training_start
+    if hasattr(server, 'aggregation_stats') and server.aggregation_stats:
+        training_upload = sum([r['upload_size'] for r in server.aggregation_stats]) / (1024 * 1024)  # MB
+        training_download = sum([r['download_size'] for r in server.aggregation_stats]) / (1024 * 1024)  # MB
+    else:
+        training_upload = training_download = 0
+    training_comm_cost = training_upload + training_download
+
+    print("\nTraining Phase Metrics:")
+    print(f"Total Training Time: {training_time:.2f} seconds")
+    print(f"Training Upload: {training_upload:.2f} MB")
+    print(f"Training Download: {training_download:.2f} MB")
+    print(f"Total Training Communication Cost: {training_comm_cost:.2f} MB")
+
+    # Overall totals
+    total_time = time.time() - start_time
+    total_upload = pretrain_upload + training_upload
+    total_download = pretrain_download + training_download
+    total_comm_cost = total_upload + total_download
+
+    print("\nOverall Totals:")
+    print(f"Total Execution Time: {total_time:.2f} seconds")
+    print(f"Total Upload: {total_upload:.2f} MB")
+    print(f"Total Download: {total_download:.2f} MB")
+    print(f"Total Communication Cost: {total_comm_cost:.2f} MB")
+    print(f"Pre-training Time %: {(pretrain_time/total_time)*100:.1f}%")
+    print(f"Training Time %: {(training_time/total_time)*100:.1f}%")
+    print(f"Pre-training Comm %: {(pretrain_comm_cost/total_comm_cost)*100:.1f}%")
+    print(f"Training Comm %: {(training_comm_cost/total_comm_cost)*100:.1f}%")
     #######################################################################
     # Summarize Experiment Results
     # ----------------------------

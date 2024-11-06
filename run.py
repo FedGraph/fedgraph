@@ -2,7 +2,7 @@ from fedgraph.federated_methods import run_fedgraph
 from fedgraph.data_process import data_loader
 import attridict
 
-config={'dataset': 'cora',
+config={'dataset': 'pubmed',
         'fedgraph_task': 'NC',
         'method': 'FedGCN',
         'global_rounds': 100,
