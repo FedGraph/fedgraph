@@ -19,7 +19,7 @@ import ray
 import torch
 from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
 
-from fedgraph.data_process import FedGCN_load_data
+from fedgraph.data_process import NC_load_data
 from fedgraph.monitor_class import Monitor
 from fedgraph.server_class import Server
 from fedgraph.trainer_class import Trainer_General
@@ -67,7 +67,7 @@ args = parser.parse_args()
 # tutorial <https://pytorch-geometric.readthedocs.io/en/latest/notes
 # /create_dataset.html>`__ in PyG.
 
-features, adj, labels, idx_train, idx_val, idx_test = FedGCN_load_data(args.dataset)
+features, adj, labels, idx_train, idx_val, idx_test = NC_load_data(args.dataset)
 class_num = labels.max().item() + 1
 
 if args.dataset in ["simulate", "cora", "citeseer", "pubmed", "reddit"]:
@@ -285,7 +285,9 @@ while True:
 print("server aggregates all local neighbor feature sums")
 # test if aggregation is correct
 if args.num_hops != 0:
-    assert (global_feature_sum != get_1hop_feature_sum(features, edge_index)).sum() == 0
+    assert (
+        global_feature_sum != get_1hop_feature_sum(features, edge_index, device)
+    ).sum() == 0
 for i in range(args.n_trainer):
     server.trainers[i].load_feature_aggregation.remote(
         global_feature_sum[communicate_node_global_indexes[i]]

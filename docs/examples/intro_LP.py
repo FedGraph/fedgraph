@@ -53,6 +53,13 @@ dataset_path = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), args.dataset_path
 )
 print(dataset_path)
+path = dataset_path
+dataset_path = os.path.join(
+    os.path.dirname(path),
+    "fedgraph",
+    os.path.relpath(path, start=os.path.dirname(path)),
+)
+print(dataset_path)
 global_file_path = os.path.join(dataset_path, "data_global.txt")
 traveled_file_path = os.path.join(dataset_path, "traveled_users.txt")
 

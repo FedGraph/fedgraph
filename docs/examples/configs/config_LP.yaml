@@ -8,7 +8,7 @@ global_file_path: data/LPDataset/data_five_countries.txt
 traveled_file_path: data/LPDataset/traveled_users.txt
 
 # setup:
-device: gpu
+device: cpu
 use_buffer: false
 buffer_size: 300000
 online_learning: false

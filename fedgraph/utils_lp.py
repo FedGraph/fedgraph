@@ -129,7 +129,10 @@ def get_global_user_item_mapping(global_file_path: str) -> tuple:
 
 
 def get_data(
-    country_code: str, user_id_mapping: Any = None, item_id_mapping: Any = None
+    country_code: str,
+    user_id_mapping: Any = None,
+    item_id_mapping: Any = None,
+    file_path: Any = None,
 ) -> HeteroData:
     """
     Get the data for the specified country code
@@ -157,11 +160,11 @@ def get_data(
     - `edge_label_index` (torch.Tensor): The edge label indices.
     - `edge_label` (torch.Tensor): The edge labels.
     """
+    print(f"printing in getdata, path: {file_path}")
     file_name = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        f"data/LPDataset/data_{country_code}.txt",
+        file_path,
+        f"data_{country_code}.txt",
     )
-    print(f"current os path is {os.path.dirname(os.path.abspath(__file__))}")
     print(f"Loading data in {file_name}")
 
     if user_id_mapping is None and item_id_mapping is None:

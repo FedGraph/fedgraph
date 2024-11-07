@@ -161,11 +161,6 @@ def run_NC(args: attridict, data: tuple) -> None:
         # Clients send their local feature sum to the server, and the server
         # aggregates all local feature sums and send the global feature sum
         # of specific nodes back to each trainer.
-
-        # local_neighbor_feature_sums = [
-        #     trainer.get_local_feature_sum.remote() for trainer in server.trainers
-        # 
-        # ]
         if args.use_encryption:
             print("Starting encrypted feature aggregation...")
     
@@ -202,62 +197,31 @@ def run_NC(args: attridict, data: tuple) -> None:
             print(f"Total Pre-training Communication Cost: {pretrain_comm_cost:.2f} MB")
             
         else:
-            print("Starting plaintext feature aggregation...")
-
-            computation_times = []
-            load_times = []
-            data_sizes = []
-            
             local_neighbor_feature_sums = [
-                trainer.get_local_feature_sum_og.remote() for trainer in server.trainers
+                trainer.get_local_feature_sum.remote() for trainer in server.trainers
             ]
-            
             global_feature_sum = torch.zeros_like(features)
-            aggregation_start = time.time()
             while True:
                 ready, left = ray.wait(
                     local_neighbor_feature_sums, num_returns=1, timeout=None
                 )
                 if ready:
                     for t in ready:
-                        result, comp_time, data_size = ray.get(t)
-                        global_feature_sum += result
-                        computation_times.append(comp_time)
-                        data_sizes.append(data_size)
+                        global_feature_sum += ray.get(t)
                 local_neighbor_feature_sums = left
                 if not local_neighbor_feature_sums:
                     break
-            aggregation_time = time.time() - aggregation_start
-            
-            print("Server aggregates all local neighbor feature sums")
-            
-            # Calculate data size using element_size and nelement instead of storage
-            total_data_size = global_feature_sum.element_size() * global_feature_sum.nelement()
-            
-            # Distribute the aggregated features back to trainers
-            load_feature_refs = []
+            print("server aggregates all local neighbor feature sums")
+            # test if aggregation is correct
+            if args.num_hops != 0:
+                assert (
+                    global_feature_sum != get_1hop_feature_sum(features, edge_index, device)
+                ).sum() == 0
             for i in range(args.n_trainer):
-                load_feature_ref = server.trainers[i].load_feature_aggregation.remote(
+                server.trainers[i].load_feature_aggregation.remote(
                     global_feature_sum[communicate_node_indexes[i]]
                 )
-                load_feature_refs.append(load_feature_ref)
-            load_times.extend(ray.get(load_feature_refs))
-            
-            pretrain_time = time.time() - pretrain_start
-            pretrain_upload = sum(data_sizes) / (1024 * 1024)  # MB
-            pretrain_download = total_data_size * len(server.trainers) / (1024 * 1024)  # MB
-            pretrain_comm_cost = pretrain_upload + pretrain_download
-            
-            print("\nPre-training Plaintext Phase Metrics:")
-            print(f"Total Pre-training Time: {pretrain_time:.2f} seconds")
-            print(f"Average Computation Time: {np.mean(computation_times):.4f} seconds")
-            print(f"Aggregation Time: {aggregation_time:.4f} seconds")
-            print(f"Average Load Time: {np.mean(load_times):.4f} seconds")
-            print(f"Pre-training Upload: {pretrain_upload:.2f} MB")
-            print(f"Pre-training Download: {pretrain_download:.2f} MB")
-            print(f"Total Pre-training Communication Cost: {pretrain_comm_cost:.2f} MB")
-            
-            print("Trainers received feature aggregation from server")
+            print("trainers received feature aggregation from server")
         [trainer.relabel_adj.remote() for trainer in server.trainers]
 
     #######################################################################

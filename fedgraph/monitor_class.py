@@ -81,14 +81,15 @@ class Monitor:
         )
         data = response.json()
         memory_data = {}
-
+        large_pod_count = 1
         for item in data["data"]["result"]:
             pod_name = item["metric"]["pod"]
 
             # Use the same large pod naming scheme
             if re.search(r"large", pod_name):
                 if pod_name not in self.large_pod_mapping:
-                    continue  # Skip if the pod isn't mapped yet
+                    self.large_pod_mapping[pod_name] = f"Large{large_pod_count}"
+                    large_pod_count += 1
                 memory_data[self.large_pod_mapping[pod_name]] = float(item["value"][1])
             elif re.search(r"head", pod_name):
                 memory_data["Server"] = float(item["value"][1])
@@ -117,13 +118,9 @@ class Monitor:
             # Output memory values for large pods
             for pod_name in self.large_pod_mapping.values():
                 large_memory_values = [
-                    max(
-                        memory_data.get(pod_name, 0)
-                        for pod_name in memory_data
-                        if re.search(r"Large", pod_name)
-                    )
+                    memory_data.get(pod_name, 0)
                     for memory_data in self.memory_usage_list
-                    if any(re.search(r"Large", pod) for pod in memory_data)
+                    if pod_name in memory_data
                 ]
                 if large_memory_values:
                     print(
@@ -190,13 +187,9 @@ class Monitor:
             # Output memory values for large pods
             for pod_name in self.large_pod_mapping.values():
                 large_memory_values = [
-                    max(
-                        memory_data.get(pod_name, 0)
-                        for pod_name in memory_data
-                        if re.search(r"Large", pod_name)
-                    )
+                    memory_data.get(pod_name, 0)
                     for memory_data in self.memory_usage_list
-                    if any(re.search(r"Large", pod) for pod in memory_data)
+                    if pod_name in memory_data
                 ]
                 if large_memory_values:
                     print(

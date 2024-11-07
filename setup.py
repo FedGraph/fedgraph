@@ -10,11 +10,11 @@ with open("README.md", "r") as f:
     README = f.read()
 
 setup(
-    name="fedgraph",
+    name="fedgraph"
     version=__version__,
     packages=["fedgraph"],
-    author="Yuhang Yao, Jiayu Chang",
-    author_email="yuhangya@andrew.cmu.edu, jiayuc@andrew.cmu.edu",
+    author="Yuhang Yao",
+    author_email="yuhangya@andrew.cmu.edu",
     description="Federated Graph Learning",
     long_description=README,
     long_description_content_type="text/markdown",

@@ -2,7 +2,7 @@
 
 [pypi-url]: https://pypi.python.org/pypi/fedgraph
 
-**[Documentation](https://docs.fedgraph.org)** | **[Paper](https://arxiv.org/abs/2201.12433)**
+**[Documentation](https://docs.fedgraph.org)** | **[Paper](https://arxiv.org/abs/2410.06340)**
 
 **FedGraph** *(Federated Graph)* is a library built on top of [PyTorch Geometric (PyG)](https://www.pyg.org/),
 [Ray](https://docs.ray.io/), and [PyTorch](https://pytorch.org/) to easily train Graph Neural Networks
@@ -66,9 +66,15 @@ run_fedgraph(config, data)
 
 ## Cite
 
-Please cite [our paper](https://arxiv.org/abs/2201.12433) (and the respective papers of the methods used) if you use this code in your own work:
+Please cite [our paper](https://arxiv.org/abs/2410.06340) (and the respective papers of the methods used) if you use this code in your own work:
 
 ```
+@article{yao2024fedgraph,
+  title={FedGraph: A Research Library and Benchmark for Federated Graph Learning},
+  author={Yao, Yuhang and Li, Yuan and Fan, Xinyi and Li, Junhao and Liu, Kay and Jin, Weizhao and Ravi, Srivatsan and Yu, Philip S and Joe-Wong, Carlee},
+  journal={arXiv preprint arXiv:2410.06340},
+  year={2024}
+}
 @article{yao2023fedgcn,
   title={FedGCN: Convergence-Communication Tradeoffs in Federated Training of Graph Convolutional Networks},
   author={Yao, Yuhang and Jin, Weizhao and Ravi, Srivatsan and Joe-Wong, Carlee},

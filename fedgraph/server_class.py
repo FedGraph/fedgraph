@@ -10,7 +10,14 @@ import torch
 import tenseal as ts
 from dtaidistance import dtw
 
-from fedgraph.gnn_models import GCN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
+from fedgraph.gnn_models import (
+    GCN,
+    GNN_LP,
+    AggreGCN,
+    AggreGCN_Arxiv,
+    GCN_arxiv,
+    SAGE_products,
+)
 
 
 
@@ -68,40 +75,51 @@ class Server:
         args: Any,
         he_context: Any,
     ) -> None:
-        # server model on cpu
-        if args.num_hops >= 1 and args.method == "fedgcn":
-            self.model = AggreGCN(
-                nfeat=feature_dim,
-                nhid=args_hidden,
-                nclass=class_num,
-                dropout=0.5,
-                NumLayers=args.num_layers,
-            )
+        self.args = args
+        if self.args.num_hops >= 1 and self.args.method == "fedgcn":
+            if "ogbn-arxiv" in self.args.dataset:
+                print("Running AggreGCN_Arxiv")
+                self.model = AggreGCN_Arxiv(
+                    nfeat=feature_dim,
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(device)
+            else:
+                self.model = AggreGCN(
+                    nfeat=feature_dim,
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(device)
         else:
-            if args.dataset == "ogbn-arxiv":
+            if "ogbn" in self.args.dataset:
+                print("Running GCN_arxiv")
                 self.model = GCN_arxiv(
                     nfeat=feature_dim,
                     nhid=args_hidden,
                     nclass=class_num,
                     dropout=0.5,
-                    NumLayers=args.num_layers,
-                )
-            elif args.dataset == "ogbn-products":
+                    NumLayers=self.args.num_layers,
+                ).to(device)
+            elif self.args.dataset == "ogbn-products":
                 self.model = SAGE_products(
                     nfeat=feature_dim,
                     nhid=args_hidden,
                     nclass=class_num,
                     dropout=0.5,
-                    NumLayers=args.num_layers,
-                )
+                    NumLayers=self.args.num_layers,
+                ).to(device)
             else:
                 self.model = GCN(
                     nfeat=feature_dim,
                     nhid=args_hidden,
                     nclass=class_num,
                     dropout=0.5,
-                    NumLayers=args.num_layers,
-                )
+                    NumLayers=self.args.num_layers,
+                ).to(device)
 
         self.trainers = trainers
         self.num_of_trainers = len(trainers)
@@ -113,7 +131,9 @@ class Server:
         #self.he_context, self.he_params = load_context()
         self.aggregation_stats = []
         print("Loaded HE context with secret key.")
-        self.broadcast_params(-1)
+
+        self.device = device
+        # self.broadcast_params(-1)
 
     @torch.no_grad()
     def zero_params(self) -> None:
@@ -204,23 +224,29 @@ class Server:
         
         return encrypted_params, metadata
     @torch.no_grad()
-    def train(self, current_global_epoch: int) -> None:
+    def train(
+        self,
+        current_global_epoch: int,
+        sampling_type: str = "random",
+        sample_ratio: float = 1,
+    ) -> None:
         """
-        Training round which perform aggregating parameters from trainers, updating the central model,
-        and then broadcasting the updated parameters back to the trainers.
+        Training round which performs aggregating parameters from sampled trainers (by index),
+        updating the central model, and then broadcasting the updated parameters
+        back to all trainers.
 
         Parameters
         ----------
         current_global_epoch : int
             The current global epoch number during the federated learning process.
         """
-        if not hasattr(self, 'aggregation_stats'):
-            self.aggregation_stats = []
-        
-        train_refs = [trainer.train.remote(current_global_epoch) for trainer in self.trainers]
-        ray.get(train_refs)
-        
+
         if self.use_encryption:
+            if not hasattr(self, 'aggregation_stats'):
+                self.aggregation_stats = []
+        
+            train_refs = [trainer.train.remote(current_global_epoch) for trainer in self.trainers]
+            ray.get(train_refs)
             encryption_start = time.time()
             print("Starting encrypted parameter aggregation...")
             encrypted_params = [trainer.get_encrypted_params.remote() for trainer in self.trainers]
@@ -258,53 +284,57 @@ class Server:
                 'download_size': agg_size * len(self.trainers)
             }
             self.aggregation_stats.append(round_metrics)    
-        else:
-            computation_start = time.time()
-            params = [trainer.get_params.remote() for trainer in self.trainers]
-            self.zero_params()
+        else: #normal training logic
+            print(f"Training round: {current_global_epoch}, sampling rate: {sample_ratio}")
 
-            param_sizes = []
-            computation_times = []
+            assert 0 < sample_ratio <= 1, "Sample ratio must be between 0 and 1"
+
+            num_samples = int(self.num_of_trainers * sample_ratio)
+
+            if sampling_type == "random":
+                selected_trainers_indices = random.sample(
+                    range(self.num_of_trainers), num_samples
+                )
+            elif sampling_type == "uniform":
+                selected_trainers_indices = [
+                    (i + int(self.num_of_trainers * sample_ratio) * current_global_epoch)
+                    % self.num_of_trainers
+                    for i in range(num_samples)
+                ]
+
+            else:
+                raise ValueError("sampling_type must be either 'random' or 'uniform'")
+
+            for trainer_idx in selected_trainers_indices:
+                self.trainers[trainer_idx].train.remote(current_global_epoch)
+
+            params = [
+                self.trainers[trainer_idx].get_params.remote()
+                for trainer_idx in selected_trainers_indices
+            ]
+
+            self.zero_params()
+            self.model = self.model.to("cpu")
+
             while True:
                 ready, left = ray.wait(params, num_returns=1, timeout=None)
                 if ready:
                     for t in ready:
-                        result = ray.get(t)
-                        param_size = sum(p.element_size() * p.nelement() for p in result)
-                        param_sizes.append(param_size)
-                    
-                        computation_time = time.time() - computation_start
-                        computation_times.append(computation_time)
                         for p, mp in zip(ray.get(t), self.model.parameters()):
                             mp.data += p.cpu()
                 params = left
                 if not params:
                     break
-            aggregation_start = time.time()
+
+            self.model = self.model.to(self.device)
+
             for p in self.model.parameters():
-                p /= self.num_of_trainers
-            aggregated_size = sum(p.element_size() * p.nelement() for p in self.model.parameters())
-            aggregation_time = time.time() - aggregation_start
-            
-            # Time to broadcast parameters
-            broadcast_start = time.time()
-            self.broadcast_params(current_global_epoch)
-            broadcast_time = time.time() - broadcast_start
-            
-            # Record metrics for this round
-            round_metrics = {
-                'computation_times': computation_times,
-                'aggregation_time': aggregation_time,
-                'broadcast_time': broadcast_time,
-                'upload_size': sum(param_sizes),
-                'download_size': aggregated_size * self.num_of_trainers
-            }
+                p /= num_samples
+
             self.broadcast_params(current_global_epoch)
     
-        
     
 
-        
     def broadcast_params(self, current_global_epoch: int) -> None:
         """
         Broadcasts the current parameters of the central model to all trainers.

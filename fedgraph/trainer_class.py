@@ -1,4 +1,5 @@
 import argparse
+import os
 import random
 import time
 from io import BytesIO
@@ -22,7 +23,15 @@ from torch_geometric.loader import NeighborLoader
 from torchmetrics.functional.retrieval import retrieval_auroc
 from torchmetrics.retrieval import RetrievalHitRate
 
-from fedgraph.gnn_models import GCN, GIN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
+from fedgraph.gnn_models import (
+    GCN,
+    GIN,
+    GNN_LP,
+    AggreGCN,
+    AggreGCN_Arxiv,
+    GCN_arxiv,
+    SAGE_products,
+)
 from fedgraph.train_func import test, train
 from fedgraph.utils_lp import (
     check_data_files_existance,
@@ -132,8 +141,8 @@ class Trainer_General:
         # idx_train: torch.Tensor,
         # idx_test: torch.Tensor,
         args_hidden: int,
-        global_node_num: int,
-        class_num: int,
+        # global_node_num: int,
+        # class_num: int,
         device: torch.device,
         args: Any,
         local_node_index: torch.Tensor = None,
@@ -167,49 +176,9 @@ class Trainer_General:
                 idx_train,
                 idx_test,
             ) = load_trainer_data_from_hugging_face(rank, args)
-
-        # seems that new trainer process will not inherit sys.path from parent, need to reimport!
-        if args.num_hops >= 1 and args.method == "fedgcn":
-            self.model = AggreGCN(
-                nfeat=features.shape[1],
-                nhid=args_hidden,
-                nclass=class_num,
-                dropout=0.5,
-                NumLayers=args.num_layers,
-            ).to(device)
-        else:
-            if args.dataset == "ogbn-arxiv":
-                self.model = GCN_arxiv(
-                    nfeat=features.shape[1],
-                    nhid=args_hidden,
-                    nclass=class_num,
-                    dropout=0.5,
-                    NumLayers=args.num_layers,
-                ).to(device)
-            elif args.dataset == "ogbn-products":
-                self.model = SAGE_products(
-                    nfeat=features.shape[1],
-                    nhid=args_hidden,
-                    nclass=class_num,
-                    dropout=0.5,
-                    NumLayers=args.num_layers,
-                ).to(device)
-            else:
-                self.model = GCN(
-                    nfeat=features.shape[1],
-                    nhid=args_hidden,
-                    nclass=class_num,
-                    dropout=0.5,
-                    NumLayers=args.num_layers,
-                ).to(device)
-
         self.rank = rank  # rank = trainer ID
 
         self.device = device
-
-        self.optimizer = torch.optim.SGD(
-            self.model.parameters(), lr=args.learning_rate, weight_decay=5e-4
-        )
 
         self.criterion = torch.nn.CrossEntropyLoss()
 
@@ -230,6 +199,32 @@ class Trainer_General:
         self.idx_test = idx_test.to(device)
 
         self.local_step = args.local_step
+        self.args_hidden = args_hidden
+        # self.global_node_num = global_node_num
+        # self.class_num = class_num
+        self.args = args
+        self.model = None
+        self.feature_aggregation = None
+        if self.args.method == "fedavg":
+            print("Loading feature as the feature aggregation for fedavg method")
+            self.feature_aggregation = self.features
+
+    def get_info(self):
+        # assert self.train_labels.numel() > 0, "train_labels is empty"
+        # assert self.test_labels.numel() > 0, "test_labels is empty"
+        return {
+            "features_num": len(self.features),
+            "label_num": max(
+                self.train_labels.max().item(), self.test_labels.max().item()
+            )
+            + 1,
+            "feature_shape": self.features.shape[1],
+            "len_in_com_train_node_local_indexes": len(self.idx_train),
+            "len_in_com_test_node_local_indexes": len(self.idx_test),
+            "communicate_node_global_index": self.communicate_node_index,
+        }
+
+    def init_model(self, global_node_num, class_num):
         self.global_node_num = global_node_num
         self.class_num = class_num
         self.args = args
@@ -242,6 +237,56 @@ class Trainer_General:
         
         self.scale_factor = 1e3
         self.param_history = []
+
+        # seems that new trainer process will not inherit sys.path from parent, need to reimport!
+        if self.args.num_hops >= 1 and self.args.method == "fedgcn":
+            if self.args.dataset == "ogbn-arxiv":
+                print("running AggreGCN_Arxiv")
+                self.model = AggreGCN_Arxiv(
+                    nfeat=self.features.shape[1],
+                    nhid=self.args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(self.device)
+            else:
+                self.model = AggreGCN(
+                    nfeat=self.features.shape[1],
+                    nhid=self.args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(self.device)
+        else:
+            if "ogbn" in self.args.dataset:  # all ogbn large datasets
+                print("Running GCN_arxiv")
+                self.model = GCN_arxiv(
+                    nfeat=self.features.shape[1],
+                    nhid=self.args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(self.device)
+            elif self.args.dataset == "ogbn-products":  # ogbn not coming here
+                self.model = SAGE_products(
+                    nfeat=self.features.shape[1],
+                    nhid=self.args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(self.device)
+            else:  # small datasets
+                self.model = GCN(
+                    nfeat=self.features.shape[1],
+                    nhid=self.args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(self.device)
+        self.optimizer = torch.optim.SGD(
+            self.model.parameters(), lr=self.args.learning_rate, weight_decay=5e-4
+        )
+
 
     @torch.no_grad()
     def update_params(self, params: tuple, current_global_epoch: int) -> None:
@@ -326,7 +371,7 @@ class Trainer_General:
         ).to(self.device)
         new_feature_for_trainer[self.local_node_index] = self.features
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
-            new_feature_for_trainer, self.adj
+            new_feature_for_trainer, self.adj, self.device
         )
         computation_time = time.time() - computation_start
         
@@ -450,9 +495,25 @@ class Trainer_General:
         """
         Relabels the adjacency matrix based on the communication node index.
         """
+        # print(f"Max value in adj: {self.adj.max()}")
+        # print(
+        #     f"Max value in communicate_node_index: {self.communicate_node_index.max()}"
+        # )
+        # distinct_values = torch.unique(self.adj.flatten())
+        # print(f"Number of distinct values in adj: {distinct_values.numel()}")
+        # print(f"distinct local: {len(self.local_node_index)}")
+        # print(f"distinct communic: {len(self.communicate_node_index)}")
+        # time.sleep(30)
         _, self.adj, __, ___ = torch_geometric.utils.k_hop_subgraph(
             self.communicate_node_index, 0, self.adj, relabel_nodes=True
         )
+        # print(f"Max value in adj: {self.adj.max()}")
+        # print(
+        #     f"Max value in communicate_node_index: {self.communicate_node_index.max()}"
+        # )
+        # distinct_values = torch.unique(self.adj.flatten())
+        # print(f"Number of distinct values in adj: {distinct_values.numel()}")
+        # print(f"distinct communic: {len(self.communicate_node_index)}")
 
     def train(self, current_global_round: int) -> None:
         """
@@ -466,6 +527,7 @@ class Trainer_General:
         """
         # clean cache
         torch.cuda.empty_cache()
+        assert self.model is not None
         self.model.to(self.device)
         if self.feature_aggregation is None:
             raise ValueError("feature_aggregation has not been set. Ensure pre-training communication is completed.")
@@ -473,14 +535,16 @@ class Trainer_General:
         self.feature_aggregation = self.feature_aggregation.to(self.device)
         if hasattr(self.args, "batch_size") and self.args.batch_size > 0:
             # batch preparation
-            train_mask = torch.zeros(self.feature_aggregation.size(0), dtype=torch.bool)
+            train_mask = torch.zeros(
+                self.feature_aggregation.size(0), dtype=torch.bool
+            ).to(self.device)
             train_mask[self.idx_train] = True
 
             node_labels = torch.full(
                 (self.feature_aggregation.size(0),), -1, dtype=torch.long
-            )
+            ).to(self.device)
 
-            mask_indices = train_mask.nonzero(as_tuple=True)[0]
+            mask_indices = train_mask.nonzero(as_tuple=True)[0].to(self.device)
             node_labels[train_mask] = self.train_labels[: len(mask_indices)]
             data = Data(
                 x=self.feature_aggregation,
@@ -526,6 +590,21 @@ class Trainer_General:
                     batch = next(batch_iter, None)
             else:
                 # print("Training with full batch")
+                # print(f"feature_aggregation size: {self.feature_aggregation.size()}")
+                # print(f"adj shape: {self.adj.size()}")
+                # print(f"Max value in adj: {self.adj.max()}")
+                # print(f"Max value in communicate_node_index: {self.communicate_node_index.max()}")
+                # Assuming class_num is the number of classes
+                train_labels = self.train_labels
+                class_num = self.class_num
+                assert (
+                    train_labels.min() >= 0
+                ), f"train_labels contains negative values: {train_labels.min()}"
+                assert (
+                    train_labels.max() < class_num
+                ), f"train_labels contains a value out of range: {train_labels.max()} (number of classes: {class_num})"
+
+                # time.sleep(30)
                 loss_train, acc_train = train(
                     iteration,
                     self.model,
@@ -542,7 +621,7 @@ class Trainer_General:
             loss_test, acc_test = self.local_test()
             self.test_losses.append(loss_test)
             self.test_accs.append(acc_test)
-            # print(f"acc_test: {acc_test}")
+            # print(f"current round: {current_global_round}, acc_test: {acc_test}")
 
     def local_test(self) -> list:
         """
@@ -1246,17 +1325,18 @@ class Trainer_LP:
         number_of_items: int,
         meta_data: tuple,
         hidden_channels: int = 64,
+        dataset_path: str = "data",
     ):
         self.client_id = client_id
         self.country_code = country_code
-        file_path = f"fedgraph/data/LPDataset"
-        print("checking code and file path")
-        print(country_code)
-        print(file_path)
+        print(f"checking code and file path: {country_code},{dataset_path}")
+        file_path = dataset_path
         country_codes: List[str] = [self.country_code]
         check_data_files_existance(country_codes, file_path)
         # global user_id and item_id
-        self.data = get_data(self.country_code, user_id_mapping, item_id_mapping)
+        self.data = get_data(
+            self.country_code, user_id_mapping, item_id_mapping, file_path
+        )
         self.model = GNN_LP(
             number_of_users, number_of_items, meta_data, hidden_channels
         )
