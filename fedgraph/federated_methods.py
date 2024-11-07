@@ -158,7 +158,7 @@ def run_NC(args: attridict, data: tuple) -> None:
         # test if aggregation is correct
         if args.num_hops != 0:
             assert (
-                global_feature_sum != get_1hop_feature_sum(features, edge_index)
+                global_feature_sum != get_1hop_feature_sum(features, edge_index, device)
             ).sum() == 0
         for i in range(args.n_trainer):
             server.trainers[i].load_feature_aggregation.remote(

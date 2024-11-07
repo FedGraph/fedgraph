@@ -7,7 +7,14 @@ import ray
 import torch
 from dtaidistance import dtw
 
-from fedgraph.gnn_models import GCN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
+from fedgraph.gnn_models import (
+    GCN,
+    GNN_LP,
+    AggreGCN,
+    AggreGCN_Arxiv,
+    GCN_arxiv,
+    SAGE_products,
+)
 
 
 class Server:
@@ -50,44 +57,56 @@ class Server:
         trainers: list,
         args: Any,
     ) -> None:
-        # server model on cpu
-        if args.num_hops >= 1 and args.method == "fedgcn":
-            self.model = AggreGCN(
-                nfeat=feature_dim,
-                nhid=args_hidden,
-                nclass=class_num,
-                dropout=0.5,
-                NumLayers=args.num_layers,
-            )
+        self.args = args
+        if self.args.num_hops >= 1 and self.args.method == "fedgcn":
+            if "ogbn-arxiv" in self.args.dataset:
+                print("Running AggreGCN_Arxiv")
+                self.model = AggreGCN_Arxiv(
+                    nfeat=feature_dim,
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(device)
+            else:
+                self.model = AggreGCN(
+                    nfeat=feature_dim,
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(device)
         else:
-            if args.dataset == "ogbn-arxiv":
+            if "ogbn" in self.args.dataset:
+                print("Running GCN_arxiv")
                 self.model = GCN_arxiv(
                     nfeat=feature_dim,
                     nhid=args_hidden,
                     nclass=class_num,
                     dropout=0.5,
-                    NumLayers=args.num_layers,
-                )
-            elif args.dataset == "ogbn-products":
+                    NumLayers=self.args.num_layers,
+                ).to(device)
+            elif self.args.dataset == "ogbn-products":
                 self.model = SAGE_products(
                     nfeat=feature_dim,
                     nhid=args_hidden,
                     nclass=class_num,
                     dropout=0.5,
-                    NumLayers=args.num_layers,
-                )
+                    NumLayers=self.args.num_layers,
+                ).to(device)
             else:
                 self.model = GCN(
                     nfeat=feature_dim,
                     nhid=args_hidden,
                     nclass=class_num,
                     dropout=0.5,
-                    NumLayers=args.num_layers,
-                )
+                    NumLayers=self.args.num_layers,
+                ).to(device)
 
         self.trainers = trainers
         self.num_of_trainers = len(trainers)
-        self.broadcast_params(-1)
+        self.device = device
+        # self.broadcast_params(-1)
 
     @torch.no_grad()
     def zero_params(self) -> None:
@@ -98,21 +117,68 @@ class Server:
             p.zero_()
 
     @torch.no_grad()
-    def train(self, current_global_epoch: int) -> None:
+    def train(
+        self,
+        current_global_epoch: int,
+        sampling_type: str = "random",
+        sample_ratio: float = 1,
+    ) -> None:
         """
-        Training round which perform aggregating parameters from trainers, updating the central model,
-        and then broadcasting the updated parameters back to the trainers.
+        Training round which performs aggregating parameters from sampled trainers (by index),
+        updating the central model, and then broadcasting the updated parameters
+        back to all trainers.
 
         Parameters
         ----------
         current_global_epoch : int
             The current global epoch number during the federated learning process.
+        train_round : int
+            The current round of training used to ensure uniform sampling.
+        sampling_type : str
+            The type of sampling to use ('random' or 'uniform').
+        sample_ratio : float
+            The proportion of trainers to be sampled for each training iteration.
         """
-        for trainer in self.trainers:
-            trainer.train.remote(current_global_epoch)
-        params = [trainer.get_params.remote() for trainer in self.trainers]
-        self.zero_params()
+        # Print the current train round
+        print(f"Training round: {current_global_epoch}, sampling rate: {sample_ratio}")
 
+        # Ensure sample ratio is valid
+        assert 0 < sample_ratio <= 1, "Sample ratio must be between 0 and 1"
+
+        # Calculate the number of samples to be proportional to train_round
+        num_samples = int(self.num_of_trainers * sample_ratio)
+
+        if sampling_type == "random":
+            # Randomly sample a subset of trainer indices
+            selected_trainers_indices = random.sample(
+                range(self.num_of_trainers), num_samples
+            )
+        elif sampling_type == "uniform":
+            # Ensure uniform sampling, making sure we cover different parts of trainers in each round
+            selected_trainers_indices = [
+                (i + int(self.num_of_trainers * sample_ratio) * current_global_epoch)
+                % self.num_of_trainers
+                for i in range(num_samples)
+            ]
+
+        else:
+            raise ValueError("sampling_type must be either 'random' or 'uniform'")
+
+        # Initiate training on the selected trainers based on their indices
+        for trainer_idx in selected_trainers_indices:
+            self.trainers[trainer_idx].train.remote(current_global_epoch)
+
+        # Gather parameters from the selected trainers
+        params = [
+            self.trainers[trainer_idx].get_params.remote()
+            for trainer_idx in selected_trainers_indices
+        ]
+
+        # Reset server-side model parameters before aggregation
+        self.zero_params()
+        self.model = self.model.to("cpu")
+
+        # Aggregate the parameters from the sampled trainers
         while True:
             ready, left = ray.wait(params, num_returns=1, timeout=None)
             if ready:
@@ -123,8 +189,13 @@ class Server:
             if not params:
                 break
 
+        self.model = self.model.to(self.device)
+
+        # Average the aggregated parameters based on the number of selected trainers
         for p in self.model.parameters():
-            p /= self.num_of_trainers
+            p /= num_samples
+
+        # Broadcast the updated parameters back to all trainers
         self.broadcast_params(current_global_epoch)
 
     def broadcast_params(self, current_global_epoch: int) -> None:

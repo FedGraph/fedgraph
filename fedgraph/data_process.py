@@ -17,6 +17,7 @@ import torch_sparse
 from torch_geometric.datasets import TUDataset
 from torch_geometric.loader import DataLoader
 from torch_geometric.transforms import OneHotDegree
+from torch_geometric.utils import add_self_loops
 
 from fedgraph.utils_gc import (
     get_max_degree,
@@ -276,13 +277,17 @@ def NC_load_data(dataset_str: str) -> tuple:
         "ogbn-mag",
         "ogbn-papers100M",
     ]:  #'ogbn-mag' is heteregeneous
+        # Download and process data at './dataset/.'
+        import builtins
+        from unittest.mock import patch
+
         from ogb.nodeproppred import PygNodePropPredDataset
 
-        # Download and process data at './dataset/.'
-
-        dataset = PygNodePropPredDataset(
-            name=dataset_str, transform=torch_geometric.transforms.ToSparseTensor()
-        )
+        # Mock the input to always return "y" under the cluster env
+        with patch.object(builtins, "input", lambda _: "y"):
+            dataset = PygNodePropPredDataset(
+                name=dataset_str, transform=torch_geometric.transforms.ToSparseTensor()
+            )
 
         split_idx = dataset.get_idx_split()
         idx_train, idx_val, idx_test = (

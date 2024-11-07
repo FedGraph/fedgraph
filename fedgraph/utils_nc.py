@@ -1,6 +1,7 @@
 import glob
 import re
 import time
+from io import BytesIO
 from pathlib import Path
 
 import attridict
@@ -8,6 +9,7 @@ import numpy as np
 import scipy.sparse as sp
 import torch
 import torch_geometric
+from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
 
 
 def normalize(mx: sp.csc_matrix) -> sp.csr_matrix:
@@ -313,7 +315,7 @@ def get_in_comm_indexes(
                 _,
                 __,
             ) = torch_geometric.utils.k_hop_subgraph(
-                communicate_node_index, 0, edge_index, relabel_nodes=False
+                communicate_node_index, 0, edge_index, relabel_nodes=True
             )
             del _
             del __
@@ -328,7 +330,13 @@ def get_in_comm_indexes(
             )
             del _
             del __
-
+            # Assert that the number of distinct elements are equal
+            # distinct_communicate_node_index = torch.unique(communicate_node_index)
+            # # Flatten the 2D current_edge_index to get the unique node indices involved in edges
+            # distinct_current_edge_nodes = torch.unique(current_edge_index.flatten())
+            # assert len(distinct_communicate_node_index) == len(
+            #     distinct_current_edge_nodes
+            # ), f"Distinct counts do not match: communicate_node_index ({len(distinct_communicate_node_index)}) != current_edge_nodes ({len(distinct_current_edge_nodes)})"
         communicate_node_index = communicate_node_index.to("cpu")
         current_edge_index = current_edge_index.to("cpu")
         communicate_node_indexes.append(communicate_node_index)
@@ -365,7 +373,10 @@ def get_in_comm_indexes(
 
 
 def get_1hop_feature_sum(
-    node_features: torch.Tensor, edge_index: torch.Tensor, include_self: bool = True
+    node_features: torch.Tensor,
+    edge_index: torch.Tensor,
+    device: str,
+    include_self: bool = True,
 ) -> torch.Tensor:
     """
     Computes the sum of features of 1-hop neighbors for each node in a graph. The function
@@ -391,26 +402,30 @@ def get_1hop_feature_sum(
         The tensor has the same number of rows as `node_features` and the same number of columns as the
         number of features per node.
     """
-    edge_index = edge_index.to("cpu")
     source_nodes = edge_index[0]
     target_nodes = edge_index[1]
 
     num_nodes, num_features = node_features.shape
-    summed_features = torch.zeros((num_nodes, num_features))
+    summed_features = torch.zeros((num_nodes, num_features)).to(device)
 
     # encryption
     # encrypted_node_features = [ts.ckks_vector(context, node_features[i].tolist()) for i in range(num_nodes)]
-
-    for node in range(num_nodes):
-        if include_self:
-            neighbor_indices = torch.where(source_nodes == node)
-        else:
+    if include_self:
+        # print("using spare matrix method")
+        adjacency_matrix = torch.sparse_coo_tensor(
+            edge_index,
+            torch.ones_like(source_nodes, dtype=torch.float32),
+            (num_nodes, num_nodes),
+        ).to(device)
+        summed_features = torch.sparse.mm(adjacency_matrix.float(), node_features)
+    else:
+        for node in range(num_nodes):
             neighbor_indices = torch.where(
                 (source_nodes == node) & (target_nodes != node)
             )  # exclude self-loop
 
-        neighbor_features = node_features[target_nodes[neighbor_indices]]
-        summed_features[node] = torch.sum(neighbor_features, dim=0)
+            neighbor_features = node_features[target_nodes[neighbor_indices]]
+            summed_features[node] = torch.sum(neighbor_features, dim=0)
 
     return summed_features
 
@@ -443,3 +458,81 @@ def increment_dir(dir: str, comment: str = "") -> str:
         if idxs:
             n = max(idxs) + 1  # increment
     return dir + str(n) + ("_" + comment if comment else "")
+
+
+def save_trainer_data_to_hugging_face(
+    trainer_id,
+    local_node_index,
+    communicate_node_global_index,
+    global_edge_index_client,
+    train_labels,
+    test_labels,
+    features,
+    in_com_train_node_local_indexes,
+    in_com_test_node_local_indexes,
+    args,
+):
+    repo_name = f"FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{args.num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}"
+    user = HfFolder.get_token()
+
+    api = HfApi()
+    try:
+        api.create_repo(
+            repo_id=repo_name, token=user, repo_type="dataset", exist_ok=True
+        )
+    except Exception as e:
+        print(f"Failed to create or access the repository: {str(e)}")
+        return
+
+    def save_tensor_to_hf(tensor, file_name):
+        buffer = BytesIO()
+        torch.save(tensor, buffer)
+        buffer.seek(0)
+        api.upload_file(
+            path_or_fileobj=buffer,
+            path_in_repo=file_name,
+            repo_id=repo_name,
+            repo_type="dataset",
+            token=user,
+        )
+
+    save_tensor_to_hf(local_node_index, "local_node_index.pt")
+    save_tensor_to_hf(communicate_node_global_index, "communicate_node_index.pt")
+    save_tensor_to_hf(global_edge_index_client, "adj.pt")
+    save_tensor_to_hf(train_labels, "train_labels.pt")
+    save_tensor_to_hf(test_labels, "test_labels.pt")
+    save_tensor_to_hf(features, "features.pt")
+    save_tensor_to_hf(in_com_train_node_local_indexes, "idx_train.pt")
+    save_tensor_to_hf(in_com_test_node_local_indexes, "idx_test.pt")
+
+    print(f"Uploaded data for trainer {trainer_id}")
+
+
+def save_all_trainers_data(
+    split_node_indexes,
+    communicate_node_global_indexes,
+    global_edge_indexes_clients,
+    labels,
+    features,
+    in_com_train_node_local_indexes,
+    in_com_test_node_local_indexes,
+    n_trainer,
+    args,
+):
+    for i in range(n_trainer):
+        save_trainer_data_to_hugging_face(
+            trainer_id=i,
+            local_node_index=split_node_indexes[i],
+            communicate_node_global_index=communicate_node_global_indexes[i],
+            global_edge_index_client=global_edge_indexes_clients[i],
+            train_labels=labels[communicate_node_global_indexes[i]][
+                in_com_train_node_local_indexes[i]
+            ],
+            test_labels=labels[communicate_node_global_indexes[i]][
+                in_com_test_node_local_indexes[i]
+            ],
+            features=features[split_node_indexes[i]],
+            in_com_train_node_local_indexes=in_com_train_node_local_indexes[i],
+            in_com_test_node_local_indexes=in_com_test_node_local_indexes[i],
+            args=args,
+        )

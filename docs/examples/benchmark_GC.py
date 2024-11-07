@@ -288,8 +288,8 @@ for dataset_name in [
     # "COLLAB",
     # "NCI1",
 ]:
-    # for algorithm in ["SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs"]:
-    for algorithm in ["SelfTrain"]:
+    for algorithm in ["SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs"]:
+        # for algorithm in ["SelfTrain"]:
         config_file = os.path.join(current_dir, f"configs/config_GC_{algorithm}.yaml")
         with open(config_file, "r") as file:
             args = attridict(yaml.safe_load(file))
@@ -308,7 +308,7 @@ for dataset_name in [
             # for num_hops in [2]:
             #     args.num_hops = num_hops
 
-            for i in range(4):
+            for i in range(3):
                 print(
                     f"Running experiment with: Algorithm={algorithm}, Dataset={args.dataset},"
                     f"Number of Trainers={args.num_trainers}"
