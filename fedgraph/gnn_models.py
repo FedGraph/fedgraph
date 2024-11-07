@@ -40,10 +40,10 @@ class GCN(torch.nn.Module):
         super(GCN, self).__init__()
 
         self.convs = torch.nn.ModuleList()
-        self.convs.append(GCNConv(nfeat, nhid, normalize=True, cached=True))
+        self.convs.append(GCNConv(nfeat, nhid, normalize=True, cached=False))
         for _ in range(NumLayers - 2):
-            self.convs.append(GCNConv(nhid, nhid, normalize=True, cached=True))
-        self.convs.append(GCNConv(nhid, nclass, normalize=True, cached=True))
+            self.convs.append(GCNConv(nhid, nhid, normalize=True, cached=False))
+        self.convs.append(GCNConv(nhid, nclass, normalize=True, cached=False))
 
         self.dropout = dropout
 
@@ -107,8 +107,8 @@ class AggreGCN(torch.nn.Module):
         self.convs = torch.nn.ModuleList()
         self.convs.append(torch.nn.Linear(nfeat, nhid))
         for _ in range(NumLayers - 2):
-            self.convs.append(GCNConv(nhid, nhid, normalize=True, cached=True))
-        self.convs.append(GCNConv(nhid, nclass, normalize=True, cached=True))
+            self.convs.append(GCNConv(nhid, nhid, normalize=True, cached=False))
+        self.convs.append(GCNConv(nhid, nclass, normalize=True, cached=False))
 
         self.dropout = dropout
 
@@ -144,6 +144,84 @@ class AggreGCN(torch.nn.Module):
                 x = F.dropout(x, p=self.dropout, training=self.training)
             else:
                 x = conv(x, adj_t)
+                x = F.relu(x)
+                x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.convs[-1](x, adj_t)
+        return torch.log_softmax(x, dim=-1)
+
+
+class AggreGCN_Arxiv(torch.nn.Module):
+    """
+    This class is an Aggregated GCN model with different methods of aggregation on
+    the input features for the graph nodes on the first layer with a linear layer
+    and the rest of the layers with GCNConv layers.
+
+    Parameters
+    ----------
+    nfeat : int
+        Number of input features.
+    nhid : int
+        Number of hidden features in the hidden layers of the network.
+    nclass : int
+        Number of output classes.
+    dropout : float
+        Dropout probability.
+    NumLayers : int
+        Number of GCN layers in the network.
+    """
+
+    def __init__(
+        self, nfeat: int, nhid: int, nclass: int, dropout: float, NumLayers: int
+    ) -> None:
+        super(AggreGCN_Arxiv, self).__init__()
+
+        self.convs = torch.nn.ModuleList()
+        self.convs.append(torch.nn.Linear(nfeat, nhid))
+        self.bns = torch.nn.ModuleList()
+        self.bns.append(torch.nn.BatchNorm1d(nhid))
+        for _ in range(NumLayers - 2):
+            self.convs.append(GCNConv(nhid, nhid, normalize=True, cached=False))
+            self.bns.append(torch.nn.BatchNorm1d(nhid))
+        self.convs.append(GCNConv(nhid, nclass, normalize=True, cached=False))
+        self.dropout = dropout
+
+    def reset_parameters(self) -> None:
+        for conv in self.convs:
+            conv.reset_parameters()
+        for bn in self.bns:
+            bn.reset_parameters()
+
+    def forward(
+        self, aggregated_feature: torch.Tensor, adj_t: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Represents the forward pass computation of a GCN with different methods of aggregation
+        on the input features for the graph nodes on the first layer with a linear layer and the rest of the layers
+        with GCNConv layers.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input feature tensor for the graph nodes aggregated by the aggregation method.
+        adj_t : torch.Tensor
+            Adjacency matrix of the graph.
+
+        Returns
+        -------
+        (tensor) : torch.Tensor
+            The log softmax of the output of the last layer.
+
+        """
+        # x = torch.matmul(aggregated_dim, self.first_layer_weight)
+        for i, conv in enumerate(self.convs[:-1]):
+            if i == 0:  # check dimension of adj matrix
+                x = self.convs[0](aggregated_feature)
+                x = self.bns[i](x)
+                x = F.relu(x)
+                x = F.dropout(x, p=self.dropout, training=self.training)
+            else:
+                x = conv(x, adj_t)
+                x = self.bns[i](x)
                 x = F.relu(x)
                 x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.convs[-1](x, adj_t)
@@ -300,13 +378,13 @@ class GCN_arxiv(torch.nn.Module):
         super(GCN_arxiv, self).__init__()
 
         self.convs = torch.nn.ModuleList()
-        self.convs.append(GCNConv(nfeat, nhid, cached=True))
+        self.convs.append(GCNConv(nfeat, nhid, cached=False))
         self.bns = torch.nn.ModuleList()
         self.bns.append(torch.nn.BatchNorm1d(nhid))
         for _ in range(NumLayers - 2):
-            self.convs.append(GCNConv(nhid, nhid, cached=True))
+            self.convs.append(GCNConv(nhid, nhid, cached=False))
             self.bns.append(torch.nn.BatchNorm1d(nhid))
-        self.convs.append(GCNConv(nhid, nclass, cached=True))
+        self.convs.append(GCNConv(nhid, nclass, cached=False))
 
         self.dropout = dropout
 

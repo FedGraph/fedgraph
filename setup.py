@@ -10,10 +10,11 @@ with open("README.md", "r") as f:
     README = f.read()
 
 setup(
-    name="fedgraph",
+    name="fedgraph"
     version=__version__,
-    author="Yuhang Yao, Jiayu Chang",
-    author_email="yuhangya@andrew.cmu.edu, jiayuc@andrew.cmu.edu",
+    packages=["fedgraph"],
+    author="Yuhang Yao",
+    author_email="yuhangya@andrew.cmu.edu",
     description="Federated Graph Learning",
     long_description=README,
     long_description_content_type="text/markdown",
@@ -33,9 +34,21 @@ setup(
         "torch-spline-conv>=1.2.1",
         "torch-geometric>=2.1.0.post1",
         "omegaconf>=2.3.0",
-        "ray>=2.6.3",
+        "ray[default]>=2.6.3",
         "PyYAML>=5.4.0",
         "attridict",
+        "furo",
+        "torchmetrics",
+        "setuptools",
+        "sphinxcontrib-bibtex",
+        "matplotlib",
+        "sphinx_gallery",
+        "tensorboard",
+        "dtaidistance",
+        "gdown",
+        "pandas",
+        "twine==5.0.0",
+        "scikit-learn",
     ],
     extras_require={"dev": ["build", "mypy", "pre-commit", "pytest"]},
 )

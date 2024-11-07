@@ -1,5 +1,6 @@
 dataset: cora
-fedtype: fedgcn
+fedgraph_task: NC
+method: fedgcn
 global_rounds: 100
 local_step: 3
 learning_rate: 0.5

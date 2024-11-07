@@ -17,10 +17,8 @@ import attridict
 import yaml
 
 sys.path.append("../fedgraph")
-sys.path.append("../../")
-from fedgraph.data_process_gc import load_single_dataset
-from fedgraph.federated_methods import run_FedGCN, run_GC, run_LP
-from fedgraph.utils_nc import federated_data_loader
+from fedgraph.data_process import data_loader
+from fedgraph.federated_methods import run_fedgraph
 
 #######################################################################
 # Specify the task
@@ -44,30 +42,14 @@ config_file_path = (
 
 with open(config_file_path, "r") as f:
     config = attridict(yaml.safe_load(f))
+config.fedgraph_task = fedgraph_task
 
 print(config)
 
-if fedgraph_task == "FedGCN":
-    data = federated_data_loader(config)
-elif fedgraph_task == "GC":
-    seed_split_data = 42  # seed for splitting data must be fixed
-    data, _ = load_single_dataset(
-        config.datapath,
-        dataset=config.dataset,
-        num_trainer=config.num_trainers,
-        batch_size=config.batch_size,
-        convert_x=config.convert_x,
-        seed=seed_split_data,
-        overlap=config.overlap,
-    )
+data = data_loader(config)  # Load federated data
 
 #######################################################################
 # Run FedGCN method
 # -----------------
 
-if fedgraph_task == "FedGCN":
-    run_FedGCN(config, data)
-elif fedgraph_task == "GC":
-    run_GC(config, data)
-elif fedgraph_task == "LP":
-    run_LP(config)
+run_fedgraph(config, data)

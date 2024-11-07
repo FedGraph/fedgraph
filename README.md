@@ -2,7 +2,7 @@
 
 [pypi-url]: https://pypi.python.org/pypi/fedgraph
 
-**[Documentation](https://docs.fedgraph.org)** | **[Paper](https://arxiv.org/abs/2201.12433)**
+**[Documentation](https://docs.fedgraph.org)** | **[Paper](https://arxiv.org/abs/2410.06340)**
 
 **FedGraph** *(Federated Graph)* is a library built on top of [PyTorch Geometric (PyG)](https://www.pyg.org/),
 [Ray](https://docs.ray.io/), and [PyTorch](https://pytorch.org/) to easily train Graph Neural Networks
@@ -12,7 +12,7 @@ It supports various federated training methods of graph neural networks under si
 
 ## Main Focus
 - **Federated Node Classification with Cross-Client Edges**: Our library supports communicating information stored in other clients without affecting the privacy of users.
-- **Federated Link Prediction on Dynamic Graphs**: Our library supports balancing temporal heterogenity across clients with privacy preservation.
+- **Federated Link Prediction on Dynamic Graphs**: Our library supports balancing temporal heterogeneity across clients with privacy preservation.
 - **Federated Graph Classification**: Our library supports federated graph classification with non-IID graphs.
 
 
@@ -41,12 +41,13 @@ pip install fedgraph
 
 ## Quick Start
 ```python
-from fedgraph.federated_methods import FedGCN_Train
-from fedgraph.utils import federated_data_loader
+from fedgraph.federated_methods import run_fedgraph
+from fedgraph.data_process import data_loader
 import attridict
 
 config={'dataset': 'cora',
-        'fedtype': 'fedgcn',
+        'fedgraph_task': 'NC',
+        'method': 'FedGCN',
         'global_rounds': 100,
         'local_step': 3,
         'learning_rate': 0.5,
@@ -59,15 +60,21 @@ config={'dataset': 'cora',
 
 config = attridict(config)
 
-data = federated_data_loader(config)
-FedGCN_Train(config, data)
+data = data_loader(config)
+run_fedgraph(config, data)
 ```
 
 ## Cite
 
-Please cite [our paper](https://arxiv.org/abs/2201.12433) (and the respective papers of the methods used) if you use this code in your own work:
+Please cite [our paper](https://arxiv.org/abs/2410.06340) (and the respective papers of the methods used) if you use this code in your own work:
 
 ```
+@article{yao2024fedgraph,
+  title={FedGraph: A Research Library and Benchmark for Federated Graph Learning},
+  author={Yao, Yuhang and Li, Yuan and Fan, Xinyi and Li, Junhao and Liu, Kay and Jin, Weizhao and Ravi, Srivatsan and Yu, Philip S and Joe-Wong, Carlee},
+  journal={arXiv preprint arXiv:2410.06340},
+  year={2024}
+}
 @article{yao2023fedgcn,
   title={FedGCN: Convergence-Communication Tradeoffs in Federated Training of Graph Convolutional Networks},
   author={Yao, Yuhang and Jin, Weizhao and Ravi, Srivatsan and Joe-Wong, Carlee},

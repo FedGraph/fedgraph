@@ -1,15 +1,39 @@
 import random
 from typing import Any
-
+import time
 import networkx as nx
 import numpy as np
+import pickle
 import ray
+import sys
 import torch
+import tenseal as ts
 from dtaidistance import dtw
 
-from fedgraph.gnn_models import GCN, GNN_LP, AggreGCN, GCN_arxiv, SAGE_products
+from fedgraph.gnn_models import (
+    GCN,
+    GNN_LP,
+    AggreGCN,
+    AggreGCN_Arxiv,
+    GCN_arxiv,
+    SAGE_products,
+)
 
 
+
+def load_context(filename='fedgraph/he_context.pkl'):
+    with open(filename, 'rb') as f:
+        data = pickle.load(f)
+        context_bytes = data['context']
+        parameters = data['parameters']
+    return ts.context_from(context_bytes), parameters
+def load_optimized_context(self):
+        """Load context with parameters"""
+        with open('fedgraph/he_context.pkl', 'rb') as f:
+            data = pickle.load(f)
+            self.he_context = ts.context_from(data['context'])
+            self.context_params = data['parameters']
+        print("Server loaded optimized context")
 class Server:
     """
     This is a server class for federated learning which is responsible for aggregating model parameters
@@ -49,45 +73,67 @@ class Server:
         device: torch.device,
         trainers: list,
         args: Any,
+        he_context: Any,
     ) -> None:
-        # server model on cpu
-        if args.num_hops >= 1 and args.fedtype == "fedgcn":
-            self.model = AggreGCN(
-                nfeat=feature_dim,
-                nhid=args_hidden,
-                nclass=class_num,
-                dropout=0.5,
-                NumLayers=args.num_layers,
-            )
+        self.args = args
+        if self.args.num_hops >= 1 and self.args.method == "fedgcn":
+            if "ogbn-arxiv" in self.args.dataset:
+                print("Running AggreGCN_Arxiv")
+                self.model = AggreGCN_Arxiv(
+                    nfeat=feature_dim,
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(device)
+            else:
+                self.model = AggreGCN(
+                    nfeat=feature_dim,
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(device)
         else:
-            if args.dataset == "ogbn-arxiv":
+            if "ogbn" in self.args.dataset:
+                print("Running GCN_arxiv")
                 self.model = GCN_arxiv(
                     nfeat=feature_dim,
                     nhid=args_hidden,
                     nclass=class_num,
                     dropout=0.5,
-                    NumLayers=args.num_layers,
-                )
-            elif args.dataset == "ogbn-products":
+                    NumLayers=self.args.num_layers,
+                ).to(device)
+            elif self.args.dataset == "ogbn-products":
                 self.model = SAGE_products(
                     nfeat=feature_dim,
                     nhid=args_hidden,
                     nclass=class_num,
                     dropout=0.5,
-                    NumLayers=args.num_layers,
-                )
+                    NumLayers=self.args.num_layers,
+                ).to(device)
             else:
                 self.model = GCN(
                     nfeat=feature_dim,
                     nhid=args_hidden,
                     nclass=class_num,
                     dropout=0.5,
-                    NumLayers=args.num_layers,
-                )
+                    NumLayers=self.args.num_layers,
+                ).to(device)
 
         self.trainers = trainers
         self.num_of_trainers = len(trainers)
-        self.broadcast_params(-1)
+        self.use_encryption = args.use_encryption
+        with open('fedgraph/he_context.pkl', 'rb') as f:
+            context_bytes = pickle.load(f)
+        self.he_context = ts.context_from(context_bytes)
+      
+        #self.he_context, self.he_params = load_context()
+        self.aggregation_stats = []
+        print("Loaded HE context with secret key.")
+
+        self.device = device
+        # self.broadcast_params(-1)
 
     @torch.no_grad()
     def zero_params(self) -> None:
@@ -97,35 +143,197 @@ class Server:
         for p in self.model.parameters():
             p.zero_()
 
+    
+    def prepare_params_for_encryption(self, params):
+        processed_params = []
+        metadata = []
+        
+        for param in params:
+            param_min = param.min()
+            param_max = param.max()
+            param_range = param_max - param_min
+            
+            # handle division by 0
+            if param_range == 0:
+                normalized = param - param_min
+            else:
+                normalized = (param - param_min) / param_range
+        
+            scaled = normalized * 1000
+            
+            processed_params.append(scaled)
+            metadata.append({
+                'min': param_min,
+                'range': param_range
+            })
+    
+        return processed_params, metadata
+    def aggregate_encrypted_feature_sums(self, encrypted_sums):
+        aggregation_start = time.time()
+        
+        first_sum = ts.ckks_vector_from(self.he_context, encrypted_sums[0][0])
+        shape = encrypted_sums[0][1] 
+        
+
+        for enc_sum, _ in encrypted_sums[1:]:
+            next_sum = ts.ckks_vector_from(self.he_context, enc_sum)
+            first_sum += next_sum
+        
+        return (first_sum.serialize(), shape), time.time() - aggregation_start
+
+    def aggregate_encrypted_params(self, encrypted_params_list):
+        aggregation_start = time.time()
+        
+        first_params, metadata = encrypted_params_list[0]
+        n_layers = len(first_params)
+        
+        #each layer
+        aggregated_params = []
+        for layer_idx in range(n_layers):
+            agg_layer = ts.ckks_vector_from(
+                self.he_context, 
+                encrypted_params_list[0][0][layer_idx]
+            )
+        
+            for trainer_params, _ in encrypted_params_list[1:]:
+                next_layer = ts.ckks_vector_from(
+                    self.he_context,
+                    trainer_params[layer_idx]
+                )
+                agg_layer += next_layer
+            
+            #average
+            agg_layer *= (1.0 / self.num_of_trainers)
+            aggregated_params.append(agg_layer.serialize())
+            
+        aggregation_time = time.time() - aggregation_start
+        return aggregated_params, metadata, aggregation_time
+    
+    def get_encrypted_params(self):
+        params = [p.data.cpu().detach() for p in self.model.parameters()]
+        
+        #normalize and scale
+        processed_params, metadata = self.prepare_params_for_encryption(params)
+        
+        encrypted_params = []
+        for param in processed_params:
+            param_list = param.flatten().tolist()
+            
+            encrypted = ts.ckks_vector(self.he_context, param_list).serialize()
+            encrypted_params.append(encrypted)
+        
+        return encrypted_params, metadata
     @torch.no_grad()
-    def train(self, current_global_epoch: int) -> None:
+    def train(
+        self,
+        current_global_epoch: int,
+        sampling_type: str = "random",
+        sample_ratio: float = 1,
+    ) -> None:
         """
-        Training round which perform aggregating parameters from trainers, updating the central model,
-        and then broadcasting the updated parameters back to the trainers.
+        Training round which performs aggregating parameters from sampled trainers (by index),
+        updating the central model, and then broadcasting the updated parameters
+        back to all trainers.
 
         Parameters
         ----------
         current_global_epoch : int
             The current global epoch number during the federated learning process.
         """
-        for trainer in self.trainers:
-            trainer.train.remote(current_global_epoch)
-        params = [trainer.get_params.remote() for trainer in self.trainers]
-        self.zero_params()
 
-        while True:
-            ready, left = ray.wait(params, num_returns=1, timeout=None)
-            if ready:
-                for t in ready:
-                    for p, mp in zip(ray.get(t), self.model.parameters()):
-                        mp.data += p.cpu()
-            params = left
-            if not params:
-                break
+        if self.use_encryption:
+            if not hasattr(self, 'aggregation_stats'):
+                self.aggregation_stats = []
+        
+            train_refs = [trainer.train.remote(current_global_epoch) for trainer in self.trainers]
+            ray.get(train_refs)
+            encryption_start = time.time()
+            print("Starting encrypted parameter aggregation...")
+            encrypted_params = [trainer.get_encrypted_params.remote() for trainer in self.trainers]
+            
+            # Wait for all trainers and collect parameters
+            params_list = []
+            encryption_times = []
+            enc_sizes = []
+            while encrypted_params:
+                ready, encrypted_params = ray.wait(encrypted_params)
+                result = ray.get(ready[0])
+                params_list.append(result)
+                enc_size = sum(len(p) for p in result[0])  # Size of encrypted parameters
+                enc_sizes.append(enc_size)
+            encryption_time = time.time() - encryption_start
+            
+            # Aggregate parameters
+            aggregated_params, metadata, agg_time = self.aggregate_encrypted_params(params_list)
+            print(f"Parameter aggregation completed in {agg_time:.4f}s")
+            agg_size = sum(len(p) for p in aggregated_params)
+            
+            # Distribute back to trainers
+            decryption_start = time.time()
+            decrypt_refs = [
+                trainer.load_encrypted_params.remote(
+                    (aggregated_params, metadata), current_global_epoch
+                ) for trainer in self.trainers
+            ]
+            decryption_times = ray.get(decrypt_refs)
+            round_metrics = {
+                'encryption_time': encryption_time,
+                'decryption_times': decryption_times,
+                'aggregation_time': agg_time,
+                'upload_size': sum(enc_sizes),
+                'download_size': agg_size * len(self.trainers)
+            }
+            self.aggregation_stats.append(round_metrics)    
+        else: #normal training logic
+            print(f"Training round: {current_global_epoch}, sampling rate: {sample_ratio}")
 
-        for p in self.model.parameters():
-            p /= self.num_of_trainers
-        self.broadcast_params(current_global_epoch)
+            assert 0 < sample_ratio <= 1, "Sample ratio must be between 0 and 1"
+
+            num_samples = int(self.num_of_trainers * sample_ratio)
+
+            if sampling_type == "random":
+                selected_trainers_indices = random.sample(
+                    range(self.num_of_trainers), num_samples
+                )
+            elif sampling_type == "uniform":
+                selected_trainers_indices = [
+                    (i + int(self.num_of_trainers * sample_ratio) * current_global_epoch)
+                    % self.num_of_trainers
+                    for i in range(num_samples)
+                ]
+
+            else:
+                raise ValueError("sampling_type must be either 'random' or 'uniform'")
+
+            for trainer_idx in selected_trainers_indices:
+                self.trainers[trainer_idx].train.remote(current_global_epoch)
+
+            params = [
+                self.trainers[trainer_idx].get_params.remote()
+                for trainer_idx in selected_trainers_indices
+            ]
+
+            self.zero_params()
+            self.model = self.model.to("cpu")
+
+            while True:
+                ready, left = ray.wait(params, num_returns=1, timeout=None)
+                if ready:
+                    for t in ready:
+                        for p, mp in zip(ray.get(t), self.model.parameters()):
+                            mp.data += p.cpu()
+                params = left
+                if not params:
+                    break
+
+            self.model = self.model.to(self.device)
+
+            for p in self.model.parameters():
+                p /= num_samples
+
+            self.broadcast_params(current_global_epoch)
+    
+    
 
     def broadcast_params(self, current_global_epoch: int) -> None:
         """
@@ -199,17 +407,30 @@ class Server_GC:
             list of trainer objects
         """
         total_size = 0
-        for trainer in selected_trainers:
-            total_size += trainer.train_size
+        size_refs = [trainer.get_train_size.remote() for trainer in selected_trainers]
+        while size_refs:
+            ready, left = ray.wait(size_refs, num_returns=1, timeout=None)
+            if ready:
+                for t in ready:
+                    total_size += ray.get(t)
+            size_refs = left
 
         for k in self.W.keys():
             # pass train_size, and weighted aggregate
-            accumulate = torch.stack(
-                [
-                    torch.mul(trainer.W[k].data, trainer.train_size)
-                    for trainer in selected_trainers
-                ]
-            )
+            accumulate_list = []
+
+            acc_refs = []
+            for trainer in selected_trainers:
+                acc_ref = trainer.calculate_weighted_weight.remote(k)
+                acc_refs.append(acc_ref)
+            while acc_refs:
+                ready, left = ray.wait(acc_refs, num_returns=1, timeout=None)
+                if ready:
+                    for t in ready:
+                        weighted_weight = ray.get(t)
+                        accumulate_list.append(weighted_weight)
+                acc_refs = left
+            accumulate = torch.stack(accumulate_list)
             self.W[k].data = torch.div(torch.sum(accumulate, dim=0), total_size).clone()
 
     def compute_pairwise_similarities(self, trainers: list) -> np.ndarray:
@@ -230,7 +451,8 @@ class Server_GC:
         for trainer in trainers:
             dW = {}
             for k in self.W.keys():
-                dW[k] = trainer.dW[k]
+                trainer_dW = ray.get(trainer.get_dW.remote())
+                dW[k] = trainer_dW[k]
             trainer_dWs.append(dW)
 
         return self.__pairwise_angles(trainer_dWs)
@@ -299,18 +521,15 @@ class Server_GC:
         trainer_clusters: list
             list of cluster-specified trainer groups, where each group contains the trainer objects in a cluster
         """
+        ks = self.W.keys()
         for cluster in trainer_clusters:  # cluster is a list of trainer objects
-            targs, sours = [], []
-            total_size = 0
-            for trainer in cluster:
-                W = {}
-                dW = {}
-                for k in self.W.keys():
-                    W[k] = trainer.W[k]
-                    dW[k] = trainer.dW[k]
-                targs.append(W)
-                sours.append((dW, trainer.train_size))
-                total_size += trainer.train_size
+            weights_list = ray.get(
+                [trainer.get_weights.remote(ks) for trainer in cluster]
+            )
+            # Unpack the list of dictionaries into separate lists for targs, sours, and train_sizes
+            targs = [weights["W"] for weights in weights_list]
+            sours = [(weights["dW"], weights["train_size"]) for weights in weights_list]
+            total_size = sum([weights["train_size"] for weights in weights_list])
             # pass train_size, and weighted aggregate
             self.__reduce_add_average(
                 targets=targs, sources=sours, total_size=total_size
@@ -326,13 +545,13 @@ class Server_GC:
         cluster: list
             list of trainer objects
         """
-        max_dW = -np.inf
+        dw_refs = []
         for trainer in cluster:
-            dW = {}
-            for k in self.W.keys():
-                dW[k] = trainer.dW[k]
-            curr_dW = torch.norm(self.__flatten(dW)).item()
-            max_dW = max(max_dW, curr_dW)
+            dw_ref = trainer.compute_update_norm.remote(self.W.keys())
+            dw_refs.append(dw_ref)
+        results = ray.get(dw_refs)
+
+        max_dW = max(results)
 
         return max_dW
 
@@ -346,18 +565,13 @@ class Server_GC:
         cluster: list
             list of trainer objects
         """
-        cluster_dWs = []
-        for trainer in cluster:
-            dW = {}
-            for k in self.W.keys():
-                # dW[k] = trainer.dW[k]
-                dW[k] = (
-                    trainer.dW[k]
-                    * trainer.train_size
-                    / sum([c.train_size for c in cluster])
-                )
-            cluster_dWs.append(self.__flatten(dW))
+        dw_refs = []
 
+        total_size = sum(ray.get([c.get_train_size.remote() for c in cluster]))
+        for trainer in cluster:
+            dw_ref = trainer.compute_mean_norm.remote(total_size, self.W.keys())
+            dw_refs.append(dw_ref)
+        cluster_dWs = ray.get(dw_refs)
         return torch.norm(torch.mean(torch.stack(cluster_dWs), dim=0)).item()
 
     def cache_model(self, idcs: list, params: dict, accuracies: list) -> None:
@@ -473,6 +687,7 @@ class Server_LP:
         number_of_users: int,
         number_of_items: int,
         meta_data: tuple,
+        trainers: list,
         args_cuda: bool = False,
     ) -> None:
         self.global_model = GNN_LP(
@@ -480,8 +695,9 @@ class Server_LP:
         )  # create the base model
 
         self.global_model = self.global_model.cuda() if args_cuda else self.global_model
+        self.clients = trainers
 
-    def fedavg(self, clients: list, gnn_only: bool = False) -> dict:
+    def fedavg(self, gnn_only: bool = False) -> dict:
         """
         This function performs federated averaging on the model parameters of the clients.
 
@@ -497,10 +713,19 @@ class Server_LP:
         model_avg_parameter: dict
             The averaged model parameters
         """
+        local_model_parameters = [
+            trainer.get_model_parameter.remote(gnn_only) for trainer in self.clients
+        ]
+        # Initialize an empty list to collect the results
         model_states = []
-        for i in range(len(clients)):
-            local_model_parameter = clients[i].get_model_parameter(gnn_only)
-            model_states.append(local_model_parameter)
+
+        # Collect the model parameters as they become ready
+        while local_model_parameters:
+            ready, left = ray.wait(local_model_parameters, num_returns=1, timeout=None)
+            if ready:
+                for t in ready:
+                    model_states.append(ray.get(t))
+            local_model_parameters = left
 
         model_avg_parameter = self.__average_parameter(model_states)
         return model_avg_parameter

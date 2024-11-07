@@ -19,12 +19,15 @@ lib64/
 parts/
 sdist/
 var/
-wheels/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
+
+#dashboard
+docs/examples/prometheus-2.52.0.darwin-arm64/
+prometheus-2.52.0.darwin-arm64/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -57,6 +60,7 @@ cover/
 
 # Django stuff:
 *.log
+*.csv
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -191,3 +195,5 @@ Temporary Items
 data/
 tutorials/
 runs/
+docs/examples/dataset
+docs/examples/figure_*

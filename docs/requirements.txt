@@ -13,7 +13,7 @@ sphinxcontrib-bibtex
 scikit-learn
 matplotlib
 sphinx_gallery
-ray
+ray[default]
 tensorboard
 attridict
 fedgraph

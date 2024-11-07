@@ -1,12 +1,15 @@
 import argparse
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 from torch_geometric.utils import degree, to_networkx
-
+import tenseal as ts
+from collections import OrderedDict
+import copy
 from fedgraph.server_class import Server_GC
 from fedgraph.trainer_class import Trainer_GC
 
@@ -214,11 +217,17 @@ def split_data(
     If the dataset needs to be split into training, validation, and test sets, the function should be called twice.
     """
     y = torch.cat([graph.y for graph in graphs])
+    y_indices = np.unique(y, return_inverse=True)[1]
+    class_counts = np.bincount(y_indices)
+    if np.min(class_counts) < 2:
+        stratify = None
+    else:
+        stratify = y
     graphs_train, graphs_test = train_test_split(
         graphs,
         train_size=train_size,
         test_size=test_size,
-        stratify=y,
+        stratify=stratify,
         shuffle=shuffle,
         random_state=seed,
     )
@@ -320,3 +329,52 @@ def get_stats(
         df.loc[dataset, "avgEdges_test"] = avgEdges
 
     return df
+
+def generate_context(poly_modulus_degree=8192, coeff_mod_bit_sizes=[60, 40, 40, 60]):
+    context = ts.context(
+        ts.SCHEME_TYPE.CKKS,
+        poly_modulus_degree=poly_modulus_degree,
+        coeff_mod_bit_sizes=coeff_mod_bit_sizes
+    )
+    context.global_scale = 2**40
+    context.generate_galois_keys()
+    return context
+
+def encryption_he(context, model_params, total_client_number):
+    weight_factors = copy.deepcopy(model_params)
+    for key in weight_factors.keys():
+        weight_factors[key] = torch.flatten(torch.full_like(weight_factors[key], 1 / total_client_number))
+    
+    enc_model_params = OrderedDict()
+    for key in model_params.keys():
+        prepared_tensor = (torch.flatten(model_params[key])) * weight_factors[key]
+        plain_tensor = ts.plain_tensor(prepared_tensor)
+        enc_model_params[key] = ts.ckks_vector(context, plain_tensor).serialize()
+    
+    return enc_model_params
+
+def fedavg_he(context, list_enc_model_params):
+    n_clients = len(list_enc_model_params)
+    enc_global_params = copy.deepcopy(list_enc_model_params[0])
+    
+    for key in enc_global_params.keys():
+        sum_vector = ts.ckks_vector_from(context, list_enc_model_params[0][key])
+        for i in range(1, n_clients):
+            temp = ts.ckks_vector_from(context, list_enc_model_params[i][key])
+            sum_vector += temp
+        enc_global_params[key] = sum_vector.serialize()
+    
+    return enc_global_params
+
+def decryption_he(context, template_model_params, enc_model_params):
+    params_shape = OrderedDict()
+    for key in template_model_params.keys():
+        params_shape[key] = template_model_params[key].size()
+    
+    params_tensor = OrderedDict()
+    for key in enc_model_params.keys():
+        dec_vector = ts.ckks_vector_from(context, enc_model_params[key])
+        params_tensor[key] = torch.FloatTensor(dec_vector.decrypt())
+        params_tensor[key] = torch.reshape(params_tensor[key], tuple(params_shape[key]))
+    
+    return params_tensor
