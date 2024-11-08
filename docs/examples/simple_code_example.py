@@ -1,6 +1,6 @@
 """
 Simple FedGraph Example
-================
+=======================
 
 Run a simple example of FedGraph.
 
@@ -9,7 +9,7 @@ Run a simple example of FedGraph.
 
 #######################################################################
 # Load libraries
-# ------------
+# --------------
 
 import sys
 
@@ -22,7 +22,7 @@ from fedgraph.federated_methods import run_fedgraph
 
 #######################################################################
 # Specify the task
-# ------------
+# ----------------
 
 fedgraph_task = "GC"
 assert fedgraph_task in ["FedGCN", "GC", "LP"]
@@ -33,7 +33,7 @@ if fedgraph_task == "GC":
 
 #######################################################################
 # Load configuration and federated data
-# ------------
+# -------------------------------------
 config_file_path = (
     f"configs/config_{fedgraph_task}_{GC_algorithm}.yaml"
     if fedgraph_task == "GC"
@@ -50,6 +50,6 @@ data = data_loader(config)  # Load federated data
 
 #######################################################################
 # Run FedGCN method
-# ------------
+# -----------------
 
 run_fedgraph(config, data)

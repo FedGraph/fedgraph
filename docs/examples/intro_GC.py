@@ -1,6 +1,6 @@
 """
 Federated Graph Classification Example
-================
+======================================
 
 In this tutorial, you will learn the basic workflow of
 Federated Graph Classification with a runnable example. This tutorial assumes that
@@ -37,7 +37,7 @@ sys.path.append(os.path.join(current_dir, "../../"))
 
 #######################################################################
 # Load configuration
-# ------------
+# ------------------
 # Here we load the configuration file for the experiment.
 # The configuration file contains the parameters for the experiment.
 # The algorithm and dataset are specified by the user here. And the configuration
@@ -59,7 +59,7 @@ print(args)
 
 #######################################################################
 # Set random seed
-# ------------
+# ---------------
 # Here we set the random seed for reproducibility.
 # Notice that to compare the performance of different methods, the random seed
 # for splitting data must be fixed.
@@ -84,7 +84,7 @@ else:
 
 #######################################################################
 # Set output directory
-# ------------
+# --------------------
 # Here we set the output directory for the results.
 # The output consists of the statistics of the data on trainers and the
 # accuracy of the model on the test set.
@@ -139,7 +139,7 @@ print("Data prepared.")
 
 #######################################################################
 # Setup server and trainers
-# ------------
+# -------------------------
 # Here we set up the server and trainers for the experiment.
 # The server is responsible for federated aggregation (e.g., FedAvg) without knowing the local trainer data.
 # The trainers are responsible for local training and testing.
@@ -152,7 +152,6 @@ print("Data prepared.")
 
 server = Server_GC(base_model(nlayer=args.nlayer, nhid=args.hidden), args.device)
 print("setup server done")
-
 
 @ray.remote(
     num_gpus=num_gpus_per_trainer,
@@ -213,7 +212,13 @@ trainers = [
 
 print("\nDone setting up devices.")
 
-################ choose the algorithm to run ################
+#######################################################################
+# Federated Training for Graph Classification
+# -------------------------------------------
+# Here we run the federated training for graph classification.
+# The server starts training of all trainers and aggregates the parameters.
+# The output consists of the accuracy of the model on the test set.
+      
 print(f"Running {args.model} ...")
 
 model_parameters = {
@@ -273,7 +278,12 @@ if args.model in model_parameters:
 else:
     raise ValueError(f"Unknown model: {args.model}")
 
-#################### save the output ####################
+#######################################################################
+# Save the output
+# ---------------
+# Here we save the results to a file, and the output directory can be specified by the user.
+# If save_files == False, the output will not be saved and will only be printed in the console.
+
 if args.save_files:
     outdir_result = os.path.join(outdir, f"accuracy_seed{args.seed}.csv")
     pd.DataFrame(output).to_csv(outdir_result)

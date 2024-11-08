@@ -1,6 +1,6 @@
 """
 Federated Link Prediction Example
-================
+=================================
 
 In this tutorial, you will learn the basic workflow of
 Federated Link Prediction with a runnable example. This tutorial assumes that
@@ -39,7 +39,7 @@ ray.init(address="auto")
 
 #######################################################################
 # Load configuration and check arguments
-# ------------
+# --------------------------------------
 # Here we load the configuration file for the experiment.
 # The configuration file contains the parameters for the experiment.
 # The algorithm and dataset (represented by the country code) are specified by the user here.
@@ -72,7 +72,7 @@ if args.use_buffer:
 
 #######################################################################
 # Generate data
-# ------------
+# -------------
 # Here we generate the data for the experiment.
 # If the data is already generated, we load the data from the file.
 # Otherwise, we download the data from the website and generate the data.
@@ -95,7 +95,7 @@ meta_data = (
 
 #######################################################################
 # Initialize server and trainers
-# ------------
+# ------------------------------
 # Starting from this block, we formally begin the training process.
 # If you want to run multiple experiments, you can wrap the following code in a loop.
 # In this block, we initialize the server and trainers for the experiment.
@@ -154,7 +154,7 @@ train_time_costs_gauge = Gauge(
 
 #######################################################################
 # Training preparation
-# ------------
+# --------------------
 # Here we prepare the training for the experiment.
 # (1) We brodcast the initial model parameter to all clients.
 # (2) We determine the start and end time of the conditional information.
@@ -193,7 +193,7 @@ pretrain_time_costs_gauge.set(
 )
 #######################################################################
 # Train the model
-# ------------
+# ---------------
 # Here we train the model for the experiment.
 # For each prediction day, we train the model for each client.
 # We also record the results if the user wants to record the results.
