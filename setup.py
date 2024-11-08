@@ -49,6 +49,9 @@ setup(
         "pandas",
         "twine==5.0.0",
         "scikit-learn",
+        "tenseal",
+        "huggingface_hub",
+        "ogb"
     ],
     extras_require={"dev": ["build", "mypy", "pre-commit", "pytest"]},
 )
