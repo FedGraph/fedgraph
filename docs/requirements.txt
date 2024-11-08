@@ -22,3 +22,4 @@ gdown
 numpy==1.26
 pandas
 tenseal
+huggingface_hub
