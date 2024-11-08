@@ -10,7 +10,7 @@ with open("README.md", "r") as f:
     README = f.read()
 
 setup(
-    name="fedgraph"
+    name="fedgraph",
     version=__version__,
     packages=["fedgraph"],
     author="Yuhang Yao",
@@ -37,7 +37,6 @@ setup(
         "ray[default]>=2.6.3",
         "PyYAML>=5.4.0",
         "attridict",
-        "furo",
         "torchmetrics",
         "setuptools",
         "sphinxcontrib-bibtex",
