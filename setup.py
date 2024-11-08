@@ -39,6 +39,7 @@ setup(
         "attridict",
         "torchmetrics",
         "setuptools",
+        "sphinx_rtd_theme"
         "sphinxcontrib-bibtex",
         "matplotlib",
         "sphinx_gallery",

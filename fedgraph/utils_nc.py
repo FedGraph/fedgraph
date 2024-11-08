@@ -10,7 +10,6 @@ import scipy.sparse as sp
 import torch
 import torch_geometric
 from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
-import logging
 import time
 
 
@@ -95,7 +94,6 @@ def label_dirichlet_partition(
     beta: float,
     distribution_type: str = "powerlaw",
 ) -> list:
-    logger.info(f"Starting label_dirichlet_partition with {n_parties} parties and {K} classes")
     start_time = time.time()
 
     min_require_size = max(1, min(10, N // (n_parties * K)))  # Adjust minimum size based on dataset
@@ -110,8 +108,6 @@ def label_dirichlet_partition(
     else:
         weights = np.ones(n_parties)
     weights /= weights.sum()
-
-    logger.info(f"Generated weights using {distribution_type} distribution")
 
     # Pre-compute label indices
     label_indices = [np.where(labels == k)[0] for k in range(K)]
@@ -140,18 +136,9 @@ def label_dirichlet_partition(
         
         if min_size >= min_require_size:
             break
-        
-        if attempts % 10 == 0:
-            logger.warning(f"Attempt {attempts}: min_size ({min_size}) < min_require_size ({min_require_size})")
-
-    if attempts >= max_attempts:
-        logger.warning(f"Failed to meet min_require_size after {max_attempts} attempts. Using best attempt.")
-
-    logger.info(f"Partitioning completed after {attempts} attempts")
 
     split_data_indexes = [np.random.permutation(idx_j).tolist() for idx_j in idx_batch]
-    
-    logger.info(f"label_dirichlet_partition completed in {time.time() - start_time:.2f} seconds")
+
     return split_data_indexes
 
 
