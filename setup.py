@@ -49,8 +49,9 @@ setup(
         "pandas",
         "twine==5.0.0",
         "scikit-learn",
-        "ogb",
-        "huggingface_hub",
+        "ogb",  # for ogbn dataset
+        "huggingface_hub",  # for hugging_face
+        "tenseal",  # for HE
     ],
     extras_require={"dev": ["build", "mypy", "pre-commit", "pytest"]},
 )

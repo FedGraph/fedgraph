@@ -211,8 +211,8 @@ class Trainer_General:
         self.args = args
         self.model = None
         self.feature_aggregation = None
-        if self.args.method == "fedavg":
-            print("Loading feature as the feature aggregation for fedavg method")
+        if self.args.method == "FedAvg":
+            # print("Loading feature as the feature aggregation for fedavg method")
             self.feature_aggregation = self.features
 
     def get_info(self):
@@ -233,8 +233,6 @@ class Trainer_General:
     def init_model(self, global_node_num, class_num):
         self.global_node_num = global_node_num
         self.class_num = class_num
-        self.args = args
-        self.feature_aggregation = None
         self.feature_shape = None
         with open("fedgraph/he_context.pkl", "rb") as f:
             context_bytes = pickle.load(f)
@@ -357,11 +355,11 @@ class Trainer_General:
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
             new_feature_for_trainer, self.adj, self.device
         )
-
-        print(
-            f"Trainer {self.rank} - Original feature sum (first 10 and last 10 elements): "
-            f"{one_hop_neighbor_feature_sum.flatten()[:10].tolist()} ... {one_hop_neighbor_feature_sum.flatten()[-10:].tolist()}"
-        )
+        if self.args.use_encryption:
+            print(
+                f"Trainer {self.rank} - Original feature sum (first 10 and last 10 elements): "
+                f"{one_hop_neighbor_feature_sum.flatten()[:10].tolist()} ... {one_hop_neighbor_feature_sum.flatten()[-10:].tolist()}"
+            )
 
         return one_hop_neighbor_feature_sum
 
@@ -411,15 +409,15 @@ class Trainer_General:
         feature_aggregation : torch.Tensor
             The aggregated features to be loaded.
         """
-        load_start = time.time()
+        # load_start = time.time()
         self.feature_aggregation = feature_aggregation.float()
-        load_time = time.time() - load_start
-        data_size = (
-            self.feature_aggregation.element_size()
-            * self.feature_aggregation.nelement()
-        )
-        print(f"Trainer {self.rank} - Load time: {load_time:.4f} seconds")
-        print(f"Trainer {self.rank} - Data size: {data_size / 1024:.2f} KB")
+        # load_time = time.time() - load_start
+        # data_size = (
+        #     self.feature_aggregation.element_size()
+        #     * self.feature_aggregation.nelement()
+        # )
+        # print(f"Trainer {self.rank} - Load time: {load_time:.4f} seconds")
+        # print(f"Trainer {self.rank} - Data size: {data_size / 1024:.2f} KB")
 
         # return load_time
 
@@ -505,6 +503,9 @@ class Trainer_General:
 
         self.model.to(self.device)
         return True
+
+    def use_fedavg_feature(self) -> None:
+        self.feature_aggregation
 
     def relabel_adj(self) -> None:
         """

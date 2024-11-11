@@ -127,13 +127,14 @@ class Server:
         self.trainers = trainers
         self.num_of_trainers = len(trainers)
         self.use_encryption = args.use_encryption
-        with open("fedgraph/he_context.pkl", "rb") as f:
-            context_bytes = pickle.load(f)
-        self.he_context = ts.context_from(context_bytes)
+        if args.use_encryption:
+            with open("fedgraph/he_context.pkl", "rb") as f:
+                context_bytes = pickle.load(f)
+            self.he_context = ts.context_from(context_bytes)
 
-        # self.he_context, self.he_params = load_context()
-        self.aggregation_stats = []
-        print("Loaded HE context with secret key.")
+            # self.he_context, self.he_params = load_context()
+            self.aggregation_stats = []
+            print("Loaded HE context with secret key.")
 
         self.device = device
         # self.broadcast_params(-1)
@@ -292,9 +293,9 @@ class Server:
             }
             self.aggregation_stats.append(round_metrics)
         else:  # normal training logic
-            print(
-                f"Training round: {current_global_epoch}, sampling rate: {sample_ratio}"
-            )
+            # print(
+            #     f"Training round: {current_global_epoch}, sampling rate: {sample_ratio}"
+            # )
 
             assert 0 < sample_ratio <= 1, "Sample ratio must be between 0 and 1"
 

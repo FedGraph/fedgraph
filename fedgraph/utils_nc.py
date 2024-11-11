@@ -92,7 +92,7 @@ def label_dirichlet_partition(
     K: int,
     n_parties: int,
     beta: float,
-    distribution_type: str = "powerlaw",
+    distribution_type: str = "average",
 ) -> list:
     # logger.info(
     #     f"Starting label_dirichlet_partition with {n_parties} parties and {K} classes"
