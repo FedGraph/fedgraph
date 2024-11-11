@@ -1,13 +1,14 @@
+import pickle
 import random
-from typing import Any
+import sys
 import time
+from typing import Any
+
 import networkx as nx
 import numpy as np
-import pickle
 import ray
-import sys
-import torch
 import tenseal as ts
+import torch
 from dtaidistance import dtw
 
 from fedgraph.gnn_models import (
@@ -20,20 +21,23 @@ from fedgraph.gnn_models import (
 )
 
 
-
-def load_context(filename='fedgraph/he_context.pkl'):
-    with open(filename, 'rb') as f:
+def load_context(filename="fedgraph/he_context.pkl"):
+    with open(filename, "rb") as f:
         data = pickle.load(f)
-        context_bytes = data['context']
-        parameters = data['parameters']
+        context_bytes = data["context"]
+        parameters = data["parameters"]
     return ts.context_from(context_bytes), parameters
+
+
 def load_optimized_context(self):
-        """Load context with parameters"""
-        with open('fedgraph/he_context.pkl', 'rb') as f:
-            data = pickle.load(f)
-            self.he_context = ts.context_from(data['context'])
-            self.context_params = data['parameters']
-        print("Server loaded optimized context")
+    """Load context with parameters"""
+    with open("fedgraph/he_context.pkl", "rb") as f:
+        data = pickle.load(f)
+        self.he_context = ts.context_from(data["context"])
+        self.context_params = data["parameters"]
+    print("Server loaded optimized context")
+
+
 class Server:
     """
     This is a server class for federated learning which is responsible for aggregating model parameters
@@ -73,7 +77,6 @@ class Server:
         device: torch.device,
         trainers: list,
         args: Any,
-        he_context: Any,
     ) -> None:
         self.args = args
         if self.args.num_hops >= 1 and self.args.method == "fedgcn":
@@ -124,11 +127,11 @@ class Server:
         self.trainers = trainers
         self.num_of_trainers = len(trainers)
         self.use_encryption = args.use_encryption
-        with open('fedgraph/he_context.pkl', 'rb') as f:
+        with open("fedgraph/he_context.pkl", "rb") as f:
             context_bytes = pickle.load(f)
         self.he_context = ts.context_from(context_bytes)
-      
-        #self.he_context, self.he_params = load_context()
+
+        # self.he_context, self.he_params = load_context()
         self.aggregation_stats = []
         print("Loaded HE context with secret key.")
 
@@ -143,86 +146,81 @@ class Server:
         for p in self.model.parameters():
             p.zero_()
 
-    
     def prepare_params_for_encryption(self, params):
         processed_params = []
         metadata = []
-        
+
         for param in params:
             param_min = param.min()
             param_max = param.max()
             param_range = param_max - param_min
-            
+
             # handle division by 0
             if param_range == 0:
                 normalized = param - param_min
             else:
                 normalized = (param - param_min) / param_range
-        
+
             scaled = normalized * 1000
-            
+
             processed_params.append(scaled)
-            metadata.append({
-                'min': param_min,
-                'range': param_range
-            })
-    
+            metadata.append({"min": param_min, "range": param_range})
+
         return processed_params, metadata
+
     def aggregate_encrypted_feature_sums(self, encrypted_sums):
         aggregation_start = time.time()
-        
+
         first_sum = ts.ckks_vector_from(self.he_context, encrypted_sums[0][0])
-        shape = encrypted_sums[0][1] 
-        
+        shape = encrypted_sums[0][1]
 
         for enc_sum, _ in encrypted_sums[1:]:
             next_sum = ts.ckks_vector_from(self.he_context, enc_sum)
             first_sum += next_sum
-        
+
         return (first_sum.serialize(), shape), time.time() - aggregation_start
 
     def aggregate_encrypted_params(self, encrypted_params_list):
         aggregation_start = time.time()
-        
+
         first_params, metadata = encrypted_params_list[0]
         n_layers = len(first_params)
-        
-        #each layer
+
+        # each layer
         aggregated_params = []
         for layer_idx in range(n_layers):
             agg_layer = ts.ckks_vector_from(
-                self.he_context, 
-                encrypted_params_list[0][0][layer_idx]
+                self.he_context, encrypted_params_list[0][0][layer_idx]
             )
-        
+
             for trainer_params, _ in encrypted_params_list[1:]:
                 next_layer = ts.ckks_vector_from(
-                    self.he_context,
-                    trainer_params[layer_idx]
+                    self.he_context, trainer_params[layer_idx]
                 )
                 agg_layer += next_layer
-            
-            #average
-            agg_layer *= (1.0 / self.num_of_trainers)
+
+            # average
+            agg_layer *= 1.0 / self.num_of_trainers
             aggregated_params.append(agg_layer.serialize())
-            
+
         aggregation_time = time.time() - aggregation_start
         return aggregated_params, metadata, aggregation_time
-    
+
     def get_encrypted_params(self):
         params = [p.data.cpu().detach() for p in self.model.parameters()]
-        
-        #normalize and scale
+
+        # normalize and scale
         processed_params, metadata = self.prepare_params_for_encryption(params)
-        
+
         encrypted_params = []
         for param in processed_params:
             param_list = param.flatten().tolist()
-            
+
             encrypted = ts.ckks_vector(self.he_context, param_list).serialize()
             encrypted_params.append(encrypted)
-        
+
         return encrypted_params, metadata
+
     @torch.no_grad()
     def train(
         self,
@@ -242,15 +240,19 @@ class Server:
         """
 
         if self.use_encryption:
-            if not hasattr(self, 'aggregation_stats'):
+            if not hasattr(self, "aggregation_stats"):
                 self.aggregation_stats = []
-        
-            train_refs = [trainer.train.remote(current_global_epoch) for trainer in self.trainers]
+
+            train_refs = [
+                trainer.train.remote(current_global_epoch) for trainer in self.trainers
+            ]
             ray.get(train_refs)
             encryption_start = time.time()
             print("Starting encrypted parameter aggregation...")
-            encrypted_params = [trainer.get_encrypted_params.remote() for trainer in self.trainers]
-            
+            encrypted_params = [
+                trainer.get_encrypted_params.remote() for trainer in self.trainers
+            ]
+
             # Wait for all trainers and collect parameters
             params_list = []
             encryption_times = []
@@ -259,33 +261,40 @@ class Server:
                 ready, encrypted_params = ray.wait(encrypted_params)
                 result = ray.get(ready[0])
                 params_list.append(result)
-                enc_size = sum(len(p) for p in result[0])  # Size of encrypted parameters
+                enc_size = sum(
+                    len(p) for p in result[0]
+                )  # Size of encrypted parameters
                 enc_sizes.append(enc_size)
             encryption_time = time.time() - encryption_start
-            
+
             # Aggregate parameters
-            aggregated_params, metadata, agg_time = self.aggregate_encrypted_params(params_list)
+            aggregated_params, metadata, agg_time = self.aggregate_encrypted_params(
+                params_list
+            )
             print(f"Parameter aggregation completed in {agg_time:.4f}s")
             agg_size = sum(len(p) for p in aggregated_params)
-            
+
             # Distribute back to trainers
             decryption_start = time.time()
             decrypt_refs = [
                 trainer.load_encrypted_params.remote(
                     (aggregated_params, metadata), current_global_epoch
-                ) for trainer in self.trainers
+                )
+                for trainer in self.trainers
             ]
             decryption_times = ray.get(decrypt_refs)
             round_metrics = {
-                'encryption_time': encryption_time,
-                'decryption_times': decryption_times,
-                'aggregation_time': agg_time,
-                'upload_size': sum(enc_sizes),
-                'download_size': agg_size * len(self.trainers)
+                "encryption_time": encryption_time,
+                "decryption_times": decryption_times,
+                "aggregation_time": agg_time,
+                "upload_size": sum(enc_sizes),
+                "download_size": agg_size * len(self.trainers),
             }
-            self.aggregation_stats.append(round_metrics)    
-        else: #normal training logic
-            print(f"Training round: {current_global_epoch}, sampling rate: {sample_ratio}")
+            self.aggregation_stats.append(round_metrics)
+        else:  # normal training logic
+            print(
+                f"Training round: {current_global_epoch}, sampling rate: {sample_ratio}"
+            )
 
             assert 0 < sample_ratio <= 1, "Sample ratio must be between 0 and 1"
 
@@ -297,7 +306,11 @@ class Server:
                 )
             elif sampling_type == "uniform":
                 selected_trainers_indices = [
-                    (i + int(self.num_of_trainers * sample_ratio) * current_global_epoch)
+                    (
+                        i
+                        + int(self.num_of_trainers * sample_ratio)
+                        * current_global_epoch
+                    )
                     % self.num_of_trainers
                     for i in range(num_samples)
                 ]
@@ -332,8 +345,6 @@ class Server:
                 p /= num_samples
 
             self.broadcast_params(current_global_epoch)
-    
-    
 
     def broadcast_params(self, current_global_epoch: int) -> None:
         """

@@ -2,20 +2,21 @@ import argparse
 import copy
 import datetime
 import os
+import pickle
 import random
-import time
+import sys
 import time
 from pathlib import Path
 from typing import Any, List, Optional
-import sys
+
 import attridict
 import numpy as np
 import pandas as pd
 import ray
-import torch
 import tenseal as ts
-import pickle
+import torch
 
+from fedgraph.benchmark import BenchmarkMetrics, FedGraphBenchmark
 from fedgraph.gnn_models import GIN
 from fedgraph.monitor_class import Monitor
 from fedgraph.server_class import Server, Server_GC, Server_LP
@@ -29,7 +30,6 @@ from fedgraph.utils_lp import (
     to_next_day,
 )
 from fedgraph.utils_nc import get_1hop_feature_sum
-from fedgraph.benchmark import BenchmarkMetrics, FedGraphBenchmark
 
 
 def run_fedgraph(args: attridict, data: Any) -> None:
@@ -90,21 +90,21 @@ def run_NC(args: attridict, data: tuple) -> None:
     else:
         device = torch.device("cpu")
         num_gpus_per_trainer = 0
-    
-    
+
     #######################################################################
     # Define and Send Data to Trainers
     # --------------------------------
     # FedGraph first determines the resources for each trainer, then send
     # the data to each remote trainer.
-    
+
     if args.use_encryption:
-        with open('fedgraph/he_context.pkl', 'rb') as f:
+        with open("fedgraph/he_context.pkl", "rb") as f:
             context_bytes = pickle.load(f)
         he_context = ts.context_from(context_bytes)
         print("Loaded pre-saved HE context.")
     else:
         he_context = None
+
     @ray.remote(
         num_gpus=num_gpus_per_trainer,
         num_cpus=num_cpus_per_trainer,
@@ -113,13 +113,12 @@ def run_NC(args: attridict, data: tuple) -> None:
     class Trainer(Trainer_General):
         def __init__(self, *args: Any, **kwds: Any):
             super().__init__(*args, **kwds)
-            self.use_encryption = kwds['args'].use_encryption
+            self.use_encryption = kwds["args"].use_encryption
             if self.use_encryption:
-                with open('fedgraph/he_context.pkl', 'rb') as f:
+                with open("fedgraph/he_context.pkl", "rb") as f:
                     context_bytes = pickle.load(f)
                 self.he_context = ts.context_from(context_bytes)
                 print(f"Trainer {self.rank} loaded HE context")
-
 
     trainers = [
         Trainer.remote(  # type: ignore
@@ -151,10 +150,9 @@ def run_NC(args: attridict, data: tuple) -> None:
     # Server class is defined for federated aggregation (e.g., FedAvg)
     # without knowing the local trainer data
 
-    server = Server(features.shape[1], args_hidden, class_num, device, trainers, args, he_context)
+    server = Server(features.shape[1], args_hidden, class_num, device, trainers, args)
     pretrain_start = time.time()
     if args.method == "FedGCN":
-        
         #######################################################################
         # Pre-Train Communication of FedGCN
         # ---------------------------------
@@ -163,22 +161,25 @@ def run_NC(args: attridict, data: tuple) -> None:
         # of specific nodes back to each trainer.
         if args.use_encryption:
             print("Starting encrypted feature aggregation...")
-    
+
             encrypted_data = [
-                trainer.get_encrypted_local_feature_sum.remote() 
+                trainer.get_encrypted_local_feature_sum.remote()
                 for trainer in server.trainers
             ]
-            
+
             results = ray.get(encrypted_data)
             encrypted_sums = [(r[0], r[1]) for r in results]  # (encrypted_sum, shape)
-            encryption_times = [r[2] for r in results] 
-    
-            enc_sizes = [len(r[0]) for r in results]  #size of encrypted data
-            
+            encryption_times = [r[2] for r in results]
+
+            enc_sizes = [len(r[0]) for r in results]  # size of encrypted data
+
             # aggregate at server
-            aggregated_result, aggregation_time = server.aggregate_encrypted_feature_sums(encrypted_sums)
-            agg_size = len(aggregated_result[0]) 
-            
+            (
+                aggregated_result,
+                aggregation_time,
+            ) = server.aggregate_encrypted_feature_sums(encrypted_sums)
+            agg_size = len(aggregated_result[0])
+
             load_feature_refs = [
                 trainer.load_encrypted_feature_aggregation.remote(aggregated_result)
                 for trainer in server.trainers
@@ -188,14 +189,14 @@ def run_NC(args: attridict, data: tuple) -> None:
             pretrain_upload = sum(enc_sizes) / (1024 * 1024)  # MB
             pretrain_download = agg_size * len(server.trainers) / (1024 * 1024)  # MB
             pretrain_comm_cost = pretrain_upload + pretrain_download
-            
+
             # print performance metrics
             print("\nPre-training Phase Metrics:")
             print(f"Total Pre-training Time: {pretrain_time:.2f} seconds")
             print(f"Pre-training Upload: {pretrain_upload:.2f} MB")
             print(f"Pre-training Download: {pretrain_download:.2f} MB")
             print(f"Total Pre-training Communication Cost: {pretrain_comm_cost:.2f} MB")
-            
+
         else:
             local_neighbor_feature_sums = [
                 trainer.get_local_feature_sum.remote() for trainer in server.trainers
@@ -215,7 +216,8 @@ def run_NC(args: attridict, data: tuple) -> None:
             # test if aggregation is correct
             if args.num_hops != 0:
                 assert (
-                    global_feature_sum != get_1hop_feature_sum(features, edge_index, device)
+                    global_feature_sum
+                    != get_1hop_feature_sum(features, edge_index, device)
                 ).sum() == 0
             for i in range(args.n_trainer):
                 server.trainers[i].load_feature_aggregation.remote(
@@ -234,9 +236,15 @@ def run_NC(args: attridict, data: tuple) -> None:
     for i in range(args.global_rounds):
         server.train(i)
     training_time = time.time() - training_start
-    if hasattr(server, 'aggregation_stats') and server.aggregation_stats:
-        training_upload = sum([r['upload_size'] for r in server.aggregation_stats]) / (1024 * 1024)  # MB
-        training_download = sum([r['download_size'] for r in server.aggregation_stats]) / (1024 * 1024)  # MB
+    if hasattr(server, "aggregation_stats") and server.aggregation_stats:
+        training_upload = sum([r["upload_size"] for r in server.aggregation_stats]) / (
+            1024 * 1024
+        )  # MB
+        training_download = sum(
+            [r["download_size"] for r in server.aggregation_stats]
+        ) / (
+            1024 * 1024
+        )  # MB
     else:
         training_upload = training_download = 0
     training_comm_cost = training_upload + training_download
