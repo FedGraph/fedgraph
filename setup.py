@@ -10,7 +10,7 @@ with open("README.md", "r") as f:
     README = f.read()
 
 setup(
-    name="fedgraph"
+    name="fedgraph",
     version=__version__,
     packages=["fedgraph"],
     author="Yuhang Yao",
@@ -49,6 +49,9 @@ setup(
         "pandas",
         "twine==5.0.0",
         "scikit-learn",
+        "ogb",  # for ogbn dataset
+        "huggingface_hub",  # for hugging_face
+        "tenseal",  # for HE
     ],
     extras_require={"dev": ["build", "mypy", "pre-commit", "pytest"]},
 )

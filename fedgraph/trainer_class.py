@@ -1,21 +1,21 @@
 import argparse
+import logging
 import os
+import pickle
 import random
+import sys
 import time
 from io import BytesIO
 from typing import Any, Dict, List, Union
-import pickle
-import logging
-import sys
-import time
+
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 import numpy as np
 import ray
+import tenseal as ts
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import tenseal as ts
 import torch_geometric
 from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
 from torch_geometric.data import Data
@@ -76,20 +76,26 @@ def load_trainer_data_from_hugging_face(trainer_id, args):
         in_com_train_node_local_indexes,
         in_com_test_node_local_indexes,
     )
-def load_optimized_context(self):
-        """Load context with parameters"""
-        with open('fedgraph/he_context.pkl', 'rb') as f:
-            data = pickle.load(f)
-            self.he_context = ts.context_from(data['context'])
-            self.context_params = data['parameters']
-        print(f"Trainer {self.rank} loaded context with {self.context_params['poly_modulus_degree']} poly modulus degree")
 
-def load_context(filename='fedgraph/he_context.pkl'):
-    with open(filename, 'rb') as f:
+
+def load_optimized_context(self):
+    """Load context with parameters"""
+    with open("fedgraph/he_context.pkl", "rb") as f:
         data = pickle.load(f)
-        context_bytes = data['context']
-        parameters = data['parameters']
+        self.he_context = ts.context_from(data["context"])
+        self.context_params = data["parameters"]
+    print(
+        f"Trainer {self.rank} loaded context with {self.context_params['poly_modulus_degree']} poly modulus degree"
+    )
+
+
+def load_context(filename="fedgraph/he_context.pkl"):
+    with open(filename, "rb") as f:
+        data = pickle.load(f)
+        context_bytes = data["context"]
+        parameters = data["parameters"]
     return ts.context_from(context_bytes), parameters
+
 
 class Trainer_General:
     """
@@ -205,8 +211,8 @@ class Trainer_General:
         self.args = args
         self.model = None
         self.feature_aggregation = None
-        if self.args.method == "fedavg":
-            print("Loading feature as the feature aggregation for fedavg method")
+        if self.args.method == "FedAvg":
+            # print("Loading feature as the feature aggregation for fedavg method")
             self.feature_aggregation = self.features
 
     def get_info(self):
@@ -227,14 +233,11 @@ class Trainer_General:
     def init_model(self, global_node_num, class_num):
         self.global_node_num = global_node_num
         self.class_num = class_num
-        self.args = args
-        self.feature_aggregation = None
         self.feature_shape = None
-        with open('fedgraph/he_context.pkl', 'rb') as f:
+        with open("fedgraph/he_context.pkl", "rb") as f:
             context_bytes = pickle.load(f)
         self.he_context = ts.context_from(context_bytes)
 
-        
         self.scale_factor = 1e3
         self.param_history = []
 
@@ -287,7 +290,6 @@ class Trainer_General:
             self.model.parameters(), lr=self.args.learning_rate, weight_decay=5e-4
         )
 
-
     @torch.no_grad()
     def update_params(self, params: tuple, current_global_epoch: int) -> None:
         """
@@ -308,24 +310,28 @@ class Trainer_General:
         ) in zip(params, self.model.parameters()):
             mp.data = p
         self.model.to(self.device)
+
     def verify_param_ranges(self, params, stage="pre-encryption"):
         """Verify parameter ranges and print statistics"""
         stats = []
         for i, p in enumerate(params):
             if isinstance(p, torch.Tensor):
                 p = p.detach().cpu()
-            stats.append({
-                'layer': i,
-                'min': float(p.min()),
-                'max': float(p.max()),
-                'mean': float(p.mean()),
-                'std': float(p.std())
-            })
+            stats.append(
+                {
+                    "layer": i,
+                    "min": float(p.min()),
+                    "max": float(p.max()),
+                    "mean": float(p.mean()),
+                    "std": float(p.std()),
+                }
+            )
             print(f"{stage} Layer {i} stats:")
             print(f"Range: [{stats[-1]['min']:.6f}, {stats[-1]['max']:.6f}]")
             print(f"Mean: {stats[-1]['mean']:.6f}")
             print(f"Std: {stats[-1]['std']:.6f}")
-        return stats    
+        return stats
+
     def get_local_feature_sum(self) -> torch.Tensor:
         """
         Computes the sum of features of all 1-hop neighbors for each node and normalizes the result.
@@ -343,18 +349,20 @@ class Trainer_General:
 
         # Sum of features of all 1-hop nodes for each node
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
-            new_feature_for_trainer, self.adj
+            new_feature_for_trainer, self.adj, self.device
         )
 
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
-            new_feature_for_trainer, self.adj
+            new_feature_for_trainer, self.adj, self.device
         )
-        
-        print(f"Trainer {self.rank} - Original feature sum (first 10 and last 10 elements): "
-              f"{one_hop_neighbor_feature_sum.flatten()[:10].tolist()} ... {one_hop_neighbor_feature_sum.flatten()[-10:].tolist()}")
-        
+        if self.args.use_encryption:
+            print(
+                f"Trainer {self.rank} - Original feature sum (first 10 and last 10 elements): "
+                f"{one_hop_neighbor_feature_sum.flatten()[:10].tolist()} ... {one_hop_neighbor_feature_sum.flatten()[-10:].tolist()}"
+            )
+
         return one_hop_neighbor_feature_sum
-    
+
     def get_local_feature_sum_og(self) -> torch.Tensor:
         """
         Computes the sum of features of all 1-hop neighbors for each node, used for plain text version.
@@ -374,9 +382,12 @@ class Trainer_General:
             new_feature_for_trainer, self.adj, self.device
         )
         computation_time = time.time() - computation_start
-        
-        data_size = one_hop_neighbor_feature_sum.element_size() * one_hop_neighbor_feature_sum.nelement()
-        
+
+        data_size = (
+            one_hop_neighbor_feature_sum.element_size()
+            * one_hop_neighbor_feature_sum.nelement()
+        )
+
         print(f"Trainer {self.rank} - Computation time: {computation_time:.4f} seconds")
         print(f"Trainer {self.rank} - Data size: {data_size / 1024:.2f} KB")
         print(f"Trainer {self.rank} - Feature sum statistics:")
@@ -386,9 +397,9 @@ class Trainer_General:
         print(f"Min: {one_hop_neighbor_feature_sum.min().item():.6f}")
         print(f"Max: {one_hop_neighbor_feature_sum.max().item():.6f}")
         print(f"Non-zeros: {(one_hop_neighbor_feature_sum != 0).sum().item()}")
-        
+
         return one_hop_neighbor_feature_sum, computation_time, data_size
-    
+
     def load_feature_aggregation(self, feature_aggregation: torch.Tensor) -> None:
         """
         Loads the aggregated features into the trainer. Used for plain text version
@@ -398,21 +409,24 @@ class Trainer_General:
         feature_aggregation : torch.Tensor
             The aggregated features to be loaded.
         """
-        load_start = time.time()
+        # load_start = time.time()
         self.feature_aggregation = feature_aggregation.float()
-        load_time = time.time() - load_start
-        data_size = self.feature_aggregation.element_size() * self.feature_aggregation.nelement()
-        print(f"Trainer {self.rank} - Load time: {load_time:.4f} seconds")
-        print(f"Trainer {self.rank} - Data size: {data_size / 1024:.2f} KB")
-    
-        return load_time
-    
+        # load_time = time.time() - load_start
+        # data_size = (
+        #     self.feature_aggregation.element_size()
+        #     * self.feature_aggregation.nelement()
+        # )
+        # print(f"Trainer {self.rank} - Load time: {load_time:.4f} seconds")
+        # print(f"Trainer {self.rank} - Data size: {data_size / 1024:.2f} KB")
+
+        # return load_time
+
     def encrypt_feature_sum(self, feature_sum):
         feature_sum = self.get_local_feature_sum()
-        #does not scale
+        # does not scale
         flattened_sum = feature_sum.flatten()
         enc_sum = ts.ckks_vector(self.he_context, flattened_sum.tolist()).serialize()
-        
+
         return enc_sum, feature_sum.shape
 
     def decrypt_feature_sum(self, encrypted_sum, shape):
@@ -421,11 +435,9 @@ class Trainer_General:
             for enc_row in encrypted_sum
         ]
 
-        decrypted_array = np.array(decrypted_rows) 
+        decrypted_array = np.array(decrypted_rows)
         return torch.from_numpy(decrypted_array).float().reshape(shape)
 
-        
-    
     def get_encrypted_local_feature_sum(self):
         # Same feature sum computation as original
         new_feature_for_trainer = torch.zeros(
@@ -433,13 +445,13 @@ class Trainer_General:
         ).to(self.device)
         new_feature_for_trainer[self.local_node_index] = self.features
         feature_sum = get_1hop_feature_sum(new_feature_for_trainer, self.adj)
-        
+
         # Encrypt the feature sum
         encryption_start = time.time()
         flattened = feature_sum.flatten().tolist()
         encrypted = ts.ckks_vector(self.he_context, flattened).serialize()
         encryption_time = time.time() - encryption_start
-        
+
         return encrypted, feature_sum.shape, encryption_time
 
     def load_encrypted_feature_aggregation(self, encrypted_data):
@@ -447,49 +459,53 @@ class Trainer_General:
 
         decryption_start = time.time()
         decrypted = ts.ckks_vector_from(self.he_context, encrypted_sum).decrypt()
-        
+
         # reshape and store
-        self.feature_aggregation = torch.tensor(decrypted).reshape(shape)[self.communicate_node_index]
-        
+        self.feature_aggregation = torch.tensor(decrypted).reshape(shape)[
+            self.communicate_node_index
+        ]
+
         return time.time() - decryption_start
 
     def get_encrypted_params(self):
         """Get encrypted parameters with proper scaling"""
         params_list = []
         metadata = []
-        
+
         for param in self.model.parameters():
             param_data = param.cpu().detach()
-            #scale
+            # scale
             max_abs_val = torch.max(torch.abs(param_data))
-            scale = 1e3 if max_abs_val < 1e-3 else 1e2 
-            
+            scale = 1e3 if max_abs_val < 1e-3 else 1e2
+
             scaled_params = (param_data * scale).flatten().tolist()
             encrypted = ts.ckks_vector(self.he_context, scaled_params).serialize()
-            
+
             params_list.append(encrypted)
-            metadata.append({
-                'shape': param_data.shape,
-                'scale': scale
-            })
-            
+            metadata.append({"shape": param_data.shape, "scale": scale})
+
         return params_list, metadata
 
     def load_encrypted_params(self, encrypted_data: tuple, current_global_epoch: int):
         """Load encrypted parameters with rescaling"""
         params_list, metadata = encrypted_data
-        
-        self.model.to('cpu')
-        
+
+        self.model.to("cpu")
+
         # load each layer's parameters
-        for param, enc_param, meta in zip(self.model.parameters(), params_list, metadata):
+        for param, enc_param, meta in zip(
+            self.model.parameters(), params_list, metadata
+        ):
             decrypted = ts.ckks_vector_from(self.he_context, enc_param).decrypt()
-            param_data = torch.tensor(decrypted).reshape(meta['shape'])
-            param_data = param_data / meta['scale']  # Reverse scaling
+            param_data = torch.tensor(decrypted).reshape(meta["shape"])
+            param_data = param_data / meta["scale"]  # Reverse scaling
             param.data.copy_(param_data)
-            
+
         self.model.to(self.device)
         return True
+
+    def use_fedavg_feature(self) -> None:
+        self.feature_aggregation
 
     def relabel_adj(self) -> None:
         """
@@ -530,8 +546,10 @@ class Trainer_General:
         assert self.model is not None
         self.model.to(self.device)
         if self.feature_aggregation is None:
-            raise ValueError("feature_aggregation has not been set. Ensure pre-training communication is completed.")
-    
+            raise ValueError(
+                "feature_aggregation has not been set. Ensure pre-training communication is completed."
+            )
+
         self.feature_aggregation = self.feature_aggregation.to(self.device)
         if hasattr(self.args, "batch_size") and self.args.batch_size > 0:
             # batch preparation
@@ -679,9 +697,7 @@ class Trainer_General:
             The rank (trainer ID) of this trainer instance.
         """
         return self.rank
-    
 
-    
 
 class Trainer_GC:
     """

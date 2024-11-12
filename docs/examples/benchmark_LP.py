@@ -23,15 +23,18 @@ import ray
 import torch
 import yaml
 from ray.util.metrics import Counter, Gauge, Histogram
-from fedgraph.monitor_class import Monitor
+
 from fedgraph.federated_methods import LP_train_global_round
+from fedgraph.monitor_class import Monitor
 from fedgraph.server_class import Server_LP
 from fedgraph.trainer_class import Trainer_LP
 from fedgraph.utils_lp import *
 
 
 def run(method, country_codes):
-    print(f"Running experiment with: Dataset={'+'.join(country_codes)}, Number of Trainers=10, Distribution Type={method}, IID Beta=1.0, Number of Hops=1, Batch Size=-1")
+    print(
+        f"Running experiment with: Dataset={'+'.join(country_codes)}, Number of Trainers=10, Distribution Type={method}, IID Beta=1.0, Number of Hops=1, Batch Size=-1"
+    )
     # Determine the directory of the current script
     current_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -60,7 +63,12 @@ def run(method, country_codes):
     global_file_path = os.path.join(dataset_path, "data_global.txt")
     traveled_file_path = os.path.join(dataset_path, "traveled_users.txt")
     print(f"traveled_file_path: {traveled_file_path}")
-    assert args.method in ["STFL", "StaticGNN","4D-FED-GNN+", "FedLink"], "Invalid method."
+    assert args.method in [
+        "STFL",
+        "StaticGNN",
+        "4D-FED-GNN+",
+        "FedLink",
+    ], "Invalid method."
     assert all(
         code in ["US", "BR", "ID", "TR", "JP"] for code in args.country_codes
     ), "The country codes should be in 'US', 'BR', 'ID', 'TR', 'JP'"
@@ -129,7 +137,7 @@ def run(method, country_codes):
             number_of_items=number_of_items,
             meta_data=meta_data,
             hidden_channels=args.hidden_channels,
-            dataset_path = dataset_path,
+            dataset_path=dataset_path,
         )
         for i in range(number_of_clients)
     ]
@@ -226,7 +234,6 @@ def run(method, country_codes):
                 time_writer=time_writer,
             )
 
-
         if current_loss >= 0.3:
             print("training is not complete")
 
@@ -247,7 +254,7 @@ def run(method, country_codes):
 
 
 methods = ["4D-FED-GNN+", "STFL", "StaticGNN", "FedLink"]
-country_codes_list = [["US"], ["US", "BR"], ['US', 'BR', 'ID', 'TR', 'JP']]
+country_codes_list = [["US"], ["US", "BR"], ["US", "BR", "ID", "TR", "JP"]]
 
 for method in methods:
     for country_codes in country_codes_list:

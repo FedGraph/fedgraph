@@ -67,7 +67,7 @@ def run(
 
     args = parser.parse_args()
     if args.num_hops == 0:
-        args.method = "fedavg"
+        args.method = "FedAvg"
     #######################################################################
     # Data Loading
     # ------------
@@ -253,7 +253,7 @@ def run(
     # starting monitor:
     monitor = Monitor()
     monitor.pretrain_time_start()
-    if args.method != "fedavg":
+    if args.method != "Fedavg":
         local_neighbor_feature_sums = [
             trainer.get_local_feature_sum.remote() for trainer in server.trainers
         ]
