@@ -79,7 +79,7 @@ class Server:
         args: Any,
     ) -> None:
         self.args = args
-        if self.args.num_hops >= 1 and self.args.method == "fedgcn":
+        if self.args.num_hops >= 1:  # Federated Methods
             if "ogbn-arxiv" in self.args.dataset:
                 print("Running AggreGCN_Arxiv")
                 self.model = AggreGCN_Arxiv(
@@ -97,7 +97,7 @@ class Server:
                     dropout=0.5,
                     NumLayers=self.args.num_layers,
                 ).to(device)
-        else:
+        else:  # 0-hop FedAvg methods
             if "ogbn" in self.args.dataset:
                 print("Running GCN_arxiv")
                 self.model = GCN_arxiv(

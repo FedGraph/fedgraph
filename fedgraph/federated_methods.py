@@ -373,49 +373,50 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
     # transfer the config to argparse
 
     #################### set seeds and devices ####################
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    sys.path.append(os.path.join(current_dir, "../fedgraph"))
+    sys.path.append(os.path.join(current_dir, "../../"))
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
-    num_cpus_per_trainer = 3
+    base_model = GIN
+    num_cpus_per_trainer = args.num_cpus_per_trainer
     # specifying a target GPU
-    if torch.cuda.is_available():
+    if args.gpu:
         print("using GPU")
-        device = torch.device("cuda")
-        num_gpus_per_trainer = 1
+        args.device = torch.device("cuda")
+        num_gpus_per_trainer = args.num_gpus_per_trainer
     else:
         print("using CPU")
-        device = torch.device("cpu")
+        args.device = torch.device("cpu")
         num_gpus_per_trainer = 0
 
     #################### set output directory ####################
     # outdir_base = os.path.join(args.outbase, f'seqLen{args.seq_length}')
     if args.save_files:
-        outdir_base = args.outbase + "/" + f"{args.model}"
+        outdir_base = args.outbase + "/" + f"{args.algorithm}"
         outdir = os.path.join(outdir_base, f"oneDS-nonOverlap")
-        if args.model in ["SelfTrain"]:
-            outdir = os.path.join(outdir, f"{args.data_group}")
-        elif args.model in ["FedAvg", "FedProx"]:
-            outdir = os.path.join(
-                outdir, f"{args.data_group}-{args.num_trainers}trainers"
-            )
-        elif args.model in ["GCFL"]:
+        if args.algorithm in ["SelfTrain"]:
+            outdir = os.path.join(outdir, f"{args.dataset}")
+        elif args.algorithm in ["FedAvg", "FedProx"]:
+            outdir = os.path.join(outdir, f"{args.dataset}-{args.num_trainers}trainers")
+        elif args.algorithm in ["GCFL"]:
             outdir = os.path.join(
                 outdir,
-                f"{args.data_group}-{args.num_trainers}trainers",
+                f"{args.dataset}-{args.num_trainers}trainers",
                 f"eps_{args.epsilon1}_{args.epsilon2}",
             )
-        elif args.model in ["GCFL+", "GCFL+dWs"]:
+        elif args.algorithm in ["GCFL+", "GCFL+dWs"]:
             outdir = os.path.join(
                 outdir,
-                f"{args.data_group}-{args.num_trainers}trainers",
+                f"{args.dataset}-{args.num_trainers}trainers",
                 f"eps_{args.epsilon1}_{args.epsilon2}",
                 f"seqLen{args.seq_length}",
             )
-        outdir = os.path.join(outdir, f"seed{args.seed}")
+
         Path(outdir).mkdir(parents=True, exist_ok=True)
         print(f"Output Path: {outdir}")
-
     #################### save statistics of data on trainers ####################
     # if args.save_files and df_stats:
     #     outdir_stats = os.path.join(outdir, f"stats_train_data.csv")
@@ -466,9 +467,9 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
             dataset_trainer_name=dataset_trainer_name,
             # "GIN model for GC",
             cmodel_gc=base_model(
-                nfeat=data[dataset_trainer_name].num_node_features,
+                nfeat=data[dataset_trainer_name][1],
                 nhid=args.hidden,
-                nclass=data[dataset_trainer_name].num_graph_labels,
+                nclass=data[dataset_trainer_name][2],
                 nlayer=args.nlayer,
                 dropout=args.dropout,
             ),
@@ -484,7 +485,7 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
     print("\nDone setting up devices.")
 
     ################ choose the algorithm to run ################
-    print(f"Running {args.model} ...")
+    print(f"Running {args.algorithm} ...")
 
     model_parameters = {
         "SelfTrain": lambda: run_GC_selftrain(
@@ -538,10 +539,10 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
         ),
     }
 
-    if args.model in model_parameters:
-        output = model_parameters[args.model]()
+    if args.algorithm in model_parameters:
+        output = model_parameters[args.algorithm]()
     else:
-        raise ValueError(f"Unknown model: {args.model}")
+        raise ValueError(f"Unknown model: {args.algorithm}")
 
     #################### save the output ####################
     if args.save_files:
