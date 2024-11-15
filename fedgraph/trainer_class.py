@@ -1453,7 +1453,7 @@ class Trainer_LP:
             train_finish_time = time.time() - start_train_time
             train_finish_times.append(train_finish_time)
             print(
-                f"client {self.client_id} local update {i} loss {loss:.4f} train time {train_finish_time:.4f}"
+                f"client {self.client_id} local steps {i} loss {loss:.4f} train time {train_finish_time:.4f}"
             )
 
         return client_id, loss, train_finish_times

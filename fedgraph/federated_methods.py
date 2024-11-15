@@ -932,16 +932,16 @@ def run_LP(args: attridict) -> None:
             [0]: The list of clients
             [1]: The server
         """
-        ray.init()
+
         number_of_clients = len(country_codes)
         number_of_users, number_of_items = len(user_id_mapping.keys()), len(
             item_id_mapping.keys()
         )
-        num_cpus_per_client = 3
-        if args.device == "gpu":
+        num_cpus_per_client = args.num_cpus_per_trainer
+        if args.gpu == True:
             device = torch.device("cuda")
             print("gpu detected")
-            num_gpus_per_client = 1
+            num_gpus_per_client = args.num_gpus_per_trainer
         else:
             device = torch.device("cpu")
             num_gpus_per_client = 0
@@ -983,13 +983,17 @@ def run_LP(args: attridict) -> None:
     use_buffer = args.use_buffer
     buffer_size = args.buffer_size
     online_learning = args.online_learning
-    repeat_time = args.repeat_time
     global_rounds = args.global_rounds
     local_steps = args.local_steps
     hidden_channels = args.hidden_channels
     record_results = args.record_results
     country_codes = args.country_codes
-    monitor = Monitor()
+
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    ray.init()
+    # Append paths relative to the current script's directory
+    sys.path.append(os.path.join(current_dir, "../fedgraph"))
+    sys.path.append(os.path.join(current_dir, "../../"))
     dataset_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), args.dataset_path
     )
@@ -1016,100 +1020,102 @@ def run_LP(args: attridict) -> None:
         ["user", "item"],
         [("user", "select", "item"), ("item", "rev_select", "user")],
     )
-
     # repeat the training process
-    for current_training_process in range(repeat_time):
-        number_of_clients = len(country_codes)  # each country is a client
-        clients, server = setup_trainer_server(
-            country_codes=country_codes,
-            user_id_mapping=user_id_mapping,
-            item_id_mapping=item_id_mapping,
-            meta_data=meta_data,
-            hidden_channels=hidden_channels,
-        )
+    number_of_clients = len(country_codes)  # each country is a client
+    clients, server = setup_trainer_server(
+        country_codes=country_codes,
+        user_id_mapping=user_id_mapping,
+        item_id_mapping=item_id_mapping,
+        meta_data=meta_data,
+        hidden_channels=hidden_channels,
+    )
 
-        """Broadcast the global model parameter to all clients"""
+    """Broadcast the global model parameter to all clients"""
+    if args.use_cluster:
+        monitor = Monitor()
         monitor.pretrain_time_start()
-        global_model_parameter = (
-            server.get_model_parameter()
-        )  # fetch the global model parameter
-        # TODO: add memory optimization here by move ref to shared raylet
-        for i in range(number_of_clients):
-            clients[i].set_model_parameter.remote(
-                global_model_parameter
-            )  # broadcast the global model parameter to all clients
+    global_model_parameter = (
+        server.get_model_parameter()
+    )  # fetch the global model parameter
+    # TODO: add memory optimization here by move ref to shared raylet
+    for i in range(number_of_clients):
+        clients[i].set_model_parameter.remote(
+            global_model_parameter
+        )  # broadcast the global model parameter to all clients
 
-        """Determine the start and end time of the conditional information"""
+    """Determine the start and end time of the conditional information"""
+    (
+        start_time,
+        end_time,
+        prediction_days,
+        start_time_float_format,
+        end_time_float_format,
+    ) = get_start_end_time(online_learning=online_learning, method=method)
+
+    if record_results:
+        file_name = f"{method}_buffer_{use_buffer}_{buffer_size}_online_{online_learning}.txt"
+        result_writer = open(file_name, "a+")
+        time_writer = open("train_time_" + file_name, "a+")
+    else:
+        result_writer = None
+        time_writer = None
+    if args.use_cluster:
+        monitor.pretrain_time_end(30)
+        monitor.train_time_start()
+    # from 2012-04-03 to 2012-04-13
+    for day in range(prediction_days):  # make predictions for each day
+        # get the train and test data for each client at the current time step
+        for i in range(number_of_clients):
+            clients[i].get_train_test_data_at_current_time_step.remote(
+                start_time_float_format,
+                end_time_float_format,
+                use_buffer=use_buffer,
+                buffer_size=buffer_size,
+            )
+            clients[i].calculate_traveled_user_edge_indices.remote(
+                file_path=traveled_file_path
+            )
+
+        if online_learning:
+            print(f"start training for day {day + 1}")
+        else:
+            print(f"start training")
+        
+        for iteration in range(global_rounds):
+            # each client train on local graph
+            print(f"global rounds: {iteration}")
+
+            current_loss = LP_train_global_round(
+                server=server,
+                local_steps=local_steps,
+                use_buffer=use_buffer,
+                method=method,
+                online_learning=online_learning,
+                prediction_day=day,
+                curr_iteration=iteration,
+                global_rounds=global_rounds,
+                record_results=record_results,
+                result_writer=result_writer,
+                time_writer=time_writer,
+            )
+
+        if current_loss >= 0.01:
+            print("training is not complete")
+
+        # go to next day
         (
             start_time,
             end_time,
-            prediction_days,
             start_time_float_format,
             end_time_float_format,
-        ) = get_start_end_time(online_learning=online_learning, method=method)
-
-        if record_results:
-            file_name = f"{method}_buffer_{use_buffer}_{buffer_size}_online_{online_learning}.txt"
-            result_writer = open(file_name, "a+")
-            time_writer = open("train_time_" + file_name, "a+")
-        else:
-            result_writer = None
-            time_writer = None
-        monitor.pretrain_time_end(30)
-        # from 2012-04-03 to 2012-04-13
-        for day in range(prediction_days):  # make predictions for each day
-            # get the train and test data for each client at the current time step
-            for i in range(number_of_clients):
-                clients[i].get_train_test_data_at_current_time_step.remote(
-                    start_time_float_format,
-                    end_time_float_format,
-                    use_buffer=use_buffer,
-                    buffer_size=buffer_size,
-                )
-                clients[i].calculate_traveled_user_edge_indices.remote(
-                    file_path=traveled_file_path
-                )
-
-            if online_learning:
-                print(f"start training for day {day + 1}")
-            else:
-                print(f"start training")
-
-            for iteration in range(global_rounds):
-                # each client train on local graph
-                print(f"global rounds: {iteration}")
-                monitor.train_time_start()
-                current_loss = LP_train_global_round(
-                    server=server,
-                    local_steps=local_steps,
-                    use_buffer=use_buffer,
-                    method=method,
-                    online_learning=online_learning,
-                    prediction_day=day,
-                    curr_iteration=iteration,
-                    global_rounds=global_rounds,
-                    record_results=record_results,
-                    result_writer=result_writer,
-                    time_writer=time_writer,
-                )
-                monitor.train_time_end(30)
-
-            if current_loss >= 0.01:
-                print("training is not complete")
-
-            # go to next day
-            (
-                start_time,
-                end_time,
-                start_time_float_format,
-                end_time_float_format,
-            ) = to_next_day(start_time=start_time, end_time=end_time, method=method)
-
-        if result_writer is not None and time_writer is not None:
-            result_writer.close()
-            time_writer.close()
-        print(f"Training round {current_training_process} success")
-        ray.shutdown()
+        ) = to_next_day(start_time=start_time, end_time=end_time, method=method)
+    if args.use_cluster:
+        monitor.train_time_end(30)
+    if result_writer is not None and time_writer is not None:
+        result_writer.close()
+        time_writer.close()
+    print("The whole process has ended")
+    ray.shutdown()
 
 
 def LP_train_global_round(
