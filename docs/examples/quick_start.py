@@ -77,6 +77,8 @@ config = {
     # Output configuration
     "outbase": "./outputs",
     "save_files": False,
+    # Scalability and Cluster Configuration
+    "use_cluster": False,  # Use Kubernetes for scalability if True
 }
 
 

@@ -94,7 +94,7 @@ def setup_server(base_model: Any, args: argparse.Namespace) -> Server_GC:
     """
 
     smodel = base_model(nlayer=args.nlayer, nhid=args.hidden)
-    server = Server_GC(smodel, args.device)
+    server = Server_GC(smodel, args.device, args.use_cluster)
     return server
 
 

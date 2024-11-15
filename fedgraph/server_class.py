@@ -385,10 +385,13 @@ class Server_GC:
         List of tuples, where each tuple contains the model parameters and the accuracies of the trainers.
     """
 
-    def __init__(self, model: torch.nn.Module, device: torch.device) -> None:
+    def __init__(
+        self, model: torch.nn.Module, device: torch.device, use_cluster: bool
+    ) -> None:
         self.model = model.to(device)
         self.W = {key: value for key, value in self.model.named_parameters()}
         self.model_cache: Any = []
+        self.use_cluster = use_cluster
 
     ########### Public functions ###########
     def random_sample_trainers(self, all_trainers: list, frac: float) -> list:

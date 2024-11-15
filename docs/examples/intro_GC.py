@@ -150,7 +150,9 @@ print("Data prepared.")
 # For the detailed expected format of the model, please refer to the `fedgraph/gnn_models.py`
 
 
-server = Server_GC(base_model(nlayer=args.nlayer, nhid=args.hidden), args.device)
+server = Server_GC(
+    base_model(nlayer=args.nlayer, nhid=args.hidden), args.device, args.use_cluster
+)
 print("setup server done")
 
 
