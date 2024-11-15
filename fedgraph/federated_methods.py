@@ -12,6 +12,7 @@ from typing import Any, List, Optional
 import attridict
 import numpy as np
 import pandas as pd
+from fedgraph.data_process import data_loader
 import ray
 import tenseal as ts
 import torch
@@ -31,7 +32,7 @@ from fedgraph.utils_lp import (
 from fedgraph.utils_nc import get_1hop_feature_sum, save_all_trainers_data
 
 
-def run_fedgraph(args: attridict, data: Any = None) -> None:
+def run_fedgraph(args: attridict) -> None:
     """
     Run the training process for the specified task.
 
@@ -42,6 +43,12 @@ def run_fedgraph(args: attridict, data: Any = None) -> None:
     data: Any
         The data.
     """
+    if args.fedgraph_task != "NC" or not args.use_huggingface:
+        data = data_loader(args)
+    else:
+        # use hugging_face instead of use data_loader
+        print("Using hugging_face for local loading")
+        data = None
     if args.fedgraph_task == "NC":
         run_NC(args, data)
     elif args.fedgraph_task == "GC":
@@ -50,7 +57,7 @@ def run_fedgraph(args: attridict, data: Any = None) -> None:
         run_LP(args)
 
 
-def run_NC(args: attridict, data: tuple) -> None:
+def run_NC(args: attridict, data: tuple=None) -> None:
     """
     Train a Federated Node Classification model.
 
@@ -769,12 +776,12 @@ def run_GCFL_algorithm(
 
     global_params_id = ray.put(server.W)
     if algorithm_type in ["gcfl_plus", "gcfl_plus_dWs"]:
-        seqs_grads: Any = {c.id: [] for c in trainers}
+        seqs_grads: Any = {ray.get(c.get_id.remote()): [] for c in trainers}
 
         # Perform update_params before communication rounds for GCFL+ and GCFL+ dWs
 
         for trainer in trainers:
-            trainer.update_params(global_params_id)
+            trainer.update_params.remote(global_params_id)
     if server.use_cluster:
         monitor.pretrain_time_end(30)
     acc_trainers: List[Any] = []
@@ -786,9 +793,9 @@ def run_GCFL_algorithm(
 
         if c_round == 1:
             # Perform update_params at the beginning of the first communication round
-            ray.internal.free(
-                [global_params_id]
-            )  # Free the old weight memory in object store
+            # ray.internal.free(
+            #     [global_params_id]
+            # )  # Free the old weight memory in object store
             global_params_id = ray.put(server.W)
             for trainer in trainers:
                 trainer.update_params.remote(global_params_id)
@@ -801,9 +808,10 @@ def run_GCFL_algorithm(
         ray.get(reset_params_refs)
         for trainer in participating_trainers:
             if algorithm_type == "gcfl_plus":
-                seqs_grads[trainer.id].append(trainer.conv_grads_norm)
+                seqs_grads[ray.get(trainer.get_id.remote())].append(ray.get(trainer.get_conv_grads_norm.remote()))
             elif algorithm_type == "gcfl_plus_dWs":
-                seqs_grads[trainer.id].append(trainer.conv_dWs_norm)
+                seqs_grads[ray.get(trainer.get_id.remote())].append(
+                    ray.get(trainer.get_conv_dWs_norm.remote()))
 
         cluster_indices_new = []
         for idc in cluster_indices:
@@ -836,7 +844,7 @@ def run_GCFL_algorithm(
                             np.max(dtw_distances) - dtw_distances, idc
                         )
                         cluster_indices_new += [c1, c2]
-                        seqs_grads = {c.id: [] for c in trainers}
+                        seqs_grads = {ray.get(c.get_id.remote()): [] for c in trainers}
                 else:
                     cluster_indices_new += [idc]
             else:

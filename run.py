@@ -6,9 +6,10 @@ from fedgraph.federated_methods import run_fedgraph
 config = {
     "fedgraph_task": "GC",
     # General configuration
-    "algorithm": "FedAvg",  # Options: "FedAvg", "GCFL", "SelfTrain"
+    # algorithm options: "SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs"
+    "algorithm": "GCFL+dWs",
     # Dataset configuration
-    "dataset": "IMDB-BINARY",
+    "dataset": "MUTAG",
     "is_multiple_dataset": False,
     "datapath": "./data",
     "convert_x": False,
@@ -29,26 +30,23 @@ config = {
     "hidden": 64,  # Hidden layer dimension
     "dropout": 0.5,  # Dropout rate
     "batch_size": 128,
-    # Resource and Hardware Settings
     "gpu": False,
     "num_cpus_per_trainer": 1,
     "num_gpus_per_trainer": 0,
-    # FedAvg specific parameter
-    "mu": 0.01,  # Regularization parameter, only used in "FedAvg"
+    # FedProx specific parameter
+    "mu": 0.01,  # Regularization parameter, only used in "FedProx"
     # GCFL specific parameters
-    "standardize": False,  # Used only in "GCFL"
-    "seq_length": 5,  # Sequence length, only used in "GCFL"
-    "epsilon1": 0.05,  # Privacy epsilon1, specific to "GCFL"
-    "epsilon2": 0.1,  # Privacy epsilon2, specific to "GCFL"
+    "standardize": False,  # Used only in "GCFL", "GCFL+", "GCFL+dWs"
+    "seq_length": 5,  # Sequence length, only used in "GCFL", "GCFL+", "GCFL+dWs"
+    "epsilon1": 0.05,  # Privacy epsilon1, specific to "GCFL", "GCFL+", "GCFL+dWs"
+    "epsilon2": 0.1,  # Privacy epsilon2, specific to "GCFL", "GCFL+", "GCFL+dWs"
     # Output configuration
     "outbase": "./outputs",
     "save_files": False,
+    # Scalability and Cluster Configuration
+    "use_cluster": False,  # Use Kubernetes for scalability if True
 }
 
 
 config = attridict(config)
-if config.fedgraph_task != "NC" or not config.use_huggingface:
-    data = data_loader(config)
-    run_fedgraph(config, data)
-else:
-    run_fedgraph(config)
+run_fedgraph(config)
