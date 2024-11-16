@@ -1002,12 +1002,16 @@ class Trainer_GC:
 
     def get_name(self) -> str:
         return self.name
+
     def get_id(self) -> Any:
         return self.id
+
     def get_conv_grads_norm(self) -> Any:
         return self.conv_grads_norm
+
     def get_conv_dWs_norm(self) -> Any:
         return self.conv_dWs_norm
+
     ########### Private functions ###########
     def __train(
         self,

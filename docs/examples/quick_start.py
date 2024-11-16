@@ -136,12 +136,10 @@ config = {
     "hidden_channels": 64,
     # Output configuration
     "record_results": False,
-
     # System configuration
     "gpu": False,
     "num_cpus_per_trainer": 1,
     "num_gpus_per_trainer": 0,
-
     # Scalability and Cluster Configuration
     "use_cluster": False,  # Use Kubernetes for scalability if True
 }

@@ -50,4 +50,4 @@ with open(config_file, "r") as file:
     args = attridict(yaml.safe_load(file))
 
 print(args)
-run_fedgraph(args, None)
+run_fedgraph(args)

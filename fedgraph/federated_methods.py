@@ -12,11 +12,11 @@ from typing import Any, List, Optional
 import attridict
 import numpy as np
 import pandas as pd
-from fedgraph.data_process import data_loader
 import ray
 import tenseal as ts
 import torch
 
+from fedgraph.data_process import data_loader
 from fedgraph.gnn_models import GIN
 from fedgraph.monitor_class import Monitor
 from fedgraph.server_class import Server, Server_GC, Server_LP
@@ -57,7 +57,7 @@ def run_fedgraph(args: attridict) -> None:
         run_LP(args)
 
 
-def run_NC(args: attridict, data: tuple=None) -> None:
+def run_NC(args: attridict, data: Any = None) -> None:
     """
     Train a Federated Node Classification model.
 
@@ -808,10 +808,13 @@ def run_GCFL_algorithm(
         ray.get(reset_params_refs)
         for trainer in participating_trainers:
             if algorithm_type == "gcfl_plus":
-                seqs_grads[ray.get(trainer.get_id.remote())].append(ray.get(trainer.get_conv_grads_norm.remote()))
+                seqs_grads[ray.get(trainer.get_id.remote())].append(
+                    ray.get(trainer.get_conv_grads_norm.remote())
+                )
             elif algorithm_type == "gcfl_plus_dWs":
                 seqs_grads[ray.get(trainer.get_id.remote())].append(
-                    ray.get(trainer.get_conv_dWs_norm.remote()))
+                    ray.get(trainer.get_conv_dWs_norm.remote())
+                )
 
         cluster_indices_new = []
         for idc in cluster_indices:
@@ -1053,7 +1056,9 @@ def run_LP(args: attridict) -> None:
     ) = get_start_end_time(online_learning=online_learning, method=method)
 
     if record_results:
-        file_name = f"{method}_buffer_{use_buffer}_{buffer_size}_online_{online_learning}.txt"
+        file_name = (
+            f"{method}_buffer_{use_buffer}_{buffer_size}_online_{online_learning}.txt"
+        )
         result_writer = open(file_name, "a+")
         time_writer = open("train_time_" + file_name, "a+")
     else:
@@ -1080,7 +1085,7 @@ def run_LP(args: attridict) -> None:
             print(f"start training for day {day + 1}")
         else:
             print(f"start training")
-        
+
         for iteration in range(global_rounds):
             # each client train on local graph
             print(f"global rounds: {iteration}")
