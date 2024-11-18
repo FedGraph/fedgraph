@@ -7,9 +7,9 @@ Original file is located at
     https://colab.research.google.com/drive/1isCmigbvUdZdqnemrQC1XMUbblQH-kRH
 """
 
-!pip3 install torch==2.3.0+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
+# !pip3 install torch==2.3.0+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
 
-!pip install dgl==2.3 -f https://data.dgl.ai/wheels/torch-2.3/repo.html
+# !pip install dgl==2.3 -f https://data.dgl.ai/wheels/torch-2.3/repo.html
 
 import copy
 import random
@@ -27,63 +27,59 @@ print(torch.__version__)
 import dgl.nn.functional as F
 from dgl.data import CoraGraphDataset
 
-#Downloading the dataset from DGL
-#CORA dataset
+# Downloading the dataset from DGL
+# CORA dataset
 
 dataset = CoraGraphDataset()
 g = dataset[0]
 
 cora_g = dgl.add_self_loop(g)
 
-X = cora_g.ndata['feat']
-Y = cora_g.ndata['label']
+X = cora_g.ndata["feat"]
+Y = cora_g.ndata["label"]
 
-train_mask = cora_g.ndata['train_mask']
-val_mask = cora_g.ndata['val_mask']
-test_mask = cora_g.ndata['test_mask']
+train_mask = cora_g.ndata["train_mask"]
+val_mask = cora_g.ndata["val_mask"]
+test_mask = cora_g.ndata["test_mask"]
 
-#Transforming the dataset a little
+# Transforming the dataset a little
 
-#Transform features to fit in the range -1 to 1
+# Transform features to fit in the range -1 to 1
 
 X_T = torch.zeros(X.size())
 
 for i in range(X.size()[0]):
-
     X_T[i, :] = X[i, :] - torch.mean(X[i, :])
 
     n = torch.norm(X_T[i, :])
 
     if n > 0:
-
         X_T[i, :] /= n
 
-#Modifying the labels to be a distribution
+# Modifying the labels to be a distribution
 
 NumClasses = torch.max(Y).item() + 1
 
 L = torch.zeros((Y.size()[0], NumClasses))
 
 for i in range(len(Y)):
+    L[i, Y[i]] = 1.0
 
-    L[i, Y[i]] = 1.
+# Global variable to set the device type for computation
 
-#Global variable to set the device type for computation
+device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
-device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+X_T.to(device=device)
+Y.to(device=device)
+L.to(device=device)
+train_mask.to(device=device)
+val_mask.to(device=device)
+test_mask.to(device=device)
+cora_g.to(device=device)
 
-X_T.to(device = device)
-Y.to(device = device)
-L.to(device = device)
-train_mask.to(device = device)
-val_mask.to(device = device)
-test_mask.to(device = device)
-cora_g.to(device = device)
 
 class FedGATConv(nn.Module):
-
     def __init__(self, in_feat, out_feat, max_deg, att_func, att_func_domain):
-
         super(FedGATConv, self).__init__()
 
         self.in_feat = in_feat
@@ -94,79 +90,98 @@ class FedGATConv(nn.Module):
         self.att2 = nn.Parameter(torch.rand(in_feat))
         self.weight = nn.Parameter(torch.rand((in_feat, out_feat)))
 
-        nn.init.uniform_(self.att1, a = -1., b = 1.)
-        nn.init.uniform_(self.att2, a = -1., b = 1.)
-        nn.init.uniform_(self.weight, a = -1., b = 1.)
+        nn.init.uniform_(self.att1, a=-1.0, b=1.0)
+        nn.init.uniform_(self.att2, a=-1.0, b=1.0)
+        nn.init.uniform_(self.weight, a=-1.0, b=1.0)
 
-        #self.Soft = nn.Softmax(dim = 1)
+        # self.Soft = nn.Softmax(dim = 1)
 
-        #Pre-computing the coefficients of the Chebyshev series
+        # Pre-computing the coefficients of the Chebyshev series
 
         x_temp = np.linspace(att_func_domain[0], att_func_domain[1], att_func_domain[2])
 
         y_temp = att_func(x_temp)
 
-        series = np.polynomial.chebyshev.Chebyshev.fit(x_temp, y_temp, deg = max_deg, domain = att_func_domain[0 : 2])
+        series = np.polynomial.chebyshev.Chebyshev.fit(
+            x_temp, y_temp, deg=max_deg, domain=att_func_domain[0:2]
+        )
 
         coeffs = [j for j in series.convert().coef]
 
         polycoeffs = np.polynomial.chebyshev.cheb2poly(coeffs)
 
-        self.polycoeffs = torch.from_numpy(polycoeffs).float().to(device = device)
+        self.polycoeffs = torch.from_numpy(polycoeffs).float().to(device=device)
 
-    #CHANGE 1
+    # CHANGE 1
 
     def forward(self, g, h):
+        D = [
+            (torch.matmul(self.att1, h[i][0]) + torch.matmul(self.att2, h[i][1]))
+            / self.in_feat
+            for i in range(len(h))
+        ]
 
-        D = [(torch.matmul(self.att1, h[i][0]) + torch.matmul(self.att2, h[i][1]))/self.in_feat for i in range(len(h))]
+        D_pow = [
+            torch.stack([D[i] ** j for j in range(self.max_deg + 1)])
+            for i in range(len(D))
+        ]
 
-        D_pow = [torch.stack([D[i] ** j for j in range(self.max_deg + 1)]) for i in range(len(D))]
+        D_pow_p = [
+            self.polycoeffs.view(self.polycoeffs.size()[0], -1) * D_pow[i]
+            for i in range(len(D))
+        ]
 
-        D_pow_p = [self.polycoeffs.view(self.polycoeffs.size()[0], -1) * D_pow[i] for i in range(len(D))]
+        Int_vec = [
+            torch.sum(torch.matmul(D_pow_p[i].unsqueeze(1), h[i][4]).squeeze(1), dim=0)
+            for i in range(len(D))
+        ]
 
-        Int_vec = [torch.sum(torch.matmul(D_pow_p[i].unsqueeze(1), h[i][4]).squeeze(1), dim = 0) for i in range(len(D))]
-
-        E = [torch.matmul(torch.matmul(Int_vec[i], h[i][3]), self.weight) for i in range(len(D))]
+        E = [
+            torch.matmul(torch.matmul(Int_vec[i], h[i][3]), self.weight)
+            for i in range(len(D))
+        ]
 
         F = [torch.dot(Int_vec[i], h[i][2]) for i in range(len(D))]
 
-        z = torch.stack([E[i]/F[i] for i in range(len(D))], dim = 0)
+        z = torch.stack([E[i] / F[i] for i in range(len(D))], dim=0)
 
         return z
-
 
     def forward_gpu(self, g, M1, M2, K1, K2):
-
         D = torch.matmul(self.att1, M1) + torch.matmul(self.att2, M2)
 
-        D_pow = self.polycoeffs.view(1, self.polycoeffs.size()[0], -1) * torch.stack([D ** pow for pow in range(self.max_deg + 1)], dim = 1)
+        D_pow = self.polycoeffs.view(1, self.polycoeffs.size()[0], -1) * torch.stack(
+            [D**pow for pow in range(self.max_deg + 1)], dim=1
+        )
 
-        E = torch.matmul(torch.sum(torch.matmul(D_pow.unsqueeze(2), K1).squeeze(2), dim = 1), self.weight)
+        E = torch.matmul(
+            torch.sum(torch.matmul(D_pow.unsqueeze(2), K1).squeeze(2), dim=1),
+            self.weight,
+        )
 
-        F = torch.sum(torch.sum(D_pow * K2, dim = 2), dim = 1)
+        F = torch.sum(torch.sum(D_pow * K2, dim=2), dim=1)
 
-        z = E/F.unsqueeze(1)
+        z = E / F.unsqueeze(1)
 
         return z
 
+
 class GATConv(nn.Module):
-
     def __init__(self, in_feat, out_feat):
-
         super(GATConv, self).__init__()
 
         self.weight = nn.Parameter(torch.rand((in_feat, out_feat)))
-        #self.bias = nn.Parameter(torch.rand((1, out_feat)))
+        # self.bias = nn.Parameter(torch.rand((1, out_feat)))
 
         self.att1 = nn.Parameter(torch.rand((in_feat, 1)))
         self.att2 = nn.Parameter(torch.rand((in_feat, 1)))
 
         self.LeakyReLU = nn.LeakyReLU(0.01)
 
-        nn.init.uniform_(self.att1, a = -0.5, b = 0.5)
-        nn.init.uniform_(self.att2, a = -0.5, b = 0.5)
-        nn.init.uniform_(self.weight, a = -0.5, b = 0.5)
-        #nn.init.uniform_(self.bias, a = -1, b = 1)
+        nn.init.uniform_(self.att1, a=-0.5, b=0.5)
+        nn.init.uniform_(self.att2, a=-0.5, b=0.5)
+        nn.init.uniform_(self.weight, a=-0.5, b=0.5)
+        # nn.init.uniform_(self.bias, a = -1, b = 1)
 
         # nn.init.uniform(self.att1, -1., 1.)
         # nn.init.uniform(self.att2, -1., 1.)
@@ -178,88 +193,90 @@ class GATConv(nn.Module):
         #     self.att2 /= torch.linalg.vector_norm(self.att2, ord = 2)
 
     def edge_attention(self, edges):
+        e = torch.matmul(edges.src["z"], self.att2) + torch.matmul(
+            edges.dst["z"], self.att1
+        )
 
-        e = (torch.matmul(edges.src['z'], self.att2) + torch.matmul(edges.dst['z'], self.att1))
+        # e = {i : torch.dot(edges.src['z'][i], self.att2) + torch.dot(edges.dst['z'][i], self.att1) for i in edges}
 
-        #e = {i : torch.dot(edges.src['z'][i], self.att2) + torch.dot(edges.dst['z'][i], self.att1) for i in edges}
-
-        return {'e' : self.LeakyReLU(e)}
+        return {"e": self.LeakyReLU(e)}
 
     def reduce_func(self, nodes):
+        alpha = nn.functional.softmax(nodes.mailbox["e"], dim=1)
 
-        alpha = nn.functional.softmax(nodes.mailbox['e'], dim = 1)
+        # print(alpha.size(), nodes.mailbox['e'].size(), nodes.mailbox['h'].size())
 
-        #print(alpha.size(), nodes.mailbox['e'].size(), nodes.mailbox['h'].size())
+        h = torch.matmul(torch.sum(alpha * nodes.mailbox["z"], dim=1), self.weight)
+        # h = torch.matmul(h, self.weight) + torch.matmul(torch.ones((h.size()[0], 1)), self.bias)
 
-        h = torch.matmul(torch.sum(alpha * nodes.mailbox['z'], dim = 1), self.weight)
-        #h = torch.matmul(h, self.weight) + torch.matmul(torch.ones((h.size()[0], 1)), self.bias)
-
-        return {'h' : h}
+        return {"h": h}
 
     def message_func(self, edges):
-
-        return {'z' : edges.src['z'], 'e' : edges.data['e']}
+        return {"z": edges.src["z"], "e": edges.data["e"]}
 
     def forward(self, g, h):
+        # print(h.size(), self.weight.size())
 
-        #print(h.size(), self.weight.size())
-
-        g.ndata['z'] = h
+        g.ndata["z"] = h
 
         g.apply_edges(self.edge_attention)
 
         g.update_all(self.message_func, self.reduce_func)
 
-        return g.ndata.pop('h')
+        return g.ndata.pop("h")
+
 
 class MultiHeadGATConv(nn.Module):
-
-    def __init__(self, in_feat, out_feat, num_head, activation = None, merge = 'cat'):
-
+    def __init__(self, in_feat, out_feat, num_head, activation=None, merge="cat"):
         super(MultiHeadGATConv, self).__init__()
 
         self.in_feat = in_feat
         self.out_feat = out_feat
         self.num_head = num_head
 
-        self.GATModules = nn.ModuleList([GATConv(in_feat, out_feat) for i in range(num_head)])
+        self.GATModules = nn.ModuleList(
+            [GATConv(in_feat, out_feat) for i in range(num_head)]
+        )
 
         self.activ = None
 
         if activation != None:
-
             self.activ = activation
 
         self.merge = merge
 
     def forward(self, g, h):
-
         out = [L(g, h) for L in self.GATModules]
 
-        if self.merge == 'cat':
-
+        if self.merge == "cat":
             if self.activ != None:
-
-                return self.activ(torch.cat(out, dim = 1))
+                return self.activ(torch.cat(out, dim=1))
 
             else:
-
-                return torch.cat(out, dim = 1)
+                return torch.cat(out, dim=1)
 
         else:
-
             if self.activ != None:
-
-                return self.activ(torch.sum(torch.cat(out, dim = 1), dim = 1))/self.num_head
+                return (
+                    self.activ(torch.sum(torch.cat(out, dim=1), dim=1)) / self.num_head
+                )
 
             else:
+                return torch.sum(torch.cat(out, dim=1), dim=1) / self.num_head
 
-                return torch.sum(torch.cat(out, dim = 1), dim = 1)/self.num_head
 
 class MultiHeadFedGATConv(nn.Module):
-
-    def __init__(self, in_feat, out_feat, num_head, max_deg, attn_func, attn_func_domain, activation = None, merge = 'cat'):
-
+    def __init__(
+        self,
+        in_feat,
+        out_feat,
+        num_head,
+        max_deg,
+        attn_func,
+        attn_func_domain,
+        activation=None,
+        merge="cat",
+    ):
         super(MultiHeadFedGATConv, self).__init__()
 
         self.in_feat = in_feat
@@ -270,63 +287,58 @@ class MultiHeadFedGATConv(nn.Module):
         self.activ = None
 
         if activation != None:
-
             self.activ = activation
 
-        self.FedGATModules = nn.ModuleList([FedGATConv(in_feat, out_feat, max_deg, attn_func, attn_func_domain) for i in range(num_head)])
+        self.FedGATModules = nn.ModuleList(
+            [
+                FedGATConv(in_feat, out_feat, max_deg, attn_func, attn_func_domain)
+                for i in range(num_head)
+            ]
+        )
 
     def forward(self, g, h):
-
         out = [L.forward(g, h) for L in self.FedGATModules]
 
-        if self.merge == 'cat':
-
+        if self.merge == "cat":
             if self.activ != None:
-
-                return self.activ(torch.cat(out, dim = 1))
+                return self.activ(torch.cat(out, dim=1))
 
             else:
-
-                return torch.cat(out, dim = 1)
+                return torch.cat(out, dim=1)
 
         else:
-
             if self.activ != None:
-
-                return self.activ(torch.sum(torch.cat(out, dim = 1), dim = 1))/self.num_head
+                return (
+                    self.activ(torch.sum(torch.cat(out, dim=1), dim=1)) / self.num_head
+                )
 
             else:
-
-                return torch.sum(torch.cat(out, dim = 1), dim = 1)/self.num_head
+                return torch.sum(torch.cat(out, dim=1), dim=1) / self.num_head
 
     def forward_gpu(self, g, M1, M2, K1, K2):
-
         out = [L.forward_gpu(g, M1, M2, K1, K2) for L in self.FedGATModules]
 
-        if self.merge == 'cat':
-
+        if self.merge == "cat":
             if self.activ != None:
-
-                return self.activ(torch.cat(out, dim = 1))
+                return self.activ(torch.cat(out, dim=1))
 
             else:
-
-                return torch.cat(out, dim = 1)
+                return torch.cat(out, dim=1)
 
         else:
-
             if self.activ != None:
-
-                return self.activ(torch.sum(torch.cat(out, dim = 1), dim = 1))/self.num_head
+                return (
+                    self.activ(torch.sum(torch.cat(out, dim=1), dim=1)) / self.num_head
+                )
 
             else:
+                return torch.sum(torch.cat(out, dim=1), dim=1) / self.num_head
 
-                return torch.sum(torch.cat(out, dim = 1), dim = 1)/self.num_head
 
 class FedGATModel(nn.Module):
-
-    def __init__(self, in_feat, out_feat, hidden_dim, num_head, max_deg, attn_func, domain):
-
+    def __init__(
+        self, in_feat, out_feat, hidden_dim, num_head, max_deg, attn_func, domain
+    ):
         super(FedGATModel, self).__init__()
 
         self.attn_func = attn_func
@@ -334,15 +346,21 @@ class FedGATModel(nn.Module):
         self.out_feat = out_feat
         self.num_head = num_head
 
-        self.FedGAT1 = MultiHeadFedGATConv(in_feat, hidden_dim, num_head, max_deg, attn_func, domain, activation = nn.ELU())
+        self.FedGAT1 = MultiHeadFedGATConv(
+            in_feat,
+            hidden_dim,
+            num_head,
+            max_deg,
+            attn_func,
+            domain,
+            activation=nn.ELU(),
+        )
 
         self.GAT2 = MultiHeadGATConv(num_head * hidden_dim, out_feat, 1)
 
-        self.soft = nn.Softmax(dim = 1)
-
+        self.soft = nn.Softmax(dim=1)
 
     def forward(self, g, h):
-
         z = self.FedGAT1.forward(g, h)
         z = self.GAT2(g, z)
 
@@ -351,7 +369,6 @@ class FedGATModel(nn.Module):
         return z
 
     def forward_gpu(self, g, M1, M2, K1, K2):
-
         z = self.FedGAT1.forward_gpu(g, M1, M2, K1, K2)
         z = self.GAT2(g, z)
 
@@ -359,38 +376,39 @@ class FedGATModel(nn.Module):
 
         return z
 
-def AttnFunction(x, gamma):
 
-    #return gamma * x + (1 - gamma) * 0.25 * np.log(1 + np.exp(4 * x))
+def AttnFunction(x, gamma):
+    # return gamma * x + (1 - gamma) * 0.25 * np.log(1 + np.exp(4 * x))
     return np.maximum(gamma * x, x)
 
+
 class Server(object):
-
-    def __init__(self, graph, clients, feats, labels, global_model, sample_probab, train_params):
-
+    def __init__(
+        self, graph, clients, feats, labels, global_model, sample_probab, train_params
+    ):
         self.graph = graph
 
         self.clients = clients
 
-        self.num_layers = train_params['num_layers']
+        self.num_layers = train_params["num_layers"]
 
-        self.num_local_iters = train_params['num_local_iters']
+        self.num_local_iters = train_params["num_local_iters"]
 
-        self.train_iters = train_params['train_rounds']
+        self.train_iters = train_params["train_rounds"]
 
-        self.gpu = train_params['gpu']
+        self.gpu = train_params["gpu"]
 
-        self.glob_comm = train_params['glob_comm']
+        self.glob_comm = train_params["glob_comm"]
 
-        self.optim_kind = train_params['optim_kind']
+        self.optim_kind = train_params["optim_kind"]
 
-        self.limit_node_degree = train_params['limit_node_degree']
+        self.limit_node_degree = train_params["limit_node_degree"]
 
         self.Optim = None
 
-        self.feats = feats.to(device = device)
+        self.feats = feats.to(device=device)
 
-        self.labels = labels.to(device = device)
+        self.labels = labels.to(device=device)
 
         self.node_mats = {}
 
@@ -398,90 +416,83 @@ class Server(object):
 
         self.Model = global_model
 
-        self.dampening = train_params['dampening']
+        self.dampening = train_params["dampening"]
 
-        self.momentum = train_params['momentum']
+        self.momentum = train_params["momentum"]
 
-        self.glob_comm = train_params['glob_comm']
+        self.glob_comm = train_params["glob_comm"]
 
-        self.dual_weight = train_params['dual_weight']
+        self.dual_weight = train_params["dual_weight"]
 
-        self.aug_lagrange_rho = train_params['aug_lagrange_rho']
+        self.aug_lagrange_rho = train_params["aug_lagrange_rho"]
 
-        self.model_regularisation = train_params['model_regularisation']
+        self.model_regularisation = train_params["model_regularisation"]
 
-        self.dual_lr = train_params['dual_lr']
+        self.dual_lr = train_params["dual_lr"]
 
-        self.model_lr = train_params['model_lr']
+        self.model_lr = train_params["model_lr"]
 
-        if train_params['glob_comm'] == 'FedAvg':
-
+        if train_params["glob_comm"] == "FedAvg":
             for p in self.Model.parameters():
-
                 p.requires_grad = True
 
                 p.grad = torch.zeros(p.size())
 
-        elif train_params['glob_comm'] == 'ADMM':
-
+        elif train_params["glob_comm"] == "ADMM":
             for p in self.Model.parameters():
-
                 p.requires_grad = False
 
+        if self.glob_comm == "FedAvg":
+            if train_params["optim_kind"] == "Adam":
+                self.Optim = torch.optim.Adam(
+                    self.Model.parameters(),
+                    lr=train_params["model_lr"],
+                    weight_decay=self.model_regularisation,
+                )
 
-        if self.glob_comm == 'FedAvg':
-
-            if train_params['optim_kind'] == 'Adam':
-
-                self.Optim = torch.optim.Adam(self.Model.parameters(), lr = train_params['model_lr'], weight_decay = self.model_regularisation)
-
-            elif train_params['optim_kind'] == 'SGD':
-
-                self.Optim = torch.optim.SGD(self.Model.parameters(), lr = train_params['model_lr'], momentum = train_params['momentum'], dampening = train_params['dampening'], weight_decay = self.model_regularisation)
-
+            elif train_params["optim_kind"] == "SGD":
+                self.Optim = torch.optim.SGD(
+                    self.Model.parameters(),
+                    lr=train_params["model_lr"],
+                    momentum=train_params["momentum"],
+                    dampening=train_params["dampening"],
+                    weight_decay=self.model_regularisation,
+                )
 
         self.Duals = {}
 
-
-        if train_params['glob_comm'] == 'ADMM':
-
-            self.Duals = {id: copy.deepcopy(self.Model).to(device = device) for id in range(len(clients))}
+        if train_params["glob_comm"] == "ADMM":
+            self.Duals = {
+                id: copy.deepcopy(self.Model).to(device=device)
+                for id in range(len(clients))
+            }
 
             for id in self.Duals:
-
                 for p in self.Duals[id].parameters():
-
                     p.requires_grad = False
 
-        #self.LocalModelParams = {id: copy.deepcopy(self.Model).parameters() for id in range(len(clients))}
+        # self.LocalModelParams = {id: copy.deepcopy(self.Model).parameters() for id in range(len(clients))}
 
-
-        self.model_loss_weights = {id: 1. for id in range(len(clients))}
+        self.model_loss_weights = {id: 1.0 for id in range(len(clients))}
 
         self.train_params = train_params
 
-        self.max_deg = train_params['max_deg']
+        self.max_deg = train_params["max_deg"]
 
-        self.optim_reset = train_params['optim_reset']
+        self.optim_reset = train_params["optim_reset"]
 
-        self.loss_func = train_params['loss_func']
-
-
-
+        self.loss_func = train_params["loss_func"]
 
     def VecGen(self, feats1, feats2, num, dim, deg):
-
         V = np.random.uniform(-2, 2, (num, dim))
 
         indices = {}
 
         while len(indices) < num:
-
             r = random.randint(0, dim - 1)
 
             if indices.get(r, None) == None:
-
-                indices.update({r : True})
+                indices.update({r: True})
 
         index_list = [i for i in indices]
 
@@ -492,7 +503,6 @@ class Server(object):
         InterVec = np.zeros((deg + 1, num, dim))
 
         for i in range(num):
-
             V[:, index_list[i]] = 0
 
             V[i, index_list[i]] = np.random.uniform(1, 3) * random.sample([-1, 1], 1)[0]
@@ -500,17 +510,14 @@ class Server(object):
             Keys[i, index_list[i]] = 1
 
             for j in range(deg + 1):
+                InterVec[j, :, index_list[i]] = 0.0
 
-                InterVec[j, :, index_list[i]] = 0.
-
-                InterVec[j, i, index_list[i]] = 1/V[i, index_list[i]] ** j
+                InterVec[j, i, index_list[i]] = 1 / V[i, index_list[i]] ** j
 
         InterMat = np.zeros((deg + 1, dim, dim))
 
         for i in range(deg + 1):
-
             for j in range(num):
-
                 InterMat[i, :, :] += np.outer(InterVec[i, j, :], Keys[j, :])
 
         temp1 = np.random.uniform(-5, 5, dim)
@@ -522,29 +529,29 @@ class Server(object):
         mask1 = np.zeros(dim)
 
         for i in range(num):
-
-            mask1 += Keys[i, :] * np.dot(Keys[i, :], temp1)/np.dot(Keys[i, :], Keys[i, :])
+            mask1 += (
+                Keys[i, :] * np.dot(Keys[i, :], temp1) / np.dot(Keys[i, :], Keys[i, :])
+            )
 
         mask1 = temp1 - mask1
 
         for i in range(deg + 1):
-
             InterMat[i, :, :] += np.random.uniform(-2, 2) * np.outer(mask1, mask1)
 
         mask2 = np.zeros(dim)
 
-        mask2 += np.dot(mask1, temp2) * mask1/np.dot(mask1, mask1)
+        mask2 += np.dot(mask1, temp2) * mask1 / np.dot(mask1, mask1)
 
         for i in range(num):
-
-            mask2 += Keys[i, :] * np.dot(Keys[i, :], temp2)/np.dot(Keys[i, :], Keys[i, :])
+            mask2 += (
+                Keys[i, :] * np.dot(Keys[i, :], temp2) / np.dot(Keys[i, :], Keys[i, :])
+            )
 
         mask2 = temp2 - mask2
 
         K1 = np.zeros(dim)
 
         for i in range(num):
-
             K1 += Keys[i, :]
 
         K1 += np.random.uniform(1, 4) * mask2
@@ -552,219 +559,215 @@ class Server(object):
         K2 = np.zeros((dim, feats1.shape[1]))
 
         for i in range(num):
-
             K2 += np.outer(Keys[i, :], feats2[i, :])
 
-        K2 += np.random.uniform(1, 3) * np.outer(mask2, feats2[random.randint(0, num - 1), :])
+        K2 += np.random.uniform(1, 3) * np.outer(
+            mask2, feats2[random.randint(0, num - 1), :]
+        )
 
         M1 = np.zeros((feats1.shape[1], dim))
         M2 = np.zeros((feats2.shape[1], dim))
 
         for i in range(num):
-
             M1 += np.outer(feats1[i, :], V[i, :])
             M2 += np.outer(feats2[i, :], V[i, :])
 
         return M1, M2, K1, K2, InterMat
 
-
-
-    def pretrain_communication(self): #Changed layout of the pretrain_communication algorithm
-        #Now, the function first computes matrices for all nodes, and then distributes them to each client
-        #Saves computation
+    def pretrain_communication(
+        self,
+    ):  # Changed layout of the pretrain_communication algorithm
+        # Now, the function first computes matrices for all nodes, and then distributes them to each client
+        # Saves computation
 
         print("Starting pre-train communication!\n")
 
         node_mats = {}
         d = self.feats.size()[1]
 
-
         for node in range(self.graph.num_nodes()):
-
             print(node)
 
             neigh = self.graph.predecessors(node)
 
-            sampled_bool = np.array([random.choices([0, 1], [1 - self.sample_probab, self.sample_probab], k = 1)[0] for j in range(len(neigh))])
+            sampled_bool = np.array(
+                [
+                    random.choices(
+                        [0, 1], [1 - self.sample_probab, self.sample_probab], k=1
+                    )[0]
+                    for j in range(len(neigh))
+                ]
+            )
 
             sampled_bool = torch.from_numpy(sampled_bool).bool()
 
             sampled_neigh = neigh[sampled_bool]
 
             if len(sampled_neigh) < 3:
-
                 sampled_neigh = neigh
 
             elif len(sampled_neigh) > self.limit_node_degree:
+                sampled_neigh = random.sample(
+                    list(sampled_neigh), self.limit_node_degree
+                )
 
-                sampled_neigh = random.sample(list(sampled_neigh), self.limit_node_degree)
-
-            #Obtaining features and stacking them into a numpy array
+            # Obtaining features and stacking them into a numpy array
 
             feats1 = np.zeros((len(sampled_neigh), d))
             feats2 = np.zeros((len(sampled_neigh), d))
 
             for i in range(len(sampled_neigh)):
-
                 feats1[i, :] = self.feats[node, :].cpu().detach().numpy()
-                feats2[i, :] = self.feats[sampled_neigh[i].item(), :].cpu().detach().numpy()
+                feats2[i, :] = (
+                    self.feats[sampled_neigh[i].item(), :].cpu().detach().numpy()
+                )
 
-                M1, M2, K1, K2, Inter = self.VecGen(feats1, feats2, len(sampled_neigh), int(3 * len(sampled_neigh)), self.max_deg)
+                M1, M2, K1, K2, Inter = self.VecGen(
+                    feats1,
+                    feats2,
+                    len(sampled_neigh),
+                    int(3 * len(sampled_neigh)),
+                    self.max_deg,
+                )
 
-            node_mats[node] = [torch.from_numpy(M1).float().to(device = device), torch.from_numpy(M2).float().to(device = device), torch.from_numpy(K1).float().to(device = device), torch.from_numpy(K2).float().to(device = device), torch.from_numpy(Inter).float().to(device = device)]
+            node_mats[node] = [
+                torch.from_numpy(M1).float().to(device=device),
+                torch.from_numpy(M2).float().to(device=device),
+                torch.from_numpy(K1).float().to(device=device),
+                torch.from_numpy(K2).float().to(device=device),
+                torch.from_numpy(Inter).float().to(device=device),
+            ]
 
         self.node_mats = node_mats
 
         print("Completed pre-train communication!")
 
-
-
-
     def distribute_mats(self):
-
         for id in range(len(self.clients)):
-
             for nodes in range(self.clients[id].graph.num_nodes()):
-
-                true_node_id = self.clients[id].graph.ndata['_ID'][nodes].item()
+                true_node_id = self.clients[id].graph.ndata["_ID"][nodes].item()
 
                 self.clients[id].node_mats[nodes] = self.node_mats[true_node_id]
 
-
-
-
-    def TrainCoordinate(self): #This has also been changed
-
+    def TrainCoordinate(self):  # This has also been changed
         for id in range(len(self.clients)):
-
-            self.model_loss_weights[id] = self.clients[id].graph.ndata['tr_mask'].sum().item()
+            self.model_loss_weights[id] = (
+                self.clients[id].graph.ndata["tr_mask"].sum().item()
+            )
 
         temp = sum(self.model_loss_weights.values())
 
         for id in self.model_loss_weights:
-
             self.model_loss_weights[id] /= temp
 
         self.ResetAll(self.Model, self.train_params)
 
         for id in range(len(self.clients)):
+            if self.glob_comm == "FedAvg":
+                self.clients[id].FromServer(
+                    copy.deepcopy(self.Model), None
+                )  # Changed here
 
-            if self.glob_comm == 'FedAvg':
-
-                self.clients[id].FromServer(copy.deepcopy(self.Model), None) #Changed here
-
-            elif self.glob_comm == 'ADMM':
-
-                self.clients[id].FromServer(self.Model, self.Duals[id]) #Changed here
-
+            elif self.glob_comm == "ADMM":
+                self.clients[id].FromServer(self.Model, self.Duals[id])  # Changed here
 
         print("Starting training!")
 
         for ep in range(self.train_iters):
-
             for id in range(len(self.clients)):
-
                 for i in range(self.num_local_iters):
-
                     self.clients[id].TrainIterate()
 
             self.TrainUpdate()
 
             for id in range(len(self.clients)):
-
-                if self.glob_comm == 'ADMM':
-
+                if self.glob_comm == "ADMM":
                     self.clients[id].FromServer(self.Model, self.Duals[id])
 
                 else:
-
                     self.clients[id].FromServer(copy.deepcopy(self.Model), None)
 
                 if self.optim_reset:
-
                     self.clients[id].OptimReset()
 
-            print("Epoch {e} completed!".format(e = ep))
+            print("Epoch {e} completed!".format(e=ep))
 
         print("Training completed!")
 
         return self.Model, self.Duals
 
-
-
-
-    def ResetAll(self, Model, train_params = None): #Minor changes
-
+    def ResetAll(self, Model, train_params=None):  # Minor changes
         if train_params != None:
-
             self.train_params = train_params
 
         self.Model = Model
 
-        if self.glob_comm == 'FedAvg':
-
+        if self.glob_comm == "FedAvg":
             for p in self.Model.parameters():
-
                 p.requires_grad = True
 
                 p.grad = torch.zeros(p.size())
 
-            if self.optim_kind == 'Adam':
+            if self.optim_kind == "Adam":
+                self.Optim = torch.optim.Adam(
+                    self.Model.parameters(),
+                    lr=self.model_lr,
+                    weight_decay=self.model_regularisation,
+                )
 
-                self.Optim = torch.optim.Adam(self.Model.parameters(), lr = self.model_lr, weight_decay = self.model_regularisation)
+            elif self.optim_kind == "SGD":
+                self.Optim = torch.optim.SGD(
+                    self.Model.parameters(),
+                    lr=self.model_lr,
+                    momentum=self.momentum,
+                    dampening=self.dampening,
+                    weight_decay=self.model_regularisation,
+                )
 
-            elif self.optim_kind == 'SGD':
-
-                self.Optim = torch.optim.SGD(self.Model.parameters(), lr = self.model_lr, momentum = self.momentum, dampening = self.dampening, weight_decay = self.model_regularisation)
-
-
-        if self.glob_comm == 'ADMM':
-
+        if self.glob_comm == "ADMM":
             for p in self.Model.parameters():
-
                 p.requires_grad = False
 
-            self.Duals = {id : copy.deepcopy(self.Model) for id in range(len(self.clients))}
+            self.Duals = {
+                id: copy.deepcopy(self.Model) for id in range(len(self.clients))
+            }
 
             for id in range(len(self.clients)):
-
                 for p in self.Duals[id].parameters():
-
                     p.requires_grad = False
-
 
         self.LoadTrainParams()
 
-
         for id in range(len(self.clients)):
-
             self.clients[id].Model = copy.deepcopy(self.Model)
 
-            self.clients[id].train_rounds = self.train_params['train_rounds']
+            self.clients[id].train_rounds = self.train_params["train_rounds"]
 
-            self.clients[id].num_local_iters = self.train_params['num_local_iters']
+            self.clients[id].num_local_iters = self.train_params["num_local_iters"]
 
-            self.clients[id].dual_weight = self.train_params['dual_weight']
+            self.clients[id].dual_weight = self.train_params["dual_weight"]
 
-            self.clients[id].aug_lagrange_rho = self.train_params['aug_lagrange_rho']
+            self.clients[id].aug_lagrange_rho = self.train_params["aug_lagrange_rho"]
 
-            self.clients[id].dual_lr = self.train_params['dual_lr']
+            self.clients[id].dual_lr = self.train_params["dual_lr"]
 
-            self.clients[id].model_lr = self.train_params['model_lr']
+            self.clients[id].model_lr = self.train_params["model_lr"]
 
-            self.clients[id].model_regularisation = self.train_params['model_regularisation']
+            self.clients[id].model_regularisation = self.train_params[
+                "model_regularisation"
+            ]
 
-            self.clients[id].optim_kind = self.train_params['optim_kind']
+            self.clients[id].optim_kind = self.train_params["optim_kind"]
 
-            self.clients[id].momentum = self.train_params['momentum']
+            self.clients[id].momentum = self.train_params["momentum"]
 
-            self.clients[id].glob_comm = self.train_params['glob_comm']
+            self.clients[id].glob_comm = self.train_params["glob_comm"]
 
-            self.clients[id].optim_reset = self.train_params['optim_reset']
+            self.clients[id].optim_reset = self.train_params["optim_reset"]
 
-            self.clients[id].loss_func = self.train_params['loss_func']
+            self.clients[id].loss_func = self.train_params["loss_func"]
 
-            self.clients[id].batch_size = self.train_params['batch_size']
+            self.clients[id].batch_size = self.train_params["batch_size"]
 
             self.clients[id].OptimReset()
 
@@ -772,140 +775,145 @@ class Server(object):
 
             self.clients[id].epoch = 0
 
+    def LoadTrainParams(self):  # Minor changes
+        self.train_iters = self.train_params["train_rounds"]
 
+        self.num_local_iters = self.train_params["num_local_iters"]
 
+        self.dual_weight = self.train_params["dual_weight"]
 
-    def LoadTrainParams(self): #Minor changes
+        self.aug_lagrange_rho = self.train_params["aug_lagrange_rho"]
 
-        self.train_iters = self.train_params['train_rounds']
+        self.dual_lr = self.train_params["dual_lr"]
 
-        self.num_local_iters = self.train_params['num_local_iters']
+        self.model_lr = self.train_params["model_lr"]
 
-        self.dual_weight = self.train_params['dual_weight']
+        self.model_regularisation = self.train_params["model_regularisation"]
 
-        self.aug_lagrange_rho = self.train_params['aug_lagrange_rho']
+        self.optim_kind = self.train_params["optim_kind"]
 
-        self.dual_lr = self.train_params['dual_lr']
+        self.momentum = self.train_params["momentum"]
 
-        self.model_lr = self.train_params['model_lr']
+        self.glob_comm = self.train_params["glob_comm"]
 
-        self.model_regularisation = self.train_params['model_regularisation']
+        self.optim_reset = self.train_params["optim_reset"]
 
-        self.optim_kind = self.train_params['optim_kind']
+        self.loss_func = self.train_params["loss_func"]
 
-        self.momentum = self.train_params['momentum']
+        self.limit_node_degree = self.train_params["limit_node_degree"]
 
-        self.glob_comm = self.train_params['glob_comm']
-
-        self.optim_reset = self.train_params['optim_reset']
-
-        self.loss_func = self.train_params['loss_func']
-
-        self.limit_node_degree = self.train_params['limit_node_degree']
-
-
-
-
-    def TrainUpdate(self): #This has changed completely
-
+    def TrainUpdate(self):  # This has changed completely
         old = copy.deepcopy(self.Model)
 
         for p in old.parameters():
-
             p.requires_grad = False
 
-        if self.glob_comm == 'FedAvg':
-
+        if self.glob_comm == "FedAvg":
             self.Optim.zero_grad()
 
             with torch.no_grad():
-
                 for p in self.Model.parameters():
-
                     p.grad = torch.zeros(p.size())
 
                     p.grad.data.zero_()
 
             with torch.no_grad():
-
                 for id in self.clients:
-
                     for p, p_id in zip(self.Model.parameters(), self.clients[id].grad):
-
-                        p.grad += self.model_loss_weights[id] * p_id/self.num_local_iters
+                        p.grad += (
+                            self.model_loss_weights[id] * p_id / self.num_local_iters
+                        )
 
             self.Optim.step()
 
-
-        elif self.glob_comm == 'ADMM':
-
+        elif self.glob_comm == "ADMM":
             with torch.no_grad():
-
                 for p in self.Model.parameters():
-
                     p -= p
 
                 for id in self.clients:
-
-                    for p, p_id, dual in zip(self.Model.parameters(), self.clients[id].Model.parameters(), self.Duals[id].parameters()):
-
-                        p += self.model_loss_weights[id] * (p_id - self.dual_weight * dual / self.aug_lagrange_rho)
+                    for p, p_id, dual in zip(
+                        self.Model.parameters(),
+                        self.clients[id].Model.parameters(),
+                        self.Duals[id].parameters(),
+                    ):
+                        p += self.model_loss_weights[id] * (
+                            p_id - self.dual_weight * dual / self.aug_lagrange_rho
+                        )
 
                 for id in self.clients:
-
-                    for p, p_id, dual in zip(self.Model.parameters(), self.clients[id].Model.parameters(), self.Duals[id].parameters()):
-
-                        dual += self.model_loss_weights[id] * self.dual_lr * self.dual_weight * (p - p_id)
+                    for p, p_id, dual in zip(
+                        self.Model.parameters(),
+                        self.clients[id].Model.parameters(),
+                        self.Duals[id].parameters(),
+                    ):
+                        dual += (
+                            self.model_loss_weights[id]
+                            * self.dual_lr
+                            * self.dual_weight
+                            * (p - p_id)
+                        )
 
         with torch.no_grad():
-
-            err = 0.
+            err = 0.0
 
             for p, p_old in zip(self.Model.parameters(), old.parameters()):
+                err += torch.sum((p - p_old) ** 2) / torch.numel(p)
 
-                err += torch.sum((p - p_old) ** 2)/torch.numel(p)
+            print("Change in model parameters = {E}".format(E=err.item()))
 
-            print("Change in model parameters = {E}".format(E = err.item()))
 
-def FedGATLoss(LossFunc, glob_comm, loss_weight, y_pred, y_true, Model, glob_params, dual_params, aug_lagrange_rho, dual_weight, model_regularisation):
-
+def FedGATLoss(
+    LossFunc,
+    glob_comm,
+    loss_weight,
+    y_pred,
+    y_true,
+    Model,
+    glob_params,
+    dual_params,
+    aug_lagrange_rho,
+    dual_weight,
+    model_regularisation,
+):
     v = LossFunc(y_pred, y_true)
 
     # for p_id in Model.parameters():
 
     #     v += 0.5 * model_regularisation * torch.sum(p_id ** 2)
 
-    if glob_comm == 'ADMM':
-
-        for p_id, p, dual in zip(Model.parameters(), glob_params.parameters(), dual_params.parameters()):
-
-            v += 0.5 * aug_lagrange_rho * torch.sum((p - p_id) ** 2) + dual_weight * torch.sum(dual * (p - p_id))
+    if glob_comm == "ADMM":
+        for p_id, p, dual in zip(
+            Model.parameters(), glob_params.parameters(), dual_params.parameters()
+        ):
+            v += 0.5 * aug_lagrange_rho * torch.sum(
+                (p - p_id) ** 2
+            ) + dual_weight * torch.sum(dual * (p - p_id))
 
     return v
 
+
 class Client(object):
-
     def __init__(self, id, graph, rev_map):
-
         self.graph = graph
 
-        self.optim_kind = 'Adam'
+        self.optim_kind = "Adam"
 
         self.id = id
 
-        self.loss_weight = 1.
+        self.loss_weight = 1.0
 
         self.rev_map = rev_map
 
-        self.glob_comm = 'ADMM'
+        self.glob_comm = "ADMM"
 
-        self.labels = graph.ndata['label']
+        self.labels = graph.ndata["label"]
 
-        self.tr_mask = self.graph.ndata['tr_mask']
+        self.tr_mask = self.graph.ndata["tr_mask"]
 
-        self.v_mask = self.graph.ndata['v_mask']
+        self.v_mask = self.graph.ndata["v_mask"]
 
-        self.t_mask = self.graph.ndata['t_mask']
+        self.t_mask = self.graph.ndata["t_mask"]
 
         self.node_mats = [None for i in range(self.graph.num_nodes())]
 
@@ -935,14 +943,14 @@ class Client(object):
 
         self.epoch = 0
 
-        self.tr_loss = 0.
-        self.tr_acc = 0.
+        self.tr_loss = 0.0
+        self.tr_acc = 0.0
 
-        self.v_loss = 0.
-        self.v_acc = 0.
+        self.v_loss = 0.0
+        self.v_acc = 0.0
 
-        self.t_loss = 0.
-        self.t_acc = 0.
+        self.t_loss = 0.0
+        self.t_acc = 0.0
 
         self.global_params = None
 
@@ -956,100 +964,90 @@ class Client(object):
 
         self.batch_size = None
 
-
     def TrainModel(self):
-
-        self.Model.to(device = device)
+        self.Model.to(device=device)
 
         for p in self.Model.parameters():
-
             p.requires_grad = True
 
         with torch.no_grad():
-
             self.grad = (torch.zeros(p.size()) for p in self.Model.parameters())
 
             for p in self.grad:
-
                 p.requires_grad = False
 
         self.Model.train()
 
         if self.optim_reset:
-
             self.OptimReset()
 
+        print(
+            "Client {ID} ready for training! Number of nodes = {nodes}, Training samples = {tr}, Validation samples = {val}".format(
+                ID=self.id,
+                nodes=self.graph.num_nodes(),
+                tr=self.tr_mask.sum().item(),
+                val=self.v_mask.sum().item(),
+            )
+        )
 
-        print("Client {ID} ready for training! Number of nodes = {nodes}, Training samples = {tr}, Validation samples = {val}".format(ID = self.id, nodes = self.graph.num_nodes(), tr = self.tr_mask.sum().item(), val = self.v_mask.sum().item()))
-
-
-
-
-    def FromServer(self, global_params, duals): #This has completely changed
-
+    def FromServer(self, global_params, duals):  # This has completely changed
         self.global_params = global_params
 
         self.duals = duals
 
         with torch.no_grad():
-
-            for p_id, p in zip(self.Model.parameters(), self.global_params.parameters()):
-
+            for p_id, p in zip(
+                self.Model.parameters(), self.global_params.parameters()
+            ):
                 p_id.copy_(p)
 
-            #Create gradient variable for client to store gradients
+            # Create gradient variable for client to store gradients
 
             self.grad = (torch.zeros(p.size()) for p in self.Model.parameters())
 
             for p in self.grad:
-
                 p.requires_grad = False
 
         for p in self.global_params.parameters():
-
             p.requires_grad = False
 
-        if self.glob_comm == 'ADMM':
-
+        if self.glob_comm == "ADMM":
             for p in self.duals.parameters():
-
                 p.requires_grad = False
 
         for p_id in self.Model.parameters():
-
             p_id.requires_grad = True
 
+    def OptimReset(
+        self,
+    ):  # Minor change: No weight_decay in Optimiser for clients; only at central server
+        if self.glob_comm == "FedAvg":
+            if self.optim_kind == "Adam":
+                self.Optim = torch.optim.Adam(self.Model.parameters(), lr=self.model_lr)
 
+            elif self.optim_kind == "SGD":
+                self.Optim = torch.optim.SGD(
+                    self.Model.parameters(), lr=self.model_lr, momentum=self.momentum
+                )
 
+        elif self.glob_comm == "ADMM":
+            if self.optim_kind == "Adam":
+                self.Optim = torch.optim.Adam(
+                    self.Model.parameters(),
+                    lr=self.model_lr,
+                    weight_decay=self.model_regularisation,
+                )
 
-    def OptimReset(self): #Minor change: No weight_decay in Optimiser for clients; only at central server
-
-        if self.glob_comm == 'FedAvg':
-
-            if self.optim_kind == 'Adam':
-
-                self.Optim = torch.optim.Adam(self.Model.parameters(), lr = self.model_lr)
-
-            elif self.optim_kind == 'SGD':
-
-                self.Optim = torch.optim.SGD(self.Model.parameters(), lr = self.model_lr, momentum = self.momentum)
-
-        elif self.glob_comm == 'ADMM':
-
-            if self.optim_kind == 'Adam':
-
-                self.Optim = torch.optim.Adam(self.Model.parameters(), lr = self.model_lr, weight_decay = self.model_regularisation)
-
-            elif self.optim_kind == 'SGD':
-
-                self.Optim = torch.optim.SGD(self.Model.parameters(), lr = self.model_lr, momentum = self.momentum, weight_decay = self.model_regularisation)
-
-
-
+            elif self.optim_kind == "SGD":
+                self.Optim = torch.optim.SGD(
+                    self.Model.parameters(),
+                    lr=self.model_lr,
+                    momentum=self.momentum,
+                    weight_decay=self.model_regularisation,
+                )
 
     def TrainIterate(self):
-
-        #One iteration of training local client model
+        # One iteration of training local client model
 
         self.Optim.zero_grad()
 
@@ -1066,68 +1064,110 @@ class Client(object):
 
         y_pred = self.Model(self.graph, self.node_mats)
 
-        #Generate batch mask depending on what the batch size is set
+        # Generate batch mask depending on what the batch size is set
 
         if self.batch_size != None:
-
-            self.batch_mask = torch.as_tensor([random.randint(0, torch.sum(self.tr_mask).int().item() - 1) for i in range(self.batch_size)]).long()
+            self.batch_mask = torch.as_tensor(
+                [
+                    random.randint(0, torch.sum(self.tr_mask).int().item() - 1)
+                    for i in range(self.batch_size)
+                ]
+            ).long()
 
         else:
+            self.batch_mask = (
+                torch.as_tensor(
+                    [i for i in range(torch.sum(self.tr_mask).int().item())]
+                )
+                .long()
+                .to(device=device)
+            )
 
-            self.batch_mask = torch.as_tensor([i for i in range(torch.sum(self.tr_mask).int().item())]).long().to(device = device)
-
-        t_loss = FedGATLoss(self.LossFn, self.glob_comm, self.loss_weight, y_pred[self.tr_mask][self.batch_mask], self.labels[self.tr_mask][self.batch_mask], self.Model, self.global_params, self.duals, self.aug_lagrange_rho, self.dual_weight, self.model_regularisation)
+        t_loss = FedGATLoss(
+            self.LossFn,
+            self.glob_comm,
+            self.loss_weight,
+            y_pred[self.tr_mask][self.batch_mask],
+            self.labels[self.tr_mask][self.batch_mask],
+            self.Model,
+            self.global_params,
+            self.duals,
+            self.aug_lagrange_rho,
+            self.dual_weight,
+            self.model_regularisation,
+        )
 
         t_loss.backward()
 
-        #Update the grad variables
+        # Update the grad variables
 
         with torch.no_grad():
-
             for p, g in zip(self.Model.parameters(), self.grad):
-
                 g += p.grad
 
-        if self.glob_comm == 'ADMM':
-
+        if self.glob_comm == "ADMM":
             self.Optim.step()
 
         with torch.no_grad():
+            v_loss = FedGATLoss(
+                self.LossFn,
+                self.glob_comm,
+                self.loss_weight,
+                y_pred[self.v_mask],
+                self.labels[self.v_mask],
+                self.Model,
+                self.global_params,
+                self.duals,
+                self.aug_lagrange_rho,
+                self.dual_weight,
+                self.model_regularisation,
+            )
 
-            v_loss = FedGATLoss(self.LossFn, self.glob_comm, self.loss_weight, y_pred[self.v_mask], self.labels[self.v_mask], self.Model, self.global_params, self.duals, self.aug_lagrange_rho, self.dual_weight, self.model_regularisation)
+            pred_labels = torch.argmax(y_pred, dim=1)
+            true_labels = torch.argmax(self.labels, dim=1)
 
-            pred_labels = torch.argmax(y_pred, dim = 1)
-            true_labels = torch.argmax(self.labels, dim = 1)
+            self.t_acc = torch.sum(
+                pred_labels[self.tr_mask] == true_labels[self.tr_mask]
+            ) / torch.sum(self.tr_mask)
+            self.v_acc = torch.sum(
+                pred_labels[self.v_mask] == true_labels[self.v_mask]
+            ) / torch.sum(self.v_mask)
 
-            self.t_acc = torch.sum(pred_labels[self.tr_mask] == true_labels[self.tr_mask]) / torch.sum(self.tr_mask)
-            self.v_acc = torch.sum(pred_labels[self.v_mask] == true_labels[self.v_mask]) / torch.sum(self.v_mask)
-
-            print("Client {ID}: Epoch {ep}: Train loss: {t_loss}, Train acc: {t_acc}%, Val loss: {v_loss}, Val acc {v_acc}%".format(ID = self.id, ep = self.epoch, t_loss = t_loss, t_acc = 100 * self.t_acc, v_loss = v_loss, v_acc = 100 * self.v_acc))
+            print(
+                "Client {ID}: Epoch {ep}: Train loss: {t_loss}, Train acc: {t_acc}%, Val loss: {v_loss}, Val acc {v_acc}%".format(
+                    ID=self.id,
+                    ep=self.epoch,
+                    t_loss=t_loss,
+                    t_acc=100 * self.t_acc,
+                    v_loss=v_loss,
+                    v_acc=100 * self.v_acc,
+                )
+            )
 
             self.ModelTest()
 
         self.epoch += 1
 
-
-
     def ModelTest(self):
-
         self.Model.eval()
 
         with torch.no_grad():
-
             y_pred = self.Model(self.graph, self.node_mats)[self.t_mask]
 
-            pred_labels = torch.argmax(y_pred, dim = 1)
-            true_labels = torch.argmax(self.labels[self.t_mask], dim = 1)
+            pred_labels = torch.argmax(y_pred, dim=1)
+            true_labels = torch.argmax(self.labels[self.t_mask], dim=1)
 
             self.t_acc = torch.sum(pred_labels == true_labels) / torch.sum(self.t_mask)
 
-            print("Client {ID}: Test acc: {t_acc}".format(ID = self.id, t_acc = 100 * self.t_acc))
+            print(
+                "Client {ID}: Test acc: {t_acc}".format(
+                    ID=self.id, t_acc=100 * self.t_acc
+                )
+            )
+
 
 def SplitGraph(graph, num_clients, num_layers, labels, tr_mask, v_mask, t_mask):
-
-    #First, generate the node split
+    # First, generate the node split
 
     nodes = [i for i in range(graph.num_nodes())]
 
@@ -1139,24 +1179,28 @@ def SplitGraph(graph, num_clients, num_layers, labels, tr_mask, v_mask, t_mask):
 
     random.shuffle(nodes)
 
-    client_nodes = {i : {j : True for j in nodes[node_split[i] : node_split[i + 1]]} for i in range(num_clients)}
+    client_nodes = {
+        i: {j: True for j in nodes[node_split[i] : node_split[i + 1]]}
+        for i in range(num_clients)
+    }
 
-    #Generated a client node split
+    # Generated a client node split
 
     for i in range(num_clients):
+        print(
+            "Client ID {ID} has {num} core nodes.".format(
+                ID=i, num=len(client_nodes[i])
+            )
+        )
 
-        print("Client ID {ID} has {num} core nodes.".format(ID = i, num = len(client_nodes[i])))
-
-    #Now, create the local graphs based on the depth of the GNN
+    # Now, create the local graphs based on the depth of the GNN
 
     client_nodes_new = {}
 
     for id in range(num_clients):
-
         new_nodes = {}
 
         for node in client_nodes[id]:
-
             Q = deque()
 
             q = 1
@@ -1164,71 +1208,81 @@ def SplitGraph(graph, num_clients, num_layers, labels, tr_mask, v_mask, t_mask):
             Q.append((node, 0))
 
             while q > 0:
-
                 v = Q.popleft()
 
                 q -= 1
 
                 if v[1] > num_layers - 1:
-
                     break
 
                 else:
-
                     if new_nodes.get(v[0], None) == None:
-
-                        new_nodes.update({v[0] : True})
+                        new_nodes.update({v[0]: True})
 
                     for neighbour in graph.predecessors(v[0]):
-
                         if new_nodes.get(neighbour.item(), None) == None:
-
                             Q.append((neighbour.item(), v[1] + 1))
 
                             q += 1
 
         client_nodes_new[id] = new_nodes
 
-    #Obtained neighbourhood of nodes
+    # Obtained neighbourhood of nodes
 
-    #Create graphs accordingly
+    # Create graphs accordingly
 
     client_graphs = {}
 
     for id in range(num_clients):
+        client_graphs.update(
+            {id: graph.subgraph(list(client_nodes_new[id].keys())).to(device=device)}
+        )
 
-        client_graphs.update({id : graph.subgraph(list(client_nodes_new[id].keys())).to(device = device)})
+        print(
+            "Client {ID} has total {num} nodes".format(
+                ID=id, num=client_graphs[id].num_nodes()
+            )
+        )
 
-        print("Client {ID} has total {num} nodes".format(ID = id, num = client_graphs[id].num_nodes()))
+        # Allocating node features/labels, train/test/validation masks, labelling core nodes
 
-        #Allocating node features/labels, train/test/validation masks, labelling core nodes
+        core_node_mask = torch.zeros(
+            client_graphs[id].num_nodes(), dtype=torch.bool
+        ).to(device=device)
 
-        core_node_mask = torch.zeros(client_graphs[id].num_nodes(), dtype = torch.bool).to(device = device)
+        local_labels = torch.zeros(
+            (client_graphs[id].num_nodes(), labels.size()[1])
+        ).to(device=device)
 
-        local_labels = torch.zeros((client_graphs[id].num_nodes(), labels.size()[1])).to(device = device)
+        loc_tr_mask = torch.zeros(client_graphs[id].num_nodes(), dtype=torch.bool).to(
+            device=device
+        )
+        loc_v_mask = torch.zeros(client_graphs[id].num_nodes(), dtype=torch.bool).to(
+            device=device
+        )
+        loc_t_mask = torch.zeros(client_graphs[id].num_nodes(), dtype=torch.bool).to(
+            device=device
+        )
 
-        loc_tr_mask = torch.zeros(client_graphs[id].num_nodes(), dtype = torch.bool).to(device = device)
-        loc_v_mask = torch.zeros(client_graphs[id].num_nodes(), dtype = torch.bool).to(device = device)
-        loc_t_mask = torch.zeros(client_graphs[id].num_nodes(), dtype = torch.bool).to(device = device)
-
-        rev_map = {client_graphs[id].ndata['_ID'][j].item() : j for j in range(client_graphs[id].num_nodes())}
+        rev_map = {
+            client_graphs[id].ndata["_ID"][j].item(): j
+            for j in range(client_graphs[id].num_nodes())
+        }
 
         client_graphs[id] = [client_graphs[id], rev_map]
 
-        client_graphs[id][0].ndata['tr_mask'] = loc_tr_mask
-        client_graphs[id][0].ndata['v_mask'] = loc_v_mask
-        client_graphs[id][0].ndata['t_mask'] = loc_t_mask
-        client_graphs[id][0].ndata['label'] = local_labels
-        client_graphs[id][0].ndata['core_node_mask'] = core_node_mask
+        client_graphs[id][0].ndata["tr_mask"] = loc_tr_mask
+        client_graphs[id][0].ndata["v_mask"] = loc_v_mask
+        client_graphs[id][0].ndata["t_mask"] = loc_t_mask
+        client_graphs[id][0].ndata["label"] = local_labels
+        client_graphs[id][0].ndata["core_node_mask"] = core_node_mask
 
-    #Now, assigning labels, masks and everything correctly
+    # Now, assigning labels, masks and everything correctly
 
-    #Assigning labels and core node masks
+    # Assigning labels and core node masks
 
     for id in range(num_clients):
-
         for nodes in client_nodes[id]:
-
             # try:
 
             #     client_graphs[id][1][nodes]
@@ -1251,14 +1305,17 @@ def SplitGraph(graph, num_clients, num_layers, labels, tr_mask, v_mask, t_mask):
 
             #             break
 
-            client_graphs[id][0].ndata['core_node_mask'][client_graphs[id][1][nodes]] = 1
+            client_graphs[id][0].ndata["core_node_mask"][
+                client_graphs[id][1][nodes]
+            ] = 1
 
-            client_graphs[id][0].ndata['label'][client_graphs[id][1][nodes], :] = labels[nodes, :]
+            client_graphs[id][0].ndata["label"][
+                client_graphs[id][1][nodes], :
+            ] = labels[nodes, :]
 
-    #Assigning train/val/test masks
+    # Assigning train/val/test masks
 
     for i in range(tr_mask.size()[0]):
-
         tr_lab = tr_mask[i].item()
 
         v_lab = v_mask[i].item()
@@ -1266,69 +1323,98 @@ def SplitGraph(graph, num_clients, num_layers, labels, tr_mask, v_mask, t_mask):
         t_lab = t_mask[i].item()
 
         for id in range(num_clients):
-
             if client_graphs[id][1].get(i, None) != None:
+                if (
+                    tr_lab == 1
+                    and client_graphs[id][0].ndata["core_node_mask"][
+                        client_graphs[id][1][i]
+                    ]
+                    == 1
+                ):
+                    client_graphs[id][0].ndata["tr_mask"][client_graphs[id][1][i]] = 1
 
-                if tr_lab == 1 and client_graphs[id][0].ndata['core_node_mask'][client_graphs[id][1][i]] == 1:
+                if (
+                    v_lab == 1
+                    and client_graphs[id][0].ndata["core_node_mask"][
+                        client_graphs[id][1][i]
+                    ]
+                    == 1
+                ):
+                    client_graphs[id][0].ndata["v_mask"][client_graphs[id][1][i]] = 1
 
-                    client_graphs[id][0].ndata['tr_mask'][client_graphs[id][1][i]] = 1
+                if (
+                    t_lab == 1
+                    and client_graphs[id][0].ndata["core_node_mask"][
+                        client_graphs[id][1][i]
+                    ]
+                    == 1
+                ):
+                    client_graphs[id][0].ndata["t_mask"][client_graphs[id][1][i]] = 1
 
-                if v_lab == 1 and client_graphs[id][0].ndata['core_node_mask'][client_graphs[id][1][i]] == 1:
-
-                    client_graphs[id][0].ndata['v_mask'][client_graphs[id][1][i]] = 1
-
-                if t_lab == 1 and client_graphs[id][0].ndata['core_node_mask'][client_graphs[id][1][i]] == 1:
-
-                    client_graphs[id][0].ndata['t_mask'][client_graphs[id][1][i]] = 1
-
-        #Assigned all masks correctly!
+        # Assigned all masks correctly!
 
     return client_graphs
 
+
 train_params = {
-    'optim_kind' : 'Adam',
-    'dual_weight' : 1.e-4,
-    'aug_lagrange_rho' : 6.e-4,
-    'model_lr' : 0.04,
-    'momentum' : 0.,
-    'model_regularisation' : 2.e-3,
-    'dampening' : 0.0,
-    'dual_lr' : 1.e-2,
-    'num_local_iters' : 3,
-    'train_rounds' : 40,
-    'glob_comm' : 'FedAvg',
-    'gamma' : 0.2,
-    'attn_func' : lambda x: AttnFunction(x, 0.2),
-    'attn_func_domain' : [-5, 5, 800],
-    'sample_probab' : 1.,
-    'hidden_dim' : 8,
-    'num_heads' : 8,
-    'max_deg' : 18,
-    'num_layers' : 2,
-    'optim_reset' : False,
-    'gpu' : False,
-    'loss_func' : nn.CrossEntropyLoss(),
-    'limit_node_degree' : 150,
-    'batch_size' : 32
+    "optim_kind": "Adam",
+    "dual_weight": 1.0e-4,
+    "aug_lagrange_rho": 6.0e-4,
+    "model_lr": 0.04,
+    "momentum": 0.0,
+    "model_regularisation": 2.0e-3,
+    "dampening": 0.0,
+    "dual_lr": 1.0e-2,
+    "num_local_iters": 3,
+    "train_rounds": 40,
+    "glob_comm": "FedAvg",
+    "gamma": 0.2,
+    "attn_func": lambda x: AttnFunction(x, 0.2),
+    "attn_func_domain": [-5, 5, 800],
+    "sample_probab": 1.0,
+    "hidden_dim": 8,
+    "num_heads": 8,
+    "max_deg": 18,
+    "num_layers": 2,
+    "optim_reset": False,
+    "gpu": False,
+    "loss_func": nn.CrossEntropyLoss(),
+    "limit_node_degree": 150,
+    "batch_size": 32,
 }
 
 client_graphs = SplitGraph(cora_g, 3, 2, L, train_mask, val_mask, test_mask)
 
-Clients = {id : Client(id, client_graphs[id][0], client_graphs[id][1]) for id in range(len(client_graphs))}
+Clients = {
+    id: Client(id, client_graphs[id][0], client_graphs[id][1])
+    for id in range(len(client_graphs))
+}
 
-GATModel = FedGATModel(X_T.size()[1], L.size()[1], train_params['hidden_dim'], train_params['num_heads'], train_params['max_deg'], train_params['attn_func'], train_params['attn_func_domain']).to(device = device)
+GATModel = FedGATModel(
+    X_T.size()[1],
+    L.size()[1],
+    train_params["hidden_dim"],
+    train_params["num_heads"],
+    train_params["max_deg"],
+    train_params["attn_func"],
+    train_params["attn_func_domain"],
+).to(device=device)
 
-CentralServer = Server(cora_g, Clients, X_T, L, GATModel, train_params['sample_probab'], train_params)
+CentralServer = Server(
+    cora_g, Clients, X_T, L, GATModel, train_params["sample_probab"], train_params
+)
 
 from google.colab import drive
 
-drive.mount('/content/drive')
+drive.mount("/content/drive")
 
 # CentralServer.pretrain_communication()
 
 # torch.save(CentralServer.node_mats, "/content/drive/MyDrive/Colab Notebooks/CoraGraph_Node_Vectors.pt")
 
-CentralServer.node_mats = torch.load("/content/drive/MyDrive/Colab Notebooks/CoraGraph_Node_Vectors.pt")
+CentralServer.node_mats = torch.load(
+    "/content/drive/MyDrive/Colab Notebooks/CoraGraph_Node_Vectors.pt"
+)
 
 CentralServer.distribute_mats()
 

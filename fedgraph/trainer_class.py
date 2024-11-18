@@ -1575,7 +1575,6 @@ class Trainer_GAT:
             return test_accracy, 0
         # , 100 * self.v_acc, 100 * self.t_acc
 
-
     def train_iterate_fedavg(self):
         """
         Perform a single iteration of training, updating model parameters and computing training and validation metrics.

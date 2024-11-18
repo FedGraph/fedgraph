@@ -1250,7 +1250,7 @@ class Server_GAT:
             print(
                 f" Log// {self.type}, {self.dataset}, {len(self.trainers)}, {ep}, {average_final_test_accuracy}, {self.communication_cost}, {self.args.iid_beta} //end"
             )
-
+        print(f"//avg test accuracy: {average_final_test_accuracy}//end")
         print("Training completed!")
 
         return self.Model, self.Duals

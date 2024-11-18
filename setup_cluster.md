@@ -131,11 +131,11 @@ kubectl get pods -A
 Finally, Delete the EKS Cluster:
 
 ```bash
-eksctl delete cluster --region us-west-2 --name test6
+eksctl delete cluster --region us-west-2 --name test10
 ```
 
 To stop a job:
 
 ```bash
-ray job stop raysubmit_A8u1giaYCVNJyYRT --address http://localhost:8265
+ray job stop raysubmit_R2sueq1FAdDWbH8u --address http://localhost:8265
 ```

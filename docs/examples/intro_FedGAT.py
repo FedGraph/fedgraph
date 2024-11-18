@@ -30,6 +30,7 @@ from fedgraph.data_process import (
     FedGAT_load_data_100,
 )
 from fedgraph.gnn_models import CentralizedGATModel, FedGATModel
+from fedgraph.monitor_class import Monitor
 from fedgraph.server_class import Server_GAT
 from fedgraph.trainer_class import Trainer_GAT
 from fedgraph.utils_gat import (
@@ -297,6 +298,11 @@ def run_fedgraph():
         )
         if True:
             args.method = "DistributedGAT"
+            print(
+                f"Running experiment with: Dataset={args.dataset},"
+                f" Number of Trainers={n_trainer}, Distribution Type={args.method},"
+                f" IID Beta={args.iid_beta}, Number of Hops={max_deg}, Batch Size={-1}"
+            )
             #######################################################################
             # Distributed GAT Test
             #######################################################################
@@ -345,6 +351,11 @@ def run_fedgraph():
             server.TrainCoordinate()
         if True:
             args.method = "FedGAT"
+            print(
+                f"Running experiment with: Dataset={args.dataset},"
+                f" Number of Trainers={n_trainer}, Distribution Type={args.method},"
+                f" IID Beta={args.iid_beta}, Number of Hops={max_deg}, Batch Size={-1}"
+            )
             #######################################################################
             # FedGAT Test
             #######################################################################
@@ -401,6 +412,8 @@ def run_fedgraph():
 
             # Pre-training communication
             print("Pre-training communication initiated!")
+            monitor = Monitor()
+            monitor.pretrain_time_start()
             if node_mats == None:
                 node_mats = server.pretrain_communication(
                     induce_node_indexes, data, device=args.device, args=args
@@ -408,37 +421,42 @@ def run_fedgraph():
             else:
                 server.distribute_mats(induce_node_indexes, node_mats)
             print("Pre-training communication completed!")
-
+            monitor.pretrain_time_end(1)
+            monitor.train_time_start()
             # server.ResetAll(gat_model, train_params=args)
             server.TrainCoordinate()
+            monitor.train_time_end(1)
         return node_mats
 
     # experiment start here
-    for n_trainer in [4, 2]:
-        # for n_trainer in [5,10,15,20]:
+    for n_trainer in range(1,21):
         args.n_trainer = n_trainer
 
-        for iid in [10000]:
+        for iid in [10000.0,1.0]:
             args.iid_beta = iid
-            node_mats = run(node_mats)
+            for max_deg in [16]:
+                node_mats = None
+                args.max_deg = max_deg
+                for _ in range(3):
+                    node_mats = run(node_mats)
 
 
-for d in ["ogbn-arxiv"]:
-    args.dataset = d
-    args.hidden_dim = 256
-    args.limit_node_degree = 40
-    args.batch_size = 2048
-    args.model_lr = 0.005
-    args.num_heads = 3
-    args.num_layers = 2
-    args.train_rounds = 100
-    args.global_rounds = 100
-    args.vecgen = True
-    run_fedgraph()
-# for d in ["cora"]:
+# for d in ["ogbn-arxiv"]:
 #     args.dataset = d
+#     args.hidden_dim = 256
+#     args.limit_node_degree = 30
+#     args.batch_size = 2048
+#     args.model_lr = 0.005
+#     args.num_heads = 3
+#     args.num_layers = 2
+#     args.train_rounds = 100
+#     args.global_rounds = 100
 #     args.vecgen = True
 #     run_fedgraph()
+for d in ["cora"]:
+    args.dataset = d
+    args.vecgen = True
+    run_fedgraph()
 for d in ["citeseer"]:
     args.dataset = d
     args.vecgen = True
@@ -452,6 +470,6 @@ for d in ["citeseer"]:
 #     args.model_regularisation = 3.0e-3
 #     run_fedgraph()
 
-time.sleep(100000)
+# time.sleep(100000)
 
 ray.shutdown()
