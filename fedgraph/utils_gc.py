@@ -5,7 +5,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-import tenseal as ts
+# import tenseal as ts
 import torch
 import torch.nn.functional as F
 from sklearn.model_selection import train_test_split

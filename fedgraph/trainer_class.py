@@ -12,12 +12,12 @@ logging.basicConfig(level=logging.INFO)
 # logger = logging.getLogger(__name__)
 import numpy as np
 import ray
-import tenseal as ts
+# import tenseal as ts
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric
-from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
+# from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
 from torch_geometric.data import Data
 from torch_geometric.loader import NeighborLoader
 from torchmetrics.functional.retrieval import retrieval_auroc
@@ -236,7 +236,7 @@ class Trainer_General:
         self.feature_shape = None
         with open("fedgraph/he_context.pkl", "rb") as f:
             context_bytes = pickle.load(f)
-        self.he_context = ts.context_from(context_bytes)
+        # self.he_context = ts.context_from(context_bytes)
 
         self.scale_factor = 1e3
         self.param_history = []

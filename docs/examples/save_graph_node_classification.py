@@ -4,7 +4,7 @@ from io import BytesIO
 import numpy as np
 import torch
 import torch_geometric
-from huggingface_hub import HfApi, HfFolder
+# from huggingface_hub import HfApi, HfFolder
 
 from fedgraph.utils_nc import get_in_comm_indexes
 
