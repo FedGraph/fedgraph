@@ -296,7 +296,7 @@ def run_fedgraph():
             idx_val,
             one_hot_labels,
         )
-        if True:
+        if False:
             args.method = "DistributedGAT"
             print(
                 f"Running experiment with: Dataset={args.dataset},"
@@ -429,12 +429,11 @@ def run_fedgraph():
         return node_mats
 
     # experiment start here
-    for n_trainer in range(1,21):
+    for n_trainer in [10]:
         args.n_trainer = n_trainer
-
         for iid in [10000.0,1.0]:
             args.iid_beta = iid
-            for max_deg in [16]:
+            for max_deg in range(4,25):
                 node_mats = None
                 args.max_deg = max_deg
                 for _ in range(3):

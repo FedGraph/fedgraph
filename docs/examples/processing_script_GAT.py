@@ -103,7 +103,7 @@ def load_log_file(file_path):
     return log_content
 
 
-file_path = "gat_coraciteseer_1to20clients.log"
+file_path = "gat_gcn_coraciteseer_1to20clients.log"
 log_content = load_log_file(file_path)
 df = process_log(log_content)
 
@@ -129,6 +129,6 @@ def reorder_dataframe_columns(df):
 
 
 df = reorder_dataframe_columns(df)
-csv_file_path = "gat_coraciteseer_1to20clients.csv"
+csv_file_path = "gat_gcn_coraciteseer_1to20clients.csv"
 df.to_csv(csv_file_path)
 print(df.iloc[0, :])
