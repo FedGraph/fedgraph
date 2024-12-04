@@ -242,7 +242,7 @@ class Trainer_General:
         self.param_history = []
 
         # seems that new trainer process will not inherit sys.path from parent, need to reimport!
-        if self.args.num_hops >= 1 and self.args.method == "fedgcn":
+        if self.args.num_hops >= 1:
             if self.args.dataset == "ogbn-arxiv":
                 print("running AggreGCN_Arxiv")
                 self.model = AggreGCN_Arxiv(

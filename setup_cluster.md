@@ -22,7 +22,7 @@ docker buildx create --driver cloud ryanli3/fedgraph
 # Set your new cloud builder as default on your local machine.
 docker buildx use cloud-ryanli3-fedgraph --global
 # Build and push image to ECR
-docker buildx build --platform linux/amd64 -t public.ecr.aws/i7t1s5i1/fedgraph:gcn . --push
+docker buildx build --platform linux/amd64 -t public.ecr.aws/i7t1s5i1/fedgraph:img . --push
 ```
 
 ## Step-by-Step Guide to Set Up the Ray Cluster
@@ -40,7 +40,7 @@ After waiting the cluster setup, update kubeconfig for AWS EKS to config the clu
 # metadata:
 #   name: user
 #   region: us-west-2
-aws eks --region us-west-2 update-kubeconfig --name user
+aws eks --region us-west-2 update-kubeconfig --name mlarge
 
 ```
 Optional: Check or switch current cluster only if we have multiple clusters running at the same time:
@@ -116,8 +116,10 @@ Submit a Ray Job:
 ```bash
 cd fedgraph
 ray job submit --runtime-env-json '{
-  "working_dir": "./"
-}' --address http://localhost:8265 -- python run.py
+  "working_dir": "./",
+  "excludes": [".git"]
+}' --address http://localhost:8265 -- python3 run.py
+
 
 ```
 
