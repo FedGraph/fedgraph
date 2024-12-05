@@ -968,6 +968,7 @@ def run_LP(args: attridict) -> None:
                 number_of_users=number_of_users,
                 number_of_items=number_of_items,
                 meta_data=meta_data,
+                dataset_path=args.dataset_path,
                 hidden_channels=args.hidden_channels,
             )
             for i in range(number_of_clients)
