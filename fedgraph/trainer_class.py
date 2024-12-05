@@ -1351,7 +1351,6 @@ class Trainer_LP:
         meta_data: tuple,
         dataset_path: str,
         hidden_channels: int = 64,
-
     ):
         self.client_id = client_id
         self.country_code = country_code

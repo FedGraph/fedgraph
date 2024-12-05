@@ -126,7 +126,7 @@ ray job submit --runtime-env-json '{
 Stop a Ray Job:
 
 ```bash
-# raysubmit_xxx is the job name that can be found via 
+# raysubmit_xxx is the job name that can be found via
 ray job stop raysubmit_m5PN9xqV6drJQ8k2 --address http://localhost:8265
 ```
 
