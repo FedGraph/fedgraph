@@ -29,7 +29,6 @@ from fedgraph.utils_lp import (
     to_next_day,
 )
 from fedgraph.utils_nc import get_1hop_feature_sum, save_all_trainers_data
-from fedgraph.utils_nc import get_1hop_feature_sum
 
 
 def run_fedgraph(args: attridict, data: Any = None) -> None:

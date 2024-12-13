@@ -39,8 +39,7 @@ setup(
         "attridict",
         "torchmetrics",
         "setuptools",
-        "sphinx_rtd_theme"
-        "sphinxcontrib-bibtex",
+        "sphinx_rtd_theme" "sphinxcontrib-bibtex",
         "matplotlib",
         "sphinx_gallery",
         "tensorboard",
@@ -51,7 +50,7 @@ setup(
         "scikit-learn",
         "tenseal",
         "huggingface_hub",
-        "ogb"
+        "ogb",
     ],
     extras_require={"dev": ["build", "mypy", "pre-commit", "pytest"]},
 )
