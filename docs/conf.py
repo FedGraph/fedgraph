@@ -156,7 +156,7 @@ from sphinx_gallery.sorting import FileNameSortKey
 html_static_path = []
 
 sphinx_gallery_conf = {
-    "examples_dirs": "examples/",
+    "examples_dirs": "../../tutorials/",
     "gallery_dirs": "tutorials/",
     "within_subsection_order": FileNameSortKey,
     "filename_pattern": ".py",
