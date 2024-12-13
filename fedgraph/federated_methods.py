@@ -2,19 +2,19 @@ import argparse
 import copy
 import datetime
 import os
+import pickle
 import random
-import time
+import sys
 import time
 from pathlib import Path
 from typing import Any, List, Optional
-import sys
+
 import attridict
 import numpy as np
 import pandas as pd
 import ray
-import torch
 import tenseal as ts
-import pickle
+import torch
 
 from fedgraph.gnn_models import GIN
 from fedgraph.monitor_class import Monitor
@@ -28,24 +28,25 @@ from fedgraph.utils_lp import (
     get_start_end_time,
     to_next_day,
 )
+from fedgraph.utils_nc import get_1hop_feature_sum, save_all_trainers_data
 from fedgraph.utils_nc import get_1hop_feature_sum
 
 
-def run_fedgraph(args: attridict, data: Any) -> None:
+def run_fedgraph(args: attridict, data: Any = None) -> None:
     """
     Run the training process for the specified task.
 
     This is the function for running different federated graph learning tasks,
-    including Node Classification (NC), Graph Classification (GC), and Link Prediction (LP) 
+    including Node Classification (NC), Graph Classification (GC), and Link Prediction (LP)
     in the following functions.
-    
+
     Parameters
     ----------
     args : attridict
         Configuration arguments that must include 'fedgraph_task' key with value
         in ['NC', 'GC', 'LP'].
     data: Any
-        Input data for the federated learning task. Format depends on the specific task and 
+        Input data for the federated learning task. Format depends on the specific task and
         will be explained in more detail below inside specific functions.
     """
     if args.fedgraph_task == "NC":
@@ -60,63 +61,81 @@ def run_NC(args: attridict, data: tuple) -> None:
     """
     Train a Federated Graph Classification model using multiple trainers.
 
-    Implements FL for node classification tasks with support of homomorphic encryption. 
+    Implements FL for node classification tasks with support of homomorphic encryption.
     Use configuration argument "use_encryption" to indicate the boolean flag for
     homomorphic encryption or plaintext calculation of feature and/or gradient aggregation
     during pre-training and training. Current algorithm that supports encryption includes
     'FedAvg' and 'FedGCN'.
-    
+
     Parameters
     ----------
     args: attridict
-        Configuration arguments 
+        Configuration arguments
     data: tuple
     """
     start_time = time.time()
     ray.init()
+    if args.use_cluster:
+        monitor = Monitor()
     torch.manual_seed(42)
-    (
-        edge_index,
-        features,
-        labels,
-        idx_train,
-        idx_test,
-        class_num,
-        split_node_indexes,
-        communicate_node_indexes,
-        in_com_train_node_indexes,
-        in_com_test_node_indexes,
-        edge_indexes_trainers,
-    ) = data
+    if args.num_hops == 0:
+        print("Changing method to FedAvg")
+        args.method = "FedAvg"
+    if not args.use_huggingface:
+        (
+            edge_index,
+            features,
+            labels,
+            idx_train,
+            idx_test,
+            class_num,
+            split_node_indexes,
+            communicate_node_global_indexes,
+            in_com_train_node_local_indexes,
+            in_com_test_node_local_indexes,
+            global_edge_indexes_clients,
+        ) = data
+        if args.saveto_huggingface:
+            save_all_trainers_data(
+                split_node_indexes=split_node_indexes,
+                communicate_node_global_indexes=communicate_node_global_indexes,
+                global_edge_indexes_clients=global_edge_indexes_clients,
+                labels=labels,
+                features=features,
+                in_com_train_node_local_indexes=in_com_train_node_local_indexes,
+                in_com_test_node_local_indexes=in_com_test_node_local_indexes,
+                n_trainer=args.n_trainer,
+                args=args,
+            )
 
     if args.dataset in ["simulate", "cora", "citeseer", "pubmed", "reddit"]:
         args_hidden = 16
     else:
         args_hidden = 256
 
-    num_cpus_per_trainer = 3
+    num_cpus_per_trainer = args.num_cpus_per_trainer
     # specifying a target GPU
     if args.gpu:
         device = torch.device("cuda")
-        num_gpus_per_trainer = 1
+        num_gpus_per_trainer = args.num_gpus_per_trainer
     else:
         device = torch.device("cpu")
         num_gpus_per_trainer = 0
-    
-    
+
     #######################################################################
     # Define and Send Data to Trainers
     # --------------------------------
     # FedGraph first determines the resources for each trainer, then send
     # the data to each remote trainer.
-    
+
     if args.use_encryption:
-        with open('fedgraph/he_context.pkl', 'rb') as f:
+        with open("fedgraph/he_context.pkl", "rb") as f:
             context_bytes = pickle.load(f)
         he_context = ts.context_from(context_bytes)
         print("Loaded pre-saved HE context.")
     else:
         he_context = None
+
     @ray.remote(
         num_gpus=num_gpus_per_trainer,
         num_cpus=num_cpus_per_trainer,
@@ -125,48 +144,84 @@ def run_NC(args: attridict, data: tuple) -> None:
     class Trainer(Trainer_General):
         def __init__(self, *args: Any, **kwds: Any):
             super().__init__(*args, **kwds)
-            self.use_encryption = kwds['args'].use_encryption
+            self.use_encryption = kwds["args"].use_encryption
             if self.use_encryption:
-                with open('fedgraph/he_context.pkl', 'rb') as f:
+                with open("fedgraph/he_context.pkl", "rb") as f:
                     context_bytes = pickle.load(f)
                 self.he_context = ts.context_from(context_bytes)
                 print(f"Trainer {self.rank} loaded HE context")
 
-
-    trainers = [
-        Trainer.remote(  # type: ignore
-            rank=i,
-            local_node_index=split_node_indexes[i],
-            communicate_node_index=communicate_node_indexes[i],
-            adj=edge_indexes_trainers[i],
-            train_labels=labels[communicate_node_indexes[i]][
-                in_com_train_node_indexes[i]
-            ],
-            test_labels=labels[communicate_node_indexes[i]][
-                in_com_test_node_indexes[i]
-            ],
-            features=features[split_node_indexes[i]],
-            idx_train=in_com_train_node_indexes[i],
-            idx_test=in_com_test_node_indexes[i],
-            args_hidden=args_hidden,
-            global_node_num=len(features),
-            class_num=class_num,
-            device=device,
-            args=args,
-        )
-        for i in range(args.n_trainer)
+    if args.use_huggingface:
+        trainers = [
+            Trainer.remote(  # type: ignore
+                rank=i,
+                args_hidden=args_hidden,
+                device=device,
+                args=args,
+            )
+            for i in range(args.n_trainer)
+        ]
+    else:  # load from the server
+        trainers = [
+            Trainer.remote(  # type: ignore
+                rank=i,
+                args_hidden=args_hidden,
+                # global_node_num=len(features),
+                # class_num=class_num,
+                device=device,
+                args=args,
+                local_node_index=split_node_indexes[i],
+                communicate_node_index=communicate_node_global_indexes[i],
+                adj=global_edge_indexes_clients[i],
+                train_labels=labels[communicate_node_global_indexes[i]][
+                    in_com_train_node_local_indexes[i]
+                ],
+                test_labels=labels[communicate_node_global_indexes[i]][
+                    in_com_test_node_local_indexes[i]
+                ],
+                features=features[split_node_indexes[i]],
+                idx_train=in_com_train_node_local_indexes[i],
+                idx_test=in_com_test_node_local_indexes[i],
+            )
+            for i in range(args.n_trainer)
+        ]
+    # Retrieve data information from all trainers
+    trainer_information = [
+        ray.get(trainers[i].get_info.remote()) for i in range(len(trainers))
     ]
 
+    # Extract necessary details from trainer information
+    global_node_num = sum([info["features_num"] for info in trainer_information])
+    class_num = max([info["label_num"] for info in trainer_information])
+    feature_shape = trainer_information[0]["feature_shape"]
+
+    train_data_weights = [
+        info["len_in_com_train_node_local_indexes"] for info in trainer_information
+    ]
+    test_data_weights = [
+        info["len_in_com_test_node_local_indexes"] for info in trainer_information
+    ]
+    communicate_node_global_indexes = [
+        info["communicate_node_global_index"] for info in trainer_information
+    ]
+    ray.get(
+        [
+            trainers[i].init_model.remote(global_node_num, class_num)
+            for i in range(len(trainers))
+        ]
+    )
     #######################################################################
     # Define Server
     # -------------
     # Server class is defined for federated aggregation (e.g., FedAvg)
     # without knowing the local trainer data
 
-    server = Server(features.shape[1], args_hidden, class_num, device, trainers, args, he_context)
+    server = Server(features.shape[1], args_hidden, class_num, device, trainers, args)
+    server.broadcast_params(-1)
     pretrain_start = time.time()
-    if args.method == "FedGCN":
-        
+    if args.use_cluster:
+        monitor.pretrain_time_start()
+    if args.method != "FedAvg":
         #######################################################################
         # Pre-Train Communication of FedGCN
         # ---------------------------------
@@ -175,22 +230,25 @@ def run_NC(args: attridict, data: tuple) -> None:
         # of specific nodes back to each trainer.
         if args.use_encryption:
             print("Starting encrypted feature aggregation...")
-    
+
             encrypted_data = [
-                trainer.get_encrypted_local_feature_sum.remote() 
+                trainer.get_encrypted_local_feature_sum.remote()
                 for trainer in server.trainers
             ]
-            
+
             results = ray.get(encrypted_data)
             encrypted_sums = [(r[0], r[1]) for r in results]  # (encrypted_sum, shape)
-            encryption_times = [r[2] for r in results] 
-    
-            enc_sizes = [len(r[0]) for r in results]  #size of encrypted data
-            
+            encryption_times = [r[2] for r in results]
+
+            enc_sizes = [len(r[0]) for r in results]  # size of encrypted data
+
             # aggregate at server
-            aggregated_result, aggregation_time = server.aggregate_encrypted_feature_sums(encrypted_sums)
-            agg_size = len(aggregated_result[0]) 
-            
+            (
+                aggregated_result,
+                aggregation_time,
+            ) = server.aggregate_encrypted_feature_sums(encrypted_sums)
+            agg_size = len(aggregated_result[0])
+
             load_feature_refs = [
                 trainer.load_encrypted_feature_aggregation.remote(aggregated_result)
                 for trainer in server.trainers
@@ -200,14 +258,14 @@ def run_NC(args: attridict, data: tuple) -> None:
             pretrain_upload = sum(enc_sizes) / (1024 * 1024)  # MB
             pretrain_download = agg_size * len(server.trainers) / (1024 * 1024)  # MB
             pretrain_comm_cost = pretrain_upload + pretrain_download
-            
+
             # print performance metrics
             print("\nPre-training Phase Metrics:")
             print(f"Total Pre-training Time: {pretrain_time:.2f} seconds")
             print(f"Pre-training Upload: {pretrain_upload:.2f} MB")
             print(f"Pre-training Download: {pretrain_download:.2f} MB")
             print(f"Total Pre-training Communication Cost: {pretrain_comm_cost:.2f} MB")
-            
+
         else:
             local_neighbor_feature_sums = [
                 trainer.get_local_feature_sum.remote() for trainer in server.trainers
@@ -227,15 +285,20 @@ def run_NC(args: attridict, data: tuple) -> None:
             # test if aggregation is correct
             if args.num_hops != 0:
                 assert (
-                    global_feature_sum != get_1hop_feature_sum(features, edge_index, device)
+                    global_feature_sum
+                    != get_1hop_feature_sum(features, edge_index, device)
                 ).sum() == 0
             for i in range(args.n_trainer):
-                server.trainers[i].load_feature_aggregation.remote(
-                    global_feature_sum[communicate_node_indexes[i]]
+                communicate_nodes = (
+                    communicate_node_global_indexes[i].clone().detach().to(device)
                 )
-            print("trainers received feature aggregation from server")
+                trainer_aggregation = global_feature_sum[communicate_nodes]
+                server.trainers[i].load_feature_aggregation.remote(trainer_aggregation)
+            print("clients received feature aggregation from server")
         [trainer.relabel_adj.remote() for trainer in server.trainers]
-
+    if args.use_cluster:
+        monitor.pretrain_time_end(30)
+        monitor.train_time_start()
     #######################################################################
     # Federated Training
     # ------------------
@@ -245,43 +308,54 @@ def run_NC(args: attridict, data: tuple) -> None:
     print("global_rounds", args.global_rounds)
     for i in range(args.global_rounds):
         server.train(i)
+    if args.use_cluster:
+        monitor.train_time_end(30)
     training_time = time.time() - training_start
-    if hasattr(server, 'aggregation_stats') and server.aggregation_stats:
-        training_upload = sum([r['upload_size'] for r in server.aggregation_stats]) / (1024 * 1024)  # MB
-        training_download = sum([r['download_size'] for r in server.aggregation_stats]) / (1024 * 1024)  # MB
-    else:
-        training_upload = training_download = 0
-    training_comm_cost = training_upload + training_download
+    if args.use_encryption:
+        if hasattr(server, "aggregation_stats") and server.aggregation_stats:
+            training_upload = sum(
+                [r["upload_size"] for r in server.aggregation_stats]
+            ) / (
+                1024 * 1024
+            )  # MB
+            training_download = sum(
+                [r["download_size"] for r in server.aggregation_stats]
+            ) / (
+                1024 * 1024
+            )  # MB
+        else:
+            training_upload = training_download = 0
+        training_comm_cost = training_upload + training_download
 
-    print("\nTraining Phase Metrics:")
-    print(f"Total Training Time: {training_time:.2f} seconds")
-    print(f"Training Upload: {training_upload:.2f} MB")
-    print(f"Training Download: {training_download:.2f} MB")
-    print(f"Total Training Communication Cost: {training_comm_cost:.2f} MB")
+        print("\nTraining Phase Metrics:")
+        print(f"Total Training Time: {training_time:.2f} seconds")
+        print(f"Training Upload: {training_upload:.2f} MB")
+        print(f"Training Download: {training_download:.2f} MB")
+        print(f"Total Training Communication Cost: {training_comm_cost:.2f} MB")
 
-    # Overall totals
-    total_time = time.time() - start_time
-    total_upload = pretrain_upload + training_upload
-    total_download = pretrain_download + training_download
-    total_comm_cost = total_upload + total_download
+        # Overall totals
+        total_time = time.time() - start_time
+        total_upload = pretrain_upload + training_upload
+        total_download = pretrain_download + training_download
+        total_comm_cost = total_upload + total_download
 
-    print("\nOverall Totals:")
-    print(f"Total Execution Time: {total_time:.2f} seconds")
-    print(f"Total Upload: {total_upload:.2f} MB")
-    print(f"Total Download: {total_download:.2f} MB")
-    print(f"Total Communication Cost: {total_comm_cost:.2f} MB")
-    print(f"Pre-training Time %: {(pretrain_time/total_time)*100:.1f}%")
-    print(f"Training Time %: {(training_time/total_time)*100:.1f}%")
-    print(f"Pre-training Comm %: {(pretrain_comm_cost/total_comm_cost)*100:.1f}%")
-    print(f"Training Comm %: {(training_comm_cost/total_comm_cost)*100:.1f}%")
+        print("\nOverall Totals:")
+        print(f"Total Execution Time: {total_time:.2f} seconds")
+        print(f"Total Upload: {total_upload:.2f} MB")
+        print(f"Total Download: {total_download:.2f} MB")
+        print(f"Total Communication Cost: {total_comm_cost:.2f} MB")
+        print(f"Pre-training Time %: {(pretrain_time/total_time)*100:.1f}%")
+        print(f"Training Time %: {(training_time/total_time)*100:.1f}%")
+        print(f"Pre-training Comm %: {(pretrain_comm_cost/total_comm_cost)*100:.1f}%")
+        print(f"Training Comm %: {(training_comm_cost/total_comm_cost)*100:.1f}%")
     #######################################################################
     # Summarize Experiment Results
     # ----------------------------
     # The server collects the local test loss and accuracy from all trainers
     # then calculate the overall test loss and accuracy.
 
-    train_data_weights = [len(i) for i in in_com_train_node_indexes]
-    test_data_weights = [len(i) for i in in_com_test_node_indexes]
+    # train_data_weights = [len(i) for i in in_com_train_node_indexes]
+    # test_data_weights = [len(i) for i in in_com_test_node_indexes]
 
     results = [trainer.local_test.remote() for trainer in server.trainers]
     results = np.array([ray.get(result) for result in results])
@@ -293,14 +367,14 @@ def run_NC(args: attridict, data: tuple) -> None:
         [row[1] for row in results], weights=test_data_weights, axis=0
     )
     print(f"average_final_test_loss, {average_final_test_loss}")
-    print(f"average_final_test_accuracy, {average_final_test_accuracy}")
+    print(f"Average test accuracy, {average_final_test_accuracy}")
     ray.shutdown()
 
 
 def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
     """
     Entrance of the training process for graph classification.
-    
+
     Supports multiple federated learning algorithms including FedAvg, FedProx, GCFL,
     GCFL+, and GCFL+dWs. Implements client-server architecture with Ray for distributed
     computing.
@@ -824,9 +898,9 @@ def run_LP(args: attridict) -> None:
     Implements various federated learning methods for link prediction tasks with support
     for online learning and buffer mechanisms. Handles temporal aspects of link prediction
     and cross-region user interactions.
-    
+
     Algorithm choices include ('STFL', 'StaticGNN', '4D-FED-GNN+', 'FedLink').
-    
+
     Parameters
     ----------
     args: attridict
@@ -1056,7 +1130,7 @@ def LP_train_global_round(
     time_writer: Any = None,
 ) -> float:
     """
-    This function trains the clients for a global round, handles model aggregation, 
+    This function trains the clients for a global round, handles model aggregation,
     updates the server model with the average of the client models, and and evaluates
     performance metrics including AUC scores and hit rates.
     Supports different training methods.

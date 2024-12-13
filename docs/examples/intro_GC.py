@@ -153,6 +153,7 @@ print("Data prepared.")
 server = Server_GC(base_model(nlayer=args.nlayer, nhid=args.hidden), args.device)
 print("setup server done")
 
+
 @ray.remote(
     num_gpus=num_gpus_per_trainer,
     num_cpus=num_cpus_per_trainer,
@@ -218,7 +219,7 @@ print("\nDone setting up devices.")
 # Here we run the federated training for graph classification.
 # The server starts training of all trainers and aggregates the parameters.
 # The output consists of the accuracy of the model on the test set.
-      
+
 print(f"Running {args.model} ...")
 
 model_parameters = {

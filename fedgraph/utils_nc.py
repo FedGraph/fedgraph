@@ -1,4 +1,5 @@
 import glob
+import logging
 import re
 import time
 from io import BytesIO
@@ -10,7 +11,6 @@ import scipy.sparse as sp
 import torch
 import torch_geometric
 from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
-import time
 
 
 def normalize(mx: sp.csc_matrix) -> sp.csr_matrix:
@@ -92,12 +92,17 @@ def label_dirichlet_partition(
     K: int,
     n_parties: int,
     beta: float,
-    distribution_type: str = "powerlaw",
+    distribution_type: str = "average",
 ) -> list:
+    # logger.info(
+    #     f"Starting label_dirichlet_partition with {n_parties} parties and {K} classes"
+    # )
     start_time = time.time()
 
-    min_require_size = max(1, min(10, N // (n_parties * K)))  # Adjust minimum size based on dataset
-    
+    min_require_size = max(
+        1, min(10, N // (n_parties * K))
+    )  # Adjust minimum size based on dataset
+
     # Generate weights
     if distribution_type == "lognormal":
         weights = np.random.lognormal(mean=0, sigma=2, size=n_parties)
@@ -109,35 +114,61 @@ def label_dirichlet_partition(
         weights = np.ones(n_parties)
     weights /= weights.sum()
 
+    # logger.info(f"Generated weights using {distribution_type} distribution")
+
     # Pre-compute label indices
     label_indices = [np.where(labels == k)[0] for k in range(K)]
 
     attempts = 0
-    max_attempts = 1000  #increased // can revoke later
+    max_attempts = 1000  # increased // can revoke later
     while attempts < max_attempts:
         attempts += 1
         idx_batch = [[] for _ in range(n_parties)]
-        
+
         for k in range(K):
             idx_k = label_indices[k]
             np.random.shuffle(idx_k)
             proportions = np.random.dirichlet(np.repeat(beta, n_parties))
-            
+
             if distribution_type == "average":
-                proportions = np.array([p * (len(idx_j) < N / n_parties) for p, idx_j in zip(proportions, idx_batch)])
+                proportions = np.array(
+                    [
+                        p * (len(idx_j) < N / n_parties)
+                        for p, idx_j in zip(proportions, idx_batch)
+                    ]
+                )
 
             proportions *= weights
             proportions /= proportions.sum()
             proportions = (np.cumsum(proportions) * len(idx_k)).astype(int)[:-1]
 
-            idx_batch = [idx_j + idx.tolist() for idx_j, idx in zip(idx_batch, np.split(idx_k, proportions))]
+            idx_batch = [
+                idx_j + idx.tolist()
+                for idx_j, idx in zip(idx_batch, np.split(idx_k, proportions))
+            ]
 
         min_size = min(len(idx_j) for idx_j in idx_batch)
-        
+
         if min_size >= min_require_size:
             break
 
+        # if attempts % 10 == 0:
+        # logger.warning(
+        #     f"Attempt {attempts}: min_size ({min_size}) < min_require_size ({min_require_size})"
+        # )
+
+    # if attempts >= max_attempts:
+    # logger.warning(
+    #     f"Failed to meet min_require_size after {max_attempts} attempts. Using best attempt."
+    # )
+
+    # logger.info(f"Partitioning completed after {attempts} attempts")
+
     split_data_indexes = [np.random.permutation(idx_j).tolist() for idx_j in idx_batch]
+
+    # logger.info(
+    #     f"label_dirichlet_partition completed in {time.time() - start_time:.2f} seconds"
+    # )
 
     return split_data_indexes
 
