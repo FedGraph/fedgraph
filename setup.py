@@ -37,10 +37,9 @@ setup(
         "ray[default]>=2.6.3",
         "PyYAML>=5.4.0",
         "attridict",
-        "furo",
         "torchmetrics",
         "setuptools",
-        "sphinxcontrib-bibtex",
+        "sphinx_rtd_theme" "sphinxcontrib-bibtex",
         "matplotlib",
         "sphinx_gallery",
         "tensorboard",
@@ -49,9 +48,9 @@ setup(
         "pandas",
         "twine==5.0.0",
         "scikit-learn",
-        "ogb",  # for ogbn dataset
-        "huggingface_hub",  # for hugging_face
-        "tenseal",  # for HE
+        "tenseal",
+        "huggingface_hub",
+        "ogb",
     ],
     extras_require={"dev": ["build", "mypy", "pre-commit", "pytest"]},
 )
