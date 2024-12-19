@@ -49,9 +49,7 @@ config_file = os.path.join(current_dir, "configs/config_LP.yaml")
 with open(config_file, "r") as file:
     args = attridict(yaml.safe_load(file))
 
-dataset_path = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), args.dataset_path
-)
+dataset_path = args.dataset_path
 print(dataset_path)
 path = dataset_path
 dataset_path = os.path.join(

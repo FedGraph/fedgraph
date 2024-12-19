@@ -998,9 +998,7 @@ def run_LP(args: attridict) -> None:
     # Append paths relative to the current script's directory
     sys.path.append(os.path.join(current_dir, "../fedgraph"))
     sys.path.append(os.path.join(current_dir, "../../"))
-    dataset_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), args.dataset_path
-    )
+    dataset_path = args.dataset_path
     global_file_path = os.path.join(dataset_path, "data_global.txt")
     traveled_file_path = os.path.join(dataset_path, "traveled_users.txt")
 

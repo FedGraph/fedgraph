@@ -11,6 +11,8 @@ Run a simple example of FedGraph.
 # Load libraries
 # --------------
 
+import os
+
 import attridict
 
 from fedgraph.data_process import data_loader
@@ -19,15 +21,16 @@ from fedgraph.federated_methods import run_fedgraph
 #######################################################################
 # Specify the Link Prediction configuration
 # ----------------------------------------------
-
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATASET_PATH = os.path.join(BASE_DIR, "data", "LPDataset")
 config = {
     "fedgraph_task": "LP",
     # method = ["STFL", "StaticGNN", "4D-FED-GNN+", "FedLink"]
-    "method": "FedLink",
+    "method": "STFL",
     # Dataset configuration
     # country_codes = ['US', 'BR', 'ID', 'TR', 'JP']
     "country_codes": ["US", "BR"],
-    "dataset_path": "data/LPDataset",
+    "dataset_path": DATASET_PATH,
     # Setup configuration
     "device": "cpu",
     "use_buffer": False,
