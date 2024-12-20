@@ -17,7 +17,7 @@ import attridict
 
 from fedgraph.data_process import data_loader
 from fedgraph.federated_methods import run_fedgraph
-
+import ray
 #######################################################################
 # Specify the Node Classification configuration
 # ---------------------------------------------
@@ -142,8 +142,9 @@ config = {
     "gpu": False,
     "num_cpus_per_trainer": 1,
     "num_gpus_per_trainer": 0,
-    # Scalability and Cluster Configuration
-    "use_cluster": False,  # Use Kubernetes for scalability if True
+    "use_cluster": False,  # whether use kubernetes for scalability or not
+    "distribution_type": "average",  # the node number distribution among clients
+    "batch_size": -1,  # -1 is full batch
 }
 #######################################################################
 # Run fedgraph method
