@@ -13,7 +13,7 @@ import attridict
 import numpy as np
 import pandas as pd
 import ray
-# import tenseal as ts
+import tenseal as ts
 import torch
 
 from fedgraph.data_process import data_loader
@@ -66,6 +66,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
     args
     data
     """
+    ray.init()
     start_time = time.time()
     if args.use_cluster:
         monitor = Monitor()
@@ -360,6 +361,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
     )
     print(f"average_final_test_loss, {average_final_test_loss}")
     print(f"Average test accuracy, {average_final_test_accuracy}")
+    ray.shutdown()
 
 
 def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:

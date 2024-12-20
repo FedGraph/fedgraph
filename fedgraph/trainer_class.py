@@ -12,11 +12,12 @@ logging.basicConfig(level=logging.INFO)
 # logger = logging.getLogger(__name__)
 import numpy as np
 import ray
-# import tenseal as ts
+import tenseal as ts
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric
+
 # from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
 from torch_geometric.data import Data
 from torch_geometric.loader import NeighborLoader

@@ -15,9 +15,8 @@ import os
 
 import attridict
 
-from fedgraph.data_process import data_loader
 from fedgraph.federated_methods import run_fedgraph
-import ray
+
 #######################################################################
 # Specify the Node Classification configuration
 # ---------------------------------------------
@@ -124,7 +123,7 @@ config = {
     "method": "STFL",
     # Dataset configuration
     # country_codes = ['US', 'BR', 'ID', 'TR', 'JP']
-    "country_codes": ["ID"],
+    "country_codes": ["ID", "TR"],
     "dataset_path": DATASET_PATH,
     # Setup configuration
     "device": "cpu",

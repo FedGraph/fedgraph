@@ -17,7 +17,6 @@ from typing import Any
 import numpy as np
 import ray
 import torch
-# from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
 
 from fedgraph.data_process import NC_load_data
 from fedgraph.monitor_class import Monitor
@@ -28,6 +27,9 @@ from fedgraph.utils_nc import (
     get_in_comm_indexes,
     label_dirichlet_partition,
 )
+
+# from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
+
 
 ray.init()
 
