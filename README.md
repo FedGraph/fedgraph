@@ -42,26 +42,43 @@ pip install fedgraph
 ## Quick Start
 ```python
 from fedgraph.federated_methods import run_fedgraph
-from fedgraph.data_process import data_loader
+
 import attridict
 
-config={'dataset': 'cora',
-        'fedgraph_task': 'NC',
-        'method': 'FedGCN',
-        'global_rounds': 100,
-        'local_step': 3,
-        'learning_rate': 0.5,
-        'n_trainer': 2,
-        'num_layers': 2,
-        'num_hops': 2,
-        'gpu': False,
-        'iid_beta': 10000,
-        'logdir': './runs'}
+config = {
+    # Task, Method, and Dataset Settings
+    "fedgraph_task": "NC",
+    "dataset": "cora",
+    "method": "FedGCN",  # Federated learning method, e.g., "FedGCN"
+    "iid_beta": 10000,  # Dirichlet distribution parameter for label distribution among clients
+    "distribution_type": "average",  # Distribution type among clients
+    # Training Configuration
+    "global_rounds": 100,
+    "local_step": 3,
+    "learning_rate": 0.5,
+    "n_trainer": 2,
+    "batch_size": -1,  # -1 indicates full batch training
+    # Model Structure
+    "num_layers": 2,
+    "num_hops": 1,  # Number of n-hop neighbors for client communication
+    # Resource and Hardware Settings
+    "gpu": False,
+    "num_cpus_per_trainer": 1,
+    "num_gpus_per_trainer": 0,
+    # Logging and Output Configuration
+    "logdir": "./runs",
+    # Security and Privacy
+    "use_encryption": False,  # Whether to use Homomorphic Encryption for secure aggregation
+    # Dataset Handling Options
+    "use_huggingface": False,  # Load dataset directly from Hugging Face Hub
+    "saveto_huggingface": False,  # Save partitioned dataset to Hugging Face Hub
+    # Scalability and Cluster Configuration
+    "use_cluster": False,  # Use Kubernetes for scalability if True
+}
+
 
 config = attridict(config)
-
-data = data_loader(config)
-run_fedgraph(config, data)
+run_fedgraph(config)
 ```
 
 ## Cite

@@ -66,7 +66,10 @@ Whether you are a federated learning researcher or a first-time user of federate
    fedgraph.server_class
    fedgraph.train_func
    fedgraph.trainer_class
-   fedgraph.utils
+   fedgraph.monitor_class
+   fedgraph.utils_gc
+   fedgraph.utils_lp
+   fedgraph.utils_nc
 
 .. toctree::
    :maxdepth: 2
