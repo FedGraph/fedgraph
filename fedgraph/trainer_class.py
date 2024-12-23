@@ -17,7 +17,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric
-from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
+
+# from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
 from torch_geometric.data import Data
 from torch_geometric.loader import NeighborLoader
 from torchmetrics.functional.retrieval import retrieval_auroc
@@ -236,13 +237,13 @@ class Trainer_General:
         self.feature_shape = None
         with open("fedgraph/he_context.pkl", "rb") as f:
             context_bytes = pickle.load(f)
-        self.he_context = ts.context_from(context_bytes)
+        # self.he_context = ts.context_from(context_bytes)
 
         self.scale_factor = 1e3
         self.param_history = []
 
         # seems that new trainer process will not inherit sys.path from parent, need to reimport!
-        if self.args.num_hops >= 1 and self.args.method == "fedgcn":
+        if self.args.num_hops >= 1:
             if self.args.dataset == "ogbn-arxiv":
                 print("running AggreGCN_Arxiv")
                 self.model = AggreGCN_Arxiv(
@@ -1003,6 +1004,15 @@ class Trainer_GC:
     def get_name(self) -> str:
         return self.name
 
+    def get_id(self) -> Any:
+        return self.id
+
+    def get_conv_grads_norm(self) -> Any:
+        return self.conv_grads_norm
+
+    def get_conv_dWs_norm(self) -> Any:
+        return self.conv_dWs_norm
+
     ########### Private functions ###########
     def __train(
         self,
@@ -1340,8 +1350,8 @@ class Trainer_LP:
         number_of_users: int,
         number_of_items: int,
         meta_data: tuple,
+        dataset_path: str,
         hidden_channels: int = 64,
-        dataset_path: str = "data",
     ):
         self.client_id = client_id
         self.country_code = country_code
@@ -1448,7 +1458,7 @@ class Trainer_LP:
             train_finish_time = time.time() - start_train_time
             train_finish_times.append(train_finish_time)
             print(
-                f"client {self.client_id} local update {i} loss {loss:.4f} train time {train_finish_time:.4f}"
+                f"client {self.client_id} local steps {i} loss {loss:.4f} train time {train_finish_time:.4f}"
             )
 
         return client_id, loss, train_finish_times

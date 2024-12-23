@@ -126,3 +126,4 @@ wrapt
 yarl
 ogb
 huggingface_hub
+tenseal

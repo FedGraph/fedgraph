@@ -79,7 +79,7 @@ class Server:
         args: Any,
     ) -> None:
         self.args = args
-        if self.args.num_hops >= 1 and self.args.method == "fedgcn":
+        if self.args.num_hops >= 1:  # Federated Methods
             if "ogbn-arxiv" in self.args.dataset:
                 print("Running AggreGCN_Arxiv")
                 self.model = AggreGCN_Arxiv(
@@ -97,7 +97,7 @@ class Server:
                     dropout=0.5,
                     NumLayers=self.args.num_layers,
                 ).to(device)
-        else:
+        else:  # 0-hop FedAvg methods
             if "ogbn" in self.args.dataset:
                 print("Running GCN_arxiv")
                 self.model = GCN_arxiv(
@@ -385,10 +385,13 @@ class Server_GC:
         List of tuples, where each tuple contains the model parameters and the accuracies of the trainers.
     """
 
-    def __init__(self, model: torch.nn.Module, device: torch.device) -> None:
+    def __init__(
+        self, model: torch.nn.Module, device: torch.device, use_cluster: bool
+    ) -> None:
         self.model = model.to(device)
         self.W = {key: value for key, value in self.model.named_parameters()}
         self.model_cache: Any = []
+        self.use_cluster = use_cluster
 
     ########### Public functions ###########
     def random_sample_trainers(self, all_trainers: list, frac: float) -> list:

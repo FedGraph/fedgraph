@@ -16,6 +16,7 @@ import ray
 import tenseal as ts
 import torch
 
+from fedgraph.data_process import data_loader
 from fedgraph.gnn_models import GIN
 from fedgraph.monitor_class import Monitor
 from fedgraph.server_class import Server, Server_GC, Server_LP
@@ -31,7 +32,7 @@ from fedgraph.utils_lp import (
 from fedgraph.utils_nc import get_1hop_feature_sum, save_all_trainers_data
 
 
-def run_fedgraph(args: attridict, data: Any = None) -> None:
+def run_fedgraph(args: attridict) -> None:
     """
     Run the training process for the specified task.
 
@@ -48,6 +49,12 @@ def run_fedgraph(args: attridict, data: Any = None) -> None:
         Input data for the federated learning task. Format depends on the specific task and
         will be explained in more detail below inside specific functions.
     """
+    if args.fedgraph_task != "NC" or not args.use_huggingface:
+        data = data_loader(args)
+    else:
+        # use hugging_face instead of use data_loader
+        print("Using hugging_face for local loading")
+        data = None
     if args.fedgraph_task == "NC":
         run_NC(args, data)
     elif args.fedgraph_task == "GC":
@@ -56,7 +63,7 @@ def run_fedgraph(args: attridict, data: Any = None) -> None:
         run_LP(args)
 
 
-def run_NC(args: attridict, data: tuple) -> None:
+def run_NC(args: attridict, data: Any = None) -> None:
     """
     Train a Federated Graph Classification model using multiple trainers.
 
@@ -72,8 +79,8 @@ def run_NC(args: attridict, data: tuple) -> None:
         Configuration arguments
     data: tuple
     """
-    start_time = time.time()
     ray.init()
+    start_time = time.time()
     if args.use_cluster:
         monitor = Monitor()
     torch.manual_seed(42)
@@ -391,49 +398,50 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
     # transfer the config to argparse
 
     #################### set seeds and devices ####################
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    sys.path.append(os.path.join(current_dir, "../fedgraph"))
+    sys.path.append(os.path.join(current_dir, "../../"))
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
-    num_cpus_per_trainer = 3
+    base_model = GIN
+    num_cpus_per_trainer = args.num_cpus_per_trainer
     # specifying a target GPU
-    if torch.cuda.is_available():
+    if args.gpu:
         print("using GPU")
-        device = torch.device("cuda")
-        num_gpus_per_trainer = 1
+        args.device = torch.device("cuda")
+        num_gpus_per_trainer = args.num_gpus_per_trainer
     else:
         print("using CPU")
-        device = torch.device("cpu")
+        args.device = torch.device("cpu")
         num_gpus_per_trainer = 0
 
     #################### set output directory ####################
     # outdir_base = os.path.join(args.outbase, f'seqLen{args.seq_length}')
     if args.save_files:
-        outdir_base = args.outbase + "/" + f"{args.model}"
+        outdir_base = args.outbase + "/" + f"{args.algorithm}"
         outdir = os.path.join(outdir_base, f"oneDS-nonOverlap")
-        if args.model in ["SelfTrain"]:
-            outdir = os.path.join(outdir, f"{args.data_group}")
-        elif args.model in ["FedAvg", "FedProx"]:
-            outdir = os.path.join(
-                outdir, f"{args.data_group}-{args.num_trainers}trainers"
-            )
-        elif args.model in ["GCFL"]:
+        if args.algorithm in ["SelfTrain"]:
+            outdir = os.path.join(outdir, f"{args.dataset}")
+        elif args.algorithm in ["FedAvg", "FedProx"]:
+            outdir = os.path.join(outdir, f"{args.dataset}-{args.num_trainers}trainers")
+        elif args.algorithm in ["GCFL"]:
             outdir = os.path.join(
                 outdir,
-                f"{args.data_group}-{args.num_trainers}trainers",
+                f"{args.dataset}-{args.num_trainers}trainers",
                 f"eps_{args.epsilon1}_{args.epsilon2}",
             )
-        elif args.model in ["GCFL+", "GCFL+dWs"]:
+        elif args.algorithm in ["GCFL+", "GCFL+dWs"]:
             outdir = os.path.join(
                 outdir,
-                f"{args.data_group}-{args.num_trainers}trainers",
+                f"{args.dataset}-{args.num_trainers}trainers",
                 f"eps_{args.epsilon1}_{args.epsilon2}",
                 f"seqLen{args.seq_length}",
             )
-        outdir = os.path.join(outdir, f"seed{args.seed}")
+
         Path(outdir).mkdir(parents=True, exist_ok=True)
         print(f"Output Path: {outdir}")
-
     #################### save statistics of data on trainers ####################
     # if args.save_files and df_stats:
     #     outdir_stats = os.path.join(outdir, f"stats_train_data.csv")
@@ -484,9 +492,9 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
             dataset_trainer_name=dataset_trainer_name,
             # "GIN model for GC",
             cmodel_gc=base_model(
-                nfeat=data[dataset_trainer_name].num_node_features,
+                nfeat=data[dataset_trainer_name][1],
                 nhid=args.hidden,
-                nclass=data[dataset_trainer_name].num_graph_labels,
+                nclass=data[dataset_trainer_name][2],
                 nlayer=args.nlayer,
                 dropout=args.dropout,
             ),
@@ -494,7 +502,9 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
         )
         for idx, dataset_trainer_name in enumerate(data.keys())
     ]
-    server = Server_GC(base_model(nlayer=args.nlayer, nhid=args.hidden), args.device)
+    server = Server_GC(
+        base_model(nlayer=args.nlayer, nhid=args.hidden), args.device, args.use_cluster
+    )
     # TODO: check and modify whether deepcopy should be added.
     # trainers = copy.deepcopy(init_trainers)
     # server = copy.deepcopy(init_server)
@@ -502,7 +512,7 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
     print("\nDone setting up devices.")
 
     ################ choose the algorithm to run ################
-    print(f"Running {args.model} ...")
+    print(f"Running {args.algorithm} ...")
 
     model_parameters = {
         "SelfTrain": lambda: run_GC_selftrain(
@@ -556,10 +566,10 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
         ),
     }
 
-    if args.model in model_parameters:
-        output = model_parameters[args.model]()
+    if args.algorithm in model_parameters:
+        output = model_parameters[args.algorithm]()
     else:
-        raise ValueError(f"Unknown model: {args.model}")
+        raise ValueError(f"Unknown model: {args.algorithm}")
 
     #################### save the output ####################
     if args.save_files:
@@ -592,15 +602,18 @@ def run_GC_selftrain(trainers: list, server: Any, local_epoch: int) -> dict:
     """
 
     # all trainers are initialized with the same weights
-    monitor = Monitor()
-    monitor.pretrain_time_start()
+    if server.use_cluster:
+        monitor = Monitor()
+        monitor.pretrain_time_start()
     global_params_id = ray.put(server.W)
     for trainer in trainers:
         trainer.update_params.remote(global_params_id)
-    monitor.pretrain_time_end(30)
+    if server.use_cluster:
+        monitor.pretrain_time_end(30)
     all_accs = {}
     acc_refs = []
-    monitor.train_time_start()
+    if server.use_cluster:
+        monitor.train_time_start()
     for trainer in trainers:
         trainer.local_train.remote(local_epoch=local_epoch)
         acc_ref = trainer.local_test.remote()
@@ -620,8 +633,8 @@ def run_GC_selftrain(trainers: list, server: Any, local_epoch: int) -> dict:
         acc_refs = left
         if not acc_refs:
             break
-
-    monitor.train_time_end(30)
+    if server.use_cluster:
+        monitor.train_time_end(30)
     frame = pd.DataFrame(all_accs).T.iloc[:, [2]]
     frame.columns = ["test_acc"]
     print(frame)
@@ -666,13 +679,15 @@ def run_GC_Fed_algorithm(
     frame: pd.DataFrame
         Pandas dataframe with test accuracies
     """
-    monitor = Monitor()
-    monitor.pretrain_time_start()
+    if server.use_cluster:
+        monitor = Monitor()
+        monitor.pretrain_time_start()
     global_params_id = ray.put(server.W)
     for trainer in trainers:
         trainer.update_params.remote(global_params_id)
-    monitor.pretrain_time_end(30)
-    monitor.train_time_start()
+    if server.use_cluster:
+        monitor.pretrain_time_end(30)
+        monitor.train_time_start()
     for c_round in range(1, communication_rounds + 1):
         if (c_round) % 10 == 0:
             # print the current round every 10 rounds
@@ -720,7 +735,8 @@ def run_GC_Fed_algorithm(
         is_max = s == s.max()
         return ["background-color: yellow" if v else "" for v in is_max]
 
-    monitor.train_time_end(30)
+    if server.use_cluster:
+        monitor.train_time_end(30)
     fs = frame.style.apply(highlight_max).data
     print(fs)
     print(f"Average test accuracy: {gc_avg_accuracy(frame, trainers)}")
@@ -771,31 +787,34 @@ def run_GCFL_algorithm(
         raise ValueError(
             "Invalid algorithm_type. Must be 'gcfl', 'gcfl_plus', or 'gcfl_plus_dWs'."
         )
-    monitor = Monitor()
-    monitor.pretrain_time_start()
+    if server.use_cluster:
+        monitor = Monitor()
+        monitor.pretrain_time_start()
     cluster_indices = [np.arange(len(trainers)).astype("int")]
     trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
 
     global_params_id = ray.put(server.W)
     if algorithm_type in ["gcfl_plus", "gcfl_plus_dWs"]:
-        seqs_grads: Any = {c.id: [] for c in trainers}
+        seqs_grads: Any = {ray.get(c.get_id.remote()): [] for c in trainers}
 
         # Perform update_params before communication rounds for GCFL+ and GCFL+ dWs
 
         for trainer in trainers:
-            trainer.update_params(global_params_id)
-    monitor.pretrain_time_end(30)
+            trainer.update_params.remote(global_params_id)
+    if server.use_cluster:
+        monitor.pretrain_time_end(30)
     acc_trainers: List[Any] = []
-    monitor.train_time_start()
+    if server.use_cluster:
+        monitor.train_time_start()
     for c_round in range(1, communication_rounds + 1):
         if (c_round) % 10 == 0:
             print(f"  > Training round {c_round} finished.")
 
         if c_round == 1:
             # Perform update_params at the beginning of the first communication round
-            ray.internal.free(
-                [global_params_id]
-            )  # Free the old weight memory in object store
+            # ray.internal.free(
+            #     [global_params_id]
+            # )  # Free the old weight memory in object store
             global_params_id = ray.put(server.W)
             for trainer in trainers:
                 trainer.update_params.remote(global_params_id)
@@ -808,9 +827,13 @@ def run_GCFL_algorithm(
         ray.get(reset_params_refs)
         for trainer in participating_trainers:
             if algorithm_type == "gcfl_plus":
-                seqs_grads[trainer.id].append(trainer.conv_grads_norm)
+                seqs_grads[ray.get(trainer.get_id.remote())].append(
+                    ray.get(trainer.get_conv_grads_norm.remote())
+                )
             elif algorithm_type == "gcfl_plus_dWs":
-                seqs_grads[trainer.id].append(trainer.conv_dWs_norm)
+                seqs_grads[ray.get(trainer.get_id.remote())].append(
+                    ray.get(trainer.get_conv_dWs_norm.remote())
+                )
 
         cluster_indices_new = []
         for idc in cluster_indices:
@@ -843,7 +866,7 @@ def run_GCFL_algorithm(
                             np.max(dtw_distances) - dtw_distances, idc
                         )
                         cluster_indices_new += [c1, c2]
-                        seqs_grads = {c.id: [] for c in trainers}
+                        seqs_grads = {ray.get(c.get_id.remote()): [] for c in trainers}
                 else:
                     cluster_indices_new += [idc]
             else:
@@ -869,8 +892,8 @@ def run_GCFL_algorithm(
         server.cache_model(
             idc, ray.get(trainers[idc[0]].get_total_weight.remote()), acc_trainers
         )
-
-    monitor.train_time_end(30)
+    if server.use_cluster:
+        monitor.train_time_end(30)
     results = np.zeros([len(trainers), len(server.model_cache)])
     for i, (idcs, W, accs) in enumerate(server.model_cache):
         results[idcs, i] = np.array(accs)
@@ -935,16 +958,16 @@ def run_LP(args: attridict) -> None:
             [0]: The list of clients
             [1]: The server
         """
-        ray.init()
+
         number_of_clients = len(country_codes)
         number_of_users, number_of_items = len(user_id_mapping.keys()), len(
             item_id_mapping.keys()
         )
-        num_cpus_per_client = 3
-        if args.device == "gpu":
+        num_cpus_per_client = args.num_cpus_per_trainer
+        if args.gpu == True:
             device = torch.device("cuda")
             print("gpu detected")
-            num_gpus_per_client = 1
+            num_gpus_per_client = args.num_gpus_per_trainer
         else:
             device = torch.device("cpu")
             num_gpus_per_client = 0
@@ -968,6 +991,7 @@ def run_LP(args: attridict) -> None:
                 number_of_users=number_of_users,
                 number_of_items=number_of_items,
                 meta_data=meta_data,
+                dataset_path=args.dataset_path,
                 hidden_channels=args.hidden_channels,
             )
             for i in range(number_of_clients)
@@ -986,16 +1010,18 @@ def run_LP(args: attridict) -> None:
     use_buffer = args.use_buffer
     buffer_size = args.buffer_size
     online_learning = args.online_learning
-    repeat_time = args.repeat_time
     global_rounds = args.global_rounds
     local_steps = args.local_steps
     hidden_channels = args.hidden_channels
     record_results = args.record_results
     country_codes = args.country_codes
-    monitor = Monitor()
-    dataset_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), args.dataset_path
-    )
+
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    ray.init()
+    # Append paths relative to the current script's directory
+    sys.path.append(os.path.join(current_dir, "../fedgraph"))
+    sys.path.append(os.path.join(current_dir, "../../"))
+    dataset_path = args.dataset_path
     global_file_path = os.path.join(dataset_path, "data_global.txt")
     traveled_file_path = os.path.join(dataset_path, "traveled_users.txt")
 
@@ -1019,100 +1045,104 @@ def run_LP(args: attridict) -> None:
         ["user", "item"],
         [("user", "select", "item"), ("item", "rev_select", "user")],
     )
-
     # repeat the training process
-    for current_training_process in range(repeat_time):
-        number_of_clients = len(country_codes)  # each country is a client
-        clients, server = setup_trainer_server(
-            country_codes=country_codes,
-            user_id_mapping=user_id_mapping,
-            item_id_mapping=item_id_mapping,
-            meta_data=meta_data,
-            hidden_channels=hidden_channels,
-        )
+    number_of_clients = len(country_codes)  # each country is a client
+    clients, server = setup_trainer_server(
+        country_codes=country_codes,
+        user_id_mapping=user_id_mapping,
+        item_id_mapping=item_id_mapping,
+        meta_data=meta_data,
+        hidden_channels=hidden_channels,
+    )
 
-        """Broadcast the global model parameter to all clients"""
+    """Broadcast the global model parameter to all clients"""
+    if args.use_cluster:
+        monitor = Monitor()
         monitor.pretrain_time_start()
-        global_model_parameter = (
-            server.get_model_parameter()
-        )  # fetch the global model parameter
-        # TODO: add memory optimization here by move ref to shared raylet
-        for i in range(number_of_clients):
-            clients[i].set_model_parameter.remote(
-                global_model_parameter
-            )  # broadcast the global model parameter to all clients
+    global_model_parameter = (
+        server.get_model_parameter()
+    )  # fetch the global model parameter
+    # TODO: add memory optimization here by move ref to shared raylet
+    for i in range(number_of_clients):
+        clients[i].set_model_parameter.remote(
+            global_model_parameter
+        )  # broadcast the global model parameter to all clients
 
-        """Determine the start and end time of the conditional information"""
+    """Determine the start and end time of the conditional information"""
+    (
+        start_time,
+        end_time,
+        prediction_days,
+        start_time_float_format,
+        end_time_float_format,
+    ) = get_start_end_time(online_learning=online_learning, method=method)
+
+    if record_results:
+        file_name = (
+            f"{method}_buffer_{use_buffer}_{buffer_size}_online_{online_learning}.txt"
+        )
+        result_writer = open(file_name, "a+")
+        time_writer = open("train_time_" + file_name, "a+")
+    else:
+        result_writer = None
+        time_writer = None
+    if args.use_cluster:
+        monitor.pretrain_time_end(30)
+        monitor.train_time_start()
+    # from 2012-04-03 to 2012-04-13
+    for day in range(prediction_days):  # make predictions for each day
+        # get the train and test data for each client at the current time step
+        for i in range(number_of_clients):
+            clients[i].get_train_test_data_at_current_time_step.remote(
+                start_time_float_format,
+                end_time_float_format,
+                use_buffer=use_buffer,
+                buffer_size=buffer_size,
+            )
+            clients[i].calculate_traveled_user_edge_indices.remote(
+                file_path=traveled_file_path
+            )
+
+        if online_learning:
+            print(f"start training for day {day + 1}")
+        else:
+            print(f"start training")
+
+        for iteration in range(global_rounds):
+            # each client train on local graph
+            print(f"global rounds: {iteration}")
+
+            current_loss = LP_train_global_round(
+                server=server,
+                local_steps=local_steps,
+                use_buffer=use_buffer,
+                method=method,
+                online_learning=online_learning,
+                prediction_day=day,
+                curr_iteration=iteration,
+                global_rounds=global_rounds,
+                record_results=record_results,
+                result_writer=result_writer,
+                time_writer=time_writer,
+            )
+
+        if current_loss >= 0.01:
+            print("training is not complete")
+
+        # go to next day
         (
             start_time,
             end_time,
-            prediction_days,
             start_time_float_format,
             end_time_float_format,
-        ) = get_start_end_time(online_learning=online_learning, method=method)
-
-        if record_results:
-            file_name = f"{method}_buffer_{use_buffer}_{buffer_size}_online_{online_learning}.txt"
-            result_writer = open(file_name, "a+")
-            time_writer = open("train_time_" + file_name, "a+")
-        else:
-            result_writer = None
-            time_writer = None
-        monitor.pretrain_time_end(30)
-        # from 2012-04-03 to 2012-04-13
-        for day in range(prediction_days):  # make predictions for each day
-            # get the train and test data for each client at the current time step
-            for i in range(number_of_clients):
-                clients[i].get_train_test_data_at_current_time_step.remote(
-                    start_time_float_format,
-                    end_time_float_format,
-                    use_buffer=use_buffer,
-                    buffer_size=buffer_size,
-                )
-                clients[i].calculate_traveled_user_edge_indices.remote(
-                    file_path=traveled_file_path
-                )
-
-            if online_learning:
-                print(f"start training for day {day + 1}")
-            else:
-                print(f"start training")
-
-            for iteration in range(global_rounds):
-                # each client train on local graph
-                print(f"global rounds: {iteration}")
-                monitor.train_time_start()
-                current_loss = LP_train_global_round(
-                    server=server,
-                    local_steps=local_steps,
-                    use_buffer=use_buffer,
-                    method=method,
-                    online_learning=online_learning,
-                    prediction_day=day,
-                    curr_iteration=iteration,
-                    global_rounds=global_rounds,
-                    record_results=record_results,
-                    result_writer=result_writer,
-                    time_writer=time_writer,
-                )
-                monitor.train_time_end(30)
-
-            if current_loss >= 0.01:
-                print("training is not complete")
-
-            # go to next day
-            (
-                start_time,
-                end_time,
-                start_time_float_format,
-                end_time_float_format,
-            ) = to_next_day(start_time=start_time, end_time=end_time, method=method)
-
-        if result_writer is not None and time_writer is not None:
-            result_writer.close()
-            time_writer.close()
-        print(f"Training round {current_training_process} success")
-        ray.shutdown()
+        ) = to_next_day(start_time=start_time, end_time=end_time, method=method)
+    if args.use_cluster:
+        monitor.train_time_end(30)
+    if result_writer is not None and time_writer is not None:
+        result_writer.close()
+        time_writer.close()
+    print("The whole process has ended")
+    ray.shutdown()
 
 
 def LP_train_global_round(

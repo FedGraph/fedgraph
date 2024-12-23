@@ -456,7 +456,7 @@ def to_next_day(
 
 def check_data_files_existance(
     country_codes: list,
-    dataset_dir_path: str = "data/LPDataset",
+    dataset_dir_path: str,
 ) -> None:
     """
     Check if the data files exist
@@ -469,6 +469,7 @@ def check_data_files_existance(
         The directory path of the dataset
     """
     if not os.path.exists(dataset_dir_path):
+        print(f"{dataset_dir_path} not exists, creating directory")
         os.makedirs(dataset_dir_path)
 
     all_files_list = ["traveled_users", "data_global"]
@@ -484,7 +485,7 @@ def check_data_files_existance(
             download_LPDataset(file_name, dataset_dir_path)
 
 
-def download_LPDataset(file_name: str, dir_path: str = "data/LPDataset") -> None:
+def download_LPDataset(file_name: str, dir_path: str) -> None:
     """
     Download the data files
 

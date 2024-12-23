@@ -10,7 +10,8 @@ import numpy as np
 import scipy.sparse as sp
 import torch
 import torch_geometric
-from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
+
+# from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
 
 
 def normalize(mx: sp.csc_matrix) -> sp.csr_matrix:

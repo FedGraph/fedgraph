@@ -46,10 +46,9 @@ config.fedgraph_task = fedgraph_task
 
 print(config)
 
-data = data_loader(config)  # Load federated data
 
 #######################################################################
 # Run FedGCN method
 # -----------------
 
-run_fedgraph(config, data)
+run_fedgraph(config)

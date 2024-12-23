@@ -5,7 +5,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-import tenseal as ts
 import torch
 import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
@@ -95,7 +94,7 @@ def setup_server(base_model: Any, args: argparse.Namespace) -> Server_GC:
     """
 
     smodel = base_model(nlayer=args.nlayer, nhid=args.hidden)
-    server = Server_GC(smodel, args.device)
+    server = Server_GC(smodel, args.device, args.use_cluster)
     return server
 
 
