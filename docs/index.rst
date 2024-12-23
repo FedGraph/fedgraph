@@ -53,7 +53,7 @@ Whether you are a federated learning researcher or a first-time user of federate
    :caption: Getting Started
 
    install
-   tutorials/index
+   tutorials/quickstart
 
 .. toctree::
    :maxdepth: 2
