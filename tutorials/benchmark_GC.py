@@ -32,9 +32,9 @@ from fedgraph.federated_methods import (
 from fedgraph.gnn_models import GIN
 from fedgraph.utils_gc import *
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(current_dir, "../fedgraph"))
-sys.path.append(os.path.join(current_dir, "../../"))
+# current_dir = os.path.dirname(os.path.abspath(__file__))
+# sys.path.append(os.path.join(current_dir, "../fedgraph"))
+# sys.path.append(os.path.join(current_dir, "../../"))
 
 #######################################################################
 # Load configuration
@@ -290,7 +290,8 @@ for dataset_name in [
 ]:
     for algorithm in ["SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs"]:
         # for algorithm in ["SelfTrain"]:
-        config_file = os.path.join(current_dir, f"configs/config_GC_{algorithm}.yaml")
+        # config_file = os.path.join(current_dir, f"configs/config_GC_{algorithm}.yaml")
+        config_file = f"./configs/config_GC_{algorithm}.yaml"
         with open(config_file, "r") as file:
             args = attridict(yaml.safe_load(file))
 

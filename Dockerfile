@@ -32,7 +32,7 @@ COPY README.md .
 RUN pip install .
 
 # Copy documentation and examples
-COPY docs/examples /app/docs/examples
+COPY tutorials /app/docs/examples
 
 # Specify the command to run the application
 # CMD ["python", "/app/docs/examples/example_LP.py"]

@@ -36,12 +36,18 @@ def run_fedgraph(args: attridict) -> None:
     """
     Run the training process for the specified task.
 
+    This is the function for running different federated graph learning tasks,
+    including Node Classification (NC), Graph Classification (GC), and Link Prediction (LP)
+    in the following functions.
+
     Parameters
     ----------
-    args: attridict
-        The arguments.
+    args : attridict
+        Configuration arguments that must include 'fedgraph_task' key with value
+        in ['NC', 'GC', 'LP'].
     data: Any
-        The data.
+        Input data for the federated learning task. Format depends on the specific task and
+        will be explained in more detail below inside specific functions.
     """
     if args.fedgraph_task != "NC" or not args.use_huggingface:
         data = data_loader(args)
@@ -59,12 +65,19 @@ def run_fedgraph(args: attridict) -> None:
 
 def run_NC(args: attridict, data: Any = None) -> None:
     """
-    Train a Federated Node Classification model.
+    Train a Federated Graph Classification model using multiple trainers.
+
+    Implements FL for node classification tasks with support of homomorphic encryption.
+    Use configuration argument "use_encryption" to indicate the boolean flag for
+    homomorphic encryption or plaintext calculation of feature and/or gradient aggregation
+    during pre-training and training. Current algorithm that supports encryption includes
+    'FedAvg' and 'FedGCN'.
 
     Parameters
     ----------
-    args
-    data
+    args: attridict
+        Configuration arguments
+    data: tuple
     """
     ray.init()
     start_time = time.time()
@@ -368,14 +381,19 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
     """
     Entrance of the training process for graph classification.
 
+    Supports multiple federated learning algorithms including FedAvg, FedProx, GCFL,
+    GCFL+, and GCFL+dWs. Implements client-server architecture with Ray for distributed
+    computing.
+
     Parameters
     ----------
     args: attridict
-        The arguments.
+        The configuration arguments.
     data: Any
-        The splitted data.
+        Dictionary mapping dataset names to their respective graph data including
+        dataloaders, number of node features, number of graph labels, and train size
     base_model: Any
-        The base model on which the federated learning is based. It applies for both the server and the trainers.
+        The base model on which the federated learning is based. It applies for both the server and the trainers (default: GIN).
     """
     # transfer the config to argparse
 
@@ -566,6 +584,7 @@ def run_GC_selftrain(trainers: list, server: Any, local_epoch: int) -> dict:
     """
     Run the training and testing process of self-training algorithm.
     It only trains the model locally, and does not perform weights aggregation.
+    It is useful as a baseline comparison for federated methods.
 
     Parameters
     ----------
@@ -898,12 +917,16 @@ def run_GCFL_algorithm(
 
 def run_LP(args: attridict) -> None:
     """
-    Run the training process for link prediction.
+    Implements various federated learning methods for link prediction tasks with support
+    for online learning and buffer mechanisms. Handles temporal aspects of link prediction
+    and cross-region user interactions.
+
+    Algorithm choices include ('STFL', 'StaticGNN', '4D-FED-GNN+', 'FedLink').
 
     Parameters
     ----------
     args: attridict
-        The arguments.
+        The configuration arguments.
     """
 
     def setup_trainer_server(
@@ -1136,7 +1159,10 @@ def LP_train_global_round(
     time_writer: Any = None,
 ) -> float:
     """
-    This function trains the clients for a global round and updates the server model with the average of the client models.
+    This function trains the clients for a global round, handles model aggregation,
+    updates the server model with the average of the client models, and and evaluates
+    performance metrics including AUC scores and hit rates.
+    Supports different training methods.
 
     Parameters
     ----------

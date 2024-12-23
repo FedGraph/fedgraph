@@ -26,7 +26,7 @@ share/python-wheels/
 MANIFEST
 
 #dashboard
-docs/examples/prometheus-2.52.0.darwin-arm64/
+tutorials/prometheus-2.52.0.darwin-arm64/
 prometheus-2.52.0.darwin-arm64/
 
 # PyInstaller
@@ -193,7 +193,7 @@ Temporary Items
 .apdisk
 
 data/
-tutorials/
+docs/tutorials/
 runs/
-docs/examples/dataset
-docs/examples/figure_*
+tutorials/dataset
+tutorials/figure_*

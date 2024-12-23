@@ -170,6 +170,7 @@ def label_dirichlet_partition(
     # logger.info(
     #     f"label_dirichlet_partition completed in {time.time() - start_time:.2f} seconds"
     # )
+
     return split_data_indexes
 
 
