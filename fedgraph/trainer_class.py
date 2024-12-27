@@ -1,9 +1,5 @@
-import argparse
 import logging
-import os
-import pickle
 import random
-import sys
 import time
 from io import BytesIO
 from typing import Any, Dict, List, Union
@@ -14,11 +10,9 @@ import numpy as np
 import ray
 import tenseal as ts
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric
-
-# from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
+from huggingface_hub import hf_hub_download
 from torch_geometric.data import Data
 from torch_geometric.loader import NeighborLoader
 from torchmetrics.functional.retrieval import retrieval_auroc
@@ -77,25 +71,6 @@ def load_trainer_data_from_hugging_face(trainer_id, args):
         in_com_train_node_local_indexes,
         in_com_test_node_local_indexes,
     )
-
-
-def load_optimized_context(self):
-    """Load context with parameters"""
-    with open("fedgraph/he_context.pkl", "rb") as f:
-        data = pickle.load(f)
-        self.he_context = ts.context_from(data["context"])
-        self.context_params = data["parameters"]
-    print(
-        f"Trainer {self.rank} loaded context with {self.context_params['poly_modulus_degree']} poly modulus degree"
-    )
-
-
-def load_context(filename="fedgraph/he_context.pkl"):
-    with open(filename, "rb") as f:
-        data = pickle.load(f)
-        context_bytes = data["context"]
-        parameters = data["parameters"]
-    return ts.context_from(context_bytes), parameters
 
 
 class Trainer_General:
@@ -235,9 +210,6 @@ class Trainer_General:
         self.global_node_num = global_node_num
         self.class_num = class_num
         self.feature_shape = None
-        with open("fedgraph/he_context.pkl", "rb") as f:
-            context_bytes = pickle.load(f)
-        # self.he_context = ts.context_from(context_bytes)
 
         self.scale_factor = 1e3
         self.param_history = []
@@ -352,10 +324,6 @@ class Trainer_General:
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
             new_feature_for_trainer, self.adj, self.device
         )
-
-        one_hop_neighbor_feature_sum = get_1hop_feature_sum(
-            new_feature_for_trainer, self.adj, self.device
-        )
         if self.args.use_encryption:
             print(
                 f"Trainer {self.rank} - Original feature sum (first 10 and last 10 elements): "
@@ -445,7 +413,9 @@ class Trainer_General:
             self.global_node_num, self.features.shape[1]
         ).to(self.device)
         new_feature_for_trainer[self.local_node_index] = self.features
-        feature_sum = get_1hop_feature_sum(new_feature_for_trainer, self.adj)
+        feature_sum = get_1hop_feature_sum(
+            new_feature_for_trainer, self.adj, self.device
+        )
 
         # Encrypt the feature sum
         encryption_start = time.time()

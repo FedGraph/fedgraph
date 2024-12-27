@@ -54,4 +54,8 @@ setup(
         "ogb",
     ],
     extras_require={"dev": ["build", "mypy", "pre-commit", "pytest"]},
+    include_package_data=True,
+    package_data={
+        "fedgraph": ["he_context.pkl"],
+    },
 )
