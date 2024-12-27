@@ -12,8 +12,8 @@ Federated Node Classification with FedGCN and Homomorphic Encryption on the Cora
 # --------------
 
 import attridict
-from fedgraph.federated_methods import run_fedgraph
 
+from fedgraph.federated_methods import run_fedgraph
 
 #######################################################################
 # Specify the Node Classification with Homomorphic Encryption configuration

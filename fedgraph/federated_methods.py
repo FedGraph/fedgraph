@@ -6,6 +6,7 @@ import pickle
 import random
 import sys
 import time
+from importlib.resources import files
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -15,7 +16,6 @@ import pandas as pd
 import ray
 import tenseal as ts
 import torch
-from importlib.resources import files
 
 from fedgraph.data_process import data_loader
 from fedgraph.gnn_models import GIN
@@ -135,7 +135,6 @@ def run_NC(args: attridict, data: Any = None) -> None:
     # FedGraph first determines the resources for each trainer, then send
     # the data to each remote trainer.
 
-
     @ray.remote(
         num_gpus=num_gpus_per_trainer,
         num_cpus=num_cpus_per_trainer,
@@ -146,7 +145,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
             super().__init__(*args, **kwds)
             self.use_encryption = kwds["args"].use_encryption
             if self.use_encryption:
-                file_path = files("fedgraph").joinpath("he_context.pkl")
+                file_path = str(files("fedgraph").joinpath("he_context.pkl"))
                 with open(file_path, "rb") as f:
                     context_bytes = pickle.load(f)
                 self.he_context = ts.context_from(context_bytes)

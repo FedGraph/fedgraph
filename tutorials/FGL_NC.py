@@ -12,6 +12,7 @@ Federated Node Classification with FedGCN on the Cora dataset.
 # --------------
 
 import attridict
+
 from fedgraph.federated_methods import run_fedgraph
 
 #######################################################################

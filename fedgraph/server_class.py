@@ -2,6 +2,7 @@ import pickle
 import random
 import sys
 import time
+from importlib.resources import files
 from typing import Any
 
 import networkx as nx
@@ -10,7 +11,6 @@ import ray
 import tenseal as ts
 import torch
 from dtaidistance import dtw
-from importlib.resources import files
 
 from fedgraph.gnn_models import (
     GCN,
@@ -112,7 +112,7 @@ class Server:
         self.num_of_trainers = len(trainers)
         self.use_encryption = args.use_encryption
         if args.use_encryption:
-            file_path = files("fedgraph").joinpath("he_context.pkl")
+            file_path = str(files("fedgraph").joinpath("he_context.pkl"))
             with open(file_path, "rb") as f:
                 context_bytes = pickle.load(f)
             self.he_context = ts.context_from(context_bytes)

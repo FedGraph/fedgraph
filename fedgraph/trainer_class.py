@@ -12,7 +12,6 @@ import tenseal as ts
 import torch
 import torch.nn.functional as F
 import torch_geometric
-
 from huggingface_hub import hf_hub_download
 from torch_geometric.data import Data
 from torch_geometric.loader import NeighborLoader
@@ -72,6 +71,7 @@ def load_trainer_data_from_hugging_face(trainer_id, args):
         in_com_train_node_local_indexes,
         in_com_test_node_local_indexes,
     )
+
 
 class Trainer_General:
     """
@@ -413,7 +413,9 @@ class Trainer_General:
             self.global_node_num, self.features.shape[1]
         ).to(self.device)
         new_feature_for_trainer[self.local_node_index] = self.features
-        feature_sum = get_1hop_feature_sum(new_feature_for_trainer, self.adj, self.device)
+        feature_sum = get_1hop_feature_sum(
+            new_feature_for_trainer, self.adj, self.device
+        )
 
         # Encrypt the feature sum
         encryption_start = time.time()

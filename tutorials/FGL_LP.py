@@ -12,13 +12,15 @@ Federated Link Prediction with STFL on the Link Prediction dataset.
 # --------------
 
 import os
+
 import attridict
+
 from fedgraph.federated_methods import run_fedgraph
 
 #######################################################################
 # Specify the Link Prediction configuration
 # ----------------------------------------------
-BASE_DIR = os.path.dirname(os.path.abspath('.'))
+BASE_DIR = os.path.dirname(os.path.abspath("."))
 DATASET_PATH = os.path.join(
     BASE_DIR, "data", "LPDataset"
 )  # Could be modified based on the user needs

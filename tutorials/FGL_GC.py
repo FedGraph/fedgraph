@@ -12,8 +12,8 @@ Federated Graph Classification with GCFL+dWs on the MUTAG dataset.
 # --------------
 
 import attridict
-from fedgraph.federated_methods import run_fedgraph
 
+from fedgraph.federated_methods import run_fedgraph
 
 #######################################################################
 # Specify the Graph Classification configuration
