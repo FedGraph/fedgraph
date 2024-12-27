@@ -6,7 +6,7 @@
 FedGraph
 ========
 
-`Documentation <https://docs.fedgraph.org>`__ \| `Paper <https://arxiv.org/abs/2201.12433>`__
+`Documentation <https://docs.fedgraph.org>`__ \| `Paper <https://arxiv.org/abs/2410.06340>`__
 
 
 **FedGraph** *(Federated Graph)* is a library built on top of [PyTorch Geometric (PyG)](https://www.pyg.org/),
@@ -53,7 +53,7 @@ Whether you are a federated learning researcher or a first-time user of federate
    :caption: Getting Started
 
    install
-   quickstart
+   tutorials/index
 
 .. toctree::
    :maxdepth: 2
