@@ -235,9 +235,6 @@ class Trainer_General:
         self.global_node_num = global_node_num
         self.class_num = class_num
         self.feature_shape = None
-        with open("fedgraph/he_context.pkl", "rb") as f:
-            context_bytes = pickle.load(f)
-        # self.he_context = ts.context_from(context_bytes)
 
         self.scale_factor = 1e3
         self.param_history = []
@@ -445,7 +442,7 @@ class Trainer_General:
             self.global_node_num, self.features.shape[1]
         ).to(self.device)
         new_feature_for_trainer[self.local_node_index] = self.features
-        feature_sum = get_1hop_feature_sum(new_feature_for_trainer, self.adj)
+        feature_sum = get_1hop_feature_sum(new_feature_for_trainer, self.adj, self.device)
 
         # Encrypt the feature sum
         encryption_start = time.time()

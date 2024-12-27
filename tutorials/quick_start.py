@@ -1,5 +1,5 @@
 """
-Simple FedGraph Example
+Quickstart Example
 =======================
 
 Run a simple example of FedGraph.
