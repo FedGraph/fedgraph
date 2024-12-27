@@ -1,2 +1,2 @@
-A Blitz Introduction
-====================
+Federated Graph Learning: A Tutorial
+=====================================
