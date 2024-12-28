@@ -2,6 +2,7 @@ import pickle
 import random
 import sys
 import time
+from importlib.resources import files
 from typing import Any
 
 import networkx as nx
@@ -19,23 +20,6 @@ from fedgraph.gnn_models import (
     GCN_arxiv,
     SAGE_products,
 )
-
-
-def load_context(filename="fedgraph/he_context.pkl"):
-    with open(filename, "rb") as f:
-        data = pickle.load(f)
-        context_bytes = data["context"]
-        parameters = data["parameters"]
-    return ts.context_from(context_bytes), parameters
-
-
-def load_optimized_context(self):
-    """Load context with parameters"""
-    with open("fedgraph/he_context.pkl", "rb") as f:
-        data = pickle.load(f)
-        self.he_context = ts.context_from(data["context"])
-        self.context_params = data["parameters"]
-    print("Server loaded optimized context")
 
 
 class Server:
@@ -128,11 +112,10 @@ class Server:
         self.num_of_trainers = len(trainers)
         self.use_encryption = args.use_encryption
         if args.use_encryption:
-            with open("fedgraph/he_context.pkl", "rb") as f:
+            file_path = str(files("fedgraph").joinpath("he_context.pkl"))
+            with open(file_path, "rb") as f:
                 context_bytes = pickle.load(f)
             self.he_context = ts.context_from(context_bytes)
-
-            # self.he_context, self.he_params = load_context()
             self.aggregation_stats = []
             print("Loaded HE context with secret key.")
 

@@ -43,7 +43,7 @@ config = {
     # Logging and Output Configuration
     "logdir": "./runs",
     # Security and Privacy
-    "use_encryption": False,  # Whether to use Homomorphic Encryption for secure aggregation
+    "use_encryption": True,  # Whether to use Homomorphic Encryption for secure aggregation
     # Dataset Handling Options
     "use_huggingface": False,  # Load dataset directly from Hugging Face Hub
     "saveto_huggingface": False,  # Save partitioned dataset to Hugging Face Hub
@@ -113,7 +113,7 @@ run_fedgraph(config)
 #######################################################################
 # Specify the Link Prediction configuration
 # ----------------------------------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.abspath("."))
 DATASET_PATH = os.path.join(
     BASE_DIR, "data", "LPDataset"
 )  # Could be modified based on the user needs

@@ -6,6 +6,7 @@ import pickle
 import random
 import sys
 import time
+from importlib.resources import files
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -134,14 +135,6 @@ def run_NC(args: attridict, data: Any = None) -> None:
     # FedGraph first determines the resources for each trainer, then send
     # the data to each remote trainer.
 
-    if args.use_encryption:
-        with open("fedgraph/he_context.pkl", "rb") as f:
-            context_bytes = pickle.load(f)
-        he_context = ts.context_from(context_bytes)
-        print("Loaded pre-saved HE context.")
-    else:
-        he_context = None
-
     @ray.remote(
         num_gpus=num_gpus_per_trainer,
         num_cpus=num_cpus_per_trainer,
@@ -152,7 +145,8 @@ def run_NC(args: attridict, data: Any = None) -> None:
             super().__init__(*args, **kwds)
             self.use_encryption = kwds["args"].use_encryption
             if self.use_encryption:
-                with open("fedgraph/he_context.pkl", "rb") as f:
+                file_path = str(files("fedgraph").joinpath("he_context.pkl"))
+                with open(file_path, "rb") as f:
                     context_bytes = pickle.load(f)
                 self.he_context = ts.context_from(context_bytes)
                 print(f"Trainer {self.rank} loaded HE context")
