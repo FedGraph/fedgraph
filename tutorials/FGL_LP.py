@@ -30,7 +30,7 @@ config = {
     "method": "STFL",
     # Dataset configuration
     # country_codes = ['US', 'BR', 'ID', 'TR', 'JP']
-    "country_codes": ["ID", "TR"],
+    "country_codes": ["JP"],
     "dataset_path": DATASET_PATH,
     # Setup configuration
     "device": "cpu",
