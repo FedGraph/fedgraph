@@ -1,2 +1,2 @@
 # dependencies required for documentation
--e ..
+-e .
