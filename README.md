@@ -2,7 +2,7 @@
 
 [pypi-url]: https://pypi.python.org/pypi/fedgraph
 
-**[Documentation](https://docs.fedgraph.org)** | **[Paper](https://arxiv.org/abs/2410.06340)**
+**[Documentation](https://docs.fedgraph.org)** | **[Paper](https://arxiv.org/abs/2410.06340)** | **[Slack](https://join.slack.com/t/fedgraphlibrary/shared_invite/zt-2wztvbo1v-DO81DnUD86q066mxnQuWWw)** 
 
 **FedGraph** *(Federated Graph)* is a library built on top of [PyTorch Geometric (PyG)](https://www.pyg.org/),
 [Ray](https://docs.ray.io/), and [PyTorch](https://pytorch.org/) to easily train Graph Neural Networks
