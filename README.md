@@ -1,6 +1,6 @@
-# Federated Graph Learning
+# Federated Graph Learning [![PyPI Downloads](https://static.pepy.tech/badge/fedgraph)](https://pepy.tech/projects/fedgraph)
 
-[pypi-url]: https://pypi.python.org/pypi/fedgraph
+[pypi-url]: https://pypi.python.org/pypi/fedgraph 
 
 **[Documentation](https://docs.fedgraph.org)** | **[Paper](https://arxiv.org/abs/2410.06340)** | **[Slack](https://join.slack.com/t/fedgraphlibrary/shared_invite/zt-2wztvbo1v-DO81DnUD86q066mxnQuWWw)** 
 
