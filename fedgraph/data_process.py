@@ -14,6 +14,8 @@ import scipy.sparse as sp
 import torch
 import torch_geometric
 import torch_sparse
+import os 
+import requests 
 from torch_geometric.datasets import TUDataset
 from torch_geometric.loader import DataLoader
 from torch_geometric.transforms import OneHotDegree
@@ -177,15 +179,37 @@ def NC_parse_index_file(filename: str) -> list:
         index.append(int(line.strip()))
     return index
 
+def download_file_from_github(url: str, save_path: str):
+    """
+    Downloads a file from a GitHub URL and saves it to a specified local path.
+     Note
+    ----
+    - The function downloads files in chunks to handle large files efficiently.
+    - If the file already exists at `save_path`, it will not be downloaded again.
+    """
+    if not os.path.exists(save_path):
+        print(f"Downloading {url} to {save_path}...")
+        response = requests.get(url, stream=True)
+        if response.status_code == 200:
+            with open(save_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=1024):
+                    if chunk:
+                        f.write(chunk)
+            print(f"Downloaded {save_path}")
+        else:
+            raise Exception(f"Failed to download {url}. HTTP Status Code: {response.status_code}")
+    else:
+        print(f"File already exists: {save_path}")
+
 
 def NC_load_data(dataset_str: str) -> tuple:
     """
-    Loads input data from 'gcn/data' directory and processes these datasets into a format
-    suitable for training GCN and similar models.
+    Loads input data for Node Classification (NC) tasks from GitHub.
 
     Parameters
     ----------
-    dataset_str : Name of the dataset to be loaded.
+    dataset_str : str
+        Name of the dataset to be loaded (e.g., 'cora', 'citeseer', 'pubmed').
 
     Returns
     -------
@@ -194,7 +218,7 @@ def NC_load_data(dataset_str: str) -> tuple:
     adj : torch.Tensor or torch_sparse.tensor.SparseTensor
         Adjacency matrix of the graph.
     labels : torch.Tensor
-        Labels of the nodes.
+        Node labels as integer tensors.
     idx_train : torch.LongTensor
         Indices of training nodes.
     idx_val : torch.LongTensor
@@ -204,127 +228,77 @@ def NC_load_data(dataset_str: str) -> tuple:
 
     Note
     ----
-    ind.dataset_str.x => the feature vectors of the training instances as scipy.sparse.csr.csr_matrix object;
-    ind.dataset_str.tx => the feature vectors of the test instances as scipy.sparse.csr.csr_matrix object;
-    ind.dataset_str.allx => the feature vectors of both labeled and unlabeled training instances (a superset of ind.dataset_str.x) as scipy.sparse.csr.csr_matrix object;
-    ind.dataset_str.y => the one-hot labels of the labeled training instances as numpy.ndarray object;
-    ind.dataset_str.ty => the one-hot labels of the test instances as numpy.ndarray object;
-    ind.dataset_str.ally => the labels for instances in ind.dataset_str.allx as numpy.ndarray object;
-    ind.dataset_str.graph => a dict in the format {index: [index_of_neighbor_nodes]} as collections.defaultdict object;
-    ind.dataset_str.test.index => the indices of test instances in graph, for the inductive setting as list object.
-
-    All objects above must be saved using python pickle module.
+    - Downloads dataset files from the GitHub Planetoid repository if not already present.
+    - Processes the dataset into node features, adjacency matrices, and labels.
+    - Handles isolated node issues for the 'citeseer' dataset specifically.
     """
-    if dataset_str in ["cora", "citeseer", "pubmed"]:
-        # download dataset from torch_geometric
-        dataset = torch_geometric.datasets.Planetoid("./data", dataset_str)
-        names = ["x", "y", "tx", "ty", "allx", "ally", "graph"]
-        objects = []
-        for i in range(len(names)):
-            with open(
-                "data/{}/raw/ind.{}.{}".format(dataset_str, dataset_str, names[i]), "rb"
-            ) as f:
-                if sys.version_info > (3, 0):
-                    objects.append(pkl.load(f, encoding="latin1"))
-                else:
-                    objects.append(pkl.load(f))
+    BASE_URL = "https://github.com/kimiyoung/planetoid/raw/master/data"
+    DATA_DIR = f"./data/{dataset_str}/raw/"
+    os.makedirs(DATA_DIR, exist_ok=True)
 
-        x, y, tx, ty, allx, ally, graph = tuple(objects)
-        test_idx_reorder = NC_parse_index_file(
-            "data/{}/raw/ind.{}.test.index".format(dataset_str, dataset_str)
-        )
-        test_idx_range = np.sort(test_idx_reorder)
+    # Define required filenames
+    filenames = [
+        f"ind.{dataset_str}.x",
+        f"ind.{dataset_str}.tx",
+        f"ind.{dataset_str}.allx",
+        f"ind.{dataset_str}.y",
+        f"ind.{dataset_str}.ty",
+        f"ind.{dataset_str}.ally",
+        f"ind.{dataset_str}.graph",
+        f"ind.{dataset_str}.test.index"
+    ]
 
-        if dataset_str == "citeseer":
-            # Fix citeseer dataset (there are some isolated nodes in the graph)
-            # Find isolated nodes, add them as zero-vecs into the right position
-            test_idx_range_full = range(
-                min(test_idx_reorder), max(test_idx_reorder) + 1
-            )
-            tx_extended = sp.lil_matrix((len(test_idx_range_full), x.shape[1]))
-            tx_extended[test_idx_range - min(test_idx_range), :] = tx
-            tx = tx_extended
-            ty_extended = np.zeros((len(test_idx_range_full), y.shape[1]))
-            ty_extended[test_idx_range - min(test_idx_range), :] = ty
-            ty = ty_extended
+    # Download required files
+    for filename in filenames:
+        file_url = f"{BASE_URL}/{filename}"
+        save_path = os.path.join(DATA_DIR, filename)
+        download_file_from_github(file_url, save_path)
 
-        features = sp.vstack((allx, tx)).tolil()
-        features[test_idx_reorder, :] = features[test_idx_range, :]
-        adj = nx.adjacency_matrix(nx.from_dict_of_lists(graph))
+    # Load dataset objects
+    objects = []
+    for name in ["x", "y", "tx", "ty", "allx", "ally", "graph"]:
+        file_path = os.path.join(DATA_DIR, f"ind.{dataset_str}.{name}")
+        with open(file_path, 'rb') as f:
+            if sys.version_info > (3, 0):
+                objects.append(pkl.load(f, encoding='latin1'))
+            else:
+                objects.append(pkl.load(f))
 
-        labels = np.vstack((ally, ty))
-        labels[test_idx_reorder, :] = labels[test_idx_range, :]
+    x, y, tx, ty, allx, ally, graph = tuple(objects)
 
-        idx_test = torch.LongTensor(test_idx_range.tolist())
-        idx_train = torch.LongTensor(range(len(y)))
-        idx_val = torch.LongTensor(range(len(y), len(y) + 500))
+    test_idx_reorder = NC_parse_index_file(os.path.join(DATA_DIR, f"ind.{dataset_str}.test.index"))
+    test_idx_range = np.sort(test_idx_reorder)
+ 
+    # Special handling for 'citeseer'
+    if dataset_str == "citeseer":
+        test_idx_range_full = range(min(test_idx_reorder), max(test_idx_reorder) + 1)
+        tx_extended = sp.lil_matrix((len(test_idx_range_full), x.shape[1]))
+        tx_extended[test_idx_range - min(test_idx_range), :] = tx
+        tx = tx_extended
+        ty_extended = np.zeros((len(test_idx_range_full), y.shape[1]))
+        ty_extended[test_idx_range - min(test_idx_range), :] = ty
+        ty = ty_extended
+    
+    # Stack features and labels
+    features = sp.vstack((allx, tx)).tolil()
+    features[test_idx_reorder, :] = features[test_idx_range, :]
+    adj = nx.adjacency_matrix(nx.from_dict_of_lists(graph))
 
-        # features = normalize(features)
-        # adj = normalize(adj)    # no normalize adj here, normalize it in the training process
+    labels = np.vstack((ally, ty))
+    labels[test_idx_reorder, :] = labels[test_idx_range, :]
 
-        features = torch.tensor(features.toarray()).float()
-        adj = torch.tensor(adj.toarray()).float()
-        adj = torch_sparse.tensor.SparseTensor.from_dense(adj)
-        labels = torch.tensor(labels)
-        labels = torch.argmax(labels, dim=1)
+    idx_test = torch.LongTensor(test_idx_range.tolist())
+    idx_train = torch.LongTensor(range(len(y)))
+    idx_val = torch.LongTensor(range(len(y), len(y) + 500))
+    
+    # Convert to PyTorch tensors
+    features = torch.tensor(features.toarray()).float()
+    adj = torch.tensor(adj.toarray()).float()
+    adj = torch_sparse.tensor.SparseTensor.from_dense(adj)
+    labels = torch.tensor(labels)
+    labels = torch.argmax(labels, dim=1)
 
-    elif dataset_str in [
-        "ogbn-arxiv",
-        "ogbn-products",
-        "ogbn-mag",
-        "ogbn-papers100M",
-    ]:  #'ogbn-mag' is heteregeneous
-        # Download and process data at './dataset/.'
-        import builtins
-        from unittest.mock import patch
-
-        from ogb.nodeproppred import PygNodePropPredDataset
-
-        # Mock the input to always return "y" under the cluster env
-        with patch.object(builtins, "input", lambda _: "y"):
-            dataset = PygNodePropPredDataset(
-                name=dataset_str, transform=torch_geometric.transforms.ToSparseTensor()
-            )
-
-        split_idx = dataset.get_idx_split()
-        idx_train, idx_val, idx_test = (
-            split_idx["train"],
-            split_idx["valid"],
-            split_idx["test"],
-        )
-        idx_train = torch.LongTensor(idx_train)
-        idx_val = torch.LongTensor(idx_val)
-        idx_test = torch.LongTensor(idx_test)
-        data = dataset[0]
-
-        features = data.x
-        labels = data.y.reshape(-1)
-        if dataset_str == "ogbn-arxiv":
-            adj = data.adj_t.to_symmetric()
-        else:
-            adj = data.adj_t
-
-    elif dataset_str == "reddit":
-        from dgl.data import RedditDataset
-
-        data = RedditDataset()
-        g = data[0]
-
-        adj = torch_sparse.tensor.SparseTensor.from_edge_index(g.edges())
-
-        features = g.ndata["feat"]
-        train_mask = g.ndata["train_mask"]
-        val_mask = g.ndata["val_mask"]
-        test_mask = g.ndata["test_mask"]
-
-        idx_train = (train_mask == True).nonzero().view(-1)
-        idx_val = (val_mask == True).nonzero().view(-1)
-        idx_test = (test_mask == True).nonzero().view(-1)
-
-        labels = g.ndata["label"]
-
-    return features.float(), adj, labels, idx_train, idx_val, idx_test
-
+    return features, adj, labels, idx_train, idx_val, idx_test
 
 def GC_rand_split_chunk(
     graphs: list, num_trainer: int = 10, overlap: bool = False, seed: int = 42
