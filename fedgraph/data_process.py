@@ -298,7 +298,39 @@ def NC_load_data(dataset_str: str) -> tuple:
     labels = torch.tensor(labels)
     labels = torch.argmax(labels, dim=1)
 
-    return features, adj, labels, idx_train, idx_val, idx_test
+    elif dataset_str in ["ogbn-arxiv", "ogbn-products", "ogbn-mag", "ogbn-papers100M"]:
+        from ogb.nodeproppred import PygNodePropPredDataset
+        dataset = PygNodePropPredDataset(name=dataset_str, transform=torch_geometric.transforms.ToSparseTensor())
+
+        split_idx = dataset.get_idx_split()
+        idx_train, idx_val, idx_test = (
+            split_idx["train"],
+            split_idx["valid"],
+            split_idx["test"],
+        )
+        data = dataset[0]
+
+        features = data.x
+        labels = data.y.reshape(-1)
+        adj = data.adj_t.to_symmetric() if dataset_str == "ogbn-arxiv" else data.adj_t
+
+    elif dataset_str == "reddit":
+        from dgl.data import RedditDataset
+        data = RedditDataset()
+        g = data[0]
+
+        adj = torch_sparse.tensor.SparseTensor.from_edge_index(g.edges())
+        features = g.ndata["feat"]
+        train_mask = g.ndata["train_mask"]
+        val_mask = g.ndata["val_mask"]
+        test_mask = g.ndata["test_mask"]
+
+        idx_train = (train_mask == True).nonzero().view(-1)
+        idx_val = (val_mask == True).nonzero().view(-1)
+        idx_test = (test_mask == True).nonzero().view(-1)
+        labels = g.ndata["label"]
+
+    return features.float(), adj, labels, idx_train, idx_val, idx_test
 
 def GC_rand_split_chunk(
     graphs: list, num_trainer: int = 10, overlap: bool = False, seed: int = 42
