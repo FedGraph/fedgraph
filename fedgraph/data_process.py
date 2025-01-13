@@ -1,5 +1,6 @@
 # setting of data generation
 
+import os
 import pickle as pkl
 import random
 import sys
@@ -10,6 +11,7 @@ import attridict
 import networkx as nx
 import numpy as np
 import pandas as pd
+import requests
 import scipy.sparse as sp
 import torch
 import torch_geometric
@@ -178,6 +180,31 @@ def NC_parse_index_file(filename: str) -> list:
     return index
 
 
+def download_file_from_github(url: str, save_path: str):
+    """
+    Downloads a file from a GitHub URL and saves it to a specified local path.
+     Note
+    ----
+    - The function downloads files in chunks to handle large files efficiently.
+    - If the file already exists at `save_path`, it will not be downloaded again.
+    """
+    if not os.path.exists(save_path):
+        print(f"Downloading {url} to {save_path}...")
+        response = requests.get(url, stream=True)
+        if response.status_code == 200:
+            with open(save_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=1024):
+                    if chunk:
+                        f.write(chunk)
+            print(f"Downloaded {save_path}")
+        else:
+            raise Exception(
+                f"Failed to download {url}. HTTP Status Code: {response.status_code}"
+            )
+    else:
+        print(f"File already exists: {save_path}")
+
+
 def NC_load_data(dataset_str: str) -> tuple:
     """
     Loads input data from 'gcn/data' directory and processes these datasets into a format
@@ -217,13 +244,30 @@ def NC_load_data(dataset_str: str) -> tuple:
     """
     if dataset_str in ["cora", "citeseer", "pubmed"]:
         # download dataset from torch_geometric
-        dataset = torch_geometric.datasets.Planetoid("./data", dataset_str)
-        names = ["x", "y", "tx", "ty", "allx", "ally", "graph"]
+        BASE_URL = "https://github.com/kimiyoung/planetoid/raw/master/data"
+        DATA_DIR = f"./data/{dataset_str}/raw/"
+        os.makedirs(DATA_DIR, exist_ok=True)
+
+        filenames = [
+            f"ind.{dataset_str}.x",
+            f"ind.{dataset_str}.tx",
+            f"ind.{dataset_str}.allx",
+            f"ind.{dataset_str}.y",
+            f"ind.{dataset_str}.ty",
+            f"ind.{dataset_str}.ally",
+            f"ind.{dataset_str}.graph",
+            f"ind.{dataset_str}.test.index",
+        ]
+
+        for filename in filenames:
+            file_url = f"{BASE_URL}/{filename}"
+            save_path = os.path.join(DATA_DIR, filename)
+            download_file_from_github(file_url, save_path)
+
         objects = []
-        for i in range(len(names)):
-            with open(
-                "data/{}/raw/ind.{}.{}".format(dataset_str, dataset_str, names[i]), "rb"
-            ) as f:
+        for name in ["x", "y", "tx", "ty", "allx", "ally", "graph"]:
+            file_path = os.path.join(DATA_DIR, f"ind.{dataset_str}.{name}")
+            with open(file_path, "rb") as f:
                 if sys.version_info > (3, 0):
                     objects.append(pkl.load(f, encoding="latin1"))
                 else:
@@ -231,7 +275,7 @@ def NC_load_data(dataset_str: str) -> tuple:
 
         x, y, tx, ty, allx, ally, graph = tuple(objects)
         test_idx_reorder = NC_parse_index_file(
-            "data/{}/raw/ind.{}.test.index".format(dataset_str, dataset_str)
+            os.path.join(DATA_DIR, f"ind.{dataset_str}.test.index")
         )
         test_idx_range = np.sort(test_idx_reorder)
 
