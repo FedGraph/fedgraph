@@ -1,5 +1,6 @@
 # setting of data generation
 
+import os
 import pickle as pkl
 import random
 import sys
@@ -10,12 +11,11 @@ import attridict
 import networkx as nx
 import numpy as np
 import pandas as pd
+import requests
 import scipy.sparse as sp
 import torch
 import torch_geometric
 import torch_sparse
-import os 
-import requests 
 from torch_geometric.datasets import TUDataset
 from torch_geometric.loader import DataLoader
 from torch_geometric.transforms import OneHotDegree
@@ -179,6 +179,7 @@ def NC_parse_index_file(filename: str) -> list:
         index.append(int(line.strip()))
     return index
 
+
 def download_file_from_github(url: str, save_path: str):
     """
     Downloads a file from a GitHub URL and saves it to a specified local path.
@@ -191,15 +192,18 @@ def download_file_from_github(url: str, save_path: str):
         print(f"Downloading {url} to {save_path}...")
         response = requests.get(url, stream=True)
         if response.status_code == 200:
-            with open(save_path, 'wb') as f:
+            with open(save_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=1024):
                     if chunk:
                         f.write(chunk)
             print(f"Downloaded {save_path}")
         else:
-            raise Exception(f"Failed to download {url}. HTTP Status Code: {response.status_code}")
+            raise Exception(
+                f"Failed to download {url}. HTTP Status Code: {response.status_code}"
+            )
     else:
         print(f"File already exists: {save_path}")
+
 
 def NC_load_data(dataset_str: str) -> tuple:
     """
@@ -252,7 +256,7 @@ def NC_load_data(dataset_str: str) -> tuple:
             f"ind.{dataset_str}.ty",
             f"ind.{dataset_str}.ally",
             f"ind.{dataset_str}.graph",
-            f"ind.{dataset_str}.test.index"
+            f"ind.{dataset_str}.test.index",
         ]
 
         for filename in filenames:
@@ -263,14 +267,16 @@ def NC_load_data(dataset_str: str) -> tuple:
         objects = []
         for name in ["x", "y", "tx", "ty", "allx", "ally", "graph"]:
             file_path = os.path.join(DATA_DIR, f"ind.{dataset_str}.{name}")
-            with open(file_path, 'rb') as f:
+            with open(file_path, "rb") as f:
                 if sys.version_info > (3, 0):
-                    objects.append(pkl.load(f, encoding='latin1'))
+                    objects.append(pkl.load(f, encoding="latin1"))
                 else:
                     objects.append(pkl.load(f))
 
         x, y, tx, ty, allx, ally, graph = tuple(objects)
-        test_idx_reorder = NC_parse_index_file(os.path.join(DATA_DIR, f"ind.{dataset_str}.test.index"))
+        test_idx_reorder = NC_parse_index_file(
+            os.path.join(DATA_DIR, f"ind.{dataset_str}.test.index")
+        )
         test_idx_range = np.sort(test_idx_reorder)
 
         if dataset_str == "citeseer":
