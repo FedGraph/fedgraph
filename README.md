@@ -81,6 +81,64 @@ config = attridict(config)
 run_fedgraph(config)
 ```
 
+## Set Up the Ray Cluster
+
+To simplify the setup of our Ray cluster, follow these steps:
+
+1. Open your `.bashrc` or `.zshrc` file:
+   ```bash
+   nano ~/.bashrc  # or nano ~/.zshrc
+   ```
+2. Add the following alias at the end of the file:
+   ```bash
+   alias run-fedgraph-cluster='bash setup_cluster.sh'
+   ```
+3. Reload your shell configuration:
+   For bash users:
+   ```bash
+   source ~/.bashrc
+   ```
+   For zsh users:
+   ```bash
+   source ~/.zshrc
+   ```
+4. Now, you can run the following command to set up the Ray cluster:
+   ```bash
+   run-fedgraph-cluster
+   ```
+
+## Delete the Ray Cluster
+
+Delete the RayCluster Custom Resource:
+
+```bash
+cd docs/examples/configs
+kubectl delete -f ray_kubernetes_cluster.yaml
+kubectl delete -f ray_kubernetes_ingress.yaml
+```
+
+Confirm that the RayCluster Pods are Terminated:
+
+```bash
+kubectl get pods
+# Ensure the output shows no Ray pods except kuberay-operator
+```
+
+Finally, Delete the node first and then delete EKS Cluster:
+
+```bash
+kubectl get nodes -o name | xargs kubectl delete
+eksctl delete cluster --region us-west-2 --name user
+```
+
+## Step to Push Data to Hugging Face Hub CLI
+
+Use the following command to login to the Hugging Face Hub CLI tool when you set "save: True" in node classification tasks if you haven't done so already:
+
+```bash
+huggingface-cli login
+```
+
 ## Cite
 
 Please cite [our paper](https://arxiv.org/abs/2410.06340) (and the respective papers of the methods used) if you use this code in your own work:
