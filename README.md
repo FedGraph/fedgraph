@@ -83,29 +83,9 @@ run_fedgraph(config)
 
 ## Set Up the Ray Cluster
 
-To simplify the setup of our Ray cluster, follow these steps:
-
-1. Open your `.bashrc` or `.zshrc` file:
-   ```bash
-   nano ~/.bashrc  # or nano ~/.zshrc
-   ```
-2. Add the following alias at the end of the file:
-   ```bash
-   alias run-fedgraph-cluster='bash setup_cluster.sh'
-   ```
-3. Reload your shell configuration:
-   For bash users:
-   ```bash
-   source ~/.bashrc
-   ```
-   For zsh users:
-   ```bash
-   source ~/.zshrc
-   ```
-4. Now, you can run the following command to set up the Ray cluster:
-   ```bash
-   run-fedgraph-cluster
-   ```
+```bash
+bash setup_cluster.sh
+```
 
 ## Delete the Ray Cluster
 
