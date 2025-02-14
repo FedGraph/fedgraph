@@ -54,6 +54,7 @@ Whether you are a federated learning researcher or a first-time user of federate
 
    install
    tutorials/index
+   fedgraph.setup_ray_cluster
 
 .. toctree::
    :maxdepth: 2
