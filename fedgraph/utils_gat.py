@@ -63,92 +63,49 @@ def FedGATLoss(
     return v
 
 
-def VecGen(feats1, feats2, num, dim, deg):
-    V = np.random.uniform(-2, 2, (num, dim))
+def VecGen(self, feats1, feats2, vec_dim):
 
-    indices = {}
+    feat_dim = feats1.size()[1]
 
-    while len(indices) < num:
-        r = random.randint(0, dim - 1)
+    M1 = torch.zeros((feat_dim, vec_dim))
+    M2 = torch.zeros((feat_dim, vec_dim))
 
-        if indices.get(r, None) == None:
-            indices.update({r: True})
+    K1 = torch.zeros(vec_dim)
+    K2 = torch.zeros((vec_dim, feats2.size()[1]))
 
-    index_list = [i for i in indices]
+    T_inter = torch.zeros((vec_dim, vec_dim, vec_dim))
 
-    random.shuffle(index_list)
+    V = torch.rand((vec_dim, vec_dim))
+    V = torch.matmul(V, V.T)
+    V = torch.linalg.eig(V)[1].float()
 
-    Keys = np.zeros((num, dim))
+    U = torch.rand((vec_dim, vec_dim))
+    U = torch.matmul(U, U.T)
+    U = torch.linalg.eig(U)[1].float()
 
-    InterVec = np.zeros((deg + 1, num, dim))
+    #Now, construct the matrices!
 
-    for i in range(num):
-        V[:, index_list[i]] = 0
+    #First, we construct the tensor T
 
-        V[i, index_list[i]] = np.random.uniform(1, 3) * random.sample([-1, 1], 1)[0]
+    T_tensor = torch.zeros((vec_dim, vec_dim, vec_dim))
 
-        Keys[i, index_list[i]] = 1
+    for i in range(vec_dim):
 
-        for j in range(deg + 1):
-            InterVec[j, :, index_list[i]] = 0.0
+        T_tensor[:, :, i] = torch.outer(V[:, i], V[:, i])
 
-            InterVec[j, i, index_list[i]] = 1 / V[i, index_list[i]] ** j
+    T_inter = torch.einsum('ijl,kl->ijk', T_tensor, V)
 
-    InterMat = np.zeros((deg + 1, dim, dim))
+    for i in range(feats1.size()[0]):
 
-    for i in range(deg + 1):
-        for j in range(num):
-            InterMat[i, :, :] += np.outer(InterVec[i, j, :], Keys[j, :])
+        K1 += V[:, i]
 
-    temp1 = np.random.uniform(-5, 5, dim)
+        K2 += torch.outer(V[:, i], feats2[i, :])
 
-    temp2 = np.random.uniform(-5, 5, dim)
+        M1 += torch.outer(feats1[i, :], V[:, i])
 
-    temp3 = np.random.uniform(-5, 5, dim)
+        M2 += torch.outer(feats2[i, :], V[:, i])
 
-    mask1 = np.zeros(dim)
-
-    for i in range(num):
-        mask1 += Keys[i, :] * np.dot(Keys[i, :], temp1) / np.dot(Keys[i, :], Keys[i, :])
-
-    mask1 = temp1 - mask1
-
-    for i in range(deg + 1):
-        InterMat[i, :, :] += np.random.uniform(-2, 2) * np.outer(mask1, mask1)
-
-    mask2 = np.zeros(dim)
-
-    mask2 += np.dot(mask1, temp2) * mask1 / np.dot(mask1, mask1)
-
-    for i in range(num):
-        mask2 += Keys[i, :] * np.dot(Keys[i, :], temp2) / np.dot(Keys[i, :], Keys[i, :])
-
-    mask2 = temp2 - mask2
-
-    K1 = np.zeros(dim)
-
-    for i in range(num):
-        K1 += Keys[i, :]
-
-    K1 += np.random.uniform(1, 4) * mask2
-
-    K2 = np.zeros((dim, feats1.shape[1]))
-
-    for i in range(num):
-        K2 += np.outer(Keys[i, :], feats2[i, :])
-
-    K2 += np.random.uniform(1, 3) * np.outer(
-        mask2, feats2[random.randint(0, num - 1), :]
-    )
-
-    M1 = np.zeros((feats1.shape[1], dim))
-    M2 = np.zeros((feats2.shape[1], dim))
-
-    for i in range(num):
-        M1 += np.outer(feats1[i, :], V[i, :])
-        M2 += np.outer(feats2[i, :], V[i, :])
-
-    return M1, M2, K1, K2, InterMat
+    return M1.float(), M2.float(), K1.float(), K2.float(), T_inter.float()
 
 
 def label_dirichlet_partition(

@@ -10,6 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric
 from torch_geometric.data import Data
+from torch_geometric.loader import NeighborLoader, NodeLoader
 from torchmetrics.functional.retrieval import retrieval_auroc
 from torchmetrics.retrieval import RetrievalHitRate
 
@@ -19,6 +20,7 @@ from fedgraph.gnn_models import (
     GNN_LP,
     AggreGCN,
     FedGATModel,
+    FedGATModel_OGBN,
     GCN_arxiv,
     SAGE_products,
 )
@@ -1212,6 +1214,7 @@ class Trainer_GAT:
         device,
         type,
         batch_size=None,
+        limit_node_degree
     ):
         self.client_id = client_id
         self.graph = subgraph
@@ -1220,7 +1223,7 @@ class Trainer_GAT:
         self.train_mask = train_indexes  # directly use index
         self.validate_mask = val_indexes  # directly use index
         self.test_mask = test_indexes  # directly use index
-        self.optim_kind = "Adam"
+        self.optim_kind = "SGD"
         self.labels = labels
         self.train_rounds = args.global_rounds
         self.num_local_iters = args.num_local_iters
@@ -1231,12 +1234,18 @@ class Trainer_GAT:
         self.model_regularisation = args.model_regularisation
         self.device = device
         self.optimizer = None
+
+        self.num_layers = 1
+
+        self.limit_node_degree = limit_node_degree
         # self.loss_fn = nn.KLDivLoss(reduction="batchmean", log_target=False)
         self.loss_fn = None
         if args.dataset == "ogbn-arxiv":
-            self.loss_fn = nn.KLDivLoss(reduction="batchmean", log_target=False)
+            self.loss_fn = nn.CrossEntropyLoss()
+            self.num_layers = 2
         else:
             self.loss_fn = nn.CrossEntropyLoss()
+            self.num_layers = 1
         self.epoch = 0
         self.node_feats = None
 
@@ -1266,12 +1275,20 @@ class Trainer_GAT:
         self.M2 = None
         self.K1 = None
         self.K2 = None
+        self.Inter = None
         self.grad = None
         self.batch_size = batch_size
         # print(batch_size)
         self.batch_mask = None
         self.type = type
         self.args = args
+        self.trainloader = None
+        self.train_iter = None
+        self.valloader = None
+        self.val_iter = None
+        self.testloader = None
+        self.test_iter = None
+        self.vector_fedgat = True
 
     def get_model_state_dict(self):
         return self.model.state_dict()
@@ -1281,6 +1298,10 @@ class Trainer_GAT:
 
     def get_model_grads(self):
         return self.grad
+    
+    def get_model(self):
+
+        return self.model
 
     def update_params(self, params, current_global_epoch):
         """
@@ -1293,7 +1314,7 @@ class Trainer_GAT:
         current_global_epoch : int
             Current global epoch number.
         """
-        self.model.to("cpu")
+        self.model.to(self.device)
         for p, mp in zip(params, self.model.parameters()):
             mp.data = p
         self.model.to(self.device)
@@ -1367,9 +1388,9 @@ class Trainer_GAT:
         self.model.to(self.device)
         for p in self.model.parameters():
             p.requires_grad = True
-        self.grad = [torch.zeros(p.size()) for p in self.model.parameters()]
-        for g in range(len(self.grad)):
-            self.grad[g].requires_grad = False
+        # self.grad = [torch.zeros(p.size()) for p in self.model.parameters()]
+        # for g in range(len(self.grad)):
+        #     self.grad[g].requires_grad = False
         self.model.train()
         self.OptimReset()
         # self.optimizer = torch.optim.Adam(
@@ -1399,6 +1420,49 @@ class Trainer_GAT:
                 self.K2 = torch.stack(
                     [self.node_mats[i][3] for i in range(len(self.node_mats))]
                 ).to(device=self.device)
+                self.Inter = torch.stack(
+                    [self.node_mats[i][3] for i in range(len(self.node_mats))]
+                ).to(device = self.device)
+
+        if self.vector_fedgat == True:
+
+            if self.M1 == None:
+
+                self.M1 = torch.stack(
+                    [self.node_mats[i][0] for i in range(len(self.node_mats))]
+                ).to(device=self.device)
+                self.M2 = torch.stack(
+                    [self.node_mats[i][1] for i in range(len(self.node_mats))]
+                ).to(device=self.device)
+                self.K1 = torch.stack(
+                    [self.node_mats[i][2] for i in range(len(self.node_mats))]
+                ).to(device=self.device)
+                self.K2 = torch.stack(
+                    [self.node_mats[i][3] for i in range(len(self.node_mats))]
+                ).to(device=self.device)
+                self.Inter = torch.stack(
+                    [self.node_mats[i][3] for i in range(len(self.node_mats))]
+                ).to(device = self.device)
+
+                #Creating the minibatch dataloader
+
+                self.trainloader = NeighborLoader(self.graph, num_neighbours = [int(2 * self.limit_node_degree)] * self.num_layers, input_nodes = self.train_mask, 
+                batch_size = self.batch_size, shuffle = True, device = self.device)
+
+                self.train_iter = iter(self.trainloader)
+
+                self.valloader = NeighborLoader(self.graph, num_neighbours = [int(2 * self.limit_node_degree)] * self.num_layers, input_nodes = self.validate_mask, 
+                batch_size = self.batch_size, shuffle = True, device = self.device)
+
+                self.val_iter = iter(self.valloader)
+
+                self.testloader = NeighborLoader(self.graph, num_neighbours = [int(2 * self.limit_node_degree)] * self.num_layers, input_nodes = self.test_mask, 
+                batch_size = self.batch_size, shuffle = True, device = self.device)
+
+                self.test_iter = iter(self.testloader)
+
+        del self.node_mats
+        
         print(f"Client {self.client_id} ready for training!")
 
     def FromServer(self, global_params, duals):
@@ -1411,11 +1475,11 @@ class Trainer_GAT:
                 self.model.parameters(), self.global_params.parameters()
             ):
                 p_id.copy_(p)
-                p_id.grad = torch.zeros(p.size())
-                p_id.grad.data.zero_()
-        self.grad = [torch.zeros(p.size()) for p in self.model.parameters()]
-        for g in range(len(self.grad)):
-            self.grad[g].requires_grad = False
+        #         p_id.grad = torch.zeros(p.size())
+        #         p_id.grad.data.zero_()
+        # self.grad = [torch.zeros(p.size()) for p in self.model.parameters()]
+        # for g in range(len(self.grad)):
+        #     self.grad[g].requires_grad = False
 
         for p in self.global_params.parameters():
             p.requires_grad = False
@@ -1429,11 +1493,12 @@ class Trainer_GAT:
 
     def OptimReset(self):
         if self.optim_kind == "Adam":
-            self.Optim = torch.optim.Adam(self.model.parameters(), lr=self.model_lr)
+            self.Optim = torch.optim.Adam(self.model.parameters(), lr=self.model_lr, weight_decay = self.model_regularisation)
 
         elif self.optim_kind == "SGD":
             self.Optim = torch.optim.SGD(
-                self.model.parameters(), lr=self.model_lr, momentum=self.momentum
+                self.model.parameters(), lr=self.model_lr, momentum=self.momentum, 
+                weight_decay = self.model_regularisation
             )
 
     def train_iterate(self):
@@ -1447,98 +1512,182 @@ class Trainer_GAT:
         # print(self.graph.size())
         # print(len(self.node_feats))
         y_pred = None
+        batch = None
         if self.type == "DistributedGAT":
             y_pred = self.model.forward(self.graph)
+
         else:
-            y_pred = self.model.forward(self.graph, self.node_mats)
+            try:
+                batch = next(self.data_iter)
+            except StopIteration:
+                self.data_iter = iter(self.trainloader)
+                batch = next(self.train_iter)
+
+            y_pred = self.model.foarward_vector(batch, self.M1[batch.n_id], self.M2[batch.n_id], 
+            self.K1[batch.n_id], self.K2[batch.n_id], self.Inter[batch.n_id])
+
+            
         test_accracy = 0.0
 
-        # when the train_mask is not empty, do the training
-        if (
-            isinstance(self.train_mask, torch.Tensor)
-            and self.train_mask.dim() > 0
-            and self.train_mask.size(0) != 0
-        ):
-            if self.batch_size:
-                if self.batch_size > len(self.train_mask):
-                    self.batch_mask = self.train_mask
-                else:
-                    self.batch_mask = torch.tensor(
-                        random.sample(list(self.train_mask), self.batch_size)
-                    )
-            else:
-                self.batch_mask = self.train_mask
-            if self.args.dataset == "ogbn-arxiv":
-                y_pred = y_pred.log()
+    #     # when the train_mask is not empty, do the training
+    # if (
+    #     isinstance(self.train_mask, torch.Tensor)
+    #     and self.train_mask.dim() > 0
+    #     and self.train_mask.size(0) != 0
+    # ):
+    #     if self.batch_size:
+    #         if self.batch_size > len(self.train_mask):
+    #             self.batch_mask = self.train_mask
+    #         else:
+    #             self.batch_mask = torch.tensor(
+    #                 random.sample(list(self.train_mask), self.batch_size)
+    #             )
+    #     else:
+    #         self.batch_mask = self.train_mask
+        # if self.args.dataset == "ogbn-arxiv":
+        #     y_pred = y_pred.log()
 
-            # print("validating for loss size")
-            # print(self.client_id)
-            # print(y_pred.size())
-            # print(self.tr_mask)
+        # print("validating for loss size")
+        # print(self.client_id)
+        # print(y_pred.size())
+        # print(self.tr_mask)
+
+        t_loss = None
+        v_loss = None
+
+        if batch.batch_size == 0:
+
+            pass
+
+        else:
+
             t_loss = FedGATLoss(
                 self.loss_fn,
                 self.glob_comm,
                 self.loss_weight,
-                y_pred[self.batch_mask],
-                self.labels[self.batch_mask],
+                y_pred,
+                self.labels[batch.n_id][:batch.batch_size],
                 self.model,
                 self.global_params,
                 self.duals,
                 self.aug_lagrange_rho,
                 self.dual_weight,
             )
-            # S = self.model.state_dict()
-            # print("printing state dict")
-            # print(S)
-            # for p in S:
-            #     print("printing p ")
-            #     print(p)
-
-            #     print(S[p].grad)
-            #     print("printing p.is_leaf")
-            #     print(S[p].is_leaf)
-            # for p in self.model.parameters():
-            #     print(p.grad)
-            #     print(p.is_leaf)
-            #     print(p)
 
             t_loss.backward()
-            if self.glob_comm == "FedAvg":
-                with torch.no_grad():
-                    for ind, p in enumerate(self.model.parameters()):
-                        self.grad[ind] += p.grad
-            # for p in self.model.parameters():
-            #     print("printing p.grad")
-            #     print(p.grad)
-            if self.glob_comm == "ADMM":
-                self.Optim.step()
+
+            self.Optim.step()
+
+            #Compute training accuracy
 
             with torch.no_grad():
-                # v_loss = FedGATLoss(
-                #     self.loss_fn,
-                #     self.glob_comm,
-                #     self.loss_weight,
-                #     y_pred[self.validate_mask],
-                #     self.labels[self.validate_mask],
-                #     self.model,
-                #     self.global_params,
-                #     self.duals,
-                #     self.aug_lagrange_rho,
-                #     self.dual_weight,
-                # )
 
-                pred_labels = torch.argmax(y_pred, dim=1)
-                true_labels = torch.argmax(self.labels, dim=1)
+                pred_labels = torch.argmax(y_pred, dim = 1)
 
-                self.t_acc = torch.sum(
-                    pred_labels[self.batch_mask] == true_labels[self.batch_mask]
-                ) / len(self.train_mask)
-                # self.v_acc = torch.sum(
-                #     pred_labels[self.validate_mask] == true_labels[self.validate_mask]
-                # ) / len(self.validate_mask)
-        # when the train_mask is empty, pass the training
-        else:
-            pass
+                true_labels = torch.argmax(self.labels[batch.n_id][batch.batch_size], dim = 1)
+
+                self.t_acc = torch.sum(pred_labels == true_labels).float()/batch.batch_size
+
+            with torch.no_grad():
+
+                #Validation metrics
+
+                y_pred_val = None
+
+                try:
+
+                    batch = next(self.val_iter)
+
+                except StopIteration:
+
+                    self.val_iter = iter(self.valloader)
+                    batch = next(self.val_iter)
+
+                if batch.batch_size == 0:
+
+                    pass
+
+                else:
+
+                    y_pred_val = self.model.forward_vector(batch, self.M1[batch.n_id], self.M2[batch.n_id],
+                    self.K1[batch.n_id], self.K2[batch.n_id], self.Inter[batch.n_id])
+
+                    v_loss = FedGATLoss(
+                    self.loss_fn,
+                    self.glob_comm,
+                    self.loss_weight,
+                    y_pred_val,
+                    self.labels[batch.n_id][:batch.batch_size],
+                    self.model,
+                    self.global_params,
+                    self.duals,
+                    self.aug_lagrange_rho,
+                    self.dual_weight,
+                )
+
+                pred_labels = torch.argmax(y_pred_val, dim = 1)
+                true_labels = torch.argmax(self.labels[batch.n_id][:batch.batch_size], dim = 1)
+
+                self.v_acc = torch.sum(pred_labels == true_labels).float()/batch.batch_size
+
+                #test_acc = self.ModelTest()
+
+                self.epoch += 1
+
+                return t_loss.item(), v_loss.item(), 100 * self.t_acc, 100 * self.v_acc
+
+        # S = self.model.state_dict()
+        # print("printing state dict")
+        # print(S)
+        # for p in S:
+        #     print("printing p ")
+        #     print(p)
+
+        #     print(S[p].grad)
+        #     print("printing p.is_leaf")
+        #     print(S[p].is_leaf)
+        # for p in self.model.parameters():
+        #     print(p.grad)
+        #     print(p.is_leaf)
+        #     print(p)
+
+        # t_loss.backward()
+        # if self.glob_comm == "FedAvg":
+        #     with torch.no_grad():
+        #         for ind, p in enumerate(self.model.parameters()):
+        #             self.grad[ind] += p.grad
+        # # for p in self.model.parameters():
+        # #     print("printing p.grad")
+        # #     print(p.grad)
+        # if self.glob_comm == "ADMM":
+        #     self.Optim.step()
+
+        # with torch.no_grad():
+        #     # v_loss = FedGATLoss(
+        #     #     self.loss_fn,
+        #     #     self.glob_comm,
+        #     #     self.loss_weight,
+        #     #     y_pred[self.validate_mask],
+        #     #     self.labels[self.validate_mask],
+        #     #     self.model,
+        #     #     self.global_params,
+        #     #     self.duals,
+        #     #     self.aug_lagrange_rho,
+        #     #     self.dual_weight,
+        #     # )
+
+        #     pred_labels = torch.argmax(y_pred, dim=1)
+        #     true_labels = torch.argmax(self.labels, dim=1)
+
+        #     self.t_acc = torch.sum(
+        #         pred_labels[self.batch_mask] == true_labels[self.batch_mask]
+        #     ) / len(self.train_mask)
+        #         # self.v_acc = torch.sum(
+        #         #     pred_labels[self.validate_mask] == true_labels[self.validate_mask]
+        #         # ) / len(self.validate_mask)
+        # # when the train_mask is empty, pass the training
+        # else:
+        #     pass
 
             # print(pred_labels[:20])
             # print(true_labels[:20])
@@ -1563,17 +1712,17 @@ class Trainer_GAT:
             #         v_acc=100 * self.v_acc,
             #     )
             # )
-        test_accracy = 0.0
-        if self.test_mask.dim() > 0 and len(self.test_mask) >= 1:
-            # model test
-            test_accracy = self.ModelTest()
-            self.epoch += 1
-            return test_accracy, len(self.test_mask)
-        else:
-            # not consider this trainer
-            self.epoch += 1
-            return test_accracy, 0
-        # , 100 * self.v_acc, 100 * self.t_acc
+        # test_accracy = 0.0
+        # if self.test_mask.dim() > 0 and len(self.test_mask) >= 1:
+        #     # model test
+        #     test_accracy = self.ModelTest()
+        #     self.epoch += 1
+        #     return test_accracy, len(self.test_mask)
+        # else:
+        #     # not consider this trainer
+        #     self.epoch += 1
+        #     return test_accracy, 0
+        # # , 100 * self.v_acc, 100 * self.t_acc
 
     def train_iterate_fedavg(self):
         """
@@ -1670,11 +1819,24 @@ class Trainer_GAT:
     def ModelTest(self):
         self.model.eval()
 
+        y_pred = None
+        batch = None
+
         with torch.no_grad():
             if self.type == "DistributedGAT":
                 y_pred = self.model(self.graph)[self.test_mask]
             else:
-                y_pred = self.model(self.graph, self.node_mats)[self.test_mask]
+
+                try:
+                    
+                    batch = next(self.test_iter)
+                except:
+
+                    self.test_iter = iter(self.testloader)
+                    batch = next(self.test_iter)
+
+                y_pred = self.model.forward_vector(batch, self.M1[batch.n_id], self.M2[batch.n_id], 
+                self.K1[batch.n_id], self.K2[batch.n_id], self.Inter[batch.n_id])
 
             pred_labels = torch.argmax(y_pred, dim=1)
             true_labels = torch.argmax(self.labels[self.test_mask], dim=1)

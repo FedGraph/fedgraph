@@ -103,7 +103,7 @@ ray job submit --runtime-env-json '{
 
 Delete the RayCluster Custom Resource:
 
-```bash
+```bashkubectl
 cd docs/examples/configs
 kubectl delete -f ray_kubernetes_cluster.yaml
 kubectl delete -f ray_kubernetes_ingress.yaml

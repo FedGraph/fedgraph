@@ -16,6 +16,7 @@ from fedgraph.gnn_models import (
     GNN_LP,
     AggreGCN,
     FedGATModel,
+    FedGATModel_OGBN,
     GCN_arxiv,
     SAGE_products,
 )
@@ -522,6 +523,7 @@ class Server_GAT:
         self.max_deg = args.max_deg
         self.Model = model
         self.GATModelParams = self.Model.state_dict()
+        self.limit_node_degree = args.limit_node_degree
 
         self.num_layers = args.num_layers
         self.glob_comm = args.glob_comm
@@ -761,27 +763,36 @@ class Server_GAT:
             print(node)
             neighbours = self.get_predecessors(graph, node)
 
-            sampled_bool = np.array(
-                [
-                    random.choices(
-                        [0, 1], [1 - self.sample_probab, self.sample_probab], k=1
-                    )[0]
-                    for j in range(len(neighbours))
-                ]
-            )
+            sampled_bool = np.array([random.choices([0, 1], [1 - self.sample_probab, self.sample_probab], k = 1)[0] for j in range(len(neighbours))])
 
-            sampled_bool = np.array(
-                [
-                    random.choices(
-                        [0, 1], [1 - self.sample_probab, self.sample_probab], k=1
-                    )[0]
-                    for j in range(len(neighbours))
-                ]
-            )
-
-            sampled_bool = torch.from_numpy(sampled_bool).to(device=device).bool()
+            sampled_bool = torch.from_numpy(sampled_bool).bool()
 
             sampled_neigh = neighbours[sampled_bool]
+
+            feats1 = torch.zeros((self.limit_node_degree, d))
+            feats2 = torch.zeros((self.limit_node_degree, d))
+
+            # sampled_bool = np.array(
+            #     [
+            #         random.choices(
+            #             [0, 1], [1 - self.sample_probab, self.sample_probab], k=1
+            #         )[0]
+            #         for j in range(len(neighbours))
+            #     ]
+            # )
+
+            # sampled_bool = np.array(
+            #     [
+            #         random.choices(
+            #             [0, 1], [1 - self.sample_probab, self.sample_probab], k=1
+            #         )[0]
+            #         for j in range(len(neighbours))
+            #     ]
+            # )
+
+            # sampled_bool = torch.from_numpy(sampled_bool).to(device=device).bool()
+
+            # sampled_neigh = neighbours[sampled_bool]
 
             if len(sampled_neigh) < 2:
                 sampled_neigh = neighbours
@@ -790,13 +801,13 @@ class Server_GAT:
                     list(sampled_neigh), args.limit_node_degree
                 )
 
-            feats1 = np.zeros((len(sampled_neigh), d))
-            feats2 = np.zeros((len(sampled_neigh), d))
+            # feats1 = np.zeros((len(sampled_neigh), d))
+            # feats2 = np.zeros((len(sampled_neigh), d))
 
             for i in range(len(sampled_neigh)):
-                feats1[i, :] = self.feats[node, :].cpu().detach().numpy()
+                feats1[i, :] = self.feats[node, :]
                 feats2[i, :] = (
-                    self.feats[sampled_neigh[i].item(), :].cpu().detach().numpy()
+                    self.feats[sampled_neigh[i].item(), :]
                 )
             if self.device == torch.device("cuda"):
                 dim = max_degree
@@ -805,19 +816,13 @@ class Server_GAT:
 
             M1, M2, K1, K2, Inter = None, None, None, None, None
             if self.args.vecgen:
-                M1, M2, K1, K2, Inter = VecGen(
+                M1, M2, K1, K2, Inter = self.VecGen(
                     feats1=feats1,
                     feats2=feats2,
-                    num=len(sampled_neigh),
-                    dim=dim,
-                    deg=self.max_deg,
+                    vec_dim = args.limit_node_degree
                 )
                 self.node_mats[node] = [
-                    torch.from_numpy(M1).float().to(device=device),
-                    torch.from_numpy(M2).float().to(device=device),
-                    torch.from_numpy(K1).float().to(device=device),
-                    torch.from_numpy(K2).float().to(device=device),
-                    torch.from_numpy(Inter).float().to(device=device),
+                    M1, M2, K1, K2, Inter
                 ]
             else:
                 M1, M2, K1, K2 = self.MatGen(
@@ -893,6 +898,50 @@ class Server_GAT:
         K1 *= 2**0.5
 
         return M1, M2, K1, K2
+
+    def VecGen(self, feats1, feats2, vec_dim):
+
+        feat_dim = feats1.size()[1]
+
+        M1 = torch.zeros((feat_dim, vec_dim))
+        M2 = torch.zeros((feat_dim, vec_dim))
+
+        K1 = torch.zeros(vec_dim)
+        K2 = torch.zeros((vec_dim, feats2.size()[1]))
+
+        T_inter = torch.zeros((vec_dim, vec_dim, vec_dim))
+
+        V = torch.rand((vec_dim, vec_dim))
+        V = torch.matmul(V, V.T)
+        V = torch.linalg.eig(V)[1].float()
+
+        U = torch.rand((vec_dim, vec_dim))
+        U = torch.matmul(U, U.T)
+        U = torch.linalg.eig(U)[1].float()
+
+        #Now, construct the matrices!
+
+        #First, we construct the tensor T
+
+        T_tensor = torch.zeros((vec_dim, vec_dim, vec_dim))
+
+        for i in range(vec_dim):
+
+            T_tensor[:, :, i] = torch.outer(V[:, i], V[:, i])
+
+        T_inter = torch.einsum('ijl,kl->ijk', T_tensor, V)
+
+        for i in range(feats1.size()[0]):
+
+            K1 += V[:, i]
+
+            K2 += torch.outer(V[:, i], feats2[i, :])
+
+            M1 += torch.outer(feats1[i, :], V[:, i])
+
+            M2 += torch.outer(feats2[i, :], V[:, i])
+
+        return M1.float(), M2.float(), K1.float(), K2.float(), T_inter.float()
 
     def distribute_mats(self, communicate_node_indexes, previous_node_mats=None):
         if previous_node_mats is not None:
@@ -1043,46 +1092,41 @@ class Server_GAT:
             if self.args.communication_grad:  # avg gradient
                 self.Optim.zero_grad()
 
-                with torch.no_grad():
-                    for p in self.Model.parameters():
-                        # print(p.requires_grad)
+                # with torch.no_grad():
+                #     for p in self.Model.parameters():
+                #         # print(p.requires_grad)
 
-                        p.grad = torch.zeros(p.size())
+                #         p.grad = torch.zeros(p.size())
 
-                        p.grad.data.zero_()
-                # time.sleep(100)
+                #         p.grad.data.zero_()
+                # # time.sleep(100)
                 with torch.no_grad():
                     for id in range(len(self.trainers)):
                         for p, p_id in zip(
                             self.Model.parameters(),
-                            ray.get(self.trainers[id].get_model_grads.remote()),
+                            ray.get(self.trainers[id].get_model.remote()),
                         ):
                             self.communication_cost += (
                                 p_id.nelement() * p_id.element_size()
                             )
-                            p.grad += (
-                                self.model_loss_weights[id]
-                                * p_id
-                                / self.num_local_iters
-                            )
+                            p += self.model_loss_weights[id] * (p_id - p)
 
-                self.Optim.step()
-            else:  # avg model
-                params = [trainer.get_params.remote() for trainer in self.trainers]
-                self.zero_params()
+            # else:  # avg model
+            #     params = [trainer.get_params.remote() for trainer in self.trainers]
+            #     self.zero_params()
 
-                while True:
-                    ready, left = ray.wait(params, num_returns=1, timeout=None)
-                    if ready:
-                        for t in ready:
-                            for p, mp in zip(ray.get(t), self.Model.parameters()):
-                                mp.data += p.cpu()
-                    params = left
-                    if not params:
-                        break
+            #     while True:
+            #         ready, left = ray.wait(params, num_returns=1, timeout=None)
+            #         if ready:
+            #             for t in ready:
+            #                 for p, mp in zip(ray.get(t), self.Model.parameters()):
+            #                     mp.data += p.cpu()
+            #         params = left
+            #         if not params:
+            #             break
 
-                for p in self.Model.parameters():
-                    p /= len(self.trainers)
+            #     for p in self.Model.parameters():
+            #         p /= len(self.trainers)
 
         elif self.glob_comm == "ADMM":
             with torch.no_grad():
@@ -1222,7 +1266,7 @@ class Server_GAT:
             average_final_test_accuracy = 0.0
             total_test_num = 0
             for acc, test_num in test_acc_list:
-                average_final_test_accuracy += acc * test_num
+                average_final_test_accuracy += acc[-1] * test_num
                 total_test_num += test_num
             average_final_test_accuracy /= total_test_num
 

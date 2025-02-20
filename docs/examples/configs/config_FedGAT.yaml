@@ -1,38 +1,44 @@
 dual_weight: 5.e-4
 aug_lagrange_rho: 6.e-4
-model_lr: 0.06
-model_regularisation: 2.e-3
+model_lr: 0.1
+model_regularisation: 4.e-3
 dual_lr: 1.e-2
-num_local_iters: 1
-train_rounds: 35
-global_rounds: 35
+num_local_iters: 4
+train_rounds: 150
+global_rounds: 150
 gamma: 0.2
 attn_func_parameter: 0.2
 # lambda x: AttnFunction(x, 0.2)
-attn_func_domain: [-5, 5, 500]
+attn_func_domain: [-10, 10, 1000]
 sample_probab: 1
+hidden_dim1: 64
+hidden_dim2: 16
+num_heads1: 8
+num_heads2: 8
+max_deg: 18
+neighbour_std_control: 1.
 hidden_dim: 8
-num_heads: 8
-max_deg: 16
+num_heads : 8
+
 
 # dataset: ogbn-arxiv
 dataset: cora
-n_trainer: 20
+n_trainer: 3
 num_layers: 2
 num_hops: 2
-gpu: false
+gpu: True
 momentum: 0.0
 iid_beta: 10000
 logdir: ./runs
-device: cpu
-optim_kind: Adam
+device: gpu
+optim_kind: SGD
 glob_comm: FedAvg
 optim_reset: False
 dampening: 0.0
-limit_node_degree: 150
+limit_node_degree: 40
 # method: DistributedGAT
 # method: CentralizedGAT
 method: FedGAT
-batch_size: False
+batch_size: 16
 vecgen: True
 communication_grad: True

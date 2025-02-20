@@ -798,6 +798,22 @@ class FedGATConv(nn.Module):
             z = torch.stack([E[i] / F[i] for i in range(len(D))], dim=0)
 
             return z
+        
+    def forward_vector(self, g, M1, M2, K1, K2, Inter):
+
+        D = (torch.matmul(self.att1, M1) + torch.matmul(self.att2, M2))/self.att1.size()[0] ** 0.5
+
+        D_inter = torch.einsum('bijk,bk->bij', Inter, D)
+
+        D_coeffs = torch.sum(self.polycoeffs.view(1, self.polycoeffs.size()[0], 1, 1) * torch.stack([torch.linalg.matrix_power(D_inter, i) for i in range(self.max_deg + 1)], dim = 1), dim = 1)
+
+        E = torch.matmul(torch.matmul(torch.matmul(K1.unsqueeze(1), D_coeffs), K2).squeeze(1), self.weight)
+
+        F = torch.matmul(torch.matmul(K1.unsqueeze(1), D_coeffs), K1.unsqueeze(2)).squeeze(2)
+
+        z = E/F
+
+        return z
 
 
 # class GATConv(nn.Module):
@@ -967,8 +983,9 @@ class MultiHeadFedGATConv(nn.Module):
             else:
                 return torch.sum(torch.cat(out, dim=1), dim=1) / self.num_head
 
-    def forward_gpu(self, g, M1, M2, K1, K2):
-        out = [L.forward_gpu(g, M1, M2, K1, K2) for L in self.FedGATModules]
+    def forward_vector(self, g, M1, M2, K1, K2, Inter):
+
+        out = [L.forward_vector(g, M1, M2, K1, K2, Inter) for L in self.FedGATModules]
 
         if self.merge == "cat":
             if self.activ != None:
@@ -1030,8 +1047,9 @@ class FedGATModel(nn.Module):
 
         return z
 
-    def forward_gpu(self, g, M1, M2, K1, K2):
-        z = self.GAT1.forward_gpu(g, M1, M2, K1, K2)
+    def forward_vector(self, g, M1, M2, K1, K2):
+
+        z = self.GAT1.forward_vector(g, M1, M2, K1, K2)
         # print("printing: g.shape and z.shape")
         # print(g.edge_index)
         # print(z.size(0))
@@ -1041,6 +1059,76 @@ class FedGATModel(nn.Module):
         z = self.soft(z)
 
         return z
+    
+
+    
+class FedGATModel_OGBN(nn.Module):
+
+    def __init__(
+        self,
+        in_feat,
+        out_feat,
+        hidden_dim1,
+        hidden_dim2,
+        num_head1,
+        num_head2,
+        max_deg,
+        attn_func,
+        domain,
+    ):
+        super(FedGATModel, self).__init__()
+        self.attn_func = lambda x: AttnFunction(x, attn_func)
+        self.in_feat = in_feat
+        self.out_feat = out_feat
+        self.num_head1 = num_head1
+
+        self.GAT1 = MultiHeadFedGATConv(
+            in_feat,
+            hidden_dim1,
+            num_head1,
+            max_deg,
+            attn_func,
+            domain,
+            activation=nn.ELU(),
+        )
+
+        self.batch1 = nn.BatchNorm1d(num_features = num_head1 * hidden_dim1)
+
+        self.GAT2 = MultiHeadGATConv(num_head1 * hidden_dim1, hidden_dim2, num_head2, activation = nn.LeakyReLU())
+
+        self.batch2 = nn.BatchNorm1d(num_features = num_head2 * hidden_dim2)
+
+        self.GAT3 = MultiHeadGATConv(num_head2 * hidden_dim2, out_feat, 1)
+
+        self.soft = nn.Softmax(dim=1)
+
+    def forward(self, g, h):
+
+        z = self.GAT1.forward(g, h)
+
+        z_ = self.batch1(z.flatten(1))
+
+        z1 = self.GAT2(z_, g.edge_index)
+
+        z1_ = self.batch2(z1.flatten(1))
+
+        z2 = self.GAT3(z1_, g.edge_index)
+
+        return z2
+    
+    def forward_vector(self, g, M1, M2, K1, K2, Inter):
+
+        z = self.GAT1.forward_vector(g, M1, M2, K1, K2, Inter)
+
+        z_ = self.batch1(z.flatten(1))
+
+        z1 = self.GAT2(z_, g.edge_index)
+
+        z1_ = self.batch2(z1.flatten(1))
+
+        z2 = self.GAT3(z1_, g.edge_index)
+
+        return z2
 
 
 class CentralizedGATModel(nn.Module):

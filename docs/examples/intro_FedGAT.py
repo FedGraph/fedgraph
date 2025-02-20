@@ -23,13 +23,14 @@ import torch.nn as nn
 import torch_geometric
 import yaml
 from torch.optim import SGD, Adam
+from torch_geometric.loader import NeighborLoader
 
 from fedgraph.data_process import (
     FedAT_load_data_test,
     FedGAT_load_data,
     FedGAT_load_data_100,
 )
-from fedgraph.gnn_models import CentralizedGATModel, FedGATModel
+from fedgraph.gnn_models import CentralizedGATModel, FedGATModel, FedGATModel_OGBN
 from fedgraph.monitor_class import Monitor
 from fedgraph.server_class import Server_GAT
 from fedgraph.trainer_class import Trainer_GAT
@@ -354,7 +355,7 @@ def run_fedgraph():
             print(
                 f"Running experiment with: Dataset={args.dataset},"
                 f" Number of Trainers={n_trainer}, Distribution Type={args.method},"
-                f" IID Beta={args.iid_beta}, Number of Hops={max_deg}, Batch Size={-1}"
+                f" IID Beta={args.iid_beta}, Number of Hops={max_deg}, Batch Size={args.batch_size}"
             )
             #######################################################################
             # FedGAT Test
@@ -379,15 +380,33 @@ def run_fedgraph():
             ]
 
             # Define Server
-            gat_model = FedGATModel(
-                in_feat=normalized_features.shape[1],
-                out_feat=one_hot_labels.shape[1],
-                hidden_dim=args.hidden_dim,
-                num_head=args.num_heads,
-                max_deg=args.max_deg,
-                attn_func=args.attn_func_parameter,
-                domain=args.attn_func_domain,
-            ).to(device=device)
+
+            if args.dataset == 'ogbn-arxiv':
+
+                gat_model = FedGATModel_OGBN(
+                    in_feat=normalized_features.shape[1],
+                    out_feat=one_hot_labels.shape[1],
+                    hidden_dim1=args.hidden_dim1,
+                    hidden_dim2=args.hidden_dim2,
+                    num_head1=args.num_heads1,
+                    num_head2=args.num_heads2,
+                    max_deg=args.max_deg,
+                    attn_func=args.attn_func_parameter,
+                    domain=args.attn_func_domain,
+                ).to(device=device)
+
+            else:
+
+                gat_model = FedGATModel(
+                    in_feat=normalized_features.shape[1],
+                    out_feat=one_hot_labels.shape[1],
+                    hidden_dim=args.hidden_dim,
+                    num_head=args.num_heads,
+                    max_deg=args.max_deg,
+                    attn_func=args.attn_func_parameter,
+                    domain=args.attn_func_domain,
+                ).to(device=device)
+
             # centralizedGATModel = CentralizedGATModel(
             #     in_feat=normalized_features.shape[1],
             #     out_feat=one_hot_labels.shape[1],
@@ -433,33 +452,52 @@ def run_fedgraph():
         args.n_trainer = n_trainer
         for iid in [10000.0,1.0]:
             args.iid_beta = iid
-            for max_deg in range(4,25):
+            for max_deg in range(18, 19):
                 node_mats = None
                 args.max_deg = max_deg
-                for _ in range(3):
+                for _ in range(5):
                     node_mats = run(node_mats)
 
 
 # for d in ["ogbn-arxiv"]:
 #     args.dataset = d
-#     args.hidden_dim = 256
-#     args.limit_node_degree = 30
-#     args.batch_size = 2048
-#     args.model_lr = 0.005
-#     args.num_heads = 3
-#     args.num_layers = 2
-#     args.train_rounds = 100
-#     args.global_rounds = 100
+#     args.hidden_dim1 = 64
+#     args.hidden_dim2 = 16
+#     args.limit_node_degree = 20
+#     args.batch_size = 256
+#     args.model_lr = 0.05
+#     args.num_heads1 = 8
+#     args.num_heads2 = 8
+#     args.num_layers = 3
+#     args.train_rounds = 600
+#     args.global_rounds = 600
+#     args.num_local_iters = 5
 #     args.vecgen = True
+#     args.optim_kind = 'SGD'
+#     args.glob_comm = 'FedAvg'
 #     run_fedgraph()
+
 for d in ["cora"]:
     args.dataset = d
     args.vecgen = True
-    run_fedgraph()
-for d in ["citeseer"]:
-    args.dataset = d
+    args.num_layers = 2
+    args.train_rounds = 150
+    args.global_rounds = 150
+    args.num_local_iters = 4
+    args.batch_size = 16
+    args.model_lr = 0.1
+    args.hidden_dim = 8
+    args.num_heads = 8
+    args.limit_node_degree = 50
     args.vecgen = True
+    args.optim_kind = 'SGD'
+    args.glob_comm = 'FedAvg'
     run_fedgraph()
+
+# for d in ["citeseer"]:
+#     args.dataset = d
+#     args.vecgen = True
+#     run_fedgraph()
 # for d in ["pubmed"]:
 #     args.dataset = d
 #     args.hidden_dim = 8

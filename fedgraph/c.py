@@ -147,21 +147,19 @@ class FedGATConv(nn.Module):
 
         return z
 
-    def forward_gpu(self, g, M1, M2, K1, K2):
-        D = torch.matmul(self.att1, M1) + torch.matmul(self.att2, M2)
+    def forward_gpu(self, g, M1, M2, K1, K2, Inter):
 
-        D_pow = self.polycoeffs.view(1, self.polycoeffs.size()[0], -1) * torch.stack(
-            [D**pow for pow in range(self.max_deg + 1)], dim=1
-        )
+        D = (torch.matmul(self.att1, M1) + torch.matmul(self.att2, M2))/self.att1.size()[0]
 
-        E = torch.matmul(
-            torch.sum(torch.matmul(D_pow.unsqueeze(2), K1).squeeze(2), dim=1),
-            self.weight,
-        )
+        D_inter = torch.einsum('bijk,bk->bij', Inter, D)
 
-        F = torch.sum(torch.sum(D_pow * K2, dim=2), dim=1)
+        D_coeffs = torch.sum(self.polycoeffs.view(1, self.polycoeffs.size()[0], 1, 1) * torch.stack([torch.linalg.matrix_power(D_inter, i) for i in range(self.max_deg + 1)], dim = 1), dim = 1)
 
-        z = E / F.unsqueeze(1)
+        E = torch.matmul(torch.matmul(torch.matmul(K1.unsqueeze(1), D_coeffs), K2).squeeze(1), self.weight)
+
+        F = torch.matmul(torch.matmul(K1.unsqueeze(1), D_coeffs), K1.unsqueeze(2)).squeeze(2)
+
+        z = E/F
 
         return z
 
