@@ -2,8 +2,8 @@ apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 
 metadata:
-  name: mlarge
-  region: us-west-2
+  name: mlarge-1739510276
+  region: us-east-1
 
 nodeGroups:
   - name: head-nodes
