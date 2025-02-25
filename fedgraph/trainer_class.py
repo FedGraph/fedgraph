@@ -1213,17 +1213,19 @@ class Trainer_GAT:
         args,
         device,
         type,
-        batch_size=None,
-        limit_node_degree
+        batch_size=None
     ):
+        
+        print(f"GPU Available at client {client_id}: {torch.cuda.is_available()}")
         self.client_id = client_id
-        self.graph = subgraph
+        self.graph = subgraph.to(device = args.device)
         self.node_indices = node_indexes
         self.index_map = {int(node): idx for idx, node in enumerate(node_indexes)}
         self.train_mask = train_indexes  # directly use index
         self.validate_mask = val_indexes  # directly use index
         self.test_mask = test_indexes  # directly use index
-        self.optim_kind = "SGD"
+        self.optim_kind = "Adam"
+        self.Optim = None
         self.labels = labels
         self.train_rounds = args.global_rounds
         self.num_local_iters = args.num_local_iters
@@ -1232,12 +1234,12 @@ class Trainer_GAT:
         self.dual_lr = args.dual_lr
         self.model_lr = args.model_lr
         self.model_regularisation = args.model_regularisation
-        self.device = device
+        self.device = args.device
         self.optimizer = None
 
         self.num_layers = 1
 
-        self.limit_node_degree = limit_node_degree
+        self.limit_node_degree = args.limit_node_degree
         # self.loss_fn = nn.KLDivLoss(reduction="batchmean", log_target=False)
         self.loss_fn = None
         if args.dataset == "ogbn-arxiv":
@@ -1301,7 +1303,7 @@ class Trainer_GAT:
     
     def get_model(self):
 
-        return self.model
+        return self.model.parameters()
 
     def update_params(self, params, current_global_epoch):
         """
@@ -1355,7 +1357,7 @@ class Trainer_GAT:
                 lr=self.model_lr,
                 weight_decay=self.model_regularisation,
                 momentum=self.momentum,
-                nesterov=True,
+                nesterov=False,
             )
 
     def setNodeMats(self, rec_info):
@@ -1364,7 +1366,7 @@ class Trainer_GAT:
 
     def set_model(self, new_model):
         self.model = new_model
-        self.model.to(self.device)
+        self.model.to(device = self.device)
 
     def update_optim_kind(self, new_optim_kind):
         self.optim_kind = new_optim_kind
@@ -1441,23 +1443,23 @@ class Trainer_GAT:
                     [self.node_mats[i][3] for i in range(len(self.node_mats))]
                 ).to(device=self.device)
                 self.Inter = torch.stack(
-                    [self.node_mats[i][3] for i in range(len(self.node_mats))]
+                    [self.node_mats[i][4] for i in range(len(self.node_mats))]
                 ).to(device = self.device)
 
                 #Creating the minibatch dataloader
 
-                self.trainloader = NeighborLoader(self.graph, num_neighbours = [int(2 * self.limit_node_degree)] * self.num_layers, input_nodes = self.train_mask, 
-                batch_size = self.batch_size, shuffle = True, device = self.device)
+                self.trainloader = NeighborLoader(self.graph, num_neighbors = [int(2 * self.limit_node_degree)] * self.num_layers, input_nodes = self.train_mask, 
+                batch_size = self.batch_size, shuffle = True)
 
                 self.train_iter = iter(self.trainloader)
 
-                self.valloader = NeighborLoader(self.graph, num_neighbours = [int(2 * self.limit_node_degree)] * self.num_layers, input_nodes = self.validate_mask, 
-                batch_size = self.batch_size, shuffle = True, device = self.device)
+                self.valloader = NeighborLoader(self.graph, num_neighbors = [int(2 * self.limit_node_degree)] * self.num_layers, input_nodes = self.validate_mask, 
+                batch_size = self.batch_size, shuffle = True)
 
                 self.val_iter = iter(self.valloader)
 
-                self.testloader = NeighborLoader(self.graph, num_neighbours = [int(2 * self.limit_node_degree)] * self.num_layers, input_nodes = self.test_mask, 
-                batch_size = self.batch_size, shuffle = True, device = self.device)
+                self.testloader = NeighborLoader(self.graph, num_neighbors = [int(2 * self.limit_node_degree)] * self.num_layers, input_nodes = self.test_mask, 
+                batch_size = self.batch_size, shuffle = True)
 
                 self.test_iter = iter(self.testloader)
 
@@ -1518,13 +1520,15 @@ class Trainer_GAT:
 
         else:
             try:
-                batch = next(self.data_iter)
+                batch = next(self.train_iter)
             except StopIteration:
-                self.data_iter = iter(self.trainloader)
+                self.train_iter = iter(self.trainloader)
                 batch = next(self.train_iter)
 
-            y_pred = self.model.foarward_vector(batch, self.M1[batch.n_id], self.M2[batch.n_id], 
+            y_pred = self.model.forward_vector(batch, self.M1[batch.n_id], self.M2[batch.n_id], 
             self.K1[batch.n_id], self.K2[batch.n_id], self.Inter[batch.n_id])
+
+
 
             
         test_accracy = 0.0
@@ -1561,11 +1565,13 @@ class Trainer_GAT:
 
         else:
 
+            #print(y_pred.size(), len(batch.n_id))
+
             t_loss = FedGATLoss(
                 self.loss_fn,
                 self.glob_comm,
                 self.loss_weight,
-                y_pred,
+                y_pred[:batch.batch_size],
                 self.labels[batch.n_id][:batch.batch_size],
                 self.model,
                 self.global_params,
@@ -1582,9 +1588,9 @@ class Trainer_GAT:
 
             with torch.no_grad():
 
-                pred_labels = torch.argmax(y_pred, dim = 1)
+                pred_labels = torch.argmax(y_pred[:batch.batch_size], dim = 1)
 
-                true_labels = torch.argmax(self.labels[batch.n_id][batch.batch_size], dim = 1)
+                true_labels = torch.argmax(self.labels[batch.n_id][:batch.batch_size], dim = 1)
 
                 self.t_acc = torch.sum(pred_labels == true_labels).float()/batch.batch_size
 
@@ -1616,7 +1622,7 @@ class Trainer_GAT:
                     self.loss_fn,
                     self.glob_comm,
                     self.loss_weight,
-                    y_pred_val,
+                    y_pred_val[:batch.batch_size],
                     self.labels[batch.n_id][:batch.batch_size],
                     self.model,
                     self.global_params,
@@ -1625,7 +1631,7 @@ class Trainer_GAT:
                     self.dual_weight,
                 )
 
-                pred_labels = torch.argmax(y_pred_val, dim = 1)
+                pred_labels = torch.argmax(y_pred_val[:batch.batch_size], dim = 1)
                 true_labels = torch.argmax(self.labels[batch.n_id][:batch.batch_size], dim = 1)
 
                 self.v_acc = torch.sum(pred_labels == true_labels).float()/batch.batch_size
@@ -1634,7 +1640,7 @@ class Trainer_GAT:
 
                 self.epoch += 1
 
-                return t_loss.item(), v_loss.item(), 100 * self.t_acc, 100 * self.v_acc
+                return (t_loss.item(), v_loss.item(), 100 * self.t_acc, 100 * self.v_acc)
 
         # S = self.model.state_dict()
         # print("printing state dict")

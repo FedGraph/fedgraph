@@ -1,6 +1,6 @@
 dual_weight: 5.e-4
 aug_lagrange_rho: 6.e-4
-model_lr: 0.1
+model_lr: 0.2
 model_regularisation: 4.e-3
 dual_lr: 1.e-2
 num_local_iters: 4
@@ -19,6 +19,7 @@ max_deg: 18
 neighbour_std_control: 1.
 hidden_dim: 8
 num_heads : 8
+device: cpu
 
 
 # dataset: ogbn-arxiv
@@ -30,8 +31,8 @@ gpu: True
 momentum: 0.0
 iid_beta: 10000
 logdir: ./runs
-device: gpu
-optim_kind: SGD
+device: cpu
+optim_kind: Adam
 glob_comm: FedAvg
 optim_reset: False
 dampening: 0.0

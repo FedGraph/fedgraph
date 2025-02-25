@@ -3,22 +3,22 @@ kind: ClusterConfig
 
 metadata:
   name: user
-  region: us-west-2
+  region: us-east-1
 
 nodeGroups:
   - name: head-nodes
     instanceType: m5.16xlarge
     desiredCapacity: 1
-    minSize: 0
+    minSize: 1
     maxSize: 1
-    volumeSize: 1024
+    volumeSize: 256
     labels:
       ray-node-type: head
   - name: worker-nodes
     instanceType: m5.16xlarge
-    desiredCapacity: 1
-    minSize: 0
-    maxSize: 1
+    desiredCapacity: 5
+    minSize: 10
+    maxSize: 10
     volumeSize: 1024
     amiFamily: Bottlerocket
     labels:

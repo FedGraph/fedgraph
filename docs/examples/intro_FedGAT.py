@@ -272,7 +272,7 @@ def run_fedgraph():
             split_node_indexes[i] = torch.tensor(split_node_indexes[i])
 
         # Device setup
-        device = torch.device("cpu" if True else "cpu")
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print(f"device: {device}")
 
         (
@@ -429,6 +429,8 @@ def run_fedgraph():
                 type=args.method,
             )
 
+            print(f"GPU available: {torch.cuda.is_available()}")
+
             # Pre-training communication
             print("Pre-training communication initiated!")
             monitor = Monitor()
@@ -446,16 +448,18 @@ def run_fedgraph():
             server.TrainCoordinate()
             monitor.train_time_end(1)
         return node_mats
+    
+
 
     # experiment start here
-    for n_trainer in [10]:
+    for n_trainer in [5]:
         args.n_trainer = n_trainer
-        for iid in [10000.0,1.0]:
+        for iid in [10000.]:
             args.iid_beta = iid
             for max_deg in range(18, 19):
                 node_mats = None
                 args.max_deg = max_deg
-                for _ in range(5):
+                for _ in range(1):
                     node_mats = run(node_mats)
 
 
@@ -488,8 +492,7 @@ for d in ["cora"]:
     args.model_lr = 0.1
     args.hidden_dim = 8
     args.num_heads = 8
-    args.limit_node_degree = 50
-    args.vecgen = True
+    args.limit_node_degree = 40
     args.optim_kind = 'SGD'
     args.glob_comm = 'FedAvg'
     run_fedgraph()

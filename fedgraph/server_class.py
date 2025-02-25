@@ -534,9 +534,7 @@ class Server_GAT:
         self.Duals = {}
         if args.glob_comm == "FedAvg":
             for p in self.Model.parameters():
-                p.requires_grad = True
-
-                p.grad = torch.zeros(p.size())
+                p.requires_grad = False
 
         elif args.glob_comm == "ADMM":
             for p in self.Model.parameters():
@@ -726,7 +724,7 @@ class Server_GAT:
         # Now, the function first computes matrices for all nodes, and then distributes them to each client
         # Saves computation
 
-        print("Starting pre-train communication!")
+        #print("Starting pre-train communication!")
         refs = []
         for list in communicate_node_indexes:
             refs.append(
@@ -814,15 +812,15 @@ class Server_GAT:
             else:
                 dim = 2 * len(sampled_neigh)
 
-            M1, M2, K1, K2, Inter = None, None, None, None, None
+            M1, M2, K1, K2, T_Inter = None, None, None, None, None
             if self.args.vecgen:
-                M1, M2, K1, K2, Inter = self.VecGen(
-                    feats1=feats1,
-                    feats2=feats2,
+                M1, M2, K1, K2, T_Inter = self.VecGen(
+                    feats1,
+                    feats2,
                     vec_dim = args.limit_node_degree
                 )
                 self.node_mats[node] = [
-                    M1, M2, K1, K2, Inter
+                    M1, M2, K1, K2, T_Inter
                 ]
             else:
                 M1, M2, K1, K2 = self.MatGen(
@@ -941,7 +939,7 @@ class Server_GAT:
 
             M2 += torch.outer(feats2[i, :], V[:, i])
 
-        return M1.float(), M2.float(), K1.float(), K2.float(), T_inter.float()
+        return M1.float().to(device = self.device), M2.float().to(device = self.device), K1.float().to(device = self.device), K2.float().to(device = self.device), T_inter.float().to(device = self.device)
 
     def distribute_mats(self, communicate_node_indexes, previous_node_mats=None):
         if previous_node_mats is not None:
@@ -1089,27 +1087,23 @@ class Server_GAT:
             p.requires_grad = False
 
         if self.glob_comm == "FedAvg":
-            if self.args.communication_grad:  # avg gradient
-                self.Optim.zero_grad()
 
-                # with torch.no_grad():
-                #     for p in self.Model.parameters():
-                #         # print(p.requires_grad)
+            # with torch.no_grad():
+            #     for p in self.Model.parameters():
+            #         # print(p.requires_grad)
 
-                #         p.grad = torch.zeros(p.size())
+            #         p.grad = torch.zeros(p.size())
 
-                #         p.grad.data.zero_()
-                # # time.sleep(100)
-                with torch.no_grad():
-                    for id in range(len(self.trainers)):
-                        for p, p_id in zip(
-                            self.Model.parameters(),
-                            ray.get(self.trainers[id].get_model.remote()),
-                        ):
-                            self.communication_cost += (
-                                p_id.nelement() * p_id.element_size()
-                            )
-                            p += self.model_loss_weights[id] * (p_id - p)
+            #         p.grad.data.zero_()
+            # # time.sleep(100)
+            with torch.no_grad():
+                for id in range(len(self.trainers)):
+                    for p, p_id in zip(self.Model.parameters(),
+                        ray.get(self.trainers[id].get_model.remote())):
+                        self.communication_cost += (
+                            p_id.nelement() * p_id.element_size()
+                        )
+                        p += self.model_loss_weights[id] * (p_id - p)
 
             # else:  # avg model
             #     params = [trainer.get_params.remote() for trainer in self.trainers]
@@ -1186,8 +1180,8 @@ class Server_GAT:
                 self.Optim = torch.optim.SGD(
                     self.Model.parameters(),
                     lr=self.model_lr,
-                    momentum=self.momentum,
-                    dampening=self.dampening,
+                    momentum=self.args.momentum,
+                    dampening=self.args.dampening,
                     weight_decay=self.model_regularisation,
                 )
 
@@ -1259,16 +1253,41 @@ class Server_GAT:
         print("Starting training!")
         for ep in range(self.train_iters):
             refs = []
+            metrics = {id : None for id in range(len(self.trainers))}
             for id in range(len(self.trainers)):
                 for i in range(self.num_local_iters):
                     refs.append(self.trainers[id].train_iterate.remote())
-            test_acc_list = ray.get(refs)
-            average_final_test_accuracy = 0.0
-            total_test_num = 0
-            for acc, test_num in test_acc_list:
-                average_final_test_accuracy += acc[-1] * test_num
-                total_test_num += test_num
-            average_final_test_accuracy /= total_test_num
+                
+                metrics[id] = ray.get(refs)
+
+            avg_train_loss = 0.
+            avg_val_loss = 0.
+            avg_train_acc = 0.
+            avg_val_acc = 0.
+
+            for id in range(len(metrics)):
+
+                t1 = 0
+                v1 = 0
+                t2 = 0
+                v2 = 0
+
+                for tr_loss, val_loss, tr_acc, val_acc in metrics[id]:
+
+                    t1 += tr_loss
+                    v1 += val_loss
+                    t2 += tr_acc
+                    v2 += val_acc
+
+                t1 /= self.num_local_iters
+                t2 /= self.num_local_iters
+                v1 /= self.num_local_iters
+                v2 /= self.num_local_iters
+
+                avg_train_loss += self.model_loss_weights[id] * t1
+                avg_val_loss += self.model_loss_weights[id] * v1
+                avg_train_acc += t2 / len(self.trainers)
+                avg_val_acc += v2 / len(self.trainers)
 
             self.TrainUpdate()
 
@@ -1292,9 +1311,9 @@ class Server_GAT:
                     self.trainers[id].OptimReset.remote()
 
             print(
-                f" Log// {self.type}, {self.dataset}, {len(self.trainers)}, {ep}, {average_final_test_accuracy}, {self.communication_cost}, {self.args.iid_beta} //end"
+                f" Log// {self.type}, {self.dataset}, {len(self.trainers)}, {ep}, {avg_train_loss}, {avg_val_loss}, {avg_train_acc}, {avg_val_acc}, {self.communication_cost}, {self.args.iid_beta} //end"
             )
-        print(f"//avg test accuracy: {average_final_test_accuracy}//end")
+        print(f"//end")
         print("Training completed!")
 
         return self.Model, self.Duals

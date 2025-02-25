@@ -803,6 +803,8 @@ class FedGATConv(nn.Module):
 
         D = (torch.matmul(self.att1, M1) + torch.matmul(self.att2, M2))/self.att1.size()[0] ** 0.5
 
+        #print(D.size(), Inter.size())
+
         D_inter = torch.einsum('bijk,bk->bij', Inter, D)
 
         D_coeffs = torch.sum(self.polycoeffs.view(1, self.polycoeffs.size()[0], 1, 1) * torch.stack([torch.linalg.matrix_power(D_inter, i) for i in range(self.max_deg + 1)], dim = 1), dim = 1)
@@ -1043,13 +1045,11 @@ class FedGATModel(nn.Module):
 
         z = self.GAT2(z, g.edge_index)
 
-        z = self.soft(z)
-
         return z
 
-    def forward_vector(self, g, M1, M2, K1, K2):
+    def forward_vector(self, g, M1, M2, K1, K2, Inter):
 
-        z = self.GAT1.forward_vector(g, M1, M2, K1, K2)
+        z = self.GAT1.forward_vector(g, M1, M2, K1, K2, Inter)
         # print("printing: g.shape and z.shape")
         # print(g.edge_index)
         # print(z.size(0))

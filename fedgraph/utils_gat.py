@@ -412,21 +412,15 @@ def compute_node_matrix(index_list, graph, device, feats, sample_probab, max_deg
             else:
                 dim = 2 * len(sampled_neigh)
 
-            M1, M2, K1, K2 = VecGen(
+            M1, M2, K1, K2, Inter = VecGen(
                 feats1,
                 feats2,
-                len(sampled_neigh),
-                dim,
-                max_deg,
-                0.6,
+                max_deg
             )
             # print(torch.from_numpy(M1).float().size())
 
         node_mats[node] = [
-            torch.from_numpy(M1).float().to(device=device),
-            torch.from_numpy(M2).float().to(device=device),
-            torch.from_numpy(K1).float().to(device=device),
-            torch.from_numpy(K2).float().to(device=device),
+            M1, M2, K1, K2, Inter
         ]
     return node_mats
 
