@@ -52,22 +52,28 @@ fi
 docker buildx build --platform linux/amd64 -t public.ecr.aws/i7t1s5i1/fedgraph:img . --push
 check_command "Docker build and push"
 
-# Step 4: Create EKS Cluster with a dynamic name
-CLUSTER_NAME="mlarge-$(date +%s)"
-echo "Using dynamic cluster name: $CLUSTER_NAME"
+# Step 4: Check if EKS Cluster exists
+CLUSTER_NAME="mlarge-1739510276"  # You can keep a fixed name or change it dynamically
+echo "Checking if the EKS cluster '$CLUSTER_NAME' exists..."
 
-echo "Creating EKS cluster..."
-if [ ! -f "eks_cluster_config.yaml" ]; then
-    echo "Error: eks_cluster_config.yaml not found in the current directory."
-    exit 1
+eksctl get cluster --name $CLUSTER_NAME --region $aws_region > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    echo "Cluster '$CLUSTER_NAME' already exists. Skipping cluster creation."
+else
+    echo "Cluster '$CLUSTER_NAME' does not exist. Creating EKS cluster..."
+
+    if [ ! -f "ray_cluster_configs/eks_cluster_config.yaml" ]; then
+        echo "Error: eks_cluster_config.yaml not found in the ray_cluster_configs folder."
+        exit 1
+    fi
+
+    # Modify the configuration file to include the dynamic cluster name
+    sed -i.bak "s/^  name: .*/  name: $CLUSTER_NAME/" ray_cluster_configs/eks_cluster_config.yaml
+
+    # Create the cluster using the modified configuration file
+    eksctl create cluster -f ray_cluster_configs/eks_cluster_config.yaml --timeout=60m
+    check_command "EKS cluster creation"
 fi
-
-# Modify the configuration file to include the dynamic cluster name
-sed -i.bak "s/^  name: .*/  name: $CLUSTER_NAME/" eks_cluster_config.yaml
-
-# Create the cluster using the modified configuration file
-eksctl create cluster -f eks_cluster_config.yaml --timeout=60m
-check_command "EKS cluster creation"
 
 # Step 5: Update kubeconfig for AWS EKS
 echo "Updating kubeconfig for AWS EKS..."
@@ -92,10 +98,12 @@ check_command "KubeRay Operator installation"
 
 # Step 8: Deploy Ray Kubernetes Cluster and Ingress
 echo "Deploying Ray Kubernetes Cluster and Ingress..."
-cd docs/examples/configs
-kubectl apply -f ray_kubernetes_cluster.yaml
+# Ensure the script starts from the root directory of the project
+cd "$(dirname "$0")/.."
+# Apply the Ray Kubernetes cluster and ingress YAML files from the correct path
+kubectl apply -f ray_cluster_configs/ray_kubernetes_cluster.yaml
 check_command "Ray Kubernetes Cluster deployment"
-kubectl apply -f ray_kubernetes_ingress.yaml
+kubectl apply -f ray_cluster_configs/ray_kubernetes_ingress.yaml
 check_command "Ray Kubernetes Ingress deployment"
 
 # Step 9: Verify Pod Status
@@ -134,7 +142,7 @@ echo "ray job stop <job_id> --address http://localhost:8265"
 
 # Step 15: Clean Up Resources
 echo "To clean up resources, delete the RayCluster Custom Resource and EKS cluster:"
-echo "cd docs/examples/configs"
+echo "cd ray_cluster_configs"
 echo "kubectl delete -f ray_kubernetes_cluster.yaml"
 echo "kubectl delete -f ray_kubernetes_ingress.yaml"
 echo "kubectl get nodes -o name | xargs kubectl delete"
