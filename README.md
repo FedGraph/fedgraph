@@ -92,7 +92,7 @@ bash setup_cluster.sh
 Delete the RayCluster Custom Resource:
 
 ```bash
-cd docs/examples/configs
+cd ray_cluster_configs
 kubectl delete -f ray_kubernetes_cluster.yaml
 kubectl delete -f ray_kubernetes_ingress.yaml
 ```
@@ -108,7 +108,7 @@ Finally, Delete the node first and then delete EKS Cluster:
 
 ```bash
 kubectl get nodes -o name | xargs kubectl delete
-eksctl delete cluster --region us-west-2 --name user
+eksctl delete cluster --region <YOUR_AWS_REGION> --name <CLUSTER_NAME>
 ```
 
 ## Step to Push Data to Hugging Face Hub CLI
