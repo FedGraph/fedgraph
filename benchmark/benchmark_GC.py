@@ -68,7 +68,7 @@ def run(algorithm, args):
     torch.cuda.manual_seed(args.seed)
     base_model = GIN
     args.device = "cuda" if torch.cuda.is_available() else "cpu"
-    num_cpus_per_trainer = 55
+    num_cpus_per_trainer = 4
     # specifying a target GPU
     if torch.cuda.is_available():
         print("using GPU")
@@ -145,7 +145,9 @@ def run(algorithm, args):
     # That is, `base_model` must have all the required methods and attributes as the default `GIN`
     # For the detailed expected format of the model, please refer to the `fedgraph/gnn_models.py`
 
-    server = Server_GC(base_model(nlayer=args.nlayer, nhid=args.hidden), args.device)
+    server = Server_GC(
+        base_model(nlayer=args.nlayer, nhid=args.hidden), args.device, use_cluster=False
+    )
     print("setup server done")
 
     @ray.remote(
@@ -291,13 +293,15 @@ for dataset_name in [
     for algorithm in ["SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs"]:
         # for algorithm in ["SelfTrain"]:
         # config_file = os.path.join(current_dir, f"configs/config_GC_{algorithm}.yaml")
-        config_file = f"./configs/config_GC_{algorithm}.yaml"
+        config_file = os.path.join(
+            os.path.dirname(__file__), "configs", f"config_GC_{algorithm}.yaml"
+        )
         with open(config_file, "r") as file:
             args = attridict(yaml.safe_load(file))
 
         # print(args)
         args.dataset = dataset_name
-        for trainer_num in [10]:
+        for trainer_num in [3]:
             args.num_trainers = trainer_num
             # for distribution_type in [
             #     "average",
