@@ -50,37 +50,18 @@ def run_fedgraph(args: attridict) -> None:
         Input data for the federated learning task. Format depends on the specific task and
         will be explained in more detail below inside specific functions.
     """
-    # Track initialization and total communication time
-    monitor = Monitor()
-    monitor.init_time_start()
-    monitor.total_comm_time_start()
-
-    args.monitor = monitor
-
     if args.fedgraph_task != "NC" or not args.use_huggingface:
         data = data_loader(args)
     else:
         # use hugging_face instead of use data_loader
         print("Using hugging_face for local loading")
         data = None
-
-    # End initialization timing
-    if args.use_cluster:
-        monitor.init_time_end()
-
-    # Store monitor in args to pass to task functions
-    # if not hasattr(args, "monitor"):
-    #     args.monitor = monitor
-
     if args.fedgraph_task == "NC":
         run_NC(args, data)
     elif args.fedgraph_task == "GC":
         run_GC(args, data)
     elif args.fedgraph_task == "LP":
         run_LP(args)
-
-    # End total communication timing
-    monitor.total_comm_time_end()
 
 
 def run_NC(args: attridict, data: Any = None) -> None:
@@ -102,7 +83,8 @@ def run_NC(args: attridict, data: Any = None) -> None:
     ray.init()
     start_time = time.time()
     if args.use_cluster:
-        monitor = args.monitor
+        monitor = Monitor()
+        # Start tracking initialization time
         monitor.init_time_start()
     torch.manual_seed(42)
     if args.num_hops == 0:
@@ -159,7 +141,6 @@ def run_NC(args: attridict, data: Any = None) -> None:
         num_gpus=num_gpus_per_trainer,
         num_cpus=num_cpus_per_trainer,
         scheduling_strategy="SPREAD",
-        # resources={"worker_node": 1}  # Ensures trainers run on worker nodes
     )
     class Trainer(Trainer_General):
         def __init__(self, *args: Any, **kwds: Any):
@@ -238,7 +219,9 @@ def run_NC(args: attridict, data: Any = None) -> None:
     # without knowing the local trainer data
 
     server = Server(features.shape[1], args_hidden, class_num, device, trainers, args)
-    server.monitor = args.monitor
+    if args.use_cluster:
+        # End initialization time tracking
+        monitor.init_time_end()
     server.broadcast_params(-1)
     pretrain_start = time.time()
     if args.use_cluster:
@@ -433,6 +416,10 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
         args.device = torch.device("cpu")
         num_gpus_per_trainer = 0
 
+    if args.use_cluster:
+        monitor = Monitor()
+        # Start tracking initialization time
+        monitor.init_time_start()
     #################### set output directory ####################
     # outdir_base = os.path.join(args.outbase, f'seqLen{args.seq_length}')
     if args.save_files:
@@ -466,11 +453,6 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
 
     #################### setup server and trainers ####################
     ray.init()
-
-    if args.use_cluster:
-        # Use monitor passed from run_fedgraph
-        monitor = args.monitor
-        monitor.init_time_start()
 
     @ray.remote(
         num_gpus=num_gpus_per_trainer,
@@ -529,11 +511,10 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
     # TODO: check and modify whether deepcopy should be added.
     # trainers = copy.deepcopy(init_trainers)
     # server = copy.deepcopy(init_server)
-
-    print("\nDone setting up devices.")
-
     if args.use_cluster:
+        # End initialization time tracking after server setup is complete
         monitor.init_time_end()
+    print("\nDone setting up devices.")
 
     ################ choose the algorithm to run ################
     print(f"Running {args.algorithm} ...")
@@ -627,8 +608,7 @@ def run_GC_selftrain(trainers: list, server: Any, local_epoch: int) -> dict:
 
     # all trainers are initialized with the same weights
     if server.use_cluster:
-        # Use monitor from server
-        monitor = server.monitor if hasattr(server, "monitor") else Monitor()
+        monitor = Monitor()
         monitor.pretrain_time_start()
     global_params_id = ray.put(server.W)
     for trainer in trainers:
@@ -705,8 +685,7 @@ def run_GC_Fed_algorithm(
         Pandas dataframe with test accuracies
     """
     if server.use_cluster:
-        # Use monitor from server
-        monitor = server.monitor if hasattr(server, "monitor") else Monitor()
+        monitor = Monitor()
         monitor.pretrain_time_start()
     global_params_id = ray.put(server.W)
     for trainer in trainers:
@@ -814,8 +793,7 @@ def run_GCFL_algorithm(
             "Invalid algorithm_type. Must be 'gcfl', 'gcfl_plus', or 'gcfl_plus_dWs'."
         )
     if server.use_cluster:
-        # Use monitor from server
-        monitor = server.monitor if hasattr(server, "monitor") else Monitor()
+        monitor = Monitor()
         monitor.pretrain_time_start()
     cluster_indices = [np.arange(len(trainers)).astype("int")]
     trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
@@ -1045,10 +1023,11 @@ def run_LP(args: attridict) -> None:
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
     ray.init()
-    # Use monitor passed from run_fedgraph
     if args.use_cluster:
-        monitor = args.monitor
+        # Initialize monitor and start tracking initialization time
+        monitor = Monitor()
         monitor.init_time_start()
+    # Append paths relative to the current script's directory
     sys.path.append(os.path.join(current_dir, "../fedgraph"))
     sys.path.append(os.path.join(current_dir, "../../"))
     dataset_path = args.dataset_path
@@ -1084,15 +1063,13 @@ def run_LP(args: attridict) -> None:
         meta_data=meta_data,
         hidden_channels=hidden_channels,
     )
-
     if args.use_cluster:
-        monitor = monitor or Monitor()
+        # End initialization time tracking
         monitor.init_time_end()
 
     """Broadcast the global model parameter to all clients"""
     if args.use_cluster:
         monitor.pretrain_time_start()
-
     global_model_parameter = (
         server.get_model_parameter()
     )  # fetch the global model parameter

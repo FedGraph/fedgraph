@@ -35,10 +35,6 @@ class Monitor:
         self.init_time_cost_gauge = Gauge(
             "init_time_cost", description="Latencies of initialization in ms."
         )
-        self.total_communication_cost_gauge = Gauge(
-            "total_communication_cost",
-            description="Total network data transferred during the experiment.",
-        )
 
         # Timestamp tracking for all phases
         self.init_start_time: Optional[datetime.datetime] = None
@@ -132,32 +128,6 @@ class Monitor:
             f"//Log Initialization Communication Cost (MB): {total_diff / (1024 * 1024):.2f} //end"
         )
 
-    # Total communication cost tracking
-    def total_comm_time_start(self) -> None:
-        self.total_comm_start_time = datetime.datetime.now()
-        self.initial_network_data = self._get_network_data()
-        print("Total communication tracking started.")
-
-    def total_comm_time_end(self) -> None:
-        if self.total_comm_start_time is not None:
-            self.total_comm_end_time = datetime.datetime.now()
-            total_comm_duration = (
-                self.total_comm_end_time - self.total_comm_start_time
-            ).total_seconds() * 1000
-
-            self.final_network_data = self._get_network_data()
-
-            # Calculate total network data transferred
-            total_network_data = 0.0
-            for pod_name, pod_value in self.final_network_data.items():
-                network_diff = pod_value - self.initial_network_data.get(pod_name, 0)
-                total_network_data += network_diff
-
-            self.total_communication_cost_gauge.set(total_network_data)
-            print(f"//total_communication_time: {total_comm_duration} ms//end")
-            print(f"//total_communication_cost: {total_network_data} bytes//end")
-
-    # Original methods for pretrain phase
     def pretrain_time_start(self) -> None:
         self.pretrain_start_time = datetime.datetime.now()
         self.initial_network_data = self._get_network_data()
