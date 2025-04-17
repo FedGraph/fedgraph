@@ -48,7 +48,7 @@ required_params = {
     "fedgraph_task": "GC",
     "num_cpus_per_trainer": 2,
     "num_gpus_per_trainer": 1 if torch.cuda.is_available() else 0,
-    "use_cluster": True,  # Set to True to enable monitoring
+    "use_cluster": False,  # Set to True to enable monitoring
     "gpu": torch.cuda.is_available(),
 }
 

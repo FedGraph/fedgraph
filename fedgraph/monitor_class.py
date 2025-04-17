@@ -9,7 +9,9 @@ from ray.util.metrics import Gauge
 
 
 class Monitor:
-    def __init__(self) -> None:
+    def __init__(self, use_cluster: bool = False) -> None:
+        self.use_cluster = use_cluster
+
         self.pretrain_time_cost_gauge = Gauge(
             "pretrain_time_cost", description="Latencies of pretrain_time_cost in ms."
         )
@@ -51,19 +53,25 @@ class Monitor:
         self.final_network_data: Dict[str, float] = {}
         self.memory_usage_list: List[Any] = []
 
-        self.memory_thread = threading.Thread(target=self.collect_memory, daemon=True)
-        self.memory_thread.start()
-
         # Add large pod mapping
         self.large_pod_mapping: Dict[str, str] = {}
 
+        if self.use_cluster:
+            self.memory_thread = threading.Thread(
+                target=self.collect_memory, daemon=True
+            )
+            self.memory_thread.start()
+
     def collect_memory(self, interval_seconds=30):
         while True:
-            memory_data = self._fetch_memory_usage()
-            self.memory_usage_list.append(memory_data)
+            if self.use_cluster:
+                memory_data = self._fetch_memory_usage()
+                self.memory_usage_list.append(memory_data)
             time.sleep(interval_seconds)
 
     def _get_network_data(self) -> Dict[str, float]:
+        if not self.use_cluster:
+            return {}
         response = requests.get(
             "http://prometheus-kube-prometheus-prometheus.prometheus-system:9090/api/v1/query?query=ray_node_network_sent"
         )
@@ -88,6 +96,8 @@ class Monitor:
         return pod_data
 
     def _fetch_memory_usage(self) -> Dict[str, float]:
+        if not self.use_cluster:
+            return {}
         response = requests.get(
             f"http://prometheus-kube-prometheus-prometheus.prometheus-system:9090/api/v1/query?query=ray_node_mem_used"
         )
@@ -112,26 +122,42 @@ class Monitor:
 
     # initialization time tracking
     def init_time_start(self) -> None:
-        self.initial_network_data = self._get_network_data()
-        print("Initialization start: network data collected.")
+        self.init_start_time = datetime.datetime.now()
+        if self.use_cluster:
+            self.initial_network_data = self._get_network_data()
+            print("Initialization start: network data collected.")
+        else:
+            print("Initialization start time recorded.")
 
     def init_time_end(self) -> None:
-        self.final_network_data = self._get_network_data()
-        total_diff: float = 0.0
-        for pod_name in self.final_network_data:
-            diff = self.final_network_data[pod_name] - self.initial_network_data.get(
-                pod_name, 0
+        self.init_end_time = datetime.datetime.now()
+        if self.init_start_time is not None and self.init_end_time is not None:
+            elapsed = (self.init_end_time - self.init_start_time).total_seconds() * 1000
+        else:
+            elapsed = 0
+        self.init_time_cost_gauge.set(elapsed)
+        print(f"//Log init_time: {elapsed} ms //end")
+        if self.use_cluster:
+            self.final_network_data = self._get_network_data()
+            total_diff = sum(
+                self.final_network_data.get(pod, 0)
+                - self.initial_network_data.get(pod, 0)
+                for pod in self.final_network_data
             )
-            total_diff += diff
-            print(f"//Log {pod_name} init network: {diff} //end")
-        print(
-            f"//Log Initialization Communication Cost (MB): {total_diff / (1024 * 1024):.2f} //end"
-        )
+            for pod_name in self.final_network_data:
+                diff = self.final_network_data[
+                    pod_name
+                ] - self.initial_network_data.get(pod_name, 0)
+                print(f"//Log {pod_name} init network: {diff} //end")
+            print(
+                f"//Log Initialization Communication Cost (MB): {total_diff / (1024 * 1024):.2f} //end"
+            )
 
     def pretrain_time_start(self) -> None:
         self.pretrain_start_time = datetime.datetime.now()
-        self.initial_network_data = self._get_network_data()
-        print("Pretrain start time recorded and initial network data collected.")
+        if self.use_cluster:
+            self.initial_network_data = self._get_network_data()
+        print("Pretrain start time recorded.")
         self.memory_usage_list = []
 
     def pretrain_time_end(self, interval_seconds=30) -> None:
@@ -142,65 +168,69 @@ class Monitor:
             ).total_seconds() * 1000
             self.pretrain_time_cost_gauge.set(pretrain_duration)
             print(f"//pretrain_time: {pretrain_duration} ms//end")
-            time.sleep(interval_seconds)
-            self.final_network_data = self._get_network_data()
 
-            # Output memory values for large pods
-            for pod_name in self.large_pod_mapping.values():
-                large_memory_values = [
-                    memory_data.get(pod_name, 0)
+            if self.use_cluster:
+                time.sleep(interval_seconds)
+                self.final_network_data = self._get_network_data()
+
+                # Output memory values for large pods
+                for pod_name in self.large_pod_mapping.values():
+                    large_memory_values = [
+                        memory_data.get(pod_name, 0)
+                        for memory_data in self.memory_usage_list
+                        if pod_name in memory_data
+                    ]
+                    if large_memory_values:
+                        print(
+                            f"//Log Max memory for {pod_name}: {max(large_memory_values)} //end"
+                        )
+                    else:
+                        print(f"No memory values found for {pod_name}.")
+
+                # Output memory value for Server pod
+                server_memory_values = [
+                    max(
+                        memory_data.get("Server", 0)
+                        for pod_name in memory_data
+                        if re.search(r"Server", pod_name)
+                    )
                     for memory_data in self.memory_usage_list
-                    if pod_name in memory_data
+                    if any(re.search(r"Server", pod) for pod in memory_data)
                 ]
-                if large_memory_values:
+                if server_memory_values:
                     print(
-                        f"//Log Max memory for {pod_name}: {max(large_memory_values)} //end"
+                        f"//Log Max memory for Server: {max(server_memory_values)} //end"
                     )
                 else:
-                    print(f"No memory values found for {pod_name}.")
+                    print("No memory values found for Server.")
 
-            # Output memory value for Server pod
-            server_memory_values = [
-                max(
-                    memory_data.get("Server", 0)
-                    for pod_name in memory_data
-                    if re.search(r"Server", pod_name)
-                )
-                for memory_data in self.memory_usage_list
-                if any(re.search(r"Server", pod) for pod in memory_data)
-            ]
-            if server_memory_values:
-                print(f"//Log Max memory for Server: {max(server_memory_values)} //end")
-            else:
-                print("No memory values found for Server.")
+                # Output network data for large pods
+                for pod_name, pod_value in self.final_network_data.items():
+                    if re.search(r"Large", pod_name):
+                        network_diff = pod_value - self.initial_network_data.get(
+                            pod_name, 0
+                        )
+                        self.pretrain_node_network_gauge.set(network_diff)
+                        print(f"//Log {pod_name} network: {network_diff} //end")
 
-            # Output network data for large pods
-            for pod_name, pod_value in self.final_network_data.items():
-                if re.search(r"Large", pod_name):
-                    network_diff = pod_value - self.initial_network_data.get(
-                        pod_name, 0
-                    )
+                if "Server" in self.final_network_data:
+                    network_diff = self.final_network_data[
+                        "Server"
+                    ] - self.initial_network_data.get("Server", 0)
                     self.pretrain_node_network_gauge.set(network_diff)
-                    print(f"//Log {pod_name} network: {network_diff} //end")
+                    print(f"//Log Server network: {network_diff} //end")
 
-            # Output network data for Server pod
-            if "Server" in self.final_network_data:
-                network_diff = self.final_network_data[
-                    "Server"
-                ] - self.initial_network_data.get("Server", 0)
-                self.pretrain_node_network_gauge.set(network_diff)
-                print(f"//Log Server network: {network_diff} //end")
+                print("Pretrain end time recorded and duration set to gauge.")
 
-            print("Pretrain end time recorded and duration set to gauge.")
-
-    # Original methods for training phase
     def train_time_start(self) -> None:
         self.current_round += 1
         self.train_start_time = datetime.datetime.now()
-        self.initial_network_data = self._get_network_data()
-        print(self.initial_network_data)
+        if self.use_cluster:
+            self.initial_network_data = self._get_network_data()
+            print("Train start: network data collected.")
+        else:
+            print("Train start time recorded.")
         self.memory_usage_list = []
-        print("Train start time recorded and initial network data collected.")
 
     def train_time_end(self, interval_seconds=30) -> None:
         if self.train_start_time is not None:
@@ -209,56 +239,57 @@ class Monitor:
                 self.train_end_time - self.train_start_time
             ).total_seconds() * 1000
             self.train_time_cost_gauge.set(train_duration)
-            print(f"//Log train_time: {train_duration} //end")
-            time.sleep(interval_seconds)
-            self.final_network_data = self._get_network_data()
+            print(f"//train_time: {train_duration} ms//end")
 
-            # Output memory values for large pods
-            for pod_name in self.large_pod_mapping.values():
-                large_memory_values = [
-                    memory_data.get(pod_name, 0)
+            if self.use_cluster:
+                time.sleep(interval_seconds)
+                self.final_network_data = self._get_network_data()
+
+                # Output memory values for large pods
+                for pod_name in self.large_pod_mapping.values():
+                    large_memory_values = [
+                        memory_data.get(pod_name, 0)
+                        for memory_data in self.memory_usage_list
+                        if pod_name in memory_data
+                    ]
+                    if large_memory_values:
+                        print(
+                            f"//Log Max memory for {pod_name}: {max(large_memory_values)} //end"
+                        )
+                    else:
+                        print(f"No memory values found for {pod_name}.")
+
+                # Output memory value for Server pod
+                server_memory_values = [
+                    max(
+                        memory_data.get("Server", 0)
+                        for pod_name in memory_data
+                        if re.search(r"Server", pod_name)
+                    )
                     for memory_data in self.memory_usage_list
-                    if pod_name in memory_data
+                    if any(re.search(r"Server", pod) for pod in memory_data)
                 ]
-                if large_memory_values:
+                if server_memory_values:
                     print(
-                        f"//Log Max memory for {pod_name}: {max(large_memory_values)} //end"
+                        f"//Log Max memory for Server: {max(server_memory_values)} //end"
                     )
                 else:
-                    print(f"No memory values found for {pod_name}.")
+                    print("No memory values found for Server.")
 
-            # Output memory value for Server pod
-            server_memory_values = [
-                max(
-                    memory_data.get("Server", 0)
-                    for pod_name in memory_data
-                    if re.search(r"Server", pod_name)
-                )
-                for memory_data in self.memory_usage_list
-                if any(re.search(r"Server", pod) for pod in memory_data)
-            ]
-            if server_memory_values:
-                print(f"//Log Max memory for Server: {max(server_memory_values)} //end")
-            else:
-                print("No memory values found for Server.")
+                # Output network data for large pods
+                for pod_name, pod_value in self.final_network_data.items():
+                    if re.search(r"Large", pod_name):
+                        network_diff = pod_value - self.initial_network_data.get(
+                            pod_name, 0
+                        )
+                        self.train_node_network_gauge.set(network_diff)
+                        print(f"//Log {pod_name} network: {network_diff} //end")
 
-            # Output network data for large pods
-            for pod_name, pod_value in self.final_network_data.items():
-                if re.search(r"Large", pod_name):
-                    network_diff = pod_value - self.initial_network_data.get(
-                        pod_name, 0
-                    )
+                if "Server" in self.final_network_data:
+                    network_diff = self.final_network_data[
+                        "Server"
+                    ] - self.initial_network_data.get("Server", 0)
                     self.train_node_network_gauge.set(network_diff)
-                    print(f"//Log {pod_name} network: {network_diff} //end")
+                    print(f"//Log Server network: {network_diff} //end")
 
-            # Output network data for Server pod
-            if "Server" in self.final_network_data:
-                network_diff = self.final_network_data[
-                    "Server"
-                ] - self.initial_network_data.get("Server", 0)
-                self.train_node_network_gauge.set(network_diff)
-                print(f"//Log Server network: {network_diff} //end")
-
-            print(
-                "Train end time recorded, duration set to gauge, and network data difference calculated."
-            )
+                print("Train end time recorded and duration set to gauge.")
