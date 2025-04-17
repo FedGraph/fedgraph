@@ -50,9 +50,6 @@ def run_fedgraph(args: attridict) -> None:
         Input data for the federated learning task. Format depends on the specific task and
         will be explained in more detail below inside specific functions.
     """
-    monitor = Monitor()
-    monitor.init_time_start()
-
     if args.fedgraph_task != "NC" or not args.use_huggingface:
         data = data_loader(args)
     else:
@@ -60,16 +57,14 @@ def run_fedgraph(args: attridict) -> None:
         print("Using hugging_face for local loading")
         data = None
     if args.fedgraph_task == "NC":
-        run_NC(args, data, monitor)
+        run_NC(args, data)
     elif args.fedgraph_task == "GC":
-        run_GC(args, data, monitor)
+        run_GC(args, data)
     elif args.fedgraph_task == "LP":
-        run_LP(args, monitor)
+        run_LP(args)
 
 
-def run_NC(
-    args: attridict, data: Any = None, monitor: Optional[Monitor] = None
-) -> None:
+def run_NC(args: attridict, data: Any = None) -> None:
     """
     Train a Federated Graph Classification model using multiple trainers.
 
@@ -85,8 +80,9 @@ def run_NC(
         Configuration arguments
     data: tuple
     """
-    if monitor is None:
-        monitor = Monitor()
+    monitor = Monitor(use_cluster=args.use_cluster)
+    monitor.init_time_start()
+
     ray.init()
     start_time = time.time()
     torch.manual_seed(42)
@@ -304,7 +300,7 @@ def run_NC(
             print("clients received feature aggregation from server")
         [trainer.relabel_adj.remote() for trainer in server.trainers]
 
-    monitor.pretrain_time_end(30)
+    monitor.pretrain_time_end(30 if args.use_cluster else 0)
     monitor.train_time_start()
     #######################################################################
     # Federated Training
@@ -315,7 +311,7 @@ def run_NC(
     print("global_rounds", args.global_rounds)
     for i in range(args.global_rounds):
         server.train(i)
-    monitor.train_time_end(30)
+    monitor.train_time_end(30 if args.use_cluster else 0)
     training_time = time.time() - training_start
     if args.use_encryption:
         if hasattr(server, "aggregation_stats") and server.aggregation_stats:
@@ -377,7 +373,7 @@ def run_NC(
     ray.shutdown()
 
 
-def run_GC(args: attridict, data: Any, monitor: Optional[Monitor] = None) -> None:
+def run_GC(args: attridict, data: Any) -> None:
     """
     Entrance of the training process for graph classification.
 
@@ -405,6 +401,10 @@ def run_GC(args: attridict, data: Any, monitor: Optional[Monitor] = None) -> Non
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
+
+    monitor = Monitor(use_cluster=args.use_cluster)
+    monitor.init_time_start()
+
     base_model = GIN
     num_cpus_per_trainer = args.num_cpus_per_trainer
     # specifying a target GPU
@@ -417,10 +417,6 @@ def run_GC(args: attridict, data: Any, monitor: Optional[Monitor] = None) -> Non
         args.device = torch.device("cpu")
         num_gpus_per_trainer = 0
 
-    if args.use_cluster and monitor is not None:
-        monitor = Monitor()
-        # Start tracking initialization time
-        monitor.init_time_start()
     #################### set output directory ####################
     # outdir_base = os.path.join(args.outbase, f'seqLen{args.seq_length}')
     if args.save_files:
@@ -512,9 +508,9 @@ def run_GC(args: attridict, data: Any, monitor: Optional[Monitor] = None) -> Non
     # TODO: check and modify whether deepcopy should be added.
     # trainers = copy.deepcopy(init_trainers)
     # server = copy.deepcopy(init_server)
-    if args.use_cluster and monitor is not None:
-        # End initialization time tracking after server setup is complete
-        monitor.init_time_end()
+
+    # End initialization time tracking after server setup is complete
+    monitor.init_time_end()
     print("\nDone setting up devices.")
 
     ################ choose the algorithm to run ################
@@ -621,7 +617,7 @@ def run_GC_selftrain(
     for trainer in trainers:
         trainer.update_params.remote(global_params_id)
     if monitor is not None:
-        monitor.pretrain_time_end(30)
+        monitor.pretrain_time_end(30 if server.use_cluster else 0)
     all_accs = {}
     acc_refs = []
     if monitor is not None:
@@ -646,7 +642,7 @@ def run_GC_selftrain(
         if not acc_refs:
             break
     if monitor is not None:
-        monitor.train_time_end(30)
+        monitor.train_time_end(30 if server.use_cluster else 0)
     frame = pd.DataFrame(all_accs).T.iloc[:, [2]]
     frame.columns = ["test_acc"]
     print(frame)
@@ -698,7 +694,7 @@ def run_GC_Fed_algorithm(
     for trainer in trainers:
         trainer.update_params.remote(global_params_id)
     if monitor is not None:
-        monitor.pretrain_time_end(30)
+        monitor.pretrain_time_end(30 if server.use_cluster else 0)
     if monitor is not None:
         monitor.train_time_start()
     for c_round in range(1, communication_rounds + 1):
@@ -749,7 +745,7 @@ def run_GC_Fed_algorithm(
         return ["background-color: yellow" if v else "" for v in is_max]
 
     if monitor is not None:
-        monitor.train_time_end(30)
+        monitor.train_time_end(30 if server.use_cluster else 0)
     fs = frame.style.apply(highlight_max).data
     print(fs)
     print(f"Average test accuracy: {gc_avg_accuracy(frame, trainers)}")
@@ -815,7 +811,7 @@ def run_GCFL_algorithm(
         for trainer in trainers:
             trainer.update_params.remote(global_params_id)
     if monitor is not None:
-        monitor.pretrain_time_end(30)
+        monitor.pretrain_time_end(30 if server.use_cluster else 0)
     acc_trainers: List[Any] = []
     if monitor is not None:
         monitor.train_time_start()
@@ -906,7 +902,7 @@ def run_GCFL_algorithm(
             idc, ray.get(trainers[idc[0]].get_total_weight.remote()), acc_trainers
         )
     if monitor is not None:
-        monitor.train_time_end(30)
+        monitor.train_time_end(30 if server.use_cluster else 0)
     results = np.zeros([len(trainers), len(server.model_cache)])
     for i, (idcs, W, accs) in enumerate(server.model_cache):
         results[idcs, i] = np.array(accs)
@@ -928,7 +924,7 @@ def run_GCFL_algorithm(
     return frame
 
 
-def run_LP(args: attridict, monitor: Monitor) -> None:
+def run_LP(args: attridict) -> None:
     """
     Implements various federated learning methods for link prediction tasks with support
     for online learning and buffer mechanisms. Handles temporal aspects of link prediction
@@ -941,6 +937,7 @@ def run_LP(args: attridict, monitor: Monitor) -> None:
     args: attridict
         The configuration arguments.
     """
+    monitor = Monitor(use_cluster=args.use_cluster)
 
     def setup_trainer_server(
         country_codes: list,
@@ -1031,8 +1028,7 @@ def run_LP(args: attridict, monitor: Monitor) -> None:
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
     ray.init()
-    if args.use_cluster and monitor is not None:
-        monitor.init_time_start()
+    monitor.init_time_start()
 
     # Append paths relative to the current script's directory
     sys.path.append(os.path.join(current_dir, "../fedgraph"))
@@ -1070,13 +1066,11 @@ def run_LP(args: attridict, monitor: Monitor) -> None:
         meta_data=meta_data,
         hidden_channels=hidden_channels,
     )
-    if args.use_cluster and monitor is not None:
-        # End initialization time tracking
-        monitor.init_time_end()
+    # End initialization time tracking
+    monitor.init_time_end()
 
     """Broadcast the global model parameter to all clients"""
-    if args.use_cluster and monitor is not None:
-        monitor.pretrain_time_start()
+    monitor.pretrain_time_start()
     global_model_parameter = (
         server.get_model_parameter()
     )  # fetch the global model parameter
@@ -1104,9 +1098,8 @@ def run_LP(args: attridict, monitor: Monitor) -> None:
     else:
         result_writer = None
         time_writer = None
-    if args.use_cluster and monitor is not None:
-        monitor.pretrain_time_end(30)
-        monitor.train_time_start()
+    monitor.pretrain_time_end(30)
+    monitor.train_time_start()
     # from 2012-04-03 to 2012-04-13
     for day in range(prediction_days):  # make predictions for each day
         # get the train and test data for each client at the current time step
@@ -1154,8 +1147,8 @@ def run_LP(args: attridict, monitor: Monitor) -> None:
             start_time_float_format,
             end_time_float_format,
         ) = to_next_day(start_time=start_time, end_time=end_time, method=method)
-    if args.use_cluster and monitor is not None:
-        monitor.train_time_end(30)
+
+    monitor.train_time_end(30)
     if result_writer is not None and time_writer is not None:
         result_writer.close()
         time_writer.close()
