@@ -160,7 +160,7 @@ class Monitor:
         print("Pretrain start time recorded.")
         self.memory_usage_list = []
 
-    def pretrain_time_end(self, interval_seconds=30) -> None:
+    def pretrain_time_end(self) -> None:
         if self.pretrain_start_time is not None:
             self.pretrain_end_time = datetime.datetime.now()
             pretrain_duration = (
@@ -170,7 +170,7 @@ class Monitor:
             print(f"//pretrain_time: {pretrain_duration} ms//end")
 
             if self.use_cluster:
-                time.sleep(interval_seconds)
+                time.sleep(30)
                 self.final_network_data = self._get_network_data()
 
                 # Output memory values for large pods
@@ -232,7 +232,7 @@ class Monitor:
             print("Train start time recorded.")
         self.memory_usage_list = []
 
-    def train_time_end(self, interval_seconds=30) -> None:
+    def train_time_end(self) -> None:
         if self.train_start_time is not None:
             self.train_end_time = datetime.datetime.now()
             train_duration = (
@@ -242,7 +242,7 @@ class Monitor:
             print(f"//train_time: {train_duration} ms//end")
 
             if self.use_cluster:
-                time.sleep(interval_seconds)
+                time.sleep(30)
                 self.final_network_data = self._get_network_data()
 
                 # Output memory values for large pods

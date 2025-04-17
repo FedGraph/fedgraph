@@ -300,7 +300,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
             print("clients received feature aggregation from server")
         [trainer.relabel_adj.remote() for trainer in server.trainers]
 
-    monitor.pretrain_time_end(30 if args.use_cluster else 0)
+    monitor.pretrain_time_end()
     monitor.train_time_start()
     #######################################################################
     # Federated Training
@@ -311,7 +311,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
     print("global_rounds", args.global_rounds)
     for i in range(args.global_rounds):
         server.train(i)
-    monitor.train_time_end(30 if args.use_cluster else 0)
+    monitor.train_time_end()
     training_time = time.time() - training_start
     if args.use_encryption:
         if hasattr(server, "aggregation_stats") and server.aggregation_stats:
@@ -617,7 +617,7 @@ def run_GC_selftrain(
     for trainer in trainers:
         trainer.update_params.remote(global_params_id)
     if monitor is not None:
-        monitor.pretrain_time_end(30 if server.use_cluster else 0)
+        monitor.pretrain_time_end()
     all_accs = {}
     acc_refs = []
     if monitor is not None:
@@ -642,7 +642,7 @@ def run_GC_selftrain(
         if not acc_refs:
             break
     if monitor is not None:
-        monitor.train_time_end(30 if server.use_cluster else 0)
+        monitor.train_time_end()
     frame = pd.DataFrame(all_accs).T.iloc[:, [2]]
     frame.columns = ["test_acc"]
     print(frame)
@@ -694,7 +694,7 @@ def run_GC_Fed_algorithm(
     for trainer in trainers:
         trainer.update_params.remote(global_params_id)
     if monitor is not None:
-        monitor.pretrain_time_end(30 if server.use_cluster else 0)
+        monitor.pretrain_time_end()
     if monitor is not None:
         monitor.train_time_start()
     for c_round in range(1, communication_rounds + 1):
@@ -745,7 +745,7 @@ def run_GC_Fed_algorithm(
         return ["background-color: yellow" if v else "" for v in is_max]
 
     if monitor is not None:
-        monitor.train_time_end(30 if server.use_cluster else 0)
+        monitor.train_time_end()
     fs = frame.style.apply(highlight_max).data
     print(fs)
     print(f"Average test accuracy: {gc_avg_accuracy(frame, trainers)}")
@@ -811,7 +811,7 @@ def run_GCFL_algorithm(
         for trainer in trainers:
             trainer.update_params.remote(global_params_id)
     if monitor is not None:
-        monitor.pretrain_time_end(30 if server.use_cluster else 0)
+        monitor.pretrain_time_end()
     acc_trainers: List[Any] = []
     if monitor is not None:
         monitor.train_time_start()
@@ -902,7 +902,7 @@ def run_GCFL_algorithm(
             idc, ray.get(trainers[idc[0]].get_total_weight.remote()), acc_trainers
         )
     if monitor is not None:
-        monitor.train_time_end(30 if server.use_cluster else 0)
+        monitor.train_time_end()
     results = np.zeros([len(trainers), len(server.model_cache)])
     for i, (idcs, W, accs) in enumerate(server.model_cache):
         results[idcs, i] = np.array(accs)
@@ -1098,7 +1098,7 @@ def run_LP(args: attridict) -> None:
     else:
         result_writer = None
         time_writer = None
-    monitor.pretrain_time_end(30)
+    monitor.pretrain_time_end()
     monitor.train_time_start()
     # from 2012-04-03 to 2012-04-13
     for day in range(prediction_days):  # make predictions for each day
@@ -1148,7 +1148,7 @@ def run_LP(args: attridict) -> None:
             end_time_float_format,
         ) = to_next_day(start_time=start_time, end_time=end_time, method=method)
 
-    monitor.train_time_end(30)
+    monitor.train_time_end()
     if result_writer is not None and time_writer is not None:
         result_writer.close()
         time_writer.close()
