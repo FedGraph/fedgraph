@@ -1,0 +1,26 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: mlarge-1739510276
+  region: us-east-1
+
+nodeGroups:
+  - name: head-nodes
+    instanceType: m5.24xlarge
+    desiredCapacity: 1
+    minSize: 0
+    maxSize: 1
+    volumeSize: 256
+    labels:
+      ray-node-type: head
+
+  - name: worker-nodes
+    instanceType: m5.16xlarge
+    desiredCapacity: 10
+    minSize: 10
+    maxSize: 10
+    volumeSize: 1024
+    amiFamily: Bottlerocket
+    labels:
+      ray-node-type: worker

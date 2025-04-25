@@ -73,8 +73,9 @@ class Monitor:
         if not self.use_cluster:
             return {}
         response = requests.get(
-            "http://prometheus-kube-prometheus-prometheus.prometheus-system:9090/api/v1/query?query=ray_node_network_sent"
+            "http://prometheus-kube-prometheus-prometheus.prometheus-system.svc.cluster.local:9090/api/v1/query?query=ray_node_network_sent"
         )
+
         data = response.json()
         pod_data = {}
         large_pod_count = 1
@@ -99,7 +100,7 @@ class Monitor:
         if not self.use_cluster:
             return {}
         response = requests.get(
-            f"http://prometheus-kube-prometheus-prometheus.prometheus-system:9090/api/v1/query?query=ray_node_mem_used"
+            "http://prometheus-kube-prometheus-prometheus.prometheus-system.svc.cluster.local:9090/api/v1/query?query=ray_node_mem_used"
         )
         data = response.json()
         memory_data = {}

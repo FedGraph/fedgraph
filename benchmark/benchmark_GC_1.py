@@ -46,11 +46,17 @@ runs_per_config = 3
 # Define additional required parameters that might be missing from YAML
 required_params = {
     "fedgraph_task": "GC",
-    "num_cpus_per_trainer": 2,
+    "num_cpus_per_trainer": 1,
     "num_gpus_per_trainer": 1 if torch.cuda.is_available() else 0,
-    "use_cluster": False,  # Set to True to enable monitoring
+    "use_cluster": True,  # Set to True to enable monitoring
     "gpu": torch.cuda.is_available(),
 }
+
+# specifying a target GPU
+if torch.cuda.is_available():
+    print("using GPU")
+else:
+    print("using CPU")
 
 # Main benchmark loop
 for dataset_name in datasets:

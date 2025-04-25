@@ -112,7 +112,7 @@ spec:
                   command: ["/bin/sh", "-c", "ray stop"]
   workerGroupSpecs:
     # the pod replicas in this group typed worker
-    - replicas: 1
+    - replicas: 3
       minReplicas: 1
       maxReplicas: 1
       # logical group name, for this called large-group, also can be functional
@@ -133,7 +133,7 @@ spec:
       template:
         metadata:
           labels:
-            rayCluster: raycluster-complete # will be injected if missing
+            rayCluster: raycluster-autoscaler # will be injected if missing
             rayNodeType: worker # will be injected if missing
             groupName: small-group # will be injected if missing
           # annotations for pod

@@ -144,7 +144,13 @@ def run_NC(args: attridict, data: Any = None) -> None:
     class Trainer(Trainer_General):
         def __init__(self, *args: Any, **kwds: Any):
             super().__init__(*args, **kwds)
-            self.use_encryption = kwds["args"].use_encryption
+            args = kwds.get("args", {})
+            self.use_encryption = (
+                getattr(args, "use_encryption", False)
+                if hasattr(args, "use_encryption")
+                else args.get("use_encryption", False)
+            )
+
             if self.use_encryption:
                 file_path = str(files("fedgraph").joinpath("he_context.pkl"))
                 with open(file_path, "rb") as f:
