@@ -141,7 +141,7 @@ echo "ray job submit \
   --runtime-env-json '{
     "working_dir": ".",
     "excludes": [".git", "__pycache__", "outputs", "fedgraph/he_training_context.pkl"],
-    "pip": ["fsspec==2023.6.0", "huggingface_hub", "tenseal"]
+    "pip": ["fsspec", "huggingface_hub", "tenseal"]
   }' \
   -- python benchmark/benchmark_GC.py"
 

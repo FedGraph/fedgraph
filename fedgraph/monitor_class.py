@@ -38,6 +38,14 @@ class Monitor:
             "init_time_cost", description="Latencies of initialization in ms."
         )
 
+        self.pretrain_theoretical_comm_gauge = Gauge(
+            "pretrain_theoretical_comm_MB",
+            description="Theoretical communication cost in MB during pretrain phase.",
+        )
+        self.train_theoretical_comm_gauge = Gauge(
+            "train_theoretical_comm_MB",
+            description="Theoretical communication cost in MB during train phase.",
+        )
         # Timestamp tracking for all phases
         self.init_start_time: Optional[datetime.datetime] = None
         self.init_end_time: Optional[datetime.datetime] = None
@@ -55,12 +63,21 @@ class Monitor:
 
         # Add large pod mapping
         self.large_pod_mapping: Dict[str, str] = {}
-
+        self.pretrain_theoretical_comm_MB = 0.0
+        self.train_theoretical_comm_MB = 0.0
         if self.use_cluster:
             self.memory_thread = threading.Thread(
                 target=self.collect_memory, daemon=True
             )
             self.memory_thread.start()
+
+    def add_pretrain_comm_cost(self, upload_mb: float, download_mb: float):
+        self.pretrain_theoretical_comm_MB += upload_mb + download_mb
+        self.pretrain_theoretical_comm_gauge.set(self.pretrain_theoretical_comm_MB)
+
+    def add_train_comm_cost(self, upload_mb: float, download_mb: float):
+        self.train_theoretical_comm_MB += upload_mb + download_mb
+        self.train_theoretical_comm_gauge.set(self.train_theoretical_comm_MB)
 
     def collect_memory(self, interval_seconds=30):
         while True:
@@ -294,3 +311,11 @@ class Monitor:
                     print(f"//Log Server network: {network_diff} //end")
 
                 print("Train end time recorded and duration set to gauge.")
+
+    def print_comm_cost(self) -> None:
+        print(
+            f"//Log Theoretical Pretrain Comm Cost: {self.pretrain_theoretical_comm_MB:.2f} MB //end"
+        )
+        print(
+            f"//Log Theoretical Train Comm Cost: {self.train_theoretical_comm_MB:.2f} MB //end"
+        )

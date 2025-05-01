@@ -344,6 +344,10 @@ class Server:
                 tuple(self.model.parameters()), current_global_epoch
             )  # run in submit order
 
+    def get_model_size(self) -> float:
+        """Return total model parameter size in bytes (assumes float32)."""
+        return sum(p.numel() for p in self.model.parameters()) * 4
+
 
 class Server_GC:
     """
@@ -661,6 +665,13 @@ class Server_GC:
                 tmp = torch.div(torch.sum(weighted_stack, dim=0), total_size).clone()
                 target[name].data += tmp
 
+    def get_model_size(self) -> float:
+        """
+        Return the size of the model parameters in bytes.
+        """
+        param_size = sum(p.nelement() * p.element_size() for p in self.W.values())
+        return float(param_size)
+
 
 class Server_LP:
     """
@@ -789,3 +800,9 @@ class Server_LP:
                 global_state[key] += states[i][key]
             global_state[key] /= len(states)  # average
         return global_state
+
+    def get_model_size(self) -> float:
+        param_size = sum(
+            p.nelement() * p.element_size() for p in self.global_model.parameters()
+        )
+        return float(param_size)

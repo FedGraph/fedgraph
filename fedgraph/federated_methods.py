@@ -144,11 +144,11 @@ def run_NC(args: attridict, data: Any = None) -> None:
     class Trainer(Trainer_General):
         def __init__(self, *args: Any, **kwds: Any):
             super().__init__(*args, **kwds)
-            args = kwds.get("args", {})
+            args_obj = kwds.get("args", {})
             self.use_encryption = (
-                getattr(args, "use_encryption", False)
-                if hasattr(args, "use_encryption")
-                else args.get("use_encryption", False)
+                getattr(args_obj, "use_encryption", False)
+                if hasattr(args_obj, "use_encryption")
+                else args_obj.get("use_encryption", False)
             )
 
             if self.use_encryption:
@@ -307,6 +307,10 @@ def run_NC(args: attridict, data: Any = None) -> None:
         [trainer.relabel_adj.remote() for trainer in server.trainers]
 
     monitor.pretrain_time_end()
+    monitor.add_pretrain_comm_cost(
+        upload_mb=pretrain_upload,
+        download_mb=pretrain_download,
+    )
     monitor.train_time_start()
     #######################################################################
     # Federated Training
@@ -317,6 +321,11 @@ def run_NC(args: attridict, data: Any = None) -> None:
     print("global_rounds", args.global_rounds)
     for i in range(args.global_rounds):
         server.train(i)
+        model_size_mb = server.get_model_size() / (1024 * 1024)
+        monitor.add_train_comm_cost(
+            upload_mb=model_size_mb * args.n_trainer,
+            download_mb=model_size_mb * args.n_trainer,
+        )
     monitor.train_time_end()
     training_time = time.time() - training_start
     if args.use_encryption:
@@ -334,7 +343,10 @@ def run_NC(args: attridict, data: Any = None) -> None:
         else:
             training_upload = training_download = 0
         training_comm_cost = training_upload + training_download
-
+        monitor.add_train_comm_cost(
+            upload_mb=training_upload,
+            download_mb=training_download,
+        )
         print("\nTraining Phase Metrics:")
         print(f"Total Training Time: {training_time:.2f} seconds")
         print(f"Training Upload: {training_upload:.2f} MB")
@@ -376,6 +388,8 @@ def run_NC(args: attridict, data: Any = None) -> None:
     )
     print(f"average_final_test_loss, {average_final_test_loss}")
     print(f"Average test accuracy, {average_final_test_accuracy}")
+    if monitor is not None:
+        monitor.print_comm_cost()
     ray.shutdown()
 
 
@@ -589,6 +603,8 @@ def run_GC(args: attridict, data: Any) -> None:
         outdir_result = os.path.join(outdir, f"accuracy_seed{args.seed}.csv")
         pd.DataFrame(output).to_csv(outdir_result)
         print(f"The output has been written to file: {outdir_result}")
+    if monitor is not None:
+        monitor.print_comm_cost()
     ray.shutdown()
 
 
@@ -648,12 +664,19 @@ def run_GC_selftrain(
         if not acc_refs:
             break
     if monitor is not None:
+        model_size_mb = server.get_model_size() / (1024 * 1024)
+        monitor.add_train_comm_cost(
+            upload_mb=model_size_mb * len(trainers),
+            download_mb=model_size_mb * len(trainers),
+        )
         monitor.train_time_end()
     frame = pd.DataFrame(all_accs).T.iloc[:, [2]]
     frame.columns = ["test_acc"]
     print(frame)
     # TODO: delete to make speed faster
     print(f"Average test accuracy: {gc_avg_accuracy(frame, trainers)}")
+    if monitor is not None:
+        monitor.print_comm_cost()
     return frame
 
 
@@ -726,13 +749,21 @@ def run_GC_Fed_algorithm(
                 )
 
         server.aggregate_weights(selected_trainers)
+        if monitor is not None:
+            model_size_mb = server.get_model_size() / (1024 * 1024)
+            num_clients = len(selected_trainers)
+            monitor.add_train_comm_cost(
+                upload_mb=model_size_mb * num_clients,
+                download_mb=model_size_mb * num_clients,
+            )
         ray.internal.free([global_params_id])  # Free the old weight memory
         global_params_id = ray.put(server.W)
         for trainer in selected_trainers:
             trainer.update_params.remote(global_params_id)
             if algorithm == "FedProx":
                 trainer.cache_weights.remote()
-
+    if monitor is not None:
+        monitor.train_time_end()
     frame = pd.DataFrame()
     acc_refs = []
     for trainer in trainers:
@@ -750,11 +781,11 @@ def run_GC_Fed_algorithm(
         is_max = s == s.max()
         return ["background-color: yellow" if v else "" for v in is_max]
 
-    if monitor is not None:
-        monitor.train_time_end()
     fs = frame.style.apply(highlight_max).data
     print(fs)
     print(f"Average test accuracy: {gc_avg_accuracy(frame, trainers)}")
+    if monitor is not None:
+        monitor.print_comm_cost()
     return frame
 
 
@@ -891,7 +922,13 @@ def run_GCFL_algorithm(
 
         trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
         server.aggregate_clusterwise(trainer_clusters)
-
+        if monitor is not None:
+            model_size_mb = server.get_model_size() / (1024 * 1024)
+            total_clients = sum(len(c) for c in trainer_clusters)
+            monitor.add_train_comm_cost(
+                upload_mb=model_size_mb * total_clients,
+                download_mb=model_size_mb * total_clients,
+            )
         acc_trainers = []
         acc_trainers_refs = [trainer.local_test.remote() for trainer in trainers]
 
@@ -926,7 +963,8 @@ def run_GCFL_algorithm(
     frame.columns = ["test_acc"]
     print(frame)
     print(f"Average test accuracy: {gc_avg_accuracy(frame, trainers)}")
-
+    if monitor is not None:
+        monitor.print_comm_cost()
     return frame
 
 
@@ -1072,6 +1110,7 @@ def run_LP(args: attridict) -> None:
         meta_data=meta_data,
         hidden_channels=hidden_channels,
     )
+    server.monitor = monitor
     # End initialization time tracking
     monitor.init_time_end()
 
@@ -1105,6 +1144,12 @@ def run_LP(args: attridict) -> None:
         result_writer = None
         time_writer = None
     monitor.pretrain_time_end()
+    global_model_size_mb = server.get_model_size() / (1024 * 1024)
+    print(f"[Debug] Model size this round: {global_model_size_mb:.2f} MB")
+    monitor.add_pretrain_comm_cost(
+        upload_mb=global_model_size_mb * number_of_clients,
+        download_mb=0.0,
+    )
     monitor.train_time_start()
     # from 2012-04-03 to 2012-04-13
     for day in range(prediction_days):  # make predictions for each day
@@ -1158,6 +1203,8 @@ def run_LP(args: attridict) -> None:
     if result_writer is not None and time_writer is not None:
         result_writer.close()
         time_writer.close()
+    if monitor is not None:
+        monitor.print_comm_cost()
     print("The whole process has ended")
     ray.shutdown()
 
@@ -1255,7 +1302,13 @@ def LP_train_global_round(
             server.clients[client_id].set_model_parameter.remote(
                 model_avg_parameter, gnn_only
             )
-
+        model_size_mb = 0.0
+        if hasattr(server, "get_model_size") and hasattr(server, "monitor"):
+            model_size_mb = server.get_model_size() / (1024 * 1024)
+            server.monitor.add_train_comm_cost(
+                upload_mb=model_size_mb * number_of_clients,
+                download_mb=model_size_mb * number_of_clients,
+            )
     # test the model
     test_results = [
         server.clients[client_id].test.remote(server.clients[client_id], use_buffer)
