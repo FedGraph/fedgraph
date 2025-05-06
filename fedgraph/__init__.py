@@ -10,4 +10,5 @@ from . import (
     utils_lp,
     utils_nc,
 )
+from .federated_methods import run_fedgraph
 from .version import __version__
