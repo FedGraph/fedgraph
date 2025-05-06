@@ -1,6 +1,3 @@
-import argparse
-import copy
-import datetime
 import os
 import pickle
 import random
@@ -10,12 +7,12 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any, List, Optional
 
-import attridict
 import numpy as np
 import pandas as pd
 import ray
 import tenseal as ts
 import torch
+from attridict import AttriDict
 
 from fedgraph.data_process import data_loader
 from fedgraph.gnn_models import GIN
@@ -33,7 +30,7 @@ from fedgraph.utils_lp import (
 from fedgraph.utils_nc import get_1hop_feature_sum, save_all_trainers_data
 
 
-def run_fedgraph(args: attridict) -> None:
+def run_fedgraph(args: dict) -> None:
     """
     Run the training process for the specified task.
 
@@ -43,13 +40,14 @@ def run_fedgraph(args: attridict) -> None:
 
     Parameters
     ----------
-    args : attridict
+    args : dict
         Configuration arguments that must include 'fedgraph_task' key with value
         in ['NC', 'GC', 'LP'].
     data: Any
         Input data for the federated learning task. Format depends on the specific task and
         will be explained in more detail below inside specific functions.
     """
+    args = AttriDict(args)
     if args.fedgraph_task != "NC" or not args.use_huggingface:
         data = data_loader(args)
     else:
@@ -64,7 +62,7 @@ def run_fedgraph(args: attridict) -> None:
         run_LP(args)
 
 
-def run_NC(args: attridict, data: Any = None) -> None:
+def run_NC(args: AttriDict, data: Any = None) -> None:
     """
     Train a Federated Graph Classification model using multiple trainers.
 
@@ -76,7 +74,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
 
     Parameters
     ----------
-    args: attridict
+    args: AttriDict
         Configuration arguments
     data: tuple
     """
@@ -371,7 +369,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
     ray.shutdown()
 
 
-def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
+def run_GC(args: AttriDict, data: Any, base_model: Any = GIN) -> None:
     """
     Entrance of the training process for graph classification.
 
@@ -381,7 +379,7 @@ def run_GC(args: attridict, data: Any, base_model: Any = GIN) -> None:
 
     Parameters
     ----------
-    args: attridict
+    args: AttriDict
         The configuration arguments.
     data: Any
         Dictionary mapping dataset names to their respective graph data including
@@ -909,7 +907,7 @@ def run_GCFL_algorithm(
     return frame
 
 
-def run_LP(args: attridict) -> None:
+def run_LP(args: AttriDict) -> None:
     """
     Implements various federated learning methods for link prediction tasks with support
     for online learning and buffer mechanisms. Handles temporal aspects of link prediction
@@ -919,7 +917,7 @@ def run_LP(args: attridict) -> None:
 
     Parameters
     ----------
-    args: attridict
+    args: AttriDict
         The configuration arguments.
     """
 

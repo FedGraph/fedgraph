@@ -55,7 +55,6 @@ config = {
 # Run fedgraph method
 # -------------------
 
-config = attridict(config)
 run_fedgraph(config)
 
 #######################################################################
@@ -108,7 +107,6 @@ config = {
 # Run fedgraph method
 # -------------------
 
-config = attridict(config)
 run_fedgraph(config)
 #######################################################################
 # Specify the Link Prediction configuration
@@ -149,5 +147,4 @@ config = {
 # Run fedgraph method
 # -------------------
 
-config = attridict(config)
 run_fedgraph(config)
