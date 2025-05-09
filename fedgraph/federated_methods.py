@@ -4,6 +4,7 @@ import datetime
 import os
 import pickle
 import random
+import socket
 import sys
 import time
 from importlib.resources import files
@@ -86,6 +87,8 @@ def run_NC(args: attridict, data: Any = None) -> None:
     ray.init()
     start_time = time.time()
     torch.manual_seed(42)
+    pretrain_upload: float = 0.0
+    pretrain_download: float = 0.0
     if args.num_hops == 0:
         print("Changing method to FedAvg")
         args.method = "FedAvg"
@@ -226,8 +229,9 @@ def run_NC(args: attridict, data: Any = None) -> None:
     server = Server(features.shape[1], args_hidden, class_num, device, trainers, args)
 
     # End initialization time tracking
-    monitor.init_time_end()
     server.broadcast_params(-1)
+    monitor.init_time_end()
+
     pretrain_start = time.time()
     monitor.pretrain_time_start()
     if args.method != "FedAvg":
@@ -276,9 +280,13 @@ def run_NC(args: attridict, data: Any = None) -> None:
             print(f"Total Pre-training Communication Cost: {pretrain_comm_cost:.2f} MB")
 
         else:
+            pretrain_upload = 0
+            pretrain_download = 0
             local_neighbor_feature_sums = [
                 trainer.get_local_feature_sum.remote() for trainer in server.trainers
             ]
+            # Record uploaded data sizes
+            upload_sizes = []
             global_feature_sum = torch.zeros_like(features)
             while True:
                 ready, left = ray.wait(
@@ -286,10 +294,17 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 )
                 if ready:
                     for t in ready:
-                        global_feature_sum += ray.get(t)
+                        local_sum = ray.get(t)
+                        global_feature_sum += local_sum
+                        # Calculate size of uploaded data
+                        upload_sizes.append(
+                            local_sum.element_size() * local_sum.nelement()
+                        )
                 local_neighbor_feature_sums = left
                 if not local_neighbor_feature_sums:
                     break
+            # Calculate total upload size
+            pretrain_upload = sum(upload_sizes) / (1024 * 1024)  # MB
             print("server aggregates all local neighbor feature sums")
             # test if aggregation is correct
             if args.num_hops != 0:
@@ -297,12 +312,20 @@ def run_NC(args: attridict, data: Any = None) -> None:
                     global_feature_sum
                     != get_1hop_feature_sum(features, edge_index, device)
                 ).sum() == 0
+            # Calculate and record download sizes
+            download_sizes = []
             for i in range(args.n_trainer):
                 communicate_nodes = (
                     communicate_node_global_indexes[i].clone().detach().to(device)
                 )
                 trainer_aggregation = global_feature_sum[communicate_nodes]
+                # Calculate download size for each trainer
+                download_sizes.append(
+                    trainer_aggregation.element_size() * trainer_aggregation.nelement()
+                )
                 server.trainers[i].load_feature_aggregation.remote(trainer_aggregation)
+            # Calculate total download size
+            pretrain_download = sum(download_sizes) / (1024 * 1024)  # MB
             print("clients received feature aggregation from server")
         [trainer.relabel_adj.remote() for trainer in server.trainers]
 
@@ -1035,6 +1058,9 @@ def run_LP(args: attridict) -> None:
         class Trainer(Trainer_LP):
             def __init__(self, *args, **kwargs):  # type: ignore
                 super().__init__(*args, **kwargs)
+                print(
+                    f"[Debug] Trainer running on node IP: {ray.util.get_node_ip_address()}"
+                )
 
         clients = [
             Trainer.remote(  # type: ignore
@@ -1057,7 +1083,9 @@ def run_LP(args: attridict) -> None:
             meta_data=meta_data,
             trainers=clients,
         )
-
+        print(
+            f"[Debug] Server running on IP: {socket.gethostbyname(socket.gethostname())}"
+        )
         return clients, server
 
     method = args.method
@@ -1144,12 +1172,6 @@ def run_LP(args: attridict) -> None:
         result_writer = None
         time_writer = None
     monitor.pretrain_time_end()
-    global_model_size_mb = server.get_model_size() / (1024 * 1024)
-    print(f"[Debug] Model size this round: {global_model_size_mb:.2f} MB")
-    monitor.add_pretrain_comm_cost(
-        upload_mb=global_model_size_mb * number_of_clients,
-        download_mb=0.0,
-    )
     monitor.train_time_start()
     # from 2012-04-03 to 2012-04-13
     for day in range(prediction_days):  # make predictions for each day

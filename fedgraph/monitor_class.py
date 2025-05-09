@@ -237,7 +237,16 @@ class Monitor:
                     ] - self.initial_network_data.get("Server", 0)
                     self.pretrain_node_network_gauge.set(network_diff)
                     print(f"//Log Server network: {network_diff} //end")
-
+                    # Calculate and print total actual communication cost
+                total_network_diff = sum(
+                    self.final_network_data.get(pod, 0)
+                    - self.initial_network_data.get(pod, 0)
+                    for pod in self.final_network_data
+                )
+                total_network_mb = total_network_diff / (1024 * 1024)
+                print(
+                    f"//Log Total Actual Pretrain Comm Cost: {total_network_mb:.2f} MB //end"
+                )
                 print("Pretrain end time recorded and duration set to gauge.")
 
     def train_time_start(self) -> None:
@@ -309,7 +318,16 @@ class Monitor:
                     ] - self.initial_network_data.get("Server", 0)
                     self.train_node_network_gauge.set(network_diff)
                     print(f"//Log Server network: {network_diff} //end")
-
+                    # Calculate and print total actual communication cost
+                total_network_diff = sum(
+                    self.final_network_data.get(pod, 0)
+                    - self.initial_network_data.get(pod, 0)
+                    for pod in self.final_network_data
+                )
+                total_network_mb = total_network_diff / (1024 * 1024)
+                print(
+                    f"//Log Total Actual Train Comm Cost: {total_network_mb:.2f} MB //end"
+                )
                 print("Train end time recorded and duration set to gauge.")
 
     def print_comm_cost(self) -> None:

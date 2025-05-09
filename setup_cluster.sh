@@ -127,6 +127,7 @@ echo "kubectl port-forward service/raycluster-autoscaler-head-svc 8265:8265"
 # To get <ray-head-pod-name>, run `kubectl get pods`
 echo "kubectl port-forward <ray-head-pod-name> 8080:8080"
 echo "kubectl port-forward prometheus-prometheus-kube-prometheus-prometheus-0 -n prometheus-system 9090:9090"
+# To get the default username and password for Grafana,check https://docs.ray.io/en/latest/cluster/kubernetes/k8s-ecosystem/prometheus-grafana.html
 echo "kubectl port-forward deployment/prometheus-grafana -n prometheus-system 3000:3000"
 
 # Step 12: Final Check
