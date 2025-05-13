@@ -52,12 +52,12 @@ spec:
             # resource accounting. K8s requests are not used by Ray.
             resources:
               limits:
-                cpu: "60"
+                cpu: "1"
                 memory: "220Gi"
                 # nvidia.com/gpu: "1"
 
               requests:
-                cpu: "40"
+                cpu: "1"
                 memory: "220Gi"
                 # nvidia.com/gpu: "1"
             env:
@@ -135,7 +135,7 @@ spec:
           labels:
             rayCluster: raycluster-autoscaler # will be injected if missing
             rayNodeType: worker # will be injected if missing
-            groupName: large-group   # will be injected if missing
+            groupName: large-group # will be injected if missing
           # annotations for pod
           annotations:
             key: value
@@ -148,12 +148,12 @@ spec:
               # resource accounting. K8s requests are not used by Ray.
               resources:
                 limits:
-                  cpu: "4"
-                  memory: "20Gi"
+                  cpu: "60"
+                  memory: "200Gi"
                   # nvidia.com/gpu: "1"
                 requests:
-                  cpu: "4"
-                  memory: "20Gi"
+                  cpu: "60"
+                  memory: "200Gi"
                   # nvidia.com/gpu: "1"
               # environment variables to set in the container.Optional.
               # Refer to https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/

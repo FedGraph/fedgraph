@@ -41,12 +41,12 @@ algorithms = ["SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs"]
 trainer_numbers = [3]
 
 # Number of runs per configuration
-runs_per_config = 3
+runs_per_config = 1
 
 # Define additional required parameters that might be missing from YAML
 required_params = {
     "fedgraph_task": "GC",
-    "num_cpus_per_trainer": 2,
+    "num_cpus_per_trainer": 3,
     "num_gpus_per_trainer": 1 if torch.cuda.is_available() else 0,
     "use_cluster": True,  # Set to True to enable monitoring
     "gpu": torch.cuda.is_available(),
