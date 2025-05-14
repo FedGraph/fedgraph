@@ -306,6 +306,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
             # Calculate total upload size
             pretrain_upload = sum(upload_sizes) / (1024 * 1024)  # MB
             print("server aggregates all local neighbor feature sums")
+            # TODO: Verify that the aggregated global feature sum matches the true 1-hop feature sum for correctness checking.
             # test if aggregation is correct
             # if not args.use_huggingface and args.num_hops != 0:
             # assert (
@@ -947,11 +948,12 @@ def run_GCFL_algorithm(
         server.aggregate_clusterwise(trainer_clusters)
         if monitor is not None:
             model_size_mb = server.get_model_size() / (1024 * 1024)
-            total_clients = sum(len(c) for c in trainer_clusters)
-            monitor.add_train_comm_cost(
-                upload_mb=model_size_mb * total_clients,
-                download_mb=model_size_mb * total_clients,
-            )
+            for cluster in trainer_clusters:
+                cluster_size = len(cluster)
+                monitor.add_train_comm_cost(
+                    upload_mb=model_size_mb * cluster_size,
+                    download_mb=model_size_mb * cluster_size,
+                )
         acc_trainers = []
         acc_trainers_refs = [trainer.local_test.remote() for trainer in trainers]
 

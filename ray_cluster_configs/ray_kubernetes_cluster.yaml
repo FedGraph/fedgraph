@@ -52,12 +52,12 @@ spec:
             # resource accounting. K8s requests are not used by Ray.
             resources:
               limits:
-                cpu: "1"
+                cpu: "2"
                 memory: "220Gi"
                 # nvidia.com/gpu: "1"
 
               requests:
-                cpu: "1"
+                cpu: "2"
                 memory: "220Gi"
                 # nvidia.com/gpu: "1"
             env:
