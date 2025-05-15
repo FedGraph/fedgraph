@@ -19,11 +19,14 @@ from fedgraph.federated_methods import run_fedgraph
 
 # Datasets to benchmark
 datasets = [
-    "ogbn-arxiv"
+    "cora",
+    "citeseer",
+    "pubmed",
+    "ogbn-arxiv",
 ]  # You can add more: ["cora", "citeseer", "ogbn-arxiv", "ogbn-products"]
 
 # Number of trainers to test
-n_trainers = [16]
+n_trainers = [10]
 
 # Number of hops for neighbor aggregation
 num_hops_list = [0, 1]

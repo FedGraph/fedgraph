@@ -343,8 +343,19 @@ def run_NC(args: attridict, data: Any = None) -> None:
     # at every global round.
     training_start = time.time()
     print("global_rounds", args.global_rounds)
+    global_acc_list = []
     for i in range(args.global_rounds):
         server.train(i)
+
+        results = [trainer.local_test.remote() for trainer in server.trainers]
+        results = np.array([ray.get(result) for result in results])
+        average_test_accuracy = np.average(
+            [row[1] for row in results], weights=test_data_weights, axis=0
+        )
+        global_acc_list.append(average_test_accuracy)
+
+        print(f"Round {i+1}: Global Test Accuracy = {average_test_accuracy:.4f}")
+
         model_size_mb = server.get_model_size() / (1024 * 1024)
         monitor.add_train_comm_cost(
             upload_mb=model_size_mb * args.n_trainer,
@@ -1333,6 +1344,29 @@ def LP_train_global_round(
                 upload_mb=model_size_mb * number_of_clients,
                 download_mb=model_size_mb * number_of_clients,
             )
+            # ======== Add embedding size to theoretical train communication cost ========
+        if method in ["STFL", "FedLink", "4D-FED-GNN+"]:
+            number_of_users = server.number_of_users
+            number_of_items = server.number_of_items
+            embedding_dim = server.trainers[0]._remote_args["kwargs"][
+                "hidden_channels"
+            ]  # safer way
+            float_size = 4  # float32
+
+            embedding_param_size_bytes = (
+                (number_of_users + number_of_items) * embedding_dim * float_size
+            )
+            embedding_param_size_MB = embedding_param_size_bytes / (1024 * 1024)
+
+            server.monitor.add_train_comm_cost(
+                upload_mb=embedding_param_size_MB * number_of_clients,
+                download_mb=embedding_param_size_MB * number_of_clients,
+            )
+
+            print(
+                f"//Log Theoretical Embedding Communication Cost Added (Train Phase): {embedding_param_size_MB * number_of_clients * 2:.2f} MB //end"
+            )
+
     # test the model
     test_results = [
         server.clients[client_id].test.remote(server.clients[client_id], use_buffer)
