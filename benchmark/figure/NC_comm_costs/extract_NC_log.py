@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""
-Federated Node Classification Visualization Tool
-
-This script analyzes log files from federated node classification experiments
-and generates visualizations for accuracy, training time, and communication costs.
-"""
 
 import glob
 import os
@@ -13,12 +7,15 @@ import re
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
+
+sns.set(style="whitegrid")
+sns.set_context("talk")
 
 
 def extract_nc_data(logfile):
     with open(logfile, "r", encoding="utf-8", errors="replace") as f:
         log_content = f.read()
-
     exp_sections = re.findall(
         r"Running experiment \d+/\d+:.*?(?=Running experiment|\Z)",
         log_content,
@@ -34,7 +31,6 @@ def extract_nc_data(logfile):
             log_content,
             re.DOTALL,
         )
-
     results = []
     for exp in exp_sections:
         dataset_match = re.search(r"Dataset: ([a-zA-Z0-9-]+)", exp)
@@ -148,11 +144,14 @@ def plot_metric(df, metric, ylabel, filename_prefix):
                 label=algo,
                 color=colors[algo],
             )
-        plt.title(f"{ylabel} (IID Beta={beta})", fontsize=16)
-        plt.xlabel("Dataset", fontsize=14)
-        plt.ylabel(ylabel, fontsize=14)
-        plt.xticks(x_positions + width / 2, datasets, rotation=45)
-        plt.legend()
+        if metric == "Train_Time_ms":
+            plt.yscale("log")
+        plt.title(f"{ylabel} (IID Beta={beta})", fontsize=26)
+        plt.xlabel("Dataset", fontsize=26)
+        plt.ylabel(ylabel, fontsize=24)
+        plt.xticks(x_positions + width / 2, datasets, rotation=45, fontsize=24)
+        plt.yticks(fontsize=24)
+        plt.legend(fontsize=24)
         plt.tight_layout()
         plt.savefig(f"{filename_prefix}_beta{int(beta)}.pdf", dpi=300)
         plt.close()
@@ -171,10 +170,10 @@ def plot_comm_cost(df):
     target_betas = [10000.0, 100.0, 10.0]
 
     for beta in target_betas:
-        plt.figure(figsize=(16, 8))
+        plt.figure(figsize=(10, 6))
         df_beta = df[df["IID_Beta"] == beta]
         x_positions = np.arange(len(datasets))
-        width = 0.15
+        width = 0.18
 
         for d_idx, dataset in enumerate(datasets):
             xpos_base = x_positions[d_idx]
@@ -213,8 +212,8 @@ def plot_comm_cost(df):
                     )
 
                 if algo == "FedAvg":
-                    xpos_actual = xpos_base - width
-                    xpos_theo = xpos_base
+                    xpos_actual = xpos_base - 1.5 * width
+                    xpos_theo = xpos_base - 0.5 * width
                     plt.bar(
                         xpos_actual,
                         train_actual,
@@ -227,9 +226,9 @@ def plot_comm_cost(df):
                         width=width,
                         color=theoretical_colors["FedAvg"],
                     )
-                else:  # fedgcn
-                    xpos_actual = xpos_base + width
-                    xpos_theo = xpos_base + 2 * width
+                else:
+                    xpos_actual = xpos_base + 0.5 * width
+                    xpos_theo = xpos_base + 1.5 * width
                     plt.bar(
                         xpos_actual,
                         pretrain_actual,
@@ -243,7 +242,6 @@ def plot_comm_cost(df):
                         bottom=pretrain_actual,
                         color=actual_colors[algo],
                     )
-
                     plt.bar(
                         xpos_theo,
                         pretrain_theo,
@@ -258,10 +256,11 @@ def plot_comm_cost(df):
                         color=theoretical_colors["fedgcn_train"],
                     )
 
-        plt.title(f"Communication Cost (IID Beta={beta})", fontsize=16)
-        plt.xlabel("Dataset", fontsize=14)
-        plt.ylabel("Communication Cost (MB)", fontsize=14)
-        plt.xticks(x_positions, datasets, rotation=45)
+        plt.title(f"Communication Cost (IID Beta={beta})", fontsize=22)
+        plt.xlabel("Dataset", fontsize=22)
+        plt.ylabel("Communication Cost (MB)", fontsize=22)
+        plt.xticks(x_positions, datasets, rotation=45, fontsize=22)
+        plt.yticks(fontsize=24)
         plt.grid(axis="y", linestyle="--", alpha=0.5)
 
         custom_lines = [
@@ -282,9 +281,9 @@ def plot_comm_cost(df):
                 "FedGCN Pretrain Theoretical",
                 "FedGCN Train Theoretical",
             ],
-            fontsize=9,
             loc="upper left",
             bbox_to_anchor=(1, 1),
+            fontsize=16,
         )
 
         plt.tight_layout()

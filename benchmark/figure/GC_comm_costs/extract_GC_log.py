@@ -171,7 +171,7 @@ def extract_metrics(exp_text, algorithm, dataset, trainers):
     return result
 
 
-def generate_accuracy_comparison(df, output_file="accuracy_comparison.pdf"):
+def generate_accuracy_comparison(df, output_file="gc_accuracy_comparison.pdf"):
     """Generate accuracy plot with datasets on x-axis and algorithms as legend"""
     if df.empty or df["Accuracy"].isna().all():
         print("No accuracy data available to plot")
@@ -241,12 +241,19 @@ def generate_accuracy_comparison(df, output_file="accuracy_comparison.pdf"):
         )
 
     # Set chart properties
-    plt.title("Accuracy Comparison", fontsize=16)
-    plt.xlabel("Dataset", fontsize=14)
-    plt.ylabel("Accuracy", fontsize=14)
-    plt.xticks(x_positions, datasets, rotation=45)
+    plt.title("Accuracy Comparison", fontsize=30)
+    plt.xlabel("Dataset", fontsize=30)
+    plt.ylabel("Accuracy", fontsize=30)
+    plt.xticks(x_positions, datasets, rotation=45, fontsize=30)
+    plt.yticks(fontsize=30)
     plt.ylim(0, 1.0)
-    plt.legend(title="Algorithms", loc="upper left", bbox_to_anchor=(1, 1))
+    plt.legend(
+        title="Algorithms",
+        loc="upper left",
+        bbox_to_anchor=(1, 1),
+        fontsize=25,
+        title_fontsize=25,
+    )
     plt.grid(False)
     plt.tight_layout()
 
@@ -258,7 +265,7 @@ def generate_accuracy_comparison(df, output_file="accuracy_comparison.pdf"):
     return output_file
 
 
-def generate_train_time_comparison(df, output_file="train_time_comparison.pdf"):
+def generate_train_time_comparison(df, output_file="gc_train_time_comparison.pdf"):
     """Generate train time plot with datasets on x-axis and algorithms as legend"""
     if df.empty or df["Train_Time_ms"].isna().all():
         print("No training time data available to plot")
@@ -330,11 +337,18 @@ def generate_train_time_comparison(df, output_file="train_time_comparison.pdf"):
         )
 
     # Set chart properties
-    plt.title("Training Time Comparison", fontsize=16)
-    plt.xlabel("Dataset", fontsize=14)
-    plt.ylabel("Training Time (ms)", fontsize=14)
-    plt.xticks(x_positions, datasets, rotation=45)
-    plt.legend(title="Algorithms", loc="upper left", bbox_to_anchor=(1, 1))
+    plt.title("Training Time Comparison", fontsize=30)
+    plt.xlabel("Dataset", fontsize=30)
+    plt.ylabel("Training Time (ms)", fontsize=28)
+    plt.xticks(x_positions, datasets, rotation=45, fontsize=30)
+    plt.yticks(fontsize=28)
+    plt.legend(
+        title="Algorithms",
+        loc="upper left",
+        bbox_to_anchor=(1, 1),
+        fontsize=25,
+        title_fontsize=25,
+    )
     plt.grid(False)
     plt.tight_layout()
 
@@ -443,11 +457,18 @@ def generate_comm_cost_comparison(df, output_file="gc_comm_cost_comparison.pdf")
         current_pos += 1
 
     # Plot settings
-    plt.title("Communication Cost Comparison", fontsize=16)
-    plt.xlabel("Dataset", fontsize=14)
-    plt.ylabel("Communication Cost (MB)", fontsize=14)
-    plt.xticks(x_positions, datasets, rotation=45)
-    plt.legend(title="Legend", loc="upper left", bbox_to_anchor=(1, 1))
+    plt.title("Communication Cost Comparison", fontsize=30)
+    plt.xlabel("Dataset", fontsize=30)
+    plt.ylabel("Communication Cost (MB)", fontsize=28)
+    plt.xticks(x_positions, datasets, rotation=45, fontsize=30)
+    plt.yticks(fontsize=28)
+    plt.legend(
+        title="Legend",
+        loc="upper left",
+        bbox_to_anchor=(1, 1),
+        fontsize=22,
+        title_fontsize=25,
+    )
     plt.grid(False)
     plt.tight_layout()
 
@@ -530,8 +551,8 @@ if __name__ == "__main__":
         print(f"Total data points: {len(df)}")
 
         # Generate plots
-        generate_accuracy_comparison(df, "accuracy_comparison.pdf")
-        generate_train_time_comparison(df, "train_time_comparison.pdf")
-        generate_comm_cost_comparison(df, "comm_cost_comparison.pdf")
+        generate_accuracy_comparison(df, "gc_accuracy_comparison.pdf")
+        generate_train_time_comparison(df, "gc_train_time_comparison.pdf")
+        generate_comm_cost_comparison(df, "gc_comm_cost_comparison.pdf")
     else:
         print("No data was extracted from log files")

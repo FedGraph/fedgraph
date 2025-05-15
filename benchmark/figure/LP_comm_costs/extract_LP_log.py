@@ -194,7 +194,7 @@ def extract_lp_data(logfile):
     return pd.DataFrame(results)
 
 
-def generate_auc_comparison(df, output_file="auc_comparison.pdf"):
+def generate_auc_comparison(df, output_file="lp_auc_comparison.pdf"):
     """Generate AUC comparison plot using real data from logs"""
     if df.empty or df["AUC"].isna().all():
         print("No AUC data available to plot")
@@ -258,17 +258,19 @@ def generate_auc_comparison(df, output_file="auc_comparison.pdf"):
             ],  # Use color from specified palette
         )
 
-    # Set chart title and labels
-    plt.title("AUC Comparison", fontsize=16)
-    plt.xlabel("Dataset (Countries)", fontsize=14)
-    plt.ylabel("AUC", fontsize=14)
-    plt.xticks(x_positions, datasets, rotation=45)
-
-    # Set y-axis limits to full AUC range (0 to 1)
-    plt.ylim(0, 1.0)  # Set y-axis from 0 to 1 for AUC values
-
-    # Add legend
-    plt.legend(title="Algorithms", loc="upper left", bbox_to_anchor=(1, 1))
+    plt.title("AUC Comparison", fontsize=30)
+    plt.xlabel("Dataset (Countries)", fontsize=30)
+    plt.ylabel("AUC", fontsize=30)
+    plt.xticks(x_positions, datasets, rotation=45, fontsize=30)
+    plt.yticks(fontsize=30)
+    plt.ylim(0, 1.0)
+    plt.legend(
+        title="Algorithms",
+        loc="upper left",
+        bbox_to_anchor=(1, 1),
+        fontsize=25,
+        title_fontsize=25,
+    )
 
     # Remove grid lines
     plt.grid(False)
@@ -282,7 +284,7 @@ def generate_auc_comparison(df, output_file="auc_comparison.pdf"):
     return output_file
 
 
-def generate_train_time_comparison(df, output_file="train_time_comparison.pdf"):
+def generate_train_time_comparison(df, output_file="lp_train_time_comparison.pdf"):
     """Generate train time comparison plot using real data from logs"""
     if df.empty or df["TrainTime"].isna().all():
         print("No training time data available to plot")
@@ -351,13 +353,18 @@ def generate_train_time_comparison(df, output_file="train_time_comparison.pdf"):
         )
 
     # Set chart title and labels
-    plt.title("Train Time Comparison", fontsize=16)
-    plt.xlabel("Dataset (Countries)", fontsize=14)
-    plt.ylabel("Train Time (ms)", fontsize=14)
-    plt.xticks(x_positions, datasets, rotation=45)
-
-    # Add legend
-    plt.legend(title="Algorithms", loc="upper left", bbox_to_anchor=(1, 1))
+    plt.title("Train Time Comparison", fontsize=30)
+    plt.xlabel("Dataset (Countries)", fontsize=30)
+    plt.ylabel("Train Time (ms)", fontsize=28)
+    plt.xticks(x_positions, datasets, rotation=45, fontsize=30)
+    plt.yticks(fontsize=28)
+    plt.legend(
+        title="Algorithms",
+        loc="upper left",
+        bbox_to_anchor=(1, 1),
+        fontsize=25,
+        title_fontsize=25,
+    )
 
     # Remove grid lines
     plt.grid(False)
@@ -371,7 +378,7 @@ def generate_train_time_comparison(df, output_file="train_time_comparison.pdf"):
     return output_file
 
 
-def generate_comm_cost_comparison(df, output_file="comm_cost_comparison.pdf"):
+def generate_comm_cost_comparison(df, output_file="lp_comm_cost_comparison.pdf"):
     """Generate communication cost comparison plot with each algorithm paired with its theoretical value."""
     if df.empty or (
         df["Actual_Total_MB"].isna().all() and df["Theoretical_Total_MB"].isna().all()
@@ -461,13 +468,18 @@ def generate_comm_cost_comparison(df, output_file="comm_cost_comparison.pdf"):
         current_pos += 1
 
     # Set chart title and labels
-    plt.title("Communication Cost Comparison", fontsize=16)
-    plt.xlabel("Dataset (Countries)", fontsize=14)
-    plt.ylabel("Communication Cost (MB)", fontsize=14)
-    plt.xticks(x_positions, datasets, rotation=45)
-
-    # Add legend
-    plt.legend(title="Algorithms", loc="upper left", bbox_to_anchor=(1, 1))
+    plt.title("Communication Cost Comparison", fontsize=30)
+    plt.xlabel("Dataset (Countries)", fontsize=30)
+    plt.ylabel("Communication Cost (MB)", fontsize=28)
+    plt.xticks(x_positions, datasets, rotation=45, fontsize=30)
+    plt.yticks(fontsize=28)
+    plt.legend(
+        title="Algorithms",
+        loc="upper left",
+        bbox_to_anchor=(1, 1),
+        fontsize=22,
+        title_fontsize=25,
+    )
 
     # Remove grid lines
     plt.grid(False)
@@ -546,9 +558,9 @@ if __name__ == "__main__":
         print(f"Total data points: {len(df)}")
 
         # Generate plots
-        generate_auc_comparison(df, "auc_comparison.pdf")
-        generate_train_time_comparison(df, "train_time_comparison.pdf")
-        generate_comm_cost_comparison(df, "comm_cost_comparison.pdf")
+        generate_auc_comparison(df, "lp_auc_comparison.pdf")
+        generate_train_time_comparison(df, "lp_train_time_comparison.pdf")
+        generate_comm_cost_comparison(df, "lp_comm_cost_comparison.pdf")
     else:
         print("No data was extracted from log files")
 
