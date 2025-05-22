@@ -17,9 +17,9 @@ nodeGroups:
 
   - name: worker-nodes
     instanceType: m5.16xlarge
-    desiredCapacity: 10
-    minSize: 10
-    maxSize: 10
+    desiredCapacity: 4
+    minSize: 4
+    maxSize: 4
     volumeSize: 1024
     amiFamily: Bottlerocket
     labels:

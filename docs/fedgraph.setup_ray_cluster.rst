@@ -5,6 +5,33 @@ This section provides a step-by-step guide to set up a Ray Cluster on AWS EKS.
 
 It is recommended to use the following script to set up the cluster. The script will guide you through the setup process on AWS, including Docker image building, EKS cluster creation, and deployment of Ray on Kubernetes.
 
+
+Components Overview
+-------------------
+
+The following table outlines the key components used in setting up a Ray cluster on AWS EKS:
+
+.. list-table:: Ray Cluster Components
+   :widths: 25 75
+   :header-rows: 1
+
+   * - Component
+     - Purpose
+   * - Ray
+     - Provides distributed computing for machine learning (e.g., FedGraph tasks).
+   * - Kubernetes
+     - Orchestrates and manages Ray's deployment in AWS EKS.
+   * - AWS EKS
+     - Provides the cloud infrastructure for running Kubernetes and Ray.
+   * - KubeRay
+     - Automates Ray cluster setup and management in Kubernetes.
+   * - Helm
+     - Installs KubeRay and other Kubernetes services.
+   * - Ray Dashboard, Prometheus, Grafana
+     - Monitor the Ray cluster’s performance.
+
+=======
+
 Prerequisites
 -------------
 Before you begin, ensure you have the following:

@@ -26,31 +26,34 @@ aws configure set region $aws_region
 check_command "AWS Region configuration"
 
 # Step 2: Login to AWS ECR Public
-echo "Logging in to AWS ECR Public..."
-aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
-check_command "AWS ECR login"
+# Note: You do NOT need to rebuild and push the Docker image every time.
+# Only rebuild if you have added new dependencies or made changes to the Dockerfile.
 
-# Step 3: Build and push Docker image to ECR
-echo "Building and pushing Docker image to ECR..."
+# echo "Logging in to AWS ECR Public..."
+# aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
+# check_command "AWS ECR login"
 
-# Define the builder name
-BUILDER_NAME="fedgraph-builder"
+# # Step 3: Build and push Docker image to ECR
+# echo "Building and pushing Docker image to ECR..."
 
-# Check if the builder already exists
-if docker buildx ls | grep -q $BUILDER_NAME; then
-    echo "Builder $BUILDER_NAME already exists. Using the existing builder."
-    docker buildx use $BUILDER_NAME --global
-else
-    echo "Creating a new builder: $BUILDER_NAME"
-    docker buildx create --driver docker-container --name $BUILDER_NAME
-    check_command "Docker buildx create"
-    docker buildx use $BUILDER_NAME --global
-    check_command "Docker buildx use"
-fi
+# # Define the builder name
+# BUILDER_NAME="fedgraph-builder"
 
-# Build and push the Docker image
-docker buildx build --platform linux/amd64 -t public.ecr.aws/i7t1s5i1/fedgraph:img . --push
-check_command "Docker build and push"
+# # Check if the builder already exists
+# if docker buildx ls | grep -q $BUILDER_NAME; then
+#     echo "Builder $BUILDER_NAME already exists. Using the existing builder."
+#     docker buildx use $BUILDER_NAME --global
+# else
+#     echo "Creating a new builder: $BUILDER_NAME"
+#     docker buildx create --driver docker-container --name $BUILDER_NAME
+#     check_command "Docker buildx create"
+#     docker buildx use $BUILDER_NAME --global
+#     check_command "Docker buildx use"
+# fi
+
+# # Build and push the Docker image
+# docker buildx build --platform linux/amd64 -t public.ecr.aws/i7t1s5i1/fedgraph:img . --push
+# check_command "Docker build and push"
 
 # Step 4: Check if EKS Cluster exists
 CLUSTER_NAME="mlarge-1739510276"  # You can keep a fixed name or change it dynamically
@@ -97,7 +100,7 @@ helm install kuberay-operator kuberay/kuberay-operator --version 1.1.1
 check_command "KubeRay Operator installation"
 
 # Step 8: Deploy Ray Kubernetes Cluster and Ingress
-echo "Deploying Ray Kubernetes Cluster and Ingress..."
+echo "Deploying Ray Kubernetes Cluster and Ingress..."Forwarding ports for Ray Dashboard, Prometheus, and Grafana
 # Ensure the script starts from the root directory of the project
 cd "$(dirname "$0")/.."
 # Apply the Ray Kubernetes cluster and ingress YAML files from the correct path
@@ -113,28 +116,35 @@ echo "If any pod status is Pending, modify ray_kubernetes_cluster.yaml and reapp
 
 # Step 10: Handle Pending Pod Issues (Optional)
 echo "To handle Pending pods, delete the cluster and reapply:"
-echo "kubectl delete -f ray_kubernetes_cluster.yaml"
-echo "kubectl apply -f ray_kubernetes_cluster.yaml"
+echo "kubectl delete -f ray_cluster_configs/ray_kubernetes_cluster.yaml"
+echo "kubectl apply -f ray_cluster_configs/ray_kubernetes_cluster.yaml"
 
 # Step 11: Forward Ports for Ray Dashboard, Prometheus, and Grafana
-echo "Forwarding ports for Ray Dashboard, Prometheus, and Grafana..."
-kubectl port-forward service/raycluster-autoscaler-head-svc 8265:8265 &
-kubectl port-forward raycluster-autoscaler-head-47mzs 8080:8080 &
-kubectl port-forward prometheus-prometheus-kube-prometheus-prometheus-0 -n prometheus-system 9090:9090 &
-kubectl port-forward deployment/prometheus-grafana -n prometheus-system 3000:3000 &
-check_command "Port forwarding"
+# Note: You must open separate terminal windows for each port forwarding command below.
+# Do NOT run them all in one terminal with background (&) processes, as that may cause issues.
+echo "Open a new terminal and run the following commands one by one in separate terminals:"
+echo "kubectl port-forward service/raycluster-autoscaler-head-svc 8265:8265"
+# To get <ray-head-pod-name>, run `kubectl get pods`
+echo "kubectl port-forward <ray-head-pod-name> 8080:8080"
+echo "kubectl port-forward prometheus-prometheus-kube-prometheus-prometheus-0 -n prometheus-system 9090:9090"
+# To get the default username and password for Grafana,check https://docs.ray.io/en/latest/cluster/kubernetes/k8s-ecosystem/prometheus-grafana.html
+echo "kubectl port-forward deployment/prometheus-grafana -n prometheus-system 3000:3000"
 
 # Step 12: Final Check
 echo "Final check for all pods across namespaces:"
 kubectl get pods --all-namespaces -o wide
 
-# Step 13: Submit a Ray Job (Optional)
+# Step 13: Submit a Ray Job
 echo "To submit a Ray job, run:"
 echo "cd fedgraph"
-echo "ray job submit --runtime-env-json '{
-  \"working_dir\": \"./\",
-  \"excludes\": [\".git\"]
-}' --address http://localhost:8265 -- python3 run.py"
+echo "ray job submit \
+  --address http://localhost:8265 \
+  --runtime-env-json '{
+    "working_dir": ".",
+    "excludes": [".git", "__pycache__", "outputs", "fedgraph/he_training_context.pkl"],
+    "pip": ["fsspec", "huggingface_hub", "tenseal"]
+  }' \
+  -- python benchmark/benchmark_GC.py"
 
 # Step 14: Stop a Ray Job (Optional)
 echo "To stop a Ray job, use:"
@@ -142,10 +152,10 @@ echo "ray job stop <job_id> --address http://localhost:8265"
 
 # Step 15: Clean Up Resources
 echo "To clean up resources, delete the RayCluster Custom Resource and EKS cluster:"
-echo "cd ray_cluster_configs"
-echo "kubectl delete -f ray_kubernetes_cluster.yaml"
-echo "kubectl delete -f ray_kubernetes_ingress.yaml"
+echo "kubectl delete -f ray_cluster_configs/ray_kubernetes_cluster.yaml"
+echo "kubectl delete -f ray_cluster_configs/ray_kubernetes_ingress.yaml"
 echo "kubectl get nodes -o name | xargs kubectl delete"
 echo "eksctl delete cluster --region $aws_region --name $CLUSTER_NAME"
+# eksctl delete cluster --region us-east-1 --name mlarge-1739510276
 
 echo "Setup completed successfully!"

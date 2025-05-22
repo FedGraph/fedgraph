@@ -46,7 +46,7 @@ def load_trainer_data_from_hugging_face(trainer_id, args):
         )
         with open(file_path, "rb") as f:
             buffer = BytesIO(f.read())
-            tensor = torch.load(buffer)
+            tensor = torch.load(buffer, weights_only=False)
         print(f"Loaded {file_name}, size: {tensor.size()}")
         return tensor
 
