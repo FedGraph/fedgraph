@@ -452,7 +452,7 @@ def run_fedgraph():
 
 
     # experiment start here
-    for n_trainer in [5]:
+    for n_trainer in [3]:
         args.n_trainer = n_trainer
         for iid in [10000.]:
             args.iid_beta = iid
@@ -492,7 +492,7 @@ for d in ["cora"]:
     args.model_lr = 0.1
     args.hidden_dim = 8
     args.num_heads = 8
-    args.limit_node_degree = 40
+    args.limit_node_degree = 60
     args.optim_kind = 'SGD'
     args.glob_comm = 'FedAvg'
     run_fedgraph()

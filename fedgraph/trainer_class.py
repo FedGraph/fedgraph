@@ -1224,7 +1224,7 @@ class Trainer_GAT:
         self.train_mask = train_indexes  # directly use index
         self.validate_mask = val_indexes  # directly use index
         self.test_mask = test_indexes  # directly use index
-        self.optim_kind = "Adam"
+        self.optim_kind = "SGD"
         self.Optim = None
         self.labels = labels
         self.train_rounds = args.global_rounds
@@ -1272,7 +1272,6 @@ class Trainer_GAT:
         self.model = None
         self.node_mats = {}
         self.loss_weight = 1.0
-        self.graph.to(device=self.device)
         self.M1 = None
         self.M2 = None
         self.K1 = None

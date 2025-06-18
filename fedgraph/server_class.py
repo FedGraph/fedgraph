@@ -720,6 +720,8 @@ class Server_GAT:
 
     #         # return_info
     #         self.trainers[client_id].setNodeMats.remote(return_info)
+
+    '''
     def pretrain_remote_communication(self, communicate_node_indexes, graph, device):
         # Now, the function first computes matrices for all nodes, and then distributes them to each client
         # Saves computation
@@ -743,6 +745,7 @@ class Server_GAT:
                 self.node_mats[node] = node_mat
 
         self.distribute_mats(communicate_node_indexes)
+    '''
 
     # Changed layout of the pretrain_communication algorithm
     def pretrain_communication(self, communicate_node_indexes, graph, device, args):
@@ -756,9 +759,19 @@ class Server_GAT:
 
         max_degree = degrees.max().item()
         # print("The maximum degree is:", max_degree)
-        max_degree = int(self.sample_probab * max_degree)
+
+        deg_mean = degrees.mean()
+        deg_std = degrees.std()
+
+        max_degree = int(deg_mean + self.sample_probab * deg_std)
+
+        print("Size of neighbourhood being used = {neigh_size}".format(neigh_size = max_degree))
+
+
         for node in range(graph.num_nodes):
+
             print(node)
+
             neighbours = self.get_predecessors(graph, node)
 
             sampled_bool = np.array([random.choices([0, 1], [1 - self.sample_probab, self.sample_probab], k = 1)[0] for j in range(len(neighbours))])
@@ -767,8 +780,8 @@ class Server_GAT:
 
             sampled_neigh = neighbours[sampled_bool]
 
-            feats1 = torch.zeros((self.limit_node_degree, d))
-            feats2 = torch.zeros((self.limit_node_degree, d))
+            feats1 = torch.zeros((max_degree, d))
+            feats2 = torch.zeros((max_degree, d))
 
             # sampled_bool = np.array(
             #     [
@@ -792,54 +805,45 @@ class Server_GAT:
 
             # sampled_neigh = neighbours[sampled_bool]
 
-            if len(sampled_neigh) < 2:
-                sampled_neigh = neighbours
-            elif len(sampled_neigh) > args.limit_node_degree:
-                sampled_neigh = random.sample(
-                    list(sampled_neigh), args.limit_node_degree
-                )
+            # if len(sampled_neigh) < 2:
+            #     sampled_neigh = neighbours
+            # elif len(sampled_neigh) > args.limit_node_degree:
+            #     sampled_neigh = random.sample(
+            #         list(sampled_neigh), args.limit_node_degree
+            #     )
 
             # feats1 = np.zeros((len(sampled_neigh), d))
             # feats2 = np.zeros((len(sampled_neigh), d))
 
-            for i in range(len(sampled_neigh)):
+            for i in range(min(len(sampled_neigh), max_degree)):
                 feats1[i, :] = self.feats[node, :]
                 feats2[i, :] = (
                     self.feats[sampled_neigh[i].item(), :]
                 )
-            if self.device == torch.device("cuda"):
-                dim = max_degree
-            else:
-                dim = 2 * len(sampled_neigh)
+            # if self.device == torch.device("cuda"):
+            #     dim = max_degree
+            # else:
+            #     dim = 2 * len(sampled_neigh)
 
-            M1, M2, K1, K2, T_Inter = None, None, None, None, None
-            if self.args.vecgen:
-                M1, M2, K1, K2, T_Inter = self.VecGen(
-                    feats1,
-                    feats2,
-                    vec_dim = args.limit_node_degree
-                )
-                self.node_mats[node] = [
-                    M1, M2, K1, K2, T_Inter
-                ]
-            else:
-                M1, M2, K1, K2 = self.MatGen(
-                    node, len(sampled_neigh), self.feats.size()[1], sampled_neigh
-                )
-                self.node_mats[node] = [
-                    torch.from_numpy(M1).float().to(device=device),
-                    torch.from_numpy(M2).float().to(device=device),
-                    torch.from_numpy(K1).float().to(device=device),
-                    torch.from_numpy(K2).float().to(device=device),
-                ]
-                # print(torch.from_numpy(M1).float().size())
-                # print(M2.size())
-                # print(K1.size())
-                # print(K2.size())
+            dim = max_degree
+
+            M1, M2, K1, K2, T_Inter = self.VecGen(
+                feats1,
+                feats2,
+                vec_dim = max_degree
+            )
+            self.node_mats[node] = [
+                M1, M2, K1, K2, T_Inter
+            ]
+
         graph.to("cpu")
+
+
         self.distribute_mats(communicate_node_indexes)
+
         return self.node_mats
         # Assigned all the node matrices!
+
 
     def compute_degrees(self, edge_index, num_nodes):
         row, col = edge_index
@@ -847,6 +851,8 @@ class Server_GAT:
         return deg
 
     def MatGen(self, node, num, d, sampled_neigh):
+
+        print(f"MatGen being used!")
         A = np.random.uniform(0.0, 5.0, (2 * num, 2 * num))
 
         A = np.matmul(A, A.T)
@@ -940,6 +946,7 @@ class Server_GAT:
             M2 += torch.outer(feats2[i, :], V[:, i])
 
         return M1.float().to(device = self.device), M2.float().to(device = self.device), K1.float().to(device = self.device), K2.float().to(device = self.device), T_inter.float().to(device = self.device)
+
 
     def distribute_mats(self, communicate_node_indexes, previous_node_mats=None):
         if previous_node_mats is not None:
@@ -1097,13 +1104,20 @@ class Server_GAT:
             #         p.grad.data.zero_()
             # # time.sleep(100)
             with torch.no_grad():
+
+                old_model = copy.deepcopy(self.Model)
+
                 for id in range(len(self.trainers)):
-                    for p, p_id in zip(self.Model.parameters(),
-                        ray.get(self.trainers[id].get_model.remote())):
+                    for p, p_id, p_old in zip(self.Model.parameters(),
+                        ray.get(self.trainers[id].get_model.remote()), old_model.parameters()):
                         self.communication_cost += (
                             p_id.nelement() * p_id.element_size()
                         )
-                        p += self.model_loss_weights[id] * (p_id - p)
+
+                        p += self.model_loss_weights[id] * (p_id - p_old)
+
+
+
 
             # else:  # avg model
             #     params = [trainer.get_params.remote() for trainer in self.trainers]

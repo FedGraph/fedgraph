@@ -32,11 +32,11 @@ momentum: 0.0
 iid_beta: 10000
 logdir: ./runs
 device: cpu
-optim_kind: Adam
+optim_kind: SGD
 glob_comm: FedAvg
 optim_reset: False
 dampening: 0.0
-limit_node_degree: 40
+limit_node_degree: 60
 # method: DistributedGAT
 # method: CentralizedGAT
 method: FedGAT
