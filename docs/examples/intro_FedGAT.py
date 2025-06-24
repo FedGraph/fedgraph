@@ -355,7 +355,7 @@ def run_fedgraph():
             print(
                 f"Running experiment with: Dataset={args.dataset},"
                 f" Number of Trainers={n_trainer}, Distribution Type={args.method},"
-                f" IID Beta={args.iid_beta}, Number of Hops={max_deg}, Batch Size={args.batch_size}"
+                f" IID Beta={args.iid_beta}, Number of Hops={args.num_layers}, Batch Size={args.batch_size}"
             )
             #######################################################################
             # FedGAT Test
@@ -433,8 +433,8 @@ def run_fedgraph():
 
             # Pre-training communication
             print("Pre-training communication initiated!")
-            monitor = Monitor()
-            monitor.pretrain_time_start()
+            #monitor = Monitor()
+            #monitor.pretrain_time_start()
             if node_mats == None:
                 node_mats = server.pretrain_communication(
                     induce_node_indexes, data, device=args.device, args=args
@@ -442,17 +442,17 @@ def run_fedgraph():
             else:
                 server.distribute_mats(induce_node_indexes, node_mats)
             print("Pre-training communication completed!")
-            monitor.pretrain_time_end(1)
-            monitor.train_time_start()
+            #monitor.pretrain_time_end(1)
+            #monitor.train_time_start()
             # server.ResetAll(gat_model, train_params=args)
             server.TrainCoordinate()
-            monitor.train_time_end(1)
+            #monitor.train_time_end(1)
         return node_mats
     
 
 
     # experiment start here
-    for n_trainer in [3]:
+    for n_trainer in [1]:
         args.n_trainer = n_trainer
         for iid in [10000.]:
             args.iid_beta = iid
@@ -485,16 +485,18 @@ for d in ["cora"]:
     args.dataset = d
     args.vecgen = True
     args.num_layers = 2
-    args.train_rounds = 150
-    args.global_rounds = 150
-    args.num_local_iters = 4
-    args.batch_size = 16
-    args.model_lr = 0.1
+    args.train_rounds = 1
+    args.global_rounds = 1
+    args.num_local_iters = 250
+    args.batch_size = 32
+    args.model_lr = 0.04
     args.hidden_dim = 8
     args.num_heads = 8
-    args.limit_node_degree = 60
-    args.optim_kind = 'SGD'
+    args.limit_node_degree = 45
+    args.optim_kind = 'Adam'
     args.glob_comm = 'FedAvg'
+    args.sample_probab = 8.
+    args.model_regularisation = 2.e-3
     run_fedgraph()
 
 # for d in ["citeseer"]:

@@ -1213,7 +1213,7 @@ class Trainer_GAT:
         args,
         device,
         type,
-        batch_size=None
+        batch_size=64
     ):
         
         print(f"GPU Available at client {client_id}: {torch.cuda.is_available()}")
@@ -1278,8 +1278,17 @@ class Trainer_GAT:
         self.K2 = None
         self.Inter = None
         self.grad = None
-        self.batch_size = batch_size
-        # print(batch_size)
+
+        if args.batch_size != None:
+
+            self.batch_size = args.batch_size
+
+        else:
+
+            self.batch_size = 64
+
+        print(f"Batch_size = {self.batch_size}")
+        
         self.batch_mask = None
         self.type = type
         self.args = args
@@ -1295,7 +1304,7 @@ class Trainer_GAT:
         return self.model.state_dict()
 
     def get_model_parameters(self):
-        return self.model
+        return self.model.parameters()
 
     def get_model_grads(self):
         return self.grad
@@ -1315,10 +1324,14 @@ class Trainer_GAT:
         current_global_epoch : int
             Current global epoch number.
         """
-        self.model.to(self.device)
         for p, mp in zip(params, self.model.parameters()):
-            mp.data = p
+            mp.copy_(p)
         self.model.to(self.device)
+
+        for p in self.model.parameters():
+
+            p.requires_grad = True
+
 
     def reset_initialzation(self, model, args):
         self.model = model
@@ -1383,6 +1396,8 @@ class Trainer_GAT:
             self.node_mats[client_node_id] = mat
 
     def train_model(self):
+
+        print("Started with train_model function: initialising the data matrices at client {ID}".format(ID = self.client_id))
         """
         Prepare the model and optimizer for training and adjust the node features.
         """
@@ -1392,8 +1407,7 @@ class Trainer_GAT:
         # self.grad = [torch.zeros(p.size()) for p in self.model.parameters()]
         # for g in range(len(self.grad)):
         #     self.grad[g].requires_grad = False
-        self.model.train()
-        self.OptimReset()
+        
         # self.optimizer = torch.optim.Adam(
         #     self.model.parameters(),
         #     lr=self.model_lr,
@@ -1404,76 +1418,63 @@ class Trainer_GAT:
         # print(self.node_mats.keys())
 
         # self.node_feats = [self.node_mats[i]
-        #                    for i in list(self.node_mats.keys())]
-        if self.device == torch.device("cuda"):
-            if self.M1 == None:
-                # Stacking all the matrices correctly
+        #                    for i in list(self.node_mats.keys())
 
-                self.M1 = torch.stack(
-                    [self.node_mats[i][0] for i in range(len(self.node_mats))]
-                ).to(device=self.device)
-                self.M2 = torch.stack(
-                    [self.node_mats[i][1] for i in range(len(self.node_mats))]
-                ).to(device=self.device)
-                self.K1 = torch.stack(
-                    [self.node_mats[i][2] for i in range(len(self.node_mats))]
-                ).to(device=self.device)
-                self.K2 = torch.stack(
-                    [self.node_mats[i][3] for i in range(len(self.node_mats))]
-                ).to(device=self.device)
-                self.Inter = torch.stack(
-                    [self.node_mats[i][3] for i in range(len(self.node_mats))]
-                ).to(device = self.device)
+        print(f"Using Vector FedGAT")
 
-        if self.vector_fedgat == True:
+        if self.M1 == None:
 
-            if self.M1 == None:
+            self.M1 = torch.stack(
+                [self.node_mats[i][0] for i in range(len(self.node_mats))]
+            ).to(device=self.device)
+            self.M2 = torch.stack(
+                [self.node_mats[i][1] for i in range(len(self.node_mats))]
+            ).to(device=self.device)
+            self.K1 = torch.stack(
+                [self.node_mats[i][2] for i in range(len(self.node_mats))]
+            ).to(device=self.device)
+            self.K2 = torch.stack(
+                [self.node_mats[i][3] for i in range(len(self.node_mats))]
+            ).to(device=self.device)
+            self.Inter = torch.stack(
+                [self.node_mats[i][4] for i in range(len(self.node_mats))]
+            ).to(device = self.device)
 
-                self.M1 = torch.stack(
-                    [self.node_mats[i][0] for i in range(len(self.node_mats))]
-                ).to(device=self.device)
-                self.M2 = torch.stack(
-                    [self.node_mats[i][1] for i in range(len(self.node_mats))]
-                ).to(device=self.device)
-                self.K1 = torch.stack(
-                    [self.node_mats[i][2] for i in range(len(self.node_mats))]
-                ).to(device=self.device)
-                self.K2 = torch.stack(
-                    [self.node_mats[i][3] for i in range(len(self.node_mats))]
-                ).to(device=self.device)
-                self.Inter = torch.stack(
-                    [self.node_mats[i][4] for i in range(len(self.node_mats))]
-                ).to(device = self.device)
+            #Creating the minibatch dataloader
 
-                #Creating the minibatch dataloader
+            self.trainloader = NeighborLoader(self.graph, num_neighbors = [int(2 * self.limit_node_degree)] * self.num_layers, input_nodes = self.train_mask, 
+            batch_size = self.batch_size, shuffle = True)
 
-                self.trainloader = NeighborLoader(self.graph, num_neighbors = [int(2 * self.limit_node_degree)] * self.num_layers, input_nodes = self.train_mask, 
-                batch_size = self.batch_size, shuffle = True)
+            self.train_iter = iter(self.trainloader)
 
-                self.train_iter = iter(self.trainloader)
+            self.valloader = NeighborLoader(self.graph, num_neighbors = [int(2 * self.limit_node_degree)] * self.num_layers, input_nodes = self.validate_mask, 
+            batch_size = self.batch_size, shuffle = True)
 
-                self.valloader = NeighborLoader(self.graph, num_neighbors = [int(2 * self.limit_node_degree)] * self.num_layers, input_nodes = self.validate_mask, 
-                batch_size = self.batch_size, shuffle = True)
+            self.val_iter = iter(self.valloader)
 
-                self.val_iter = iter(self.valloader)
+            self.testloader = NeighborLoader(self.graph, num_neighbors = [int(2 * self.limit_node_degree)] * self.num_layers, input_nodes = self.test_mask, 
+            batch_size = self.batch_size, shuffle = True)
 
-                self.testloader = NeighborLoader(self.graph, num_neighbors = [int(2 * self.limit_node_degree)] * self.num_layers, input_nodes = self.test_mask, 
-                batch_size = self.batch_size, shuffle = True)
-
-                self.test_iter = iter(self.testloader)
+            self.test_iter = iter(self.testloader)
 
         del self.node_mats
+
+        self.OptimReset()
+
+        self.model.train()
         
         print(f"Client {self.client_id} ready for training!")
 
+
     def FromServer(self, global_params, duals):
-        self.global_params = global_params
+        
+        print(f"Called FromServer! Global model has been communicated to client {self.client_id}")
 
         self.duals = duals
 
         with torch.no_grad():
             for p_id, p in zip(
-                self.model.parameters(), self.global_params.parameters()
+                self.model.parameters(), global_params.parameters()
             ):
                 p_id.copy_(p)
         #         p_id.grad = torch.zeros(p.size())
@@ -1482,9 +1483,6 @@ class Trainer_GAT:
         # for g in range(len(self.grad)):
         #     self.grad[g].requires_grad = False
 
-        for p in self.global_params.parameters():
-            p.requires_grad = False
-
         if self.glob_comm == "ADMM":
             for p in self.duals.parameters():
                 p.requires_grad = False
@@ -1492,7 +1490,17 @@ class Trainer_GAT:
         for p_id in self.model.parameters():
             p_id.requires_grad = True
 
+        self.OptimReset()
+
+
     def OptimReset(self):
+
+        print(f"Called OptimReset at client {self.client_id}")
+
+        for p in self.model.parameters():
+
+            p.requires_grad = True
+
         if self.optim_kind == "Adam":
             self.Optim = torch.optim.Adam(self.model.parameters(), lr=self.model_lr, weight_decay = self.model_regularisation)
 
@@ -1506,31 +1514,28 @@ class Trainer_GAT:
         """
         Perform a single iteration of training, updating model parameters and computing training and validation metrics.
         """
-        # for p in self.model.parameters():
-        # print(p.requires_grad)
+
         self.Optim.zero_grad()
-        # print("priting in  def train_iterate(self):")
-        # print(self.graph.size())
-        # print(len(self.node_feats))
+        
         y_pred = None
         batch = None
+
+
         if self.type == "DistributedGAT":
             y_pred = self.model.forward(self.graph)
 
+
         else:
+
             try:
                 batch = next(self.train_iter)
+
             except StopIteration:
+                
                 self.train_iter = iter(self.trainloader)
                 batch = next(self.train_iter)
 
-            y_pred = self.model.forward_vector(batch, self.M1[batch.n_id], self.M2[batch.n_id], 
-            self.K1[batch.n_id], self.K2[batch.n_id], self.Inter[batch.n_id])
 
-
-
-            
-        test_accracy = 0.0
 
     #     # when the train_mask is not empty, do the training
     # if (
@@ -1555,16 +1560,14 @@ class Trainer_GAT:
         # print(y_pred.size())
         # print(self.tr_mask)
 
-        t_loss = None
-        v_loss = None
-
         if batch.batch_size == 0:
 
             pass
 
         else:
 
-            #print(y_pred.size(), len(batch.n_id))
+            y_pred = self.model.forward_vector(batch, self.M1[batch.n_id], self.M2[batch.n_id], 
+            self.K1[batch.n_id], self.K2[batch.n_id], self.Inter[batch.n_id])
 
             t_loss = FedGATLoss(
                 self.loss_fn,
@@ -1576,12 +1579,30 @@ class Trainer_GAT:
                 self.global_params,
                 self.duals,
                 self.aug_lagrange_rho,
-                self.dual_weight,
-            )
+                self.dual_weight)
 
             t_loss.backward()
 
             self.Optim.step()
+
+            #testing that the local model gradients are being calculated correctly
+
+            grad_norm = 0.
+
+            el_count = 1.e-7
+
+            with torch.no_grad():
+
+                for p in self.model.parameters():
+
+                    #print(p.requires_grad)
+
+                    grad_norm += torch.sum(p.grad ** 2)
+                    el_count += torch.numel(p)
+
+            grad_norm /= el_count
+
+            print("Gradient norm = {G}".format(G = grad_norm))
 
             #Compute training accuracy
 
@@ -1597,7 +1618,7 @@ class Trainer_GAT:
 
                 #Validation metrics
 
-                y_pred_val = None
+                y_pred_val = 0.
 
                 try:
 
@@ -1638,6 +1659,8 @@ class Trainer_GAT:
                 #test_acc = self.ModelTest()
 
                 self.epoch += 1
+
+                print(f"Train loss = {t_loss.item()}, Val loss = {v_loss.item()}, Train acc = {self.t_acc * 100}, Val acc = {self.v_acc * 100}")
 
                 return (t_loss.item(), v_loss.item(), 100 * self.t_acc, 100 * self.v_acc)
 
@@ -1865,7 +1888,7 @@ class Trainer_GAT:
             Current parameters of the model.
         """
         self.optimizer.zero_grad(set_to_none=True)
-        return tuple(self.model.parameters())
+        return tuple(self.model)
 
     def get_all_loss_accuracy(self):
         """

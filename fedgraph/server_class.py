@@ -753,7 +753,7 @@ class Server_GAT:
         # Saves computation
 
         print("Starting pre-train communication!")
-        graph.to(device)
+
         d = self.feats.size()[1]
         degrees = self.compute_degrees(graph.edge_index, graph.num_nodes)
 
@@ -774,9 +774,7 @@ class Server_GAT:
 
             neighbours = self.get_predecessors(graph, node)
 
-            sampled_bool = np.array([random.choices([0, 1], [1 - self.sample_probab, self.sample_probab], k = 1)[0] for j in range(len(neighbours))])
-
-            sampled_bool = torch.from_numpy(sampled_bool).bool()
+            sampled_bool = torch.randperm(len(neighbours))
 
             sampled_neigh = neighbours[sampled_bool]
 
@@ -1086,6 +1084,8 @@ class Server_GAT:
                     self.GATModelParams[param] - self.LocalModelParams[client_id][param]
                 )
         return global_variance / (len(self.trainers) * len(self.GATModelParams))
+    
+
 
     def TrainUpdate(self):  # This has changed completely
         old = copy.deepcopy(self.Model)
@@ -1107,14 +1107,28 @@ class Server_GAT:
 
                 old_model = copy.deepcopy(self.Model)
 
+                for p, p_old in zip(self.Model.parameters(), old_model.parameters()):
+
+                    p = torch.zeros_like(p)
+
                 for id in range(len(self.trainers)):
-                    for p, p_id, p_old in zip(self.Model.parameters(),
-                        ray.get(self.trainers[id].get_model.remote()), old_model.parameters()):
+                    for p, p_id in zip(self.Model.parameters(),
+                        ray.get(self.trainers[id].get_model.remote())):
                         self.communication_cost += (
                             p_id.nelement() * p_id.element_size()
                         )
 
-                        p += self.model_loss_weights[id] * (p_id - p_old)
+                        p += self.model_loss_weights[id] * p_id
+
+                #Computing the difference in models
+
+                diff = 0.
+
+                for p, p_old in zip(self.Model.parameters(), old_model.parameters()):
+
+                    diff += torch.sum((p - p_old)**2)/torch.numel(p)
+
+                print("Difference in models after global update = {d}".format(d = diff))
 
 
 
@@ -1321,8 +1335,8 @@ class Server_GAT:
                             )
                     self.trainers[id].FromServer.remote(copy.deepcopy(self.Model), None)
 
-                if self.optim_reset:
-                    self.trainers[id].OptimReset.remote()
+                # if self.optim_reset:
+                #     self.trainers[id].OptimReset.remote()
 
             print(
                 f" Log// {self.type}, {self.dataset}, {len(self.trainers)}, {ep}, {avg_train_loss}, {avg_val_loss}, {avg_train_acc}, {avg_val_acc}, {self.communication_cost}, {self.args.iid_beta} //end"
@@ -1330,7 +1344,7 @@ class Server_GAT:
         print(f"//end")
         print("Training completed!")
 
-        return self.Model, self.Duals
+        return self.Model
 
     def TrainCoordinate_FedAvg(self):  # This has also been changed
         self.ResetAll(self.Model, train_params=self.args)

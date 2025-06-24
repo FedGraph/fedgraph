@@ -670,6 +670,12 @@ class FedGATConv(nn.Module):
         nn.init.uniform_(self.att2, a=-1.0, b=1.0)
         nn.init.uniform_(self.weight, a=-1.0, b=1.0)
 
+        with torch.no_grad():
+
+            self.att1 /= torch.norm(self.att1)
+            self.att2 /= torch.norm(self.att2)
+            self.weight /= torch.norm(self.weight)
+
         # self.Soft = nn.Softmax(dim = 1)
 
         # Pre-computing the coefficients of the Chebyshev series
@@ -801,9 +807,23 @@ class FedGATConv(nn.Module):
         
     def forward_vector(self, g, M1, M2, K1, K2, Inter):
 
-        D = (torch.matmul(self.att1, M1) + torch.matmul(self.att2, M2))/self.att1.size()[0] ** 0.5
+        # D = (torch.matmul(self.att1, M1) + torch.matmul(self.att2, M2))/self.att1.size()[0]
 
-        #print(D.size(), Inter.size())
+        # #print(D.size(), Inter.size())
+
+        # D_inter = torch.einsum('bijk,bk->bij', Inter, D)
+
+        # D_coeffs = torch.sum(self.polycoeffs.view(1, self.polycoeffs.size()[0], 1, 1) * torch.stack([torch.linalg.matrix_power(D_inter, i) for i in range(self.max_deg + 1)], dim = 1), dim = 1)
+
+        # E = torch.matmul(torch.matmul(torch.matmul(K1.unsqueeze(1), D_coeffs), K2).squeeze(1), self.weight)
+
+        # F = torch.matmul(torch.matmul(K1.unsqueeze(1), D_coeffs), K1.unsqueeze(2)).squeeze(2)
+
+        # z = E/F
+
+        # return z
+
+        D = (torch.matmul(self.att1, M1) + torch.matmul(self.att2, M2))/self.att1.size()[0]
 
         D_inter = torch.einsum('bijk,bk->bij', Inter, D)
 
@@ -1050,13 +1070,8 @@ class FedGATModel(nn.Module):
     def forward_vector(self, g, M1, M2, K1, K2, Inter):
 
         z = self.GAT1.forward_vector(g, M1, M2, K1, K2, Inter)
-        # print("printing: g.shape and z.shape")
-        # print(g.edge_index)
-        # print(z.size(0))
 
         z = self.GAT2(z, g.edge_index)
-
-        z = self.soft(z)
 
         return z
     
