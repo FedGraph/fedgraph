@@ -701,7 +701,7 @@ def run_GC_selftrain(
     if monitor is not None:
         model_size_mb = server.get_model_size() / (1024 * 1024)
         monitor.add_train_comm_cost(
-            upload_mb=model_size_mb * len(trainers),
+            upload_mb=0,  # No parameter upload in self-training
             download_mb=model_size_mb * len(trainers),
         )
         monitor.train_time_end()
@@ -789,7 +789,7 @@ def run_GC_Fed_algorithm(
             num_clients = len(selected_trainers)
             monitor.add_train_comm_cost(
                 upload_mb=model_size_mb * num_clients,
-                download_mb=model_size_mb * num_clients,
+                download_mb=0,
             )
         ray.internal.free([global_params_id])  # Free the old weight memory
         global_params_id = ray.put(server.W)
@@ -797,8 +797,18 @@ def run_GC_Fed_algorithm(
             trainer.update_params.remote(global_params_id)
             if algorithm == "FedProx":
                 trainer.cache_weights.remote()
+
+        if monitor is not None:
+            # Download cost: server sends parameters to clients
+            monitor.add_train_comm_cost(
+                upload_mb=0,
+                download_mb=model_size_mb * num_clients,
+            )
+
     if monitor is not None:
         monitor.train_time_end()
+
+    # Test phase
     frame = pd.DataFrame()
     acc_refs = []
     for trainer in trainers:
@@ -891,6 +901,9 @@ def run_GCFL_algorithm(
         if (c_round) % 10 == 0:
             print(f"  > Training round {c_round} finished.")
 
+        round_upload_mb: float = 0.0
+        round_download_mb: float = 0.0
+
         if c_round == 1:
             # Perform update_params at the beginning of the first communication round
             # ray.internal.free(
@@ -899,6 +912,12 @@ def run_GCFL_algorithm(
             global_params_id = ray.put(server.W)
             for trainer in trainers:
                 trainer.update_params.remote(global_params_id)
+            # Initial parameter distribution cost
+            if monitor is not None:
+                model_size_mb = server.get_model_size() / (1024 * 1024)
+                round_download_mb += model_size_mb * len(trainers)
+
+        # Local training phase - no communication cost
         reset_params_refs = []
         participating_trainers = server.random_sample_trainers(trainers, frac=1.0)
         for trainer in participating_trainers:
@@ -906,18 +925,39 @@ def run_GCFL_algorithm(
             reset_params_ref = trainer.reset_params.remote()
             reset_params_refs.append(reset_params_ref)
         ray.get(reset_params_refs)
+
+        # Gradient/weight change collection phase - get actual data sizes
         for trainer in participating_trainers:
             if algorithm_type == "gcfl_plus":
-                seqs_grads[ray.get(trainer.get_id.remote())].append(
-                    ray.get(trainer.get_conv_grads_norm.remote())
-                )
-            elif algorithm_type == "gcfl_plus_dWs":
-                seqs_grads[ray.get(trainer.get_id.remote())].append(
-                    ray.get(trainer.get_conv_dWs_norm.remote())
-                )
+                grad_norm = ray.get(trainer.get_conv_grads_norm.remote())
+                seqs_grads[ray.get(trainer.get_id.remote())].append(grad_norm)
+                # Gradient norm is typically a scalar (8 bytes for float64)
+                round_upload_mb += 8 / (1024 * 1024)
 
+            elif algorithm_type == "gcfl_plus_dWs":
+                dw_norm = ray.get(trainer.get_conv_dWs_norm.remote())
+                seqs_grads[ray.get(trainer.get_id.remote())].append(dw_norm)
+                # Weight change norm is typically a scalar (8 bytes for float64)
+                round_upload_mb += 8 / (1024 * 1024)
+
+        # Clustering decision phase - communication cost for update norm computations
         cluster_indices_new = []
         for idc in cluster_indices:
+            # These computations require parameter transmission - use actual model size
+            model_size_mb = server.get_model_size() / (1024 * 1024)
+
+            # compute_max_update_norm: needs full parameter updates from each trainer in cluster
+            max_norm_comm_mb = model_size_mb * len(idc)
+
+            # compute_mean_update_norm: needs training sizes + full parameter updates
+            # Get actual training size data size (typically int32 = 4 bytes)
+            train_size_comm_bytes = 4 * len(idc)  # Standard int size
+            mean_norm_comm_mb = (train_size_comm_bytes / (1024 * 1024)) + (
+                model_size_mb * len(idc)
+            )
+
+            round_upload_mb += max_norm_comm_mb + mean_norm_comm_mb
+
             max_norm = server.compute_max_update_norm([trainers[i] for i in idc])
             mean_norm = server.compute_mean_update_norm([trainers[i] for i in idc])
 
@@ -926,19 +966,29 @@ def run_GCFL_algorithm(
                 if algorithm_type == "gcfl" or all(
                     len(value) >= seq_length for value in seqs_grads.values()
                 ):
-                    server.cache_model(
-                        idc,
-                        ray.get(trainers[idc[0]].get_total_weight.remote()),
-                        acc_trainers,
-                    )
+                    # Cache model - full weight data uses actual model size
+                    full_weight = ray.get(trainers[idc[0]].get_total_weight.remote())
+                    server.cache_model(idc, full_weight, acc_trainers)
+                    round_upload_mb += model_size_mb
+
                     if algorithm_type == "gcfl":
-                        c1, c2 = server.min_cut(
-                            server.compute_pairwise_similarities(trainers)[idc][:, idc],
-                            idc,
+                        # Similarity computation - requires gradients from all trainers
+                        similarity_matrix = server.compute_pairwise_similarities(
+                            trainers
                         )
+                        # Use actual model size for gradient transmission
+                        round_upload_mb += model_size_mb * len(trainers)
+
+                        c1, c2 = server.min_cut(similarity_matrix[idc][:, idc], idc)
                         cluster_indices_new += [c1, c2]
 
                     else:  # gcfl+, gcfl+dws
+                        # Sequence data: seq_length scalars per trainer
+                        seq_data_size_bytes = (
+                            seq_length * len(idc) * 8
+                        )  # 8 bytes per scalar
+                        round_upload_mb += seq_data_size_bytes / (1024 * 1024)
+
                         tmp = [seqs_grads[id][-seq_length:] for id in idc]
                         dtw_distances = server.compute_pairwise_distances(
                             tmp, standardize
@@ -954,17 +1004,29 @@ def run_GCFL_algorithm(
                 cluster_indices_new += [idc]
 
         cluster_indices = cluster_indices_new
-
         trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
-        server.aggregate_clusterwise(trainer_clusters)
-        if monitor is not None:
+
+        # Cluster-wise aggregation phase - communication cost
+        cluster_agg_comm_mb: float = 0.0
+        for cluster in trainer_clusters:
+            cluster_size = len(cluster)
+            # Use actual model size for parameter transmission
             model_size_mb = server.get_model_size() / (1024 * 1024)
-            for cluster in trainer_clusters:
-                cluster_size = len(cluster)
-                monitor.add_train_comm_cost(
-                    upload_mb=model_size_mb * cluster_size,
-                    download_mb=model_size_mb * cluster_size,
-                )
+
+            # Each trainer in cluster uploads: weights + gradients + training_size
+            cluster_agg_comm_mb += model_size_mb * cluster_size  # Weight parameters
+            cluster_agg_comm_mb += model_size_mb * cluster_size  # Gradient parameters
+            cluster_agg_comm_mb += (4 * cluster_size) / (
+                1024 * 1024
+            )  # Training sizes (int32)
+
+            # After aggregation, updated parameters are sent back to cluster
+            round_download_mb += model_size_mb * cluster_size
+
+        round_upload_mb += cluster_agg_comm_mb
+        server.aggregate_clusterwise(trainer_clusters)
+
+        # Local testing phase - minimal communication cost for result collection
         acc_trainers = []
         acc_trainers_refs = [trainer.local_test.remote() for trainer in trainers]
 
@@ -974,14 +1036,25 @@ def run_GCFL_algorithm(
             if ready:
                 for t in ready:
                     acc_trainers.append(ray.get(t)[1])
+                    # Test result communication cost is negligible (single float value)
             acc_trainers_refs = left
 
+        # Record communication cost for this round
+        if monitor is not None:
+            monitor.add_train_comm_cost(
+                upload_mb=round_upload_mb,
+                download_mb=round_download_mb,
+            )
+
+    # Final model caching
     for idc in cluster_indices:
         server.cache_model(
             idc, ray.get(trainers[idc[0]].get_total_weight.remote()), acc_trainers
         )
     if monitor is not None:
         monitor.train_time_end()
+
+    # Build results
     results = np.zeros([len(trainers), len(server.model_cache)])
     for i, (idcs, W, accs) in enumerate(server.model_cache):
         results[idcs, i] = np.array(accs)
