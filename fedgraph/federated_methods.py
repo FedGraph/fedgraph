@@ -161,6 +161,29 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 self.he_context = ts.context_from(context_bytes)
                 print(f"Trainer {self.rank} loaded HE context")
 
+        def get_memory_usage(self):
+            """Get current memory usage and local graph info"""
+            import psutil
+
+            process = psutil.Process()
+            memory_mb = process.memory_info().rss / (1024 * 1024)
+
+            num_nodes = (
+                len(self.local_node_index) if hasattr(self, "local_node_index") else 0
+            )
+            num_edges = (
+                self.adj.shape[1]
+                if hasattr(self, "adj") and len(self.adj.shape) > 1
+                else 0
+            )
+
+            return {
+                "trainer_id": getattr(self, "rank", "unknown"),
+                "memory_mb": memory_mb,
+                "num_nodes": num_nodes,
+                "num_edges": num_edges,
+            }
+
     if args.use_huggingface:
         trainers = [
             Trainer.remote(  # type: ignore
@@ -226,8 +249,12 @@ def run_NC(args: attridict, data: Any = None) -> None:
     # Server class is defined for federated aggregation (e.g., FedAvg)
     # without knowing the local trainer data
 
-    server = Server(features.shape[1], args_hidden, class_num, device, trainers, args)
-
+    if args.use_huggingface:
+        server = Server(feature_shape, args_hidden, class_num, device, trainers, args)
+    else:
+        server = Server(
+            features.shape[1], args_hidden, class_num, device, trainers, args
+        )
     # End initialization time tracking
     server.broadcast_params(-1)
     monitor.init_time_end()
@@ -363,6 +390,13 @@ def run_NC(args: attridict, data: Any = None) -> None:
         )
     monitor.train_time_end()
     training_time = time.time() - training_start
+
+    # Print for plotting use
+    print(
+        f"[Training Time] Dataset: {args.dataset}, Batch Size: {args.batch_size}, Trainers: {args.n_trainer}, "
+        f"Hops: {args.num_hops}, IID Beta: {args.iid_beta} => Training Time = {training_time:.2f} seconds"
+    )
+
     if args.use_encryption:
         if hasattr(server, "aggregation_stats") and server.aggregation_stats:
             training_upload = sum(
@@ -423,8 +457,150 @@ def run_NC(args: attridict, data: Any = None) -> None:
     )
     print(f"average_final_test_loss, {average_final_test_loss}")
     print(f"Average test accuracy, {average_final_test_accuracy}")
+
+    print("\n" + "=" * 80)
+    print("INDIVIDUAL TRAINER MEMORY USAGE")
+    print("=" * 80)
+
+    memory_stats_refs = [trainer.get_memory_usage.remote() for trainer in trainers]
+    memory_stats = ray.get(memory_stats_refs)
+
+    # Replace the existing memory statistics section with this:
+    print("\n" + "=" * 100)
+    print("TRAINER MEMORY vs LOCAL GRAPH SIZE")
+    print("=" * 100)
+    print(
+        f"{'Trainer':<8} {'Memory(MB)':<12} {'Nodes':<8} {'Edges':<8} {'Memory/Node':<12} {'Memory/Edge':<12}"
+    )
+    print("-" * 100)
+
+    memory_stats_refs = [trainer.get_memory_usage.remote() for trainer in trainers]
+    memory_stats = ray.get(memory_stats_refs)
+
+    total_memory = 0
+    total_nodes = 0
+    total_edges = 0
+    max_memory = 0
+    min_memory = float("inf")
+    max_trainer = 0
+    min_trainer = 0
+
+    for stats in memory_stats:
+        trainer_id = stats["trainer_id"]
+        memory_mb = stats["memory_mb"]
+        num_nodes = stats["num_nodes"]
+        num_edges = stats["num_edges"]
+
+        # Calculate memory per node and edge
+        memory_per_node = memory_mb / num_nodes if num_nodes > 0 else 0
+        memory_per_edge = memory_mb / num_edges if num_edges > 0 else 0
+
+        total_memory += memory_mb
+        total_nodes += num_nodes
+        total_edges += num_edges
+
+        if memory_mb > max_memory:
+            max_memory = memory_mb
+            max_trainer = trainer_id
+        if memory_mb < min_memory:
+            min_memory = memory_mb
+            min_trainer = trainer_id
+
+        print(
+            f"{trainer_id:<8} {memory_mb:<12.1f} {num_nodes:<8} {num_edges:<8} {memory_per_node:<12.3f} {memory_per_edge:<12.3f}"
+        )
+
+    avg_memory = total_memory / len(trainers)
+    avg_nodes = total_nodes / len(trainers)
+    avg_edges = total_edges / len(trainers)
+
+    print("=" * 100)
+    print(f"Total Memory Usage: {total_memory:.1f} MB ({total_memory/1024:.2f} GB)")
+    print(f"Total Nodes: {total_nodes}, Total Edges: {total_edges}")
+    print(f"Average Memory per Trainer: {avg_memory:.1f} MB")
+    print(f"Average Nodes per Trainer: {avg_nodes:.1f}")
+    print(f"Average Edges per Trainer: {avg_edges:.1f}")
+    print(f"Max Memory: {max_memory:.1f} MB (Trainer {max_trainer})")
+    print(f"Min Memory: {min_memory:.1f} MB (Trainer {min_trainer})")
+    print(f"Overall Memory/Node Ratio: {total_memory/total_nodes:.3f} MB/node")
+    print(f"Overall Memory/Edge Ratio: {total_memory/total_edges:.3f} MB/edge")
+    print("=" * 100)
+
     if monitor is not None:
         monitor.print_comm_cost()
+
+    # Calculate required metrics for CSV output
+    total_time = time.time() - start_time
+    training_time = time.time() - training_start
+
+    # Get model size - works in both cluster and local environments
+    model_size_mb = 0.0
+    total_params = 0
+    if hasattr(server, "get_model_size"):
+        model_size_mb = server.get_model_size() / (1024 * 1024)
+    elif len(trainers) > 0:
+        # Fallback: calculate from first trainer's model
+        trainer_info = (
+            ray.get(trainers[0].get_info.remote())
+            if hasattr(trainers[0], "get_info")
+            else {}
+        )
+        if "model_params" in trainer_info:
+            total_params = trainer_info["model_params"]
+            model_size_mb = (total_params * 4) / (1024 * 1024)  # float32 = 4 bytes
+
+    # Get peak memory from existing memory_stats (already collected above)
+    peak_memory_mb = 0.0
+    if memory_stats:
+        peak_memory_mb = max([stats["memory_mb"] for stats in memory_stats])
+
+    # Calculate average round time
+    avg_round_time = (
+        training_time / args.global_rounds if args.global_rounds > 0 else 0.0
+    )
+
+    # Get total communication cost from monitor (works in cluster)
+    total_comm_cost_mb = 0.0
+    if monitor:
+        total_comm_cost_mb = (
+            monitor.pretrain_theoretical_comm_MB + monitor.train_theoretical_comm_MB
+        )
+
+    # Print CSV format result - compatible with cluster logging
+    print(f"\n{'='*80}")
+    print("CSV FORMAT RESULT:")
+    print(
+        "DS,IID,BS,Time[s],FinalAcc[%],CompTime[s],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams"
+    )
+    print(
+        f"{args.dataset},{args.iid_beta},{args.batch_size},"
+        f"{total_time:.1f},"
+        f"{average_final_test_accuracy:.2f},"
+        f"{training_time:.1f},"
+        f"{total_comm_cost_mb:.1f},"
+        f"{peak_memory_mb:.1f},"
+        f"{avg_round_time:.3f},"
+        f"{model_size_mb:.3f},"
+        f"{total_params}"
+    )
+    print("=" * 80)
+    
+    print(f"\n{'='*80}")
+    print(f"EXPERIMENT SUMMARY")
+    print(f"{'='*80}")
+    print(f"Dataset: {args.dataset}")
+    print(f"Method: {args.method}")
+    print(f"Trainers: {args.n_trainer}")
+    print(f"IID Beta: {args.iid_beta}")
+    print(f"Batch Size: {args.batch_size}")
+    print(f"Hops: {args.num_hops}")
+    print(f"Total Execution Time: {time.time() - start_time:.2f} seconds")
+    print(f"Training Time: {training_time:.2f} seconds")
+    print(f"Pretrain Comm Cost: {pretrain_upload + pretrain_download:.2f} MB")
+    print(f"Training Comm Cost: {monitor.train_theoretical_comm_MB:.2f} MB")
+    if args.use_encryption:
+        print(f"Total Comm Cost: {total_comm_cost:.2f} MB")
+    print(f"{'='*80}\n")
     ray.shutdown()
 
 
@@ -614,6 +790,7 @@ def run_GC(args: attridict, data: Any) -> None:
             algorithm_type="gcfl_plus",
             seq_length=args.seq_length,
             standardize=args.standardize,
+            monitor=monitor,
         ),
         "GCFL+dWs": lambda: run_GCFL_algorithm(
             trainers=trainers,
@@ -625,6 +802,7 @@ def run_GC(args: attridict, data: Any) -> None:
             algorithm_type="gcfl_plus_dWs",
             seq_length=args.seq_length,
             standardize=args.standardize,
+            monitor=monitor,
         ),
     }
 
@@ -884,6 +1062,16 @@ def run_GCFL_algorithm(
     cluster_indices = [np.arange(len(trainers)).astype("int")]
     trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
 
+    # Initialize clustering statistics tracking
+    clustering_stats = {
+        "total_clustering_events": 0,
+        "similarity_computations": 0,
+        "dtw_computations": 0,
+        "model_cache_operations": 0,
+        "rounds_with_clustering": [],
+        "cluster_sizes_per_round": [],
+    }
+
     global_params_id = ray.put(server.W)
     if algorithm_type in ["gcfl_plus", "gcfl_plus_dWs"]:
         seqs_grads: Any = {ray.get(c.get_id.remote()): [] for c in trainers}
@@ -903,6 +1091,7 @@ def run_GCFL_algorithm(
 
         round_upload_mb: float = 0.0
         round_download_mb: float = 0.0
+        round_clustering_occurred = False
 
         if c_round == 1:
             # Perform update_params at the beginning of the first communication round
@@ -917,7 +1106,7 @@ def run_GCFL_algorithm(
                 model_size_mb = server.get_model_size() / (1024 * 1024)
                 round_download_mb += model_size_mb * len(trainers)
 
-        # Local training phase - no communication cost
+        # Local training phase
         reset_params_refs = []
         participating_trainers = server.random_sample_trainers(trainers, frac=1.0)
         for trainer in participating_trainers:
@@ -925,6 +1114,11 @@ def run_GCFL_algorithm(
             reset_params_ref = trainer.reset_params.remote()
             reset_params_refs.append(reset_params_ref)
         ray.get(reset_params_refs)
+
+        # Add communication cost for reset_params operation (parameter retrieval after training)
+        if monitor is not None:
+            model_size_mb = server.get_model_size() / (1024 * 1024)
+            round_upload_mb += model_size_mb * len(participating_trainers)
 
         # Gradient/weight change collection phase - get actual data sizes
         for trainer in participating_trainers:
@@ -942,36 +1136,34 @@ def run_GCFL_algorithm(
 
         # Clustering decision phase - communication cost for update norm computations
         cluster_indices_new = []
+        model_size_mb = server.get_model_size() / (1024 * 1024)
+
         for idc in cluster_indices:
-            # These computations require parameter transmission - use actual model size
-            model_size_mb = server.get_model_size() / (1024 * 1024)
-
-            # compute_max_update_norm: needs full parameter updates from each trainer in cluster
-            max_norm_comm_mb = model_size_mb * len(idc)
-
-            # compute_mean_update_norm: needs training sizes + full parameter updates
-            # Get actual training size data size (typically int32 = 4 bytes)
-            train_size_comm_bytes = 4 * len(idc)  # Standard int size
-            mean_norm_comm_mb = (train_size_comm_bytes / (1024 * 1024)) + (
-                model_size_mb * len(idc)
-            )
-
-            round_upload_mb += max_norm_comm_mb + mean_norm_comm_mb
-
             max_norm = server.compute_max_update_norm([trainers[i] for i in idc])
             mean_norm = server.compute_mean_update_norm([trainers[i] for i in idc])
 
+            # Only add clustering-specific communication cost when clustering condition is met
             if mean_norm < EPS_1 and max_norm > EPS_2 and len(idc) > 2 and c_round > 20:
+                # Record that clustering occurred in this round
+                round_clustering_occurred = True
+                clustering_stats["total_clustering_events"] += 1
+
                 # marginal condition for gcfl, gcfl+, gcfl+dws
                 if algorithm_type == "gcfl" or all(
                     len(value) >= seq_length for value in seqs_grads.values()
                 ):
+                    # Record model cache operation
+                    clustering_stats["model_cache_operations"] += 1
+
                     # Cache model - full weight data uses actual model size
                     full_weight = ray.get(trainers[idc[0]].get_total_weight.remote())
                     server.cache_model(idc, full_weight, acc_trainers)
                     round_upload_mb += model_size_mb
 
                     if algorithm_type == "gcfl":
+                        # Record similarity computation
+                        clustering_stats["similarity_computations"] += 1
+
                         # Similarity computation - requires gradients from all trainers
                         similarity_matrix = server.compute_pairwise_similarities(
                             trainers
@@ -983,6 +1175,9 @@ def run_GCFL_algorithm(
                         cluster_indices_new += [c1, c2]
 
                     else:  # gcfl+, gcfl+dws
+                        # Record DTW computation
+                        clustering_stats["dtw_computations"] += 1
+
                         # Sequence data: seq_length scalars per trainer
                         seq_data_size_bytes = (
                             seq_length * len(idc) * 8
@@ -1003,30 +1198,33 @@ def run_GCFL_algorithm(
             else:
                 cluster_indices_new += [idc]
 
+        # Record clustering statistics for this round
+        if round_clustering_occurred:
+            clustering_stats["rounds_with_clustering"].append(c_round)
+        clustering_stats["cluster_sizes_per_round"].append(len(cluster_indices_new))
+
         cluster_indices = cluster_indices_new
         trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
 
-        # Cluster-wise aggregation phase - communication cost
-        cluster_agg_comm_mb: float = 0.0
+        # Cluster-wise aggregation phase - always happens but cost varies based on clustering
         for cluster in trainer_clusters:
             cluster_size = len(cluster)
             # Use actual model size for parameter transmission
             model_size_mb = server.get_model_size() / (1024 * 1024)
 
-            # Each trainer in cluster uploads: weights + gradients + training_size
-            cluster_agg_comm_mb += model_size_mb * cluster_size  # Weight parameters
-            cluster_agg_comm_mb += model_size_mb * cluster_size  # Gradient parameters
-            cluster_agg_comm_mb += (4 * cluster_size) / (
+            # Basic aggregation communication (always happens regardless of clustering)
+            # Each trainer uploads weights for aggregation
+            round_upload_mb += model_size_mb * cluster_size  # Weight parameters only
+            # Training sizes are small and always needed
+            round_upload_mb += (4 * cluster_size) / (
                 1024 * 1024
             )  # Training sizes (int32)
 
             # After aggregation, updated parameters are sent back to cluster
             round_download_mb += model_size_mb * cluster_size
-
-        round_upload_mb += cluster_agg_comm_mb
         server.aggregate_clusterwise(trainer_clusters)
 
-        # Local testing phase - minimal communication cost for result collection
+        # Local testing phase - add communication cost for parameter retrieval during testing
         acc_trainers = []
         acc_trainers_refs = [trainer.local_test.remote() for trainer in trainers]
 
@@ -1045,6 +1243,21 @@ def run_GCFL_algorithm(
                 upload_mb=round_upload_mb,
                 download_mb=round_download_mb,
             )
+
+    # Print detailed clustering statistics
+    print("\n" + "=" * 50)
+    print("CLUSTERING STATISTICS")
+    print("=" * 50)
+    print(f"Algorithm: {algorithm_type}")
+    print(
+        f"Clustering Events: {clustering_stats['total_clustering_events']}/{communication_rounds}"
+    )
+    print(
+        f"Clustering Frequency: {clustering_stats['total_clustering_events']/communication_rounds:.1%}"
+    )
+    if clustering_stats["rounds_with_clustering"]:
+        print(f"Clustering Rounds: {clustering_stats['rounds_with_clustering']}")
+    print("=" * 50)
 
     # Final model caching
     for idc in cluster_indices:
