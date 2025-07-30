@@ -10,7 +10,6 @@ import time
 from importlib.resources import files
 from pathlib import Path
 from typing import Any, List, Optional
-
 import attridict
 import numpy as np
 import pandas as pd
@@ -33,7 +32,11 @@ from fedgraph.utils_lp import (
 )
 from fedgraph.utils_nc import get_1hop_feature_sum, save_all_trainers_data
 
-
+try:
+    from .low_rank import Server_LowRank, Trainer_General_LowRank
+    LOWRANK_AVAILABLE = True
+except ImportError:
+    LOWRANK_AVAILABLE = False
 def run_fedgraph(args: attridict) -> None:
     """
     Run the training process for the specified task.
@@ -50,15 +53,26 @@ def run_fedgraph(args: attridict) -> None:
     data: Any
         Input data for the federated learning task. Format depends on the specific task and
         will be explained in more detail below inside specific functions.
-    """
+    """ # Validate configuration for low-rank compression
+    if hasattr(args, 'use_lowrank') and args.use_lowrank:
+        if args.fedgraph_task != "NC":
+            raise ValueError("Low-rank compression currently only supported for NC tasks")
+        if args.method != "FedAvg":
+            raise ValueError("Low-rank compression currently only supported for FedAvg method")
+        if args.use_encryption:
+            raise ValueError("Cannot use both encryption and low-rank compression simultaneously")
+    
+    # Load data
     if args.fedgraph_task != "NC" or not args.use_huggingface:
         data = data_loader(args)
     else:
-        # use hugging_face instead of use data_loader
-        print("Using hugging_face for local loading")
         data = None
+    
     if args.fedgraph_task == "NC":
-        run_NC(args, data)
+        if hasattr(args, 'use_lowrank') and args.use_lowrank:
+            run_NC_lowrank(args, data)
+        else:
+            run_NC(args, data)  
     elif args.fedgraph_task == "GC":
         run_GC(args, data)
     elif args.fedgraph_task == "LP":
@@ -603,7 +617,193 @@ def run_NC(args: attridict, data: Any = None) -> None:
     print(f"{'='*80}\n")
     ray.shutdown()
 
+def run_NC_lowrank(args: attridict, data: Any = None) -> None:
+    
+    if not LOWRANK_AVAILABLE:
+        raise ImportError("Low-rank compression modules not available. Please implement the low-rank functionality in fedgraph.low_rank")
+    
+    print("=== Running NC with Low-Rank Compression ===")
+    print(f"Low-rank method: {getattr(args, 'lowrank_method', 'fixed')}")
+    if hasattr(args, 'lowrank_method'):
+        if args.lowrank_method == 'fixed':
+            print(f"Fixed rank: {getattr(args, 'fixed_rank', 10)}")
+        elif args.lowrank_method == 'adaptive':
+            print(f"Target compression ratio: {getattr(args, 'compression_ratio', 2.0)}")
+        elif args.lowrank_method == 'energy':
+            print(f"Energy threshold: {getattr(args, 'energy_threshold', 0.95)}")
+    
+    monitor = Monitor(use_cluster=args.use_cluster)
+    monitor.init_time_start()
 
+    ray.init()
+    start_time = time.time()
+    torch.manual_seed(42)
+    
+    if args.num_hops == 0:
+        print("Changing method to FedAvg")
+        args.method = "FedAvg"
+
+    if not args.use_huggingface:
+        (
+            edge_index, features, labels, idx_train, idx_test, class_num,
+            split_node_indexes, communicate_node_global_indexes,
+            in_com_train_node_local_indexes, in_com_test_node_local_indexes,
+            global_edge_indexes_clients,
+        ) = data
+        
+        if args.saveto_huggingface:
+            save_all_trainers_data(
+                split_node_indexes=split_node_indexes,
+                communicate_node_global_indexes=communicate_node_global_indexes,
+                global_edge_indexes_clients=global_edge_indexes_clients,
+                labels=labels,
+                features=features,
+                in_com_train_node_local_indexes=in_com_train_node_local_indexes,
+                in_com_test_node_local_indexes=in_com_test_node_local_indexes,
+                n_trainer=args.n_trainer,
+                args=args,
+            )
+
+    # Model configuration
+    if args.dataset in ["simulate", "cora", "citeseer", "pubmed", "reddit"]:
+        args_hidden = 16
+    else:
+        args_hidden = 256
+
+    # Device configuration
+    num_cpus_per_trainer = args.num_cpus_per_trainer
+    if args.gpu:
+        device = torch.device("cuda")
+        num_gpus_per_trainer = args.num_gpus_per_trainer
+    else:
+        device = torch.device("cpu")
+        num_gpus_per_trainer = 0
+
+  
+    @ray.remote(
+        num_gpus=num_gpus_per_trainer,
+        num_cpus=num_cpus_per_trainer,
+        scheduling_strategy="SPREAD",
+    )
+    class Trainer(Trainer_General_LowRank):  # Use low-rank trainer instead
+        def __init__(self, *args: Any, **kwds: Any):
+            super().__init__(*args, **kwds)
+
+    # Create trainers
+    if args.use_huggingface:
+        trainers = [
+            Trainer.remote(
+                rank=i, args_hidden=args_hidden, device=device, args=args,
+            )
+            for i in range(args.n_trainer)
+        ]
+    else:
+        trainers = [
+            Trainer.remote(
+                rank=i, args_hidden=args_hidden, device=device, args=args,
+                local_node_index=split_node_indexes[i],
+                communicate_node_index=communicate_node_global_indexes[i],
+                adj=global_edge_indexes_clients[i],
+                train_labels=labels[communicate_node_global_indexes[i]][
+                    in_com_train_node_local_indexes[i]
+                ],
+                test_labels=labels[communicate_node_global_indexes[i]][
+                    in_com_test_node_local_indexes[i]
+                ],
+                features=features[split_node_indexes[i]],
+                idx_train=in_com_train_node_local_indexes[i],
+                idx_test=in_com_test_node_local_indexes[i],
+            )
+            for i in range(args.n_trainer)
+        ]
+
+    # Get trainer information
+    trainer_information = [
+        ray.get(trainers[i].get_info.remote()) for i in range(len(trainers))
+    ]
+
+    global_node_num = sum([info["features_num"] for info in trainer_information])
+    class_num = max([info["label_num"] for info in trainer_information])
+
+    train_data_weights = [
+        info["len_in_com_train_node_local_indexes"] for info in trainer_information
+    ]
+    test_data_weights = [
+        info["len_in_com_test_node_local_indexes"] for info in trainer_information
+    ]
+
+    # Initialize models 
+    ray.get([
+        trainers[i].init_model.remote(global_node_num, class_num)
+        for i in range(len(trainers))
+    ])
+
+    server = Server_LowRank(
+        features.shape[1], args_hidden, class_num, device, trainers, args
+    )
+    # End initialization
+    server.broadcast_params(-1)
+    monitor.init_time_end()
+
+
+    monitor.pretrain_time_start()
+
+    monitor.pretrain_time_end()
+
+  
+    monitor.train_time_start()
+    print("Starting federated training with low-rank compression...")
+    
+    global_acc_list = []
+    for i in range(args.global_rounds):
+   
+        server.train(i)
+
+        # Evaluation
+        results = [trainer.local_test.remote() for trainer in server.trainers]
+        results = np.array([ray.get(result) for result in results])
+        average_test_accuracy = np.average(
+            [row[1] for row in results], weights=test_data_weights, axis=0
+        )
+        global_acc_list.append(average_test_accuracy)
+
+        print(f"Round {i+1}: Global Test Accuracy = {average_test_accuracy:.4f}")
+
+        # Communication cost tracking (enhanced with compression-aware sizing)
+        model_size_mb = server.get_model_size() / (1024 * 1024)
+        monitor.add_train_comm_cost(
+            upload_mb=model_size_mb * args.n_trainer,
+            download_mb=model_size_mb * args.n_trainer,
+        )
+        
+        if (i + 1) % 10 == 0 and hasattr(server, 'print_compression_stats'):
+            server.print_compression_stats()
+
+    monitor.train_time_end()
+
+    # Final evaluation 
+    results = [trainer.local_test.remote() for trainer in server.trainers]
+    results = np.array([ray.get(result) for result in results])
+
+    average_final_test_loss = np.average(
+        [row[0] for row in results], weights=test_data_weights, axis=0
+    )
+    average_final_test_accuracy = np.average(
+        [row[1] for row in results], weights=test_data_weights, axis=0
+    )
+    
+    print(f"Final test loss: {average_final_test_loss:.4f}")
+    print(f"Final test accuracy: {average_final_test_accuracy:.4f}")
+    
+    # Print final compression statistics
+    if hasattr(server, 'print_compression_stats'):
+        server.print_compression_stats()
+    
+    if monitor is not None:
+        monitor.print_comm_cost()
+    
+    ray.shutdown()
+    
 def run_GC(args: attridict, data: Any) -> None:
     """
     Entrance of the training process for graph classification.

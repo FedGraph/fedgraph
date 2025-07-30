@@ -24,7 +24,7 @@ config = {
     # Task, Method, and Dataset Settings
     "fedgraph_task": "NC",
     "dataset": "cora",
-    "method": "FedGCN",  # Federated learning method, e.g., "FedGCN"
+    "method": "FedAvg",  # Federated learning method, e.g., "FedGCN"
     "iid_beta": 10000,  # Dirichlet distribution parameter for label distribution among clients
     "distribution_type": "average",  # Distribution type among clients
     # Training Configuration
@@ -35,7 +35,7 @@ config = {
     "batch_size": -1,  # -1 indicates full batch training
     # Model Structure
     "num_layers": 2,
-    "num_hops": 1,  # Number of n-hop neighbors for client communication
+    "num_hops": 0,  # Number of n-hop neighbors for client communication
     # Resource and Hardware Settings
     "gpu": False,
     "num_cpus_per_trainer": 1,
@@ -44,12 +44,16 @@ config = {
     # Logging and Output Configuration
     "logdir": "./runs",
     # Security and Privacy
-    "use_encryption": True,  # Whether to use Homomorphic Encryption for secure aggregation
+    "use_encryption": False,  # Whether to use Homomorphic Encryption for secure aggregation
     # Dataset Handling Options
     "use_huggingface": False,  # Load dataset directly from Hugging Face Hub
     "saveto_huggingface": False,  # Save partitioned dataset to Hugging Face Hub
     # Scalability and Cluster Configuration
-    "use_cluster": True,  # Use Kubernetes for scalability if True
+    "use_cluster": False,  # Use Kubernetes for scalability if True
+    # Low-rank compression settings 
+    "use_lowrank": True,
+    "lowrank_method": "fixed",
+    "fixed_rank": 8,
 }
 
 #######################################################################
