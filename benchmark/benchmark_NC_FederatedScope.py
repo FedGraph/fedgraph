@@ -11,10 +11,10 @@ Modified to match other frameworks' partition and reduce accuracy for fair compa
 """
 
 import argparse
+import copy
 import os
 import sys
 import time
-import copy
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
@@ -26,7 +26,12 @@ from torch_geometric.datasets import Planetoid
 from torch_geometric.nn import GCNConv
 
 # ─── Configuration ────────────────────────────────────────────────────────
-DATASETS = ["cora", "citeseer", "pubmed", "ogbn-arxiv"]  # Add ogbn-arxiv like other frameworks
+DATASETS = [
+    "cora",
+    "citeseer",
+    "pubmed",
+    "ogbn-arxiv",
+]  # Add ogbn-arxiv like other frameworks
 IID_BETAS = [10000.0, 100.0, 10.0]
 BATCH_SIZE = -1  # full-batch training
 CLIENTS = 10
@@ -39,6 +44,7 @@ use_cluster = False
 @dataclass
 class Metrics:
     """Container for all metrics"""
+
     accuracy: float = 0.0
     total_time: float = 0.0
     computation_time: float = 0.0
@@ -61,12 +67,12 @@ class FedScopeGCN(torch.nn.Module):
 
     def forward(self, data):
         """Forward pass compatible with FederatedScope data format"""
-        if hasattr(data, 'x') and hasattr(data, 'edge_index'):
+        if hasattr(data, "x") and hasattr(data, "edge_index"):
             x, edge_index = data.x, data.edge_index
         else:
             # Handle tuple format
             x, edge_index = data
-            
+
         x = self.conv1(x, edge_index)
         x = F.relu(x)
         x = self.dropout(x)  # Add dropout for regularization
@@ -99,7 +105,9 @@ def get_model_size(model: torch.nn.Module) -> Tuple[float, int]:
     return model_size_mb, total_params
 
 
-def calculate_communication_cost(model_size_mb: float, rounds: int, clients: int) -> float:
+def calculate_communication_cost(
+    model_size_mb: float, rounds: int, clients: int
+) -> float:
     """Calculate total communication cost in MB"""
     # Download: server → clients + Upload: clients → server
     cost_per_round = model_size_mb * clients * 2
@@ -113,7 +121,7 @@ def dirichlet_partition(labels, num_clients, alpha):
     """
     # Set fixed random seed for consistent partition across all frameworks
     np.random.seed(42)
-    
+
     labels = labels.cpu().numpy()
     num_classes = labels.max() + 1
     idx_by_class = [np.where(labels == c)[0] for c in range(num_classes)]
@@ -143,6 +151,7 @@ def load_dataset(name):
     if name in ["ogbn-arxiv", "ogbn-papers100M"]:
         try:
             from ogb.nodeproppred import PygNodePropPredDataset
+
             ds = PygNodePropPredDataset(name=name, root="data")
             data = ds[0]
             data.y = data.y.squeeze()
@@ -165,30 +174,32 @@ def load_dataset(name):
 
 class FedScopeTrainer:
     """Trainer that mimics other frameworks' behavior exactly"""
-    
+
     def __init__(self, model, device):
         self.model = model
         self.device = device
-        
+
     def local_update(self, data, client_indices, lr=0.1):
         """Perform local update - same as other frameworks"""
         self.model.train()
         # Use same optimizer settings as other frameworks
-        optimizer = torch.optim.SGD(self.model.parameters(), lr=lr, weight_decay=0.01)  # Add weight decay
-        
+        optimizer = torch.optim.SGD(
+            self.model.parameters(), lr=lr, weight_decay=0.01
+        )  # Add weight decay
+
         # One local update step (same as other frameworks)
         optimizer.zero_grad()
-        
+
         # Forward pass
         out = self.model(data)
-        
+
         # Compute loss only on client's nodes
         loss = F.cross_entropy(out[client_indices], data.y[client_indices])
         loss.backward()
         optimizer.step()
-        
+
         return loss.item()
-        
+
     def evaluate(self, data, test_indices):
         """Evaluate model on test set - return as decimal (0-1) like other frameworks"""
         self.model.eval()
@@ -198,11 +209,11 @@ class FedScopeTrainer:
             correct = (preds[test_indices] == data.y[test_indices]).sum().item()
             accuracy = correct / test_indices.size(0)  # Return as decimal (0-1)
         return accuracy
-        
+
     def get_model_params(self):
         """Get model parameters"""
         return [p.data.clone() for p in self.model.parameters()]
-        
+
     def set_model_params(self, params):
         """Set model parameters"""
         for p, param in zip(self.model.parameters(), params):
@@ -213,29 +224,31 @@ def federated_averaging(local_params_list):
     """Perform FedAvg aggregation - same as other frameworks"""
     if not local_params_list:
         return None
-        
+
     # Initialize global params with zeros
     global_params = [torch.zeros_like(param) for param in local_params_list[0]]
-    
+
     # Average all local parameters
     for local_params in local_params_list:
         for global_param, local_param in zip(global_params, local_params):
             global_param.add_(local_param)
-    
+
     # Divide by number of clients
     for global_param in global_params:
         global_param.div_(len(local_params_list))
-    
+
     return global_params
 
 
-def run_one(dataset_name: str, beta: float, batch_size: int, use_cluster_flag: bool) -> Metrics:
+def run_one(
+    dataset_name: str, beta: float, batch_size: int, use_cluster_flag: bool
+) -> Metrics:
     """Run one federated learning experiment - matching other frameworks exactly"""
-    
+
     # Set fixed random seed for reproducibility and consistency
     torch.manual_seed(42)
     np.random.seed(42)
-    
+
     # Initialize metrics
     metrics = Metrics()
     initial_memory = get_memory_usage()
@@ -245,7 +258,7 @@ def run_one(dataset_name: str, beta: float, batch_size: int, use_cluster_flag: b
     if data is None:
         print(f"Skipping {dataset_name}")
         return metrics
-        
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     data = data.to(device)
 
@@ -260,7 +273,7 @@ def run_one(dataset_name: str, beta: float, batch_size: int, use_cluster_flag: b
 
     # Initialize model with same architecture as other frameworks
     model = FedScopeGCN(in_feats, 64, num_classes).to(device)
-    
+
     # Calculate model size
     model_size_mb, total_params = get_model_size(model)
     metrics.model_size_mb = model_size_mb
@@ -268,47 +281,51 @@ def run_one(dataset_name: str, beta: float, batch_size: int, use_cluster_flag: b
 
     # Initialize trainer
     trainer = FedScopeTrainer(model, device)
-    
+
     # Track metrics
     computation_times = []
     peak_memory = initial_memory["total_mb"]
-    
+
     # Federated training loop - same pattern as other frameworks
     start_time = time.time()
-    
+
     for round_num in range(1, ROUNDS + 1):
         round_start = time.time()
-        
+
         # Store local parameters from each client
         local_params_list = []
-        
+
         # Train each client - same as other frameworks
         for client_id in range(CLIENTS):
             # Perform local update with slightly lower learning rate to reduce accuracy
-            trainer.local_update(data, client_idxs[client_id], lr=0.08)  # Slightly lower LR
-            
+            trainer.local_update(
+                data, client_idxs[client_id], lr=0.08
+            )  # Slightly lower LR
+
             # Collect local parameters
             local_params = trainer.get_model_params()
             local_params_list.append(local_params)
-        
+
         # FedAvg aggregation - same as other frameworks
         global_params = federated_averaging(local_params_list)
-        
+
         # Update global model
         trainer.set_model_params(global_params)
-        
+
         round_time = time.time() - round_start
         computation_times.append(round_time)
-        
+
         # Track memory
         current_memory = get_memory_usage()
         peak_memory = max(peak_memory, current_memory["total_mb"])
-        
+
         # Evaluate at specified rounds (same as other frameworks)
         if round_num == 1 or round_num % 10 == 0:
             accuracy = trainer.evaluate(data, test_idx)
-            current_comm_cost = calculate_communication_cost(model_size_mb, round_num, CLIENTS)
-            
+            current_comm_cost = calculate_communication_cost(
+                model_size_mb, round_num, CLIENTS
+            )
+
             print(
                 f"[{dataset_name} β={beta}] Round {round_num:3d} → "
                 f"Test Acc: {accuracy*100:.2f}% | "  # Convert to percentage for display
@@ -318,10 +335,10 @@ def run_one(dataset_name: str, beta: float, batch_size: int, use_cluster_flag: b
             )
 
     total_time = time.time() - start_time
-    
+
     # Final evaluation
     final_accuracy = trainer.evaluate(data, test_idx)
-    
+
     # Calculate final metrics - store accuracy as decimal like other frameworks
     metrics.accuracy = final_accuracy  # Store as decimal (0-1)
     metrics.total_time = total_time
@@ -331,7 +348,7 @@ def run_one(dataset_name: str, beta: float, batch_size: int, use_cluster_flag: b
         model_size_mb, ROUNDS, CLIENTS
     )
     metrics.peak_memory_mb = peak_memory
-    
+
     return metrics
 
 
@@ -340,19 +357,21 @@ def main():
     parser.add_argument(
         "--use_cluster",
         action="store_true",
-        help="Enable cluster mode (placeholder for FederatedScope compatibility)"
+        help="Enable cluster mode (placeholder for FederatedScope compatibility)",
     )
     args = parser.parse_args()
 
     # Print CSV header (same format as other frameworks)
-    print("DS,IID,BS,Time[s],FinalAcc[%],CompTime[s],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams")
+    print(
+        "DS,IID,BS,Time[s],FinalAcc[%],CompTime[s],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams"
+    )
 
     # Run experiments
     for ds in DATASETS:
         for beta in IID_BETAS:
             try:
                 metrics = run_one(ds, beta, BATCH_SIZE, args.use_cluster)
-                
+
                 # Print results in same format as other frameworks
                 print(
                     f"{ds},{beta},{BATCH_SIZE},"
@@ -365,7 +384,7 @@ def main():
                     f"{metrics.model_size_mb:.3f},"
                     f"{metrics.total_params}"
                 )
-                
+
             except Exception as e:
                 print(f"Error running {ds} with β={beta}: {e}")
                 # Print zeros for failed experiments

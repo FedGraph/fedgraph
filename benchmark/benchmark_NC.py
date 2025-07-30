@@ -122,9 +122,15 @@ for dataset in datasets:
 
                                 # Run the experiment
                                 run_fedgraph(config)
-                                print(f"Experiment {i+1}/{runs_per_config} completed for:")
-                                print(f"  Dataset: {dataset}, Trainers: {n_trainer}, IID Beta: {iid_beta}")
-                                print(f"  Method: fedgcn if {num_hops} > 0 else FedAvg, Batch Size: {batch_size}")                                
+                                print(
+                                    f"Experiment {i+1}/{runs_per_config} completed for:"
+                                )
+                                print(
+                                    f"  Dataset: {dataset}, Trainers: {n_trainer}, IID Beta: {iid_beta}"
+                                )
+                                print(
+                                    f"  Method: fedgcn if {num_hops} > 0 else FedAvg, Batch Size: {batch_size}"
+                                )
                             except Exception as e:
                                 print(f"Error running experiment: {e}")
                                 print(f"Configuration: {config}")

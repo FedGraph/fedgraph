@@ -584,7 +584,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
         f"{total_params}"
     )
     print("=" * 80)
-    
+
     print(f"\n{'='*80}")
     print(f"EXPERIMENT SUMMARY")
     print(f"{'='*80}")
