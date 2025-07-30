@@ -1,0 +1,301 @@
+DS,IID,BS,Time[s],FinalAcc[%],CompTime[s],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
+
+Running cora with β=10000.0
+Dataset: 2,708 nodes, 10,556 edges
+[cora β=10000.0] Round   1 → Test Acc: 37.40% | Computation Time: 0.22s | Memory: 284.4MB | Comm Cost: 7.0MB
+[cora β=10000.0] Round  10 → Test Acc: 41.50% | Computation Time: 0.13s | Memory: 198.1MB | Comm Cost: 70.4MB
+[cora β=10000.0] Round  20 → Test Acc: 45.60% | Computation Time: 0.09s | Memory: 141.8MB | Comm Cost: 140.7MB
+[cora β=10000.0] Round  30 → Test Acc: 49.80% | Computation Time: 0.08s | Memory: 139.2MB | Comm Cost: 211.1MB
+[cora β=10000.0] Round  40 → Test Acc: 53.40% | Computation Time: 0.07s | Memory: 131.9MB | Comm Cost: 281.5MB
+[cora β=10000.0] Round  50 → Test Acc: 56.10% | Computation Time: 0.07s | Memory: 131.0MB | Comm Cost: 351.8MB
+[cora β=10000.0] Round  60 → Test Acc: 58.20% | Computation Time: 0.08s | Memory: 131.5MB | Comm Cost: 422.2MB
+[cora β=10000.0] Round  70 → Test Acc: 60.10% | Computation Time: 0.08s | Memory: 132.0MB | Comm Cost: 492.6MB
+[cora β=10000.0] Round  80 → Test Acc: 61.50% | Computation Time: 0.07s | Memory: 125.3MB | Comm Cost: 562.9MB
+[cora β=10000.0] Round  90 → Test Acc: 62.70% | Computation Time: 0.07s | Memory: 116.1MB | Comm Cost: 633.3MB
+[cora β=10000.0] Round 100 → Test Acc: 63.40% | Computation Time: 0.07s | Memory: 119.2MB | Comm Cost: 703.7MB
+[cora β=10000.0] Round 110 → Test Acc: 64.40% | Computation Time: 0.10s | Memory: 118.7MB | Comm Cost: 774.0MB
+[cora β=10000.0] Round 120 → Test Acc: 65.10% | Computation Time: 0.07s | Memory: 118.2MB | Comm Cost: 844.4MB
+[cora β=10000.0] Round 130 → Test Acc: 65.60% | Computation Time: 0.12s | Memory: 107.4MB | Comm Cost: 914.8MB
+[cora β=10000.0] Round 140 → Test Acc: 66.30% | Computation Time: 0.08s | Memory: 104.7MB | Comm Cost: 985.1MB
+[cora β=10000.0] Round 150 → Test Acc: 66.60% | Computation Time: 0.07s | Memory: 108.8MB | Comm Cost: 1055.5MB
+[cora β=10000.0] Round 160 → Test Acc: 66.70% | Computation Time: 0.09s | Memory: 102.2MB | Comm Cost: 1125.9MB
+[cora β=10000.0] Round 170 → Test Acc: 66.90% | Computation Time: 0.07s | Memory: 107.7MB | Comm Cost: 1196.2MB
+[cora β=10000.0] Round 180 → Test Acc: 67.30% | Computation Time: 0.07s | Memory: 111.3MB | Comm Cost: 1266.6MB
+[cora β=10000.0] Round 190 → Test Acc: 67.40% | Computation Time: 0.09s | Memory: 108.2MB | Comm Cost: 1337.0MB
+[cora β=10000.0] Round 200 → Test Acc: 67.40% | Computation Time: 0.07s | Memory: 109.1MB | Comm Cost: 1407.3MB
+cora,10000.0,-1,16.8,67.40,16.7,1407.3,284.4,0.084,0.352,92231
+
+Running cora with β=100.0
+Dataset: 2,708 nodes, 10,556 edges
+[cora β=100.0] Round   1 → Test Acc: 29.70% | Computation Time: 0.08s | Memory: 125.9MB | Comm Cost: 7.0MB
+[cora β=100.0] Round  10 → Test Acc: 48.00% | Computation Time: 0.29s | Memory: 112.5MB | Comm Cost: 70.4MB
+[cora β=100.0] Round  20 → Test Acc: 53.00% | Computation Time: 0.09s | Memory: 106.7MB | Comm Cost: 140.7MB
+[cora β=100.0] Round  30 → Test Acc: 58.60% | Computation Time: 0.10s | Memory: 102.7MB | Comm Cost: 211.1MB
+[cora β=100.0] Round  40 → Test Acc: 62.20% | Computation Time: 0.10s | Memory: 93.5MB | Comm Cost: 281.5MB
+[cora β=100.0] Round  50 → Test Acc: 65.40% | Computation Time: 0.08s | Memory: 104.7MB | Comm Cost: 351.8MB
+[cora β=100.0] Round  60 → Test Acc: 68.20% | Computation Time: 0.08s | Memory: 100.5MB | Comm Cost: 422.2MB
+[cora β=100.0] Round  70 → Test Acc: 69.40% | Computation Time: 0.08s | Memory: 98.5MB | Comm Cost: 492.6MB
+[cora β=100.0] Round  80 → Test Acc: 71.20% | Computation Time: 0.08s | Memory: 105.3MB | Comm Cost: 562.9MB
+[cora β=100.0] Round  90 → Test Acc: 71.30% | Computation Time: 0.09s | Memory: 101.4MB | Comm Cost: 633.3MB
+[cora β=100.0] Round 100 → Test Acc: 72.00% | Computation Time: 0.07s | Memory: 99.9MB | Comm Cost: 703.7MB
+[cora β=100.0] Round 110 → Test Acc: 72.50% | Computation Time: 0.07s | Memory: 104.1MB | Comm Cost: 774.0MB
+[cora β=100.0] Round 120 → Test Acc: 72.60% | Computation Time: 0.15s | Memory: 97.4MB | Comm Cost: 844.4MB
+[cora β=100.0] Round 130 → Test Acc: 72.60% | Computation Time: 0.10s | Memory: 110.3MB | Comm Cost: 914.8MB
+[cora β=100.0] Round 140 → Test Acc: 72.40% | Computation Time: 0.09s | Memory: 112.3MB | Comm Cost: 985.1MB
+[cora β=100.0] Round 150 → Test Acc: 72.40% | Computation Time: 0.13s | Memory: 99.5MB | Comm Cost: 1055.5MB
+[cora β=100.0] Round 160 → Test Acc: 72.40% | Computation Time: 0.08s | Memory: 95.5MB | Comm Cost: 1125.9MB
+[cora β=100.0] Round 170 → Test Acc: 72.40% | Computation Time: 0.08s | Memory: 97.9MB | Comm Cost: 1196.2MB
+[cora β=100.0] Round 180 → Test Acc: 72.50% | Computation Time: 0.08s | Memory: 101.4MB | Comm Cost: 1266.6MB
+[cora β=100.0] Round 190 → Test Acc: 72.50% | Computation Time: 0.12s | Memory: 95.4MB | Comm Cost: 1337.0MB
+[cora β=100.0] Round 200 → Test Acc: 72.60% | Computation Time: 0.07s | Memory: 99.9MB | Comm Cost: 1407.3MB
+cora,100.0,-1,19.1,72.60,18.9,1407.3,131.2,0.095,0.352,92231
+
+Running cora with β=10.0
+Dataset: 2,708 nodes, 10,556 edges
+[cora β=10.0] Round   1 → Test Acc: 30.10% | Computation Time: 0.08s | Memory: 114.1MB | Comm Cost: 7.0MB
+[cora β=10.0] Round  10 → Test Acc: 41.60% | Computation Time: 0.08s | Memory: 109.2MB | Comm Cost: 70.4MB
+[cora β=10.0] Round  20 → Test Acc: 41.70% | Computation Time: 0.11s | Memory: 99.8MB | Comm Cost: 140.7MB
+[cora β=10.0] Round  30 → Test Acc: 45.50% | Computation Time: 0.08s | Memory: 101.9MB | Comm Cost: 211.1MB
+[cora β=10.0] Round  40 → Test Acc: 52.60% | Computation Time: 0.08s | Memory: 101.5MB | Comm Cost: 281.5MB
+[cora β=10.0] Round  50 → Test Acc: 57.20% | Computation Time: 0.07s | Memory: 111.6MB | Comm Cost: 351.8MB
+[cora β=10.0] Round  60 → Test Acc: 60.60% | Computation Time: 0.10s | Memory: 108.2MB | Comm Cost: 422.2MB
+[cora β=10.0] Round  70 → Test Acc: 64.80% | Computation Time: 0.09s | Memory: 104.6MB | Comm Cost: 492.6MB
+[cora β=10.0] Round  80 → Test Acc: 67.20% | Computation Time: 0.09s | Memory: 112.0MB | Comm Cost: 562.9MB
+[cora β=10.0] Round  90 → Test Acc: 68.80% | Computation Time: 0.09s | Memory: 127.1MB | Comm Cost: 633.3MB
+[cora β=10.0] Round 100 → Test Acc: 70.90% | Computation Time: 0.12s | Memory: 103.6MB | Comm Cost: 703.7MB
+[cora β=10.0] Round 110 → Test Acc: 72.20% | Computation Time: 0.10s | Memory: 108.7MB | Comm Cost: 774.0MB
+[cora β=10.0] Round 120 → Test Acc: 73.20% | Computation Time: 0.09s | Memory: 108.3MB | Comm Cost: 844.4MB
+[cora β=10.0] Round 130 → Test Acc: 73.60% | Computation Time: 0.09s | Memory: 108.7MB | Comm Cost: 914.8MB
+[cora β=10.0] Round 140 → Test Acc: 73.80% | Computation Time: 0.12s | Memory: 97.2MB | Comm Cost: 985.1MB
+[cora β=10.0] Round 150 → Test Acc: 73.80% | Computation Time: 0.09s | Memory: 100.9MB | Comm Cost: 1055.5MB
+[cora β=10.0] Round 160 → Test Acc: 74.40% | Computation Time: 0.09s | Memory: 105.8MB | Comm Cost: 1125.9MB
+[cora β=10.0] Round 170 → Test Acc: 74.60% | Computation Time: 0.13s | Memory: 112.5MB | Comm Cost: 1196.2MB
+[cora β=10.0] Round 180 → Test Acc: 74.30% | Computation Time: 0.09s | Memory: 108.7MB | Comm Cost: 1266.6MB
+[cora β=10.0] Round 190 → Test Acc: 74.60% | Computation Time: 0.09s | Memory: 111.0MB | Comm Cost: 1337.0MB
+[cora β=10.0] Round 200 → Test Acc: 74.80% | Computation Time: 0.10s | Memory: 98.5MB | Comm Cost: 1407.3MB
+cora,10.0,-1,19.9,74.80,19.8,1407.3,127.1,0.099,0.352,92231
+
+Running citeseer with β=10000.0
+Dataset: 3,327 nodes, 9,104 edges
+[citeseer β=10000.0] Round   1 → Test Acc: 35.60% | Computation Time: 0.17s | Memory: 157.0MB | Comm Cost: 18.1MB
+[citeseer β=10000.0] Round  10 → Test Acc: 56.30% | Computation Time: 0.16s | Memory: 149.0MB | Comm Cost: 181.2MB
+[citeseer β=10000.0] Round  20 → Test Acc: 63.30% | Computation Time: 0.17s | Memory: 133.8MB | Comm Cost: 362.3MB
+[citeseer β=10000.0] Round  30 → Test Acc: 65.80% | Computation Time: 0.17s | Memory: 136.5MB | Comm Cost: 543.5MB
+[citeseer β=10000.0] Round  40 → Test Acc: 67.30% | Computation Time: 0.21s | Memory: 132.2MB | Comm Cost: 724.6MB
+[citeseer β=10000.0] Round  50 → Test Acc: 68.20% | Computation Time: 0.32s | Memory: 139.8MB | Comm Cost: 905.8MB
+[citeseer β=10000.0] Round  60 → Test Acc: 68.70% | Computation Time: 0.17s | Memory: 145.5MB | Comm Cost: 1086.9MB
+[citeseer β=10000.0] Round  70 → Test Acc: 68.70% | Computation Time: 0.22s | Memory: 127.7MB | Comm Cost: 1268.1MB
+[citeseer β=10000.0] Round  80 → Test Acc: 68.90% | Computation Time: 0.24s | Memory: 138.2MB | Comm Cost: 1449.3MB
+[citeseer β=10000.0] Round  90 → Test Acc: 68.20% | Computation Time: 0.23s | Memory: 132.9MB | Comm Cost: 1630.4MB
+[citeseer β=10000.0] Round 100 → Test Acc: 67.80% | Computation Time: 0.21s | Memory: 144.2MB | Comm Cost: 1811.6MB
+[citeseer β=10000.0] Round 110 → Test Acc: 67.30% | Computation Time: 0.19s | Memory: 141.3MB | Comm Cost: 1992.7MB
+[citeseer β=10000.0] Round 120 → Test Acc: 67.10% | Computation Time: 0.20s | Memory: 130.7MB | Comm Cost: 2173.9MB
+[citeseer β=10000.0] Round 130 → Test Acc: 66.60% | Computation Time: 0.22s | Memory: 123.3MB | Comm Cost: 2355.0MB
+[citeseer β=10000.0] Round 140 → Test Acc: 66.30% | Computation Time: 0.18s | Memory: 127.0MB | Comm Cost: 2536.2MB
+[citeseer β=10000.0] Round 150 → Test Acc: 66.00% | Computation Time: 0.32s | Memory: 139.5MB | Comm Cost: 2717.4MB
+[citeseer β=10000.0] Round 160 → Test Acc: 66.00% | Computation Time: 0.29s | Memory: 127.2MB | Comm Cost: 2898.5MB
+[citeseer β=10000.0] Round 170 → Test Acc: 66.20% | Computation Time: 0.20s | Memory: 132.3MB | Comm Cost: 3079.7MB
+[citeseer β=10000.0] Round 180 → Test Acc: 66.20% | Computation Time: 0.36s | Memory: 136.8MB | Comm Cost: 3260.8MB
+[citeseer β=10000.0] Round 190 → Test Acc: 66.00% | Computation Time: 0.21s | Memory: 135.1MB | Comm Cost: 3442.0MB
+[citeseer β=10000.0] Round 200 → Test Acc: 66.00% | Computation Time: 0.18s | Memory: 130.9MB | Comm Cost: 3623.1MB
+citeseer,10000.0,-1,46.5,66.00,46.2,3623.1,163.0,0.231,0.906,237446
+
+Running citeseer with β=100.0
+Dataset: 3,327 nodes, 9,104 edges
+[citeseer β=100.0] Round   1 → Test Acc: 34.80% | Computation Time: 0.19s | Memory: 149.4MB | Comm Cost: 18.1MB
+[citeseer β=100.0] Round  10 → Test Acc: 48.90% | Computation Time: 0.26s | Memory: 129.2MB | Comm Cost: 181.2MB
+[citeseer β=100.0] Round  20 → Test Acc: 54.40% | Computation Time: 0.20s | Memory: 138.2MB | Comm Cost: 362.3MB
+[citeseer β=100.0] Round  30 → Test Acc: 59.60% | Computation Time: 0.18s | Memory: 138.7MB | Comm Cost: 543.5MB
+[citeseer β=100.0] Round  40 → Test Acc: 63.30% | Computation Time: 0.20s | Memory: 126.8MB | Comm Cost: 724.6MB
+[citeseer β=100.0] Round  50 → Test Acc: 65.80% | Computation Time: 0.18s | Memory: 129.2MB | Comm Cost: 905.8MB
+[citeseer β=100.0] Round  60 → Test Acc: 67.10% | Computation Time: 0.22s | Memory: 133.2MB | Comm Cost: 1086.9MB
+[citeseer β=100.0] Round  70 → Test Acc: 67.90% | Computation Time: 0.21s | Memory: 135.9MB | Comm Cost: 1268.1MB
+[citeseer β=100.0] Round  80 → Test Acc: 68.40% | Computation Time: 0.17s | Memory: 141.5MB | Comm Cost: 1449.3MB
+[citeseer β=100.0] Round  90 → Test Acc: 68.50% | Computation Time: 0.38s | Memory: 130.9MB | Comm Cost: 1630.4MB
+[citeseer β=100.0] Round 100 → Test Acc: 68.60% | Computation Time: 0.15s | Memory: 139.0MB | Comm Cost: 1811.6MB
+[citeseer β=100.0] Round 110 → Test Acc: 68.70% | Computation Time: 0.15s | Memory: 134.1MB | Comm Cost: 1992.7MB
+[citeseer β=100.0] Round 120 → Test Acc: 68.70% | Computation Time: 0.15s | Memory: 134.0MB | Comm Cost: 2173.9MB
+[citeseer β=100.0] Round 130 → Test Acc: 68.30% | Computation Time: 0.14s | Memory: 134.7MB | Comm Cost: 2355.0MB
+[citeseer β=100.0] Round 140 → Test Acc: 68.10% | Computation Time: 0.19s | Memory: 129.6MB | Comm Cost: 2536.2MB
+[citeseer β=100.0] Round 150 → Test Acc: 67.80% | Computation Time: 0.15s | Memory: 148.8MB | Comm Cost: 2717.4MB
+[citeseer β=100.0] Round 160 → Test Acc: 67.90% | Computation Time: 0.15s | Memory: 146.6MB | Comm Cost: 2898.5MB
+[citeseer β=100.0] Round 170 → Test Acc: 67.80% | Computation Time: 0.15s | Memory: 146.9MB | Comm Cost: 3079.7MB
+[citeseer β=100.0] Round 180 → Test Acc: 68.20% | Computation Time: 0.15s | Memory: 134.3MB | Comm Cost: 3260.8MB
+[citeseer β=100.0] Round 190 → Test Acc: 68.30% | Computation Time: 0.15s | Memory: 131.5MB | Comm Cost: 3442.0MB
+[citeseer β=100.0] Round 200 → Test Acc: 68.30% | Computation Time: 0.16s | Memory: 131.1MB | Comm Cost: 3623.1MB
+citeseer,100.0,-1,38.7,68.30,38.5,3623.1,150.5,0.193,0.906,237446
+
+Running citeseer with β=10.0
+Dataset: 3,327 nodes, 9,104 edges
+[citeseer β=10.0] Round   1 → Test Acc: 43.10% | Computation Time: 0.22s | Memory: 145.7MB | Comm Cost: 18.1MB
+[citeseer β=10.0] Round  10 → Test Acc: 57.70% | Computation Time: 0.18s | Memory: 131.9MB | Comm Cost: 181.2MB
+[citeseer β=10.0] Round  20 → Test Acc: 62.80% | Computation Time: 0.15s | Memory: 142.2MB | Comm Cost: 362.3MB
+[citeseer β=10.0] Round  30 → Test Acc: 65.30% | Computation Time: 0.22s | Memory: 134.1MB | Comm Cost: 543.5MB
+[citeseer β=10.0] Round  40 → Test Acc: 66.70% | Computation Time: 0.27s | Memory: 131.5MB | Comm Cost: 724.6MB
+[citeseer β=10.0] Round  50 → Test Acc: 67.20% | Computation Time: 0.15s | Memory: 143.1MB | Comm Cost: 905.8MB
+[citeseer β=10.0] Round  60 → Test Acc: 66.90% | Computation Time: 0.15s | Memory: 133.4MB | Comm Cost: 1086.9MB
+[citeseer β=10.0] Round  70 → Test Acc: 65.80% | Computation Time: 0.18s | Memory: 131.0MB | Comm Cost: 1268.1MB
+[citeseer β=10.0] Round  80 → Test Acc: 64.90% | Computation Time: 0.23s | Memory: 129.0MB | Comm Cost: 1449.3MB
+[citeseer β=10.0] Round  90 → Test Acc: 64.60% | Computation Time: 0.23s | Memory: 143.2MB | Comm Cost: 1630.4MB
+[citeseer β=10.0] Round 100 → Test Acc: 64.30% | Computation Time: 0.21s | Memory: 162.1MB | Comm Cost: 1811.6MB
+[citeseer β=10.0] Round 110 → Test Acc: 63.30% | Computation Time: 0.23s | Memory: 155.2MB | Comm Cost: 1992.7MB
+[citeseer β=10.0] Round 120 → Test Acc: 62.70% | Computation Time: 0.23s | Memory: 148.5MB | Comm Cost: 2173.9MB
+[citeseer β=10.0] Round 130 → Test Acc: 62.40% | Computation Time: 0.22s | Memory: 156.5MB | Comm Cost: 2355.0MB
+[citeseer β=10.0] Round 140 → Test Acc: 61.90% | Computation Time: 0.22s | Memory: 159.6MB | Comm Cost: 2536.2MB
+[citeseer β=10.0] Round 150 → Test Acc: 61.50% | Computation Time: 0.22s | Memory: 156.6MB | Comm Cost: 2717.4MB
+[citeseer β=10.0] Round 160 → Test Acc: 61.40% | Computation Time: 0.22s | Memory: 157.1MB | Comm Cost: 2898.5MB
+[citeseer β=10.0] Round 170 → Test Acc: 61.10% | Computation Time: 0.21s | Memory: 163.2MB | Comm Cost: 3079.7MB
+[citeseer β=10.0] Round 180 → Test Acc: 60.80% | Computation Time: 0.21s | Memory: 164.7MB | Comm Cost: 3260.8MB
+[citeseer β=10.0] Round 190 → Test Acc: 60.40% | Computation Time: 0.22s | Memory: 158.8MB | Comm Cost: 3442.0MB
+[citeseer β=10.0] Round 200 → Test Acc: 60.10% | Computation Time: 0.22s | Memory: 156.1MB | Comm Cost: 3623.1MB
+citeseer,10.0,-1,42.9,60.10,42.6,3623.1,166.8,0.213,0.906,237446
+
+Running pubmed with β=10000.0
+Dataset: 19,717 nodes, 88,648 edges
+[pubmed β=10000.0] Round   1 → Test Acc: 38.60% | Computation Time: 0.67s | Memory: 242.9MB | Comm Cost: 2.5MB
+[pubmed β=10000.0] Round  10 → Test Acc: 18.00% | Computation Time: 0.48s | Memory: 240.9MB | Comm Cost: 24.6MB
+[pubmed β=10000.0] Round  20 → Test Acc: 18.00% | Computation Time: 0.58s | Memory: 228.7MB | Comm Cost: 49.2MB
+[pubmed β=10000.0] Round  30 → Test Acc: 18.00% | Computation Time: 0.47s | Memory: 245.2MB | Comm Cost: 73.8MB
+[pubmed β=10000.0] Round  40 → Test Acc: 18.00% | Computation Time: 0.47s | Memory: 239.6MB | Comm Cost: 98.4MB
+[pubmed β=10000.0] Round  50 → Test Acc: 18.00% | Computation Time: 0.47s | Memory: 241.6MB | Comm Cost: 123.1MB
+[pubmed β=10000.0] Round  60 → Test Acc: 18.00% | Computation Time: 0.47s | Memory: 227.5MB | Comm Cost: 147.7MB
+[pubmed β=10000.0] Round  70 → Test Acc: 18.00% | Computation Time: 0.47s | Memory: 235.8MB | Comm Cost: 172.3MB
+[pubmed β=10000.0] Round  80 → Test Acc: 18.00% | Computation Time: 0.47s | Memory: 234.8MB | Comm Cost: 196.9MB
+[pubmed β=10000.0] Round  90 → Test Acc: 18.00% | Computation Time: 0.50s | Memory: 227.4MB | Comm Cost: 221.5MB
+[pubmed β=10000.0] Round 100 → Test Acc: 18.00% | Computation Time: 0.47s | Memory: 253.8MB | Comm Cost: 246.1MB
+[pubmed β=10000.0] Round 110 → Test Acc: 18.00% | Computation Time: 0.50s | Memory: 245.2MB | Comm Cost: 270.7MB
+[pubmed β=10000.0] Round 120 → Test Acc: 18.00% | Computation Time: 0.53s | Memory: 230.8MB | Comm Cost: 295.3MB
+[pubmed β=10000.0] Round 130 → Test Acc: 18.00% | Computation Time: 0.51s | Memory: 257.3MB | Comm Cost: 320.0MB
+[pubmed β=10000.0] Round 140 → Test Acc: 18.00% | Computation Time: 0.52s | Memory: 239.1MB | Comm Cost: 344.6MB
+[pubmed β=10000.0] Round 150 → Test Acc: 18.00% | Computation Time: 0.51s | Memory: 248.4MB | Comm Cost: 369.2MB
+[pubmed β=10000.0] Round 160 → Test Acc: 18.00% | Computation Time: 0.52s | Memory: 239.8MB | Comm Cost: 393.8MB
+[pubmed β=10000.0] Round 170 → Test Acc: 18.00% | Computation Time: 0.50s | Memory: 236.6MB | Comm Cost: 418.4MB
+[pubmed β=10000.0] Round 180 → Test Acc: 18.00% | Computation Time: 0.50s | Memory: 255.2MB | Comm Cost: 443.0MB
+[pubmed β=10000.0] Round 190 → Test Acc: 18.00% | Computation Time: 0.52s | Memory: 252.2MB | Comm Cost: 467.6MB
+[pubmed β=10000.0] Round 200 → Test Acc: 18.00% | Computation Time: 0.49s | Memory: 252.3MB | Comm Cost: 492.2MB
+pubmed,10000.0,-1,103.0,18.00,102.3,492.2,262.9,0.512,0.123,32259
+
+Running pubmed with β=100.0
+Dataset: 19,717 nodes, 88,648 edges
+[pubmed β=100.0] Round   1 → Test Acc: 42.20% | Computation Time: 0.51s | Memory: 262.0MB | Comm Cost: 2.5MB
+[pubmed β=100.0] Round  10 → Test Acc: 18.00% | Computation Time: 0.74s | Memory: 206.6MB | Comm Cost: 24.6MB
+[pubmed β=100.0] Round  20 → Test Acc: 18.00% | Computation Time: 0.51s | Memory: 257.6MB | Comm Cost: 49.2MB
+[pubmed β=100.0] Round  30 → Test Acc: 18.50% | Computation Time: 0.55s | Memory: 236.5MB | Comm Cost: 73.8MB
+[pubmed β=100.0] Round  40 → Test Acc: 21.10% | Computation Time: 0.53s | Memory: 245.6MB | Comm Cost: 98.4MB
+[pubmed β=100.0] Round  50 → Test Acc: 28.10% | Computation Time: 0.52s | Memory: 257.8MB | Comm Cost: 123.1MB
+[pubmed β=100.0] Round  60 → Test Acc: 33.20% | Computation Time: 0.53s | Memory: 241.7MB | Comm Cost: 147.7MB
+[pubmed β=100.0] Round  70 → Test Acc: 39.30% | Computation Time: 0.52s | Memory: 236.3MB | Comm Cost: 172.3MB
+[pubmed β=100.0] Round  80 → Test Acc: 41.10% | Computation Time: 0.63s | Memory: 241.4MB | Comm Cost: 196.9MB
+[pubmed β=100.0] Round  90 → Test Acc: 40.80% | Computation Time: 0.65s | Memory: 186.4MB | Comm Cost: 221.5MB
+[pubmed β=100.0] Round 100 → Test Acc: 40.60% | Computation Time: 0.52s | Memory: 246.5MB | Comm Cost: 246.1MB
+[pubmed β=100.0] Round 110 → Test Acc: 39.90% | Computation Time: 0.50s | Memory: 240.2MB | Comm Cost: 270.7MB
+[pubmed β=100.0] Round 120 → Test Acc: 39.30% | Computation Time: 0.52s | Memory: 250.2MB | Comm Cost: 295.3MB
+[pubmed β=100.0] Round 130 → Test Acc: 39.00% | Computation Time: 0.51s | Memory: 247.8MB | Comm Cost: 320.0MB
+[pubmed β=100.0] Round 140 → Test Acc: 38.50% | Computation Time: 0.52s | Memory: 234.1MB | Comm Cost: 344.6MB
+[pubmed β=100.0] Round 150 → Test Acc: 38.40% | Computation Time: 0.51s | Memory: 252.6MB | Comm Cost: 369.2MB
+[pubmed β=100.0] Round 160 → Test Acc: 38.20% | Computation Time: 0.57s | Memory: 246.6MB | Comm Cost: 393.8MB
+[pubmed β=100.0] Round 170 → Test Acc: 38.10% | Computation Time: 0.57s | Memory: 243.5MB | Comm Cost: 418.4MB
+[pubmed β=100.0] Round 180 → Test Acc: 38.30% | Computation Time: 0.57s | Memory: 261.4MB | Comm Cost: 443.0MB
+[pubmed β=100.0] Round 190 → Test Acc: 38.30% | Computation Time: 0.63s | Memory: 225.4MB | Comm Cost: 467.6MB
+[pubmed β=100.0] Round 200 → Test Acc: 38.40% | Computation Time: 0.61s | Memory: 223.2MB | Comm Cost: 492.2MB
+pubmed,100.0,-1,109.8,38.40,109.1,492.2,262.0,0.546,0.123,32259
+
+Running pubmed with β=10.0
+Dataset: 19,717 nodes, 88,648 edges
+[pubmed β=10.0] Round   1 → Test Acc: 25.00% | Computation Time: 0.63s | Memory: 229.7MB | Comm Cost: 2.5MB
+[pubmed β=10.0] Round  10 → Test Acc: 41.80% | Computation Time: 0.59s | Memory: 248.0MB | Comm Cost: 24.6MB
+[pubmed β=10.0] Round  20 → Test Acc: 41.40% | Computation Time: 0.59s | Memory: 216.6MB | Comm Cost: 49.2MB
+[pubmed β=10.0] Round  30 → Test Acc: 41.40% | Computation Time: 0.60s | Memory: 249.4MB | Comm Cost: 73.8MB
+[pubmed β=10.0] Round  40 → Test Acc: 41.50% | Computation Time: 0.67s | Memory: 223.8MB | Comm Cost: 98.4MB
+[pubmed β=10.0] Round  50 → Test Acc: 41.40% | Computation Time: 0.59s | Memory: 248.2MB | Comm Cost: 123.1MB
+[pubmed β=10.0] Round  60 → Test Acc: 41.60% | Computation Time: 0.57s | Memory: 264.7MB | Comm Cost: 147.7MB
+[pubmed β=10.0] Round  70 → Test Acc: 41.50% | Computation Time: 0.58s | Memory: 236.0MB | Comm Cost: 172.3MB
+[pubmed β=10.0] Round  80 → Test Acc: 40.90% | Computation Time: 0.60s | Memory: 229.5MB | Comm Cost: 196.9MB
+[pubmed β=10.0] Round  90 → Test Acc: 40.60% | Computation Time: 0.58s | Memory: 250.6MB | Comm Cost: 221.5MB
+[pubmed β=10.0] Round 100 → Test Acc: 40.00% | Computation Time: 0.79s | Memory: 188.9MB | Comm Cost: 246.1MB
+[pubmed β=10.0] Round 110 → Test Acc: 39.30% | Computation Time: 0.58s | Memory: 240.4MB | Comm Cost: 270.7MB
+[pubmed β=10.0] Round 120 → Test Acc: 38.70% | Computation Time: 0.58s | Memory: 239.9MB | Comm Cost: 295.3MB
+[pubmed β=10.0] Round 130 → Test Acc: 38.70% | Computation Time: 0.59s | Memory: 239.3MB | Comm Cost: 320.0MB
+[pubmed β=10.0] Round 140 → Test Acc: 38.70% | Computation Time: 0.64s | Memory: 254.2MB | Comm Cost: 344.6MB
+[pubmed β=10.0] Round 150 → Test Acc: 38.80% | Computation Time: 0.57s | Memory: 256.5MB | Comm Cost: 369.2MB
+[pubmed β=10.0] Round 160 → Test Acc: 38.70% | Computation Time: 0.55s | Memory: 262.2MB | Comm Cost: 393.8MB
+[pubmed β=10.0] Round 170 → Test Acc: 38.60% | Computation Time: 0.59s | Memory: 245.6MB | Comm Cost: 418.4MB
+[pubmed β=10.0] Round 180 → Test Acc: 38.40% | Computation Time: 0.56s | Memory: 240.9MB | Comm Cost: 443.0MB
+[pubmed β=10.0] Round 190 → Test Acc: 38.60% | Computation Time: 0.60s | Memory: 233.0MB | Comm Cost: 467.6MB
+[pubmed β=10.0] Round 200 → Test Acc: 38.50% | Computation Time: 0.59s | Memory: 235.6MB | Comm Cost: 492.2MB
+pubmed,10.0,-1,118.9,38.50,118.1,492.2,268.1,0.591,0.123,32259
+
+Running ogbn-arxiv with β=10000.0
+Dataset: 169,343 nodes, 1,166,243 edges
+[ogbn-arxiv β=10000.0] Round   1 → Test Acc: 13.89% | Computation Time: 9.08s | Memory: 395.3MB | Comm Cost: 0.8MB
+[ogbn-arxiv β=10000.0] Round  10 → Test Acc: 13.10% | Computation Time: 7.00s | Memory: 402.8MB | Comm Cost: 8.3MB
+[ogbn-arxiv β=10000.0] Round  20 → Test Acc: 13.55% | Computation Time: 7.08s | Memory: 400.7MB | Comm Cost: 16.6MB
+[ogbn-arxiv β=10000.0] Round  30 → Test Acc: 14.64% | Computation Time: 7.32s | Memory: 385.0MB | Comm Cost: 24.8MB
+[ogbn-arxiv β=10000.0] Round  40 → Test Acc: 16.15% | Computation Time: 10.85s | Memory: 295.9MB | Comm Cost: 33.1MB
+[ogbn-arxiv β=10000.0] Round  50 → Test Acc: 17.92% | Computation Time: 9.44s | Memory: 397.4MB | Comm Cost: 41.4MB
+[ogbn-arxiv β=10000.0] Round  60 → Test Acc: 19.61% | Computation Time: 11.20s | Memory: 393.7MB | Comm Cost: 49.7MB
+[ogbn-arxiv β=10000.0] Round  70 → Test Acc: 21.46% | Computation Time: 11.57s | Memory: 319.1MB | Comm Cost: 58.0MB
+[ogbn-arxiv β=10000.0] Round  80 → Test Acc: 23.45% | Computation Time: 12.07s | Memory: 402.0MB | Comm Cost: 66.3MB
+[ogbn-arxiv β=10000.0] Round  90 → Test Acc: 25.18% | Computation Time: 10.14s | Memory: 384.0MB | Comm Cost: 74.5MB
+[ogbn-arxiv β=10000.0] Round 100 → Test Acc: 26.81% | Computation Time: 10.77s | Memory: 268.2MB | Comm Cost: 82.8MB
+[ogbn-arxiv β=10000.0] Round 110 → Test Acc: 28.27% | Computation Time: 10.05s | Memory: 301.0MB | Comm Cost: 91.1MB
+[ogbn-arxiv β=10000.0] Round 120 → Test Acc: 29.71% | Computation Time: 11.26s | Memory: 166.5MB | Comm Cost: 99.4MB
+[ogbn-arxiv β=10000.0] Round 130 → Test Acc: 30.90% | Computation Time: 10.51s | Memory: 263.0MB | Comm Cost: 107.7MB
+[ogbn-arxiv β=10000.0] Round 140 → Test Acc: 31.97% | Computation Time: 9.44s | Memory: 394.2MB | Comm Cost: 116.0MB
+[ogbn-arxiv β=10000.0] Round 150 → Test Acc: 32.94% | Computation Time: 9.81s | Memory: 384.2MB | Comm Cost: 124.2MB
+[ogbn-arxiv β=10000.0] Round 160 → Test Acc: 33.75% | Computation Time: 8.80s | Memory: 370.4MB | Comm Cost: 132.5MB
+[ogbn-arxiv β=10000.0] Round 170 → Test Acc: 34.43% | Computation Time: 23.69s | Memory: 237.4MB | Comm Cost: 140.8MB
+[ogbn-arxiv β=10000.0] Round 180 → Test Acc: 35.13% | Computation Time: 19.14s | Memory: 238.3MB | Comm Cost: 149.1MB
+[ogbn-arxiv β=10000.0] Round 190 → Test Acc: 35.79% | Computation Time: 15.80s | Memory: 373.2MB | Comm Cost: 157.4MB
+[ogbn-arxiv β=10000.0] Round 200 → Test Acc: 36.37% | Computation Time: 25.64s | Memory: 155.7MB | Comm Cost: 165.6MB
+ogbn-arxiv,10000.0,-1,2386.9,36.37,2370.8,165.6,464.0,11.854,0.041,10856
+
+Running ogbn-arxiv with β=100.0
+Dataset: 169,343 nodes, 1,166,243 edges
+[ogbn-arxiv β=100.0] Round   1 → Test Acc: 8.93% | Computation Time: 43.78s | Memory: 264.6MB | Comm Cost: 0.8MB
+[ogbn-arxiv β=100.0] Round  10 → Test Acc: 9.17% | Computation Time: 13.51s | Memory: 419.8MB | Comm Cost: 8.3MB
+[ogbn-arxiv β=100.0] Round  20 → Test Acc: 9.62% | Computation Time: 15.34s | Memory: 444.7MB | Comm Cost: 16.6MB
+[ogbn-arxiv β=100.0] Round  30 → Test Acc: 10.66% | Computation Time: 18.96s | Memory: 289.4MB | Comm Cost: 24.8MB
+[ogbn-arxiv β=100.0] Round  40 → Test Acc: 12.22% | Computation Time: 19.24s | Memory: 250.6MB | Comm Cost: 33.1MB
+[ogbn-arxiv β=100.0] Round  50 → Test Acc: 14.45% | Computation Time: 21.63s | Memory: 291.9MB | Comm Cost: 41.4MB
+[ogbn-arxiv β=100.0] Round  60 → Test Acc: 16.95% | Computation Time: 20.63s | Memory: 248.1MB | Comm Cost: 49.7MB
+[ogbn-arxiv β=100.0] Round  70 → Test Acc: 19.41% | Computation Time: 29.24s | Memory: 291.7MB | Comm Cost: 58.0MB
+[ogbn-arxiv β=100.0] Round  80 → Test Acc: 21.72% | Computation Time: 21.07s | Memory: 161.6MB | Comm Cost: 66.3MB
+[ogbn-arxiv β=100.0] Round  90 → Test Acc: 23.80% | Computation Time: 41.25s | Memory: 170.2MB | Comm Cost: 74.5MB
+[ogbn-arxiv β=100.0] Round 100 → Test Acc: 25.55% | Computation Time: 15.62s | Memory: 326.6MB | Comm Cost: 82.8MB
+[ogbn-arxiv β=100.0] Round 110 → Test Acc: 26.99% | Computation Time: 15.89s | Memory: 433.0MB | Comm Cost: 91.1MB
+[ogbn-arxiv β=100.0] Round 120 → Test Acc: 28.29% | Computation Time: 14.00s | Memory: 439.7MB | Comm Cost: 99.4MB
+[ogbn-arxiv β=100.0] Round 130 → Test Acc: 29.34% | Computation Time: 12.62s | Memory: 435.0MB | Comm Cost: 107.7MB
+[ogbn-arxiv β=100.0] Round 140 → Test Acc: 30.25% | Computation Time: 29.10s | Memory: 242.7MB | Comm Cost: 116.0MB
+[ogbn-arxiv β=100.0] Round 150 → Test Acc: 31.08% | Computation Time: 15.25s | Memory: 367.8MB | Comm Cost: 124.2MB
+[ogbn-arxiv β=100.0] Round 160 → Test Acc: 31.74% | Computation Time: 12.19s | Memory: 340.9MB | Comm Cost: 132.5MB
+[ogbn-arxiv β=100.0] Round 170 → Test Acc: 32.34% | Computation Time: 13.22s | Memory: 391.0MB | Comm Cost: 140.8MB
+[ogbn-arxiv β=100.0] Round 180 → Test Acc: 32.79% | Computation Time: 13.64s | Memory: 408.8MB | Comm Cost: 149.1MB
+[ogbn-arxiv β=100.0] Round 190 → Test Acc: 33.27% | Computation Time: 13.34s | Memory: 397.4MB | Comm Cost: 157.4MB
+[ogbn-arxiv β=100.0] Round 200 → Test Acc: 33.75% | Computation Time: 11.01s | Memory: 330.7MB | Comm Cost: 165.6MB
+ogbn-arxiv,100.0,-1,3552.6,33.75,3526.0,165.6,457.0,17.630,0.041,10856
+
+Running ogbn-arxiv with β=10.0
+Dataset: 169,343 nodes, 1,166,243 edges
+[ogbn-arxiv β=10.0] Round   1 → Test Acc: 22.71% | Computation Time: 12.15s | Memory: 422.1MB | Comm Cost: 0.8MB
+[ogbn-arxiv β=10.0] Round  10 → Test Acc: 24.37% | Computation Time: 11.82s | Memory: 343.1MB | Comm Cost: 8.3MB
+[ogbn-arxiv β=10.0] Round  20 → Test Acc: 25.44% | Computation Time: 11.66s | Memory: 394.7MB | Comm Cost: 16.6MB
+[ogbn-arxiv β=10.0] Round  30 → Test Acc: 26.13% | Computation Time: 11.70s | Memory: 354.1MB | Comm Cost: 24.8MB
+[ogbn-arxiv β=10.0] Round  40 → Test Acc: 26.61% | Computation Time: 12.80s | Memory: 435.5MB | Comm Cost: 33.1MB
+[ogbn-arxiv β=10.0] Round  50 → Test Acc: 26.99% | Computation Time: 12.40s | Memory: 432.4MB | Comm Cost: 41.4MB
+[ogbn-arxiv β=10.0] Round  60 → Test Acc: 27.45% | Computation Time: 11.86s | Memory: 422.0MB | Comm Cost: 49.7MB
+[ogbn-arxiv β=10.0] Round  70 → Test Acc: 27.92% | Computation Time: 11.20s | Memory: 365.2MB | Comm Cost: 58.0MB
+[ogbn-arxiv β=10.0] Round  80 → Test Acc: 28.43% | Computation Time: 12.21s | Memory: 423.4MB | Comm Cost: 66.3MB
+[ogbn-arxiv β=10.0] Round  90 → Test Acc: 28.85% | Computation Time: 11.81s | Memory: 412.1MB | Comm Cost: 74.5MB
+[ogbn-arxiv β=10.0] Round 100 → Test Acc: 29.29% | Computation Time: 10.86s | Memory: 334.2MB | Comm Cost: 82.8MB
+[ogbn-arxiv β=10.0] Round 110 → Test Acc: 29.87% | Computation Time: 9.74s | Memory: 237.9MB | Comm Cost: 91.1MB
+[ogbn-arxiv β=10.0] Round 120 → Test Acc: 30.33% | Computation Time: 11.87s | Memory: 431.1MB | Comm Cost: 99.4MB
+[ogbn-arxiv β=10.0] Round 130 → Test Acc: 30.84% | Computation Time: 10.56s | Memory: 431.6MB | Comm Cost: 107.7MB
+[ogbn-arxiv β=10.0] Round 140 → Test Acc: 31.36% | Computation Time: 11.93s | Memory: 430.1MB | Comm Cost: 116.0MB
+[ogbn-arxiv β=10.0] Round 150 → Test Acc: 31.95% | Computation Time: 11.86s | Memory: 425.1MB | Comm Cost: 124.2MB
+[ogbn-arxiv β=10.0] Round 160 → Test Acc: 32.50% | Computation Time: 11.97s | Memory: 300.8MB | Comm Cost: 132.5MB
+[ogbn-arxiv β=10.0] Round 170 → Test Acc: 32.99% | Computation Time: 11.80s | Memory: 421.9MB | Comm Cost: 140.8MB
+[ogbn-arxiv β=10.0] Round 180 → Test Acc: 33.60% | Computation Time: 10.65s | Memory: 426.6MB | Comm Cost: 149.1MB
+[ogbn-arxiv β=10.0] Round 190 → Test Acc: 34.07% | Computation Time: 11.28s | Memory: 409.4MB | Comm Cost: 157.4MB
+[ogbn-arxiv β=10.0] Round 200 → Test Acc: 34.60% | Computation Time: 10.37s | Memory: 337.8MB | Comm Cost: 165.6MB
+ogbn-arxiv,10.0,-1,2313.3,34.60,2300.4,165.6,464.2,11.502,0.041,10856

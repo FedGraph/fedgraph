@@ -1,0 +1,937 @@
+2025-07-29 17:10:11,917	INFO dashboard_sdk.py:338 -- Uploading package gcs://_ray_pkg_32876b9a35c83a3f.zip.
+2025-07-29 17:10:11,920	INFO packaging.py:575 -- Creating a file package for local module '.'.
+Job submission server address: http://localhost:8265
+
+-------------------------------------------------------
+Job 'raysubmit_dndB5BVttBEUzEGQ' submitted successfully
+-------------------------------------------------------
+
+Next steps
+  Query the logs of the job:
+    ray job logs raysubmit_dndB5BVttBEUzEGQ
+  Query the status of the job:
+    ray job status raysubmit_dndB5BVttBEUzEGQ
+  Request the job to be stopped:
+    ray job stop raysubmit_dndB5BVttBEUzEGQ
+
+Tailing logs until the job exits (disable with --no-wait):
+
+--------------------------------------------------------------------------------
+Running experiment 1/1:
+Dataset: cora, Trainers: 40, Distribution: average, IID Beta: 10.0, Hops: 0, Batch Size: -1
+--------------------------------------------------------------------------------
+
+config:  {'fedgraph_task': 'NC', 'num_cpus_per_trainer': 3, 'num_gpus_per_trainer': 0, 'use_cluster': True, 'global_rounds': 200, 'local_step': 1, 'learning_rate': 0.1, 'num_layers': 2, 'logdir': './runs', 'use_huggingface': False, 'saveto_huggingface': False, 'use_encryption': False, 'dataset': 'cora', 'method': 'FedAvg', 'batch_size': -1, 'n_trainer': 40, 'num_hops': 0, 'iid_beta': 10.0, 'distribution_type': 'average', 'gpu': False}
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.cora.x to ./data/cora/raw/ind.cora.x...
+Downloaded ./data/cora/raw/ind.cora.x
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.cora.tx to ./data/cora/raw/ind.cora.tx...
+Downloaded ./data/cora/raw/ind.cora.tx
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.cora.allx to ./data/cora/raw/ind.cora.allx...
+Downloaded ./data/cora/raw/ind.cora.allx
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.cora.y to ./data/cora/raw/ind.cora.y...
+Downloaded ./data/cora/raw/ind.cora.y
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.cora.ty to ./data/cora/raw/ind.cora.ty...
+Downloaded ./data/cora/raw/ind.cora.ty
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.cora.ally to ./data/cora/raw/ind.cora.ally...
+Downloaded ./data/cora/raw/ind.cora.ally
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.cora.graph to ./data/cora/raw/ind.cora.graph...
+Downloaded ./data/cora/raw/ind.cora.graph
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.cora.test.index to ./data/cora/raw/ind.cora.test.index...
+Downloaded ./data/cora/raw/ind.cora.test.index
+Initialization start: network data collected.
+2025-07-30 00:10:20,073	INFO worker.py:1429 -- Using address 192.168.23.53:6379 set in the environment variable RAY_ADDRESS
+2025-07-30 00:10:20,074	INFO worker.py:1564 -- Connecting to existing Ray cluster at address: 192.168.23.53:6379...
+2025-07-30 00:10:20,081	INFO worker.py:1740 -- Connected to Ray cluster. View the dashboard at [1m[32mhttp://192.168.23.53:8265 [39m[22m
+Changing method to FedAvg
+[36m(Trainer pid=35883, ip=192.168.0.191)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+[36m(Trainer pid=35883, ip=192.168.0.191)[0m   return torch.load(io.BytesIO(b))
+/usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  return torch.load(io.BytesIO(b))
+Error running experiment: [36mray::Trainer.get_info()[39m (pid=32235, ip=192.168.2.152, actor_id=6bd05600c7e4622c80dee1ec1b000000, repr=<fedgraph.federated_methods.Trainer object at 0x7f0a9e345c50>)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/ray/session_2025-07-29_22-29-58_687072_1/runtime_resources/working_dir_files/_ray_pkg_32876b9a35c83a3f/fedgraph/trainer_class.py", line 200, in get_info
+    self.train_labels.max().item(), self.test_labels.max().item()
+    ^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: max(): Expected reduction dim to be specified for input.numel() == 0. Specify the reduction dim with the 'dim' argument.
+Configuration: {'fedgraph_task': 'NC', 'num_cpus_per_trainer': 3, 'num_gpus_per_trainer': 0, 'use_cluster': True, 'global_rounds': 200, 'local_step': 1, 'learning_rate': 0.1, 'num_layers': 2, 'logdir': './runs', 'use_huggingface': False, 'saveto_huggingface': False, 'use_encryption': False, 'dataset': 'cora', 'method': 'FedAvg', 'batch_size': -1, 'n_trainer': 40, 'num_hops': 0, 'iid_beta': 10.0, 'distribution_type': 'average', 'gpu': False}
+[36m(Trainer pid=32271, ip=192.168.39.47)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.[32m [repeated 34x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)[0m
+[36m(Trainer pid=32271, ip=192.168.39.47)[0m   return torch.load(io.BytesIO(b))[32m [repeated 34x across cluster][0m
+
+--------------------------------------------------------------------------------
+Running experiment 1/1:
+Dataset: citeseer, Trainers: 40, Distribution: average, IID Beta: 10.0, Hops: 0, Batch Size: -1
+--------------------------------------------------------------------------------
+
+config:  {'fedgraph_task': 'NC', 'num_cpus_per_trainer': 3, 'num_gpus_per_trainer': 0, 'use_cluster': True, 'global_rounds': 200, 'local_step': 1, 'learning_rate': 0.1, 'num_layers': 2, 'logdir': './runs', 'use_huggingface': False, 'saveto_huggingface': False, 'use_encryption': False, 'dataset': 'citeseer', 'method': 'FedAvg', 'batch_size': -1, 'n_trainer': 40, 'num_hops': 0, 'iid_beta': 10.0, 'distribution_type': 'average', 'gpu': False}
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.citeseer.x to ./data/citeseer/raw/ind.citeseer.x...
+Downloaded ./data/citeseer/raw/ind.citeseer.x
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.citeseer.tx to ./data/citeseer/raw/ind.citeseer.tx...
+Downloaded ./data/citeseer/raw/ind.citeseer.tx
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.citeseer.allx to ./data/citeseer/raw/ind.citeseer.allx...
+Downloaded ./data/citeseer/raw/ind.citeseer.allx
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.citeseer.y to ./data/citeseer/raw/ind.citeseer.y...
+Downloaded ./data/citeseer/raw/ind.citeseer.y
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.citeseer.ty to ./data/citeseer/raw/ind.citeseer.ty...
+Downloaded ./data/citeseer/raw/ind.citeseer.ty
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.citeseer.ally to ./data/citeseer/raw/ind.citeseer.ally...
+Downloaded ./data/citeseer/raw/ind.citeseer.ally
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.citeseer.graph to ./data/citeseer/raw/ind.citeseer.graph...
+Downloaded ./data/citeseer/raw/ind.citeseer.graph
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.citeseer.test.index to ./data/citeseer/raw/ind.citeseer.test.index...
+Downloaded ./data/citeseer/raw/ind.citeseer.test.index
+Initialization start: network data collected.
+2025-07-30 00:10:32,982	INFO worker.py:1429 -- Using address 192.168.23.53:6379 set in the environment variable RAY_ADDRESS
+2025-07-30 00:10:32,983	INFO worker.py:1564 -- Connecting to existing Ray cluster at address: 192.168.23.53:6379...
+2025-07-30 00:10:32,991	INFO worker.py:1740 -- Connected to Ray cluster. View the dashboard at [1m[32mhttp://192.168.23.53:8265 [39m[22m
+Changing method to FedAvg
+[36m(Trainer pid=33037, ip=192.168.2.152)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+[36m(Trainer pid=33037, ip=192.168.2.152)[0m   return torch.load(io.BytesIO(b))
+//Log init_time: 6143.304999999999 ms //end
+//Log Large1 init network: 465090.0 //end
+//Log Large2 init network: 339209.0 //end
+//Log Large3 init network: 250960.0 //end
+//Log Large4 init network: 332484.0 //end
+//Log Server init network: 51330208.0 //end
+//Log Initialization Communication Cost (MB): 50.28 //end
+Pretrain start time recorded.
+//pretrain_time: 7.005 ms//end
+//Log Max memory for Large1: 5575606272.0 //end
+//Log Max memory for Large2: 4566142976.0 //end
+//Log Max memory for Large3: 4561641472.0 //end
+//Log Max memory for Large4: 4555509760.0 //end
+//Log Max memory for Server: 2411782144.0 //end
+//Log Large1 network: 2460451.0 //end
+//Log Large2 network: 1285130.0 //end
+//Log Large3 network: 1439903.0 //end
+//Log Large4 network: 1294430.0 //end
+//Log Server network: 11149952.0 //end
+//Log Total Actual Pretrain Comm Cost: 16.81 MB //end
+Pretrain end time recorded and duration set to gauge.
+Train start: network data collected.
+global_rounds 200
+Round 1: Global Test Accuracy = 0.1620
+Round 2: Global Test Accuracy = 0.1620
+Round 3: Global Test Accuracy = 0.1710
+Round 4: Global Test Accuracy = 0.1870
+Round 5: Global Test Accuracy = 0.1970
+Round 6: Global Test Accuracy = 0.2050
+Round 7: Global Test Accuracy = 0.2080
+Round 8: Global Test Accuracy = 0.2110
+Round 9: Global Test Accuracy = 0.2130
+Round 10: Global Test Accuracy = 0.2190
+Round 11: Global Test Accuracy = 0.2270
+Round 12: Global Test Accuracy = 0.2310
+Round 13: Global Test Accuracy = 0.2350
+Round 14: Global Test Accuracy = 0.2390
+Round 15: Global Test Accuracy = 0.2460
+Round 16: Global Test Accuracy = 0.2490
+Round 17: Global Test Accuracy = 0.2590
+Round 18: Global Test Accuracy = 0.2650
+Round 19: Global Test Accuracy = 0.2690
+Round 20: Global Test Accuracy = 0.2760
+Round 21: Global Test Accuracy = 0.2850
+Round 22: Global Test Accuracy = 0.2860
+Round 23: Global Test Accuracy = 0.3040
+Round 24: Global Test Accuracy = 0.3080
+Round 25: Global Test Accuracy = 0.3160
+Round 26: Global Test Accuracy = 0.3270
+Round 27: Global Test Accuracy = 0.3270
+Round 28: Global Test Accuracy = 0.3370
+Round 29: Global Test Accuracy = 0.3430
+Round 30: Global Test Accuracy = 0.3520
+Round 31: Global Test Accuracy = 0.3540
+Round 32: Global Test Accuracy = 0.3750
+Round 33: Global Test Accuracy = 0.3810
+Round 34: Global Test Accuracy = 0.3940
+Round 35: Global Test Accuracy = 0.3930
+Round 36: Global Test Accuracy = 0.3910
+Round 37: Global Test Accuracy = 0.4120
+Round 38: Global Test Accuracy = 0.4120
+Round 39: Global Test Accuracy = 0.4200
+Round 40: Global Test Accuracy = 0.4240
+Round 41: Global Test Accuracy = 0.4240
+Round 42: Global Test Accuracy = 0.4290
+Round 43: Global Test Accuracy = 0.4380
+Round 44: Global Test Accuracy = 0.4350
+Round 45: Global Test Accuracy = 0.4390
+Round 46: Global Test Accuracy = 0.4500
+Round 47: Global Test Accuracy = 0.4500
+Round 48: Global Test Accuracy = 0.4520
+Round 49: Global Test Accuracy = 0.4620
+Round 50: Global Test Accuracy = 0.4740
+Round 51: Global Test Accuracy = 0.4820
+Round 52: Global Test Accuracy = 0.4790
+Round 53: Global Test Accuracy = 0.4910
+Round 54: Global Test Accuracy = 0.4910
+Round 55: Global Test Accuracy = 0.4890
+Round 56: Global Test Accuracy = 0.4990
+Round 57: Global Test Accuracy = 0.5040
+Round 58: Global Test Accuracy = 0.5030
+Round 59: Global Test Accuracy = 0.5110
+Round 60: Global Test Accuracy = 0.5050
+Round 61: Global Test Accuracy = 0.5140
+Round 62: Global Test Accuracy = 0.5150
+Round 63: Global Test Accuracy = 0.5160
+Round 64: Global Test Accuracy = 0.5180
+Round 65: Global Test Accuracy = 0.5170
+Round 66: Global Test Accuracy = 0.5240
+Round 67: Global Test Accuracy = 0.5290
+Round 68: Global Test Accuracy = 0.5340
+Round 69: Global Test Accuracy = 0.5440
+Round 70: Global Test Accuracy = 0.5390
+Round 71: Global Test Accuracy = 0.5400
+Round 72: Global Test Accuracy = 0.5470
+Round 73: Global Test Accuracy = 0.5390
+Round 74: Global Test Accuracy = 0.5480
+Round 75: Global Test Accuracy = 0.5480
+Round 76: Global Test Accuracy = 0.5510
+Round 77: Global Test Accuracy = 0.5460
+Round 78: Global Test Accuracy = 0.5450
+Round 79: Global Test Accuracy = 0.5450
+Round 80: Global Test Accuracy = 0.5440
+Round 81: Global Test Accuracy = 0.5530
+Round 82: Global Test Accuracy = 0.5470
+Round 83: Global Test Accuracy = 0.5500
+Round 84: Global Test Accuracy = 0.5480
+Round 85: Global Test Accuracy = 0.5500
+Round 86: Global Test Accuracy = 0.5490
+Round 87: Global Test Accuracy = 0.5540
+Round 88: Global Test Accuracy = 0.5540
+Round 89: Global Test Accuracy = 0.5490
+Round 90: Global Test Accuracy = 0.5500
+Round 91: Global Test Accuracy = 0.5560
+Round 92: Global Test Accuracy = 0.5560
+Round 93: Global Test Accuracy = 0.5590
+Round 94: Global Test Accuracy = 0.5570
+Round 95: Global Test Accuracy = 0.5570
+Round 96: Global Test Accuracy = 0.5610
+Round 97: Global Test Accuracy = 0.5590
+Round 98: Global Test Accuracy = 0.5610
+Round 99: Global Test Accuracy = 0.5620
+Round 100: Global Test Accuracy = 0.5610
+Round 101: Global Test Accuracy = 0.5620
+Round 102: Global Test Accuracy = 0.5590
+Round 103: Global Test Accuracy = 0.5620
+Round 104: Global Test Accuracy = 0.5660
+Round 105: Global Test Accuracy = 0.5640
+Round 106: Global Test Accuracy = 0.5650
+Round 107: Global Test Accuracy = 0.5640
+Round 108: Global Test Accuracy = 0.5600
+Round 109: Global Test Accuracy = 0.5670
+Round 110: Global Test Accuracy = 0.5630
+Round 111: Global Test Accuracy = 0.5580
+Round 112: Global Test Accuracy = 0.5560
+Round 113: Global Test Accuracy = 0.5620
+Round 114: Global Test Accuracy = 0.5610
+Round 115: Global Test Accuracy = 0.5600
+Round 116: Global Test Accuracy = 0.5630
+Round 117: Global Test Accuracy = 0.5640
+Round 118: Global Test Accuracy = 0.5660
+Round 119: Global Test Accuracy = 0.5630
+Round 120: Global Test Accuracy = 0.5650
+Round 121: Global Test Accuracy = 0.5670
+Round 122: Global Test Accuracy = 0.5650
+Round 123: Global Test Accuracy = 0.5680
+Round 124: Global Test Accuracy = 0.5660
+Round 125: Global Test Accuracy = 0.5660
+Round 126: Global Test Accuracy = 0.5640
+Round 127: Global Test Accuracy = 0.5680
+Round 128: Global Test Accuracy = 0.5690
+Round 129: Global Test Accuracy = 0.5690
+Round 130: Global Test Accuracy = 0.5730
+Round 131: Global Test Accuracy = 0.5740
+Round 132: Global Test Accuracy = 0.5720
+Round 133: Global Test Accuracy = 0.5740
+Round 134: Global Test Accuracy = 0.5730
+Round 135: Global Test Accuracy = 0.5740
+Round 136: Global Test Accuracy = 0.5750
+Round 137: Global Test Accuracy = 0.5750
+Round 138: Global Test Accuracy = 0.5770
+Round 139: Global Test Accuracy = 0.5750
+Round 140: Global Test Accuracy = 0.5740
+Round 141: Global Test Accuracy = 0.5740
+Round 142: Global Test Accuracy = 0.5750
+Round 143: Global Test Accuracy = 0.5770
+Round 144: Global Test Accuracy = 0.5750
+Round 145: Global Test Accuracy = 0.5770
+Round 146: Global Test Accuracy = 0.5810
+Round 147: Global Test Accuracy = 0.5760
+Round 148: Global Test Accuracy = 0.5780
+Round 149: Global Test Accuracy = 0.5790
+Round 150: Global Test Accuracy = 0.5780
+Round 151: Global Test Accuracy = 0.5780
+Round 152: Global Test Accuracy = 0.5810
+Round 153: Global Test Accuracy = 0.5780
+Round 154: Global Test Accuracy = 0.5770
+Round 155: Global Test Accuracy = 0.5770
+Round 156: Global Test Accuracy = 0.5760
+Round 157: Global Test Accuracy = 0.5770
+Round 158: Global Test Accuracy = 0.5770
+Round 159: Global Test Accuracy = 0.5780
+Round 160: Global Test Accuracy = 0.5770
+Round 161: Global Test Accuracy = 0.5790
+Round 162: Global Test Accuracy = 0.5810
+Round 163: Global Test Accuracy = 0.5770
+Round 164: Global Test Accuracy = 0.5810
+Round 165: Global Test Accuracy = 0.5820
+Round 166: Global Test Accuracy = 0.5820
+Round 167: Global Test Accuracy = 0.5810
+Round 168: Global Test Accuracy = 0.5820
+Round 169: Global Test Accuracy = 0.5830
+Round 170: Global Test Accuracy = 0.5800
+Round 171: Global Test Accuracy = 0.5810
+Round 172: Global Test Accuracy = 0.5800
+Round 173: Global Test Accuracy = 0.5810
+Round 174: Global Test Accuracy = 0.5820
+Round 175: Global Test Accuracy = 0.5820
+Round 176: Global Test Accuracy = 0.5810
+Round 177: Global Test Accuracy = 0.5810
+Round 178: Global Test Accuracy = 0.5810
+Round 179: Global Test Accuracy = 0.5820
+Round 180: Global Test Accuracy = 0.5780
+Round 181: Global Test Accuracy = 0.5790
+Round 182: Global Test Accuracy = 0.5800
+Round 183: Global Test Accuracy = 0.5790
+Round 184: Global Test Accuracy = 0.5780
+Round 185: Global Test Accuracy = 0.5800
+Round 186: Global Test Accuracy = 0.5780
+Round 187: Global Test Accuracy = 0.5800
+Round 188: Global Test Accuracy = 0.5790
+Round 189: Global Test Accuracy = 0.5790
+Round 190: Global Test Accuracy = 0.5790
+Round 191: Global Test Accuracy = 0.5790
+Round 192: Global Test Accuracy = 0.5790
+Round 193: Global Test Accuracy = 0.5780
+Round 194: Global Test Accuracy = 0.5780
+Round 195: Global Test Accuracy = 0.5790
+Round 196: Global Test Accuracy = 0.5770
+Round 197: Global Test Accuracy = 0.5790
+Round 198: Global Test Accuracy = 0.5790
+Round 199: Global Test Accuracy = 0.5770
+Round 200: Global Test Accuracy = 0.5790
+//train_time: 45900.207 ms//end
+//Log Max memory for Large1: 5596459008.0 //end
+//Log Max memory for Large2: 4587798528.0 //end
+//Log Max memory for Large3: 4584243200.0 //end
+//Log Max memory for Large4: 4587601920.0 //end
+//Log Max memory for Server: 2433404928.0 //end
+//Log Large1 network: 498776370.0 //end
+//Log Large2 network: 495527633.0 //end
+//Log Large3 network: 495527784.0 //end
+//Log Large4 network: 495339337.0 //end
+//Log Server network: 1972776998.0 //end
+//Log Total Actual Train Comm Cost: 3774.59 MB //end
+Train end time recorded and duration set to gauge.
+[Training Time] Dataset: citeseer, Batch Size: -1, Trainers: 40, Hops: 0, IID Beta: 10.0 => Training Time = 75.90 seconds
+average_final_test_loss, 1.2288482681512833
+Average test accuracy, 0.579
+
+================================================================================
+INDIVIDUAL TRAINER MEMORY USAGE
+================================================================================
+
+====================================================================================================
+TRAINER MEMORY vs LOCAL GRAPH SIZE
+====================================================================================================
+Trainer  Memory(MB)   Nodes    Edges    Memory/Node  Memory/Edge 
+----------------------------------------------------------------------------------------------------
+0        671.9        84       9        7.999        74.660      
+1        673.7        93       12       7.244        56.142      
+2        670.8        86       10       7.801        67.084      
+3        672.6        78       8        8.623        84.075      
+4        670.6        77       7        8.709        95.801      
+5        674.0        85       2        7.929        336.977     
+6        670.5        74       7        9.061        95.787      
+7        673.1        85       6        7.919        112.184     
+8        671.2        79       6        8.496        111.866     
+9        672.5        81       16       8.302        42.031      
+10       671.1        73       8        9.193        83.891      
+11       672.6        80       8        8.407        84.071      
+12       669.8        90       24       7.442        27.907      
+13       672.4        72       14       9.339        48.032      
+14       671.5        90       18       7.461        37.304      
+15       671.5        71       7        9.457        95.923      
+16       672.4        88       8        7.641        84.047      
+17       671.3        66       5        10.172       134.264     
+18       671.8        81       13       8.294        51.678      
+19       671.1        94       18       7.139        37.283      
+20       672.4        88       13       7.640        51.719      
+21       672.1        74       1        9.082        672.098     
+22       671.7        91       9        7.382        74.637      
+23       672.8        95       10       7.082        67.276      
+24       672.4        93       10       7.230        67.239      
+25       671.7        82       5        8.191        134.334     
+26       671.0        91       8        7.374        83.875      
+27       671.4        68       4        9.873        167.845     
+28       670.6        78       8        8.598        83.826      
+29       671.5        82       9        8.189        74.610      
+30       671.4        77       6        8.720        111.904     
+31       671.5        100      14       6.715        47.967      
+32       672.9        90       9        7.477        74.768      
+33       671.4        90       7        7.460        95.920      
+34       671.5        82       6        8.189        111.922     
+35       671.8        85       10       7.904        67.181      
+36       671.5        80       3        8.393        223.824     
+37       672.1        66       2        10.183       336.051     
+38       670.4        90       10       7.448        67.036      
+39       671.6        98       16       6.853        41.972      
+====================================================================================================
+Total Memory Usage: 26870.0 MB (26.24 GB)
+Total Nodes: 3327, Total Edges: 366
+Average Memory per Trainer: 671.8 MB
+Average Nodes per Trainer: 83.2
+Average Edges per Trainer: 9.2
+Max Memory: 674.0 MB (Trainer 5)
+Min Memory: 669.8 MB (Trainer 12)
+Overall Memory/Node Ratio: 8.076 MB/node
+Overall Memory/Edge Ratio: 73.415 MB/edge
+====================================================================================================
+//Log Theoretical Pretrain Comm Cost: 0.00 MB //end
+//Log Theoretical Train Comm Cost: 3623.41 MB //end
+
+================================================================================
+CSV FORMAT RESULT:
+DS,IID,BS,Time[s],FinalAcc[%],CompTime[s],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
+citeseer,10.0,-1,112.1,0.58,75.9,3623.4,674.0,0.380,0.226,0
+================================================================================
+
+================================================================================
+EXPERIMENT SUMMARY
+================================================================================
+Dataset: citeseer
+Method: FedAvg
+Trainers: 40
+IID Beta: 10.0
+Batch Size: -1
+Hops: 0
+Total Execution Time: 112.07 seconds
+Training Time: 75.93 seconds
+Pretrain Comm Cost: 0.00 MB
+Training Comm Cost: 3623.41 MB
+================================================================================
+
+[36m(Trainer pid=32994, ip=192.168.52.140)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.[32m [repeated 39x across cluster][0m
+[36m(Trainer pid=32994, ip=192.168.52.140)[0m   return torch.load(io.BytesIO(b))[32m [repeated 39x across cluster][0m
+Experiment 1/1 completed for:
+  Dataset: citeseer, Trainers: 40, IID Beta: 10.0
+  Method: fedgcn if 0 > 0 else FedAvg, Batch Size: -1
+
+--------------------------------------------------------------------------------
+Running experiment 1/1:
+Dataset: pubmed, Trainers: 40, Distribution: average, IID Beta: 10.0, Hops: 0, Batch Size: -1
+--------------------------------------------------------------------------------
+
+config:  {'fedgraph_task': 'NC', 'num_cpus_per_trainer': 3, 'num_gpus_per_trainer': 0, 'use_cluster': True, 'global_rounds': 200, 'local_step': 1, 'learning_rate': 0.1, 'num_layers': 2, 'logdir': './runs', 'use_huggingface': False, 'saveto_huggingface': False, 'use_encryption': False, 'dataset': 'pubmed', 'method': 'FedAvg', 'batch_size': -1, 'n_trainer': 40, 'num_hops': 0, 'iid_beta': 10.0, 'distribution_type': 'average', 'gpu': False}
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.pubmed.x to ./data/pubmed/raw/ind.pubmed.x...
+Downloaded ./data/pubmed/raw/ind.pubmed.x
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.pubmed.tx to ./data/pubmed/raw/ind.pubmed.tx...
+Downloaded ./data/pubmed/raw/ind.pubmed.tx
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.pubmed.allx to ./data/pubmed/raw/ind.pubmed.allx...
+Downloaded ./data/pubmed/raw/ind.pubmed.allx
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.pubmed.y to ./data/pubmed/raw/ind.pubmed.y...
+Downloaded ./data/pubmed/raw/ind.pubmed.y
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.pubmed.ty to ./data/pubmed/raw/ind.pubmed.ty...
+Downloaded ./data/pubmed/raw/ind.pubmed.ty
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.pubmed.ally to ./data/pubmed/raw/ind.pubmed.ally...
+Downloaded ./data/pubmed/raw/ind.pubmed.ally
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.pubmed.graph to ./data/pubmed/raw/ind.pubmed.graph...
+Downloaded ./data/pubmed/raw/ind.pubmed.graph
+Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.pubmed.test.index to ./data/pubmed/raw/ind.pubmed.test.index...
+Downloaded ./data/pubmed/raw/ind.pubmed.test.index
+Initialization start: network data collected.
+2025-07-30 00:12:37,904	INFO worker.py:1429 -- Using address 192.168.23.53:6379 set in the environment variable RAY_ADDRESS
+2025-07-30 00:12:37,904	INFO worker.py:1564 -- Connecting to existing Ray cluster at address: 192.168.23.53:6379...
+2025-07-30 00:12:37,909	INFO worker.py:1740 -- Connected to Ray cluster. View the dashboard at [1m[32mhttp://192.168.23.53:8265 [39m[22m
+Changing method to FedAvg
+[36m(Trainer pid=37976, ip=192.168.0.191)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+[36m(Trainer pid=37976, ip=192.168.0.191)[0m   return torch.load(io.BytesIO(b))
+Error running experiment: [36mray::Trainer.get_info()[39m (pid=34320, ip=192.168.2.152, actor_id=a2ee1f84e3a63fa30a5f1c9f1d000000, repr=<fedgraph.federated_methods.Trainer object at 0x7f90badc8b90>)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/ray/session_2025-07-29_22-29-58_687072_1/runtime_resources/working_dir_files/_ray_pkg_32876b9a35c83a3f/fedgraph/trainer_class.py", line 200, in get_info
+    self.train_labels.max().item(), self.test_labels.max().item()
+    ^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: max(): Expected reduction dim to be specified for input.numel() == 0. Specify the reduction dim with the 'dim' argument.
+Configuration: {'fedgraph_task': 'NC', 'num_cpus_per_trainer': 3, 'num_gpus_per_trainer': 0, 'use_cluster': True, 'global_rounds': 200, 'local_step': 1, 'learning_rate': 0.1, 'num_layers': 2, 'logdir': './runs', 'use_huggingface': False, 'saveto_huggingface': False, 'use_encryption': False, 'dataset': 'pubmed', 'method': 'FedAvg', 'batch_size': -1, 'n_trainer': 40, 'num_hops': 0, 'iid_beta': 10.0, 'distribution_type': 'average', 'gpu': False}
+[36m(Trainer pid=37982, ip=192.168.0.191)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.[32m [repeated 3x across cluster][0m
+[36m(Trainer pid=37982, ip=192.168.0.191)[0m   return torch.load(io.BytesIO(b))[32m [repeated 3x across cluster][0m
+
+--------------------------------------------------------------------------------
+Running experiment 1/1:
+Dataset: ogbn-arxiv, Trainers: 40, Distribution: average, IID Beta: 10.0, Hops: 0, Batch Size: -1
+--------------------------------------------------------------------------------
+
+config:  {'fedgraph_task': 'NC', 'num_cpus_per_trainer': 3, 'num_gpus_per_trainer': 0, 'use_cluster': True, 'global_rounds': 200, 'local_step': 1, 'learning_rate': 0.1, 'num_layers': 2, 'logdir': './runs', 'use_huggingface': False, 'saveto_huggingface': False, 'use_encryption': False, 'dataset': 'ogbn-arxiv', 'method': 'FedAvg', 'batch_size': -1, 'n_trainer': 40, 'num_hops': 0, 'iid_beta': 10.0, 'distribution_type': 'average', 'gpu': False}
+ogbn-arxiv has been updated.
+Downloading http://snap.stanford.edu/ogb/data/nodeproppred/arxiv.zip
+
+  0%|          | 0/81 [00:00<?, ?it/s]
+Downloaded 0.00 GB:   0%|          | 0/81 [00:01<?, ?it/s]
+Downloaded 0.00 GB:   1%|          | 1/81 [00:01<01:21,  1.02s/it]
+Downloaded 0.00 GB:   1%|          | 1/81 [00:01<01:21,  1.02s/it]
+Downloaded 0.00 GB:   2%|▏         | 2/81 [00:01<00:52,  1.51it/s]
+Downloaded 0.00 GB:   2%|▏         | 2/81 [00:01<00:52,  1.51it/s]
+Downloaded 0.00 GB:   4%|▎         | 3/81 [00:01<00:37,  2.06it/s]
+Downloaded 0.00 GB:   4%|▎         | 3/81 [00:01<00:37,  2.06it/s]
+Downloaded 0.00 GB:   5%|▍         | 4/81 [00:01<00:28,  2.68it/s]
+Downloaded 0.00 GB:   5%|▍         | 4/81 [00:01<00:28,  2.68it/s]
+Downloaded 0.01 GB:   5%|▍         | 4/81 [00:02<00:28,  2.68it/s]
+Downloaded 0.01 GB:   7%|▋         | 6/81 [00:02<00:16,  4.69it/s]
+Downloaded 0.01 GB:   7%|▋         | 6/81 [00:02<00:16,  4.69it/s]
+Downloaded 0.01 GB:   7%|▋         | 6/81 [00:02<00:16,  4.69it/s]
+Downloaded 0.01 GB:  10%|▉         | 8/81 [00:02<00:10,  6.65it/s]
+Downloaded 0.01 GB:  10%|▉         | 8/81 [00:02<00:10,  6.65it/s]
+Downloaded 0.01 GB:  10%|▉         | 8/81 [00:02<00:10,  6.65it/s]
+Downloaded 0.01 GB:  10%|▉         | 8/81 [00:02<00:10,  6.65it/s]
+Downloaded 0.01 GB:  14%|█▎        | 11/81 [00:02<00:07,  9.96it/s]
+Downloaded 0.01 GB:  14%|█▎        | 11/81 [00:02<00:07,  9.96it/s]
+Downloaded 0.01 GB:  14%|█▎        | 11/81 [00:02<00:07,  9.96it/s]
+Downloaded 0.01 GB:  14%|█▎        | 11/81 [00:02<00:07,  9.96it/s]
+Downloaded 0.01 GB:  17%|█▋        | 14/81 [00:02<00:05, 12.85it/s]
+Downloaded 0.01 GB:  17%|█▋        | 14/81 [00:02<00:05, 12.85it/s]
+Downloaded 0.02 GB:  17%|█▋        | 14/81 [00:02<00:05, 12.85it/s]
+Downloaded 0.02 GB:  17%|█▋        | 14/81 [00:02<00:05, 12.85it/s]
+Downloaded 0.02 GB:  21%|██        | 17/81 [00:02<00:04, 15.32it/s]
+Downloaded 0.02 GB:  21%|██        | 17/81 [00:02<00:04, 15.32it/s]
+Downloaded 0.02 GB:  21%|██        | 17/81 [00:02<00:04, 15.32it/s]
+Downloaded 0.02 GB:  21%|██        | 17/81 [00:02<00:04, 15.32it/s]
+Downloaded 0.02 GB:  21%|██        | 17/81 [00:02<00:04, 15.32it/s]
+Downloaded 0.02 GB:  26%|██▌       | 21/81 [00:02<00:03, 19.03it/s]
+Downloaded 0.02 GB:  26%|██▌       | 21/81 [00:02<00:03, 19.03it/s]
+Downloaded 0.02 GB:  26%|██▌       | 21/81 [00:02<00:03, 19.03it/s]
+Downloaded 0.02 GB:  26%|██▌       | 21/81 [00:02<00:03, 19.03it/s]
+Downloaded 0.02 GB:  26%|██▌       | 21/81 [00:02<00:03, 19.03it/s]
+Downloaded 0.03 GB:  26%|██▌       | 21/81 [00:02<00:03, 19.03it/s]
+Downloaded 0.03 GB:  32%|███▏      | 26/81 [00:02<00:02, 23.59it/s]
+Downloaded 0.03 GB:  32%|███▏      | 26/81 [00:02<00:02, 23.59it/s]
+Downloaded 0.03 GB:  32%|███▏      | 26/81 [00:02<00:02, 23.59it/s]
+Downloaded 0.03 GB:  32%|███▏      | 26/81 [00:02<00:02, 23.59it/s]
+Downloaded 0.03 GB:  32%|███▏      | 26/81 [00:02<00:02, 23.59it/s]
+Downloaded 0.03 GB:  32%|███▏      | 26/81 [00:03<00:02, 23.59it/s]
+Downloaded 0.03 GB:  38%|███▊      | 31/81 [00:03<00:01, 27.49it/s]
+Downloaded 0.03 GB:  38%|███▊      | 31/81 [00:03<00:01, 27.49it/s]
+Downloaded 0.03 GB:  38%|███▊      | 31/81 [00:03<00:01, 27.49it/s]
+Downloaded 0.03 GB:  38%|███▊      | 31/81 [00:03<00:01, 27.49it/s]
+Downloaded 0.03 GB:  38%|███▊      | 31/81 [00:03<00:01, 27.49it/s]
+Downloaded 0.04 GB:  38%|███▊      | 31/81 [00:03<00:01, 27.49it/s]
+Downloaded 0.04 GB:  44%|████▍     | 36/81 [00:03<00:01, 31.75it/s]
+Downloaded 0.04 GB:  44%|████▍     | 36/81 [00:03<00:01, 31.75it/s]
+Downloaded 0.04 GB:  44%|████▍     | 36/81 [00:03<00:01, 31.75it/s]
+Downloaded 0.04 GB:  44%|████▍     | 36/81 [00:03<00:01, 31.75it/s]
+Downloaded 0.04 GB:  44%|████▍     | 36/81 [00:03<00:01, 31.75it/s]
+Downloaded 0.04 GB:  49%|████▉     | 40/81 [00:03<00:01, 33.10it/s]
+Downloaded 0.04 GB:  49%|████▉     | 40/81 [00:03<00:01, 33.10it/s]
+Downloaded 0.04 GB:  49%|████▉     | 40/81 [00:03<00:01, 33.10it/s]
+Downloaded 0.04 GB:  49%|████▉     | 40/81 [00:03<00:01, 33.10it/s]
+Downloaded 0.04 GB:  49%|████▉     | 40/81 [00:03<00:01, 33.10it/s]
+Downloaded 0.04 GB:  54%|█████▍    | 44/81 [00:03<00:01, 34.81it/s]
+Downloaded 0.04 GB:  54%|█████▍    | 44/81 [00:03<00:01, 34.81it/s]
+Downloaded 0.04 GB:  54%|█████▍    | 44/81 [00:03<00:01, 34.81it/s]
+Downloaded 0.05 GB:  54%|█████▍    | 44/81 [00:03<00:01, 34.81it/s]
+Downloaded 0.05 GB:  54%|█████▍    | 44/81 [00:03<00:01, 34.81it/s]
+Downloaded 0.05 GB:  59%|█████▉    | 48/81 [00:03<00:00, 35.50it/s]
+Downloaded 0.05 GB:  59%|█████▉    | 48/81 [00:03<00:00, 35.50it/s]
+Downloaded 0.05 GB:  59%|█████▉    | 48/81 [00:03<00:00, 35.50it/s]
+Downloaded 0.05 GB:  59%|█████▉    | 48/81 [00:03<00:00, 35.50it/s]
+Downloaded 0.05 GB:  59%|█████▉    | 48/81 [00:03<00:00, 35.50it/s]
+Downloaded 0.05 GB:  64%|██████▍   | 52/81 [00:03<00:00, 36.62it/s]
+Downloaded 0.05 GB:  64%|██████▍   | 52/81 [00:03<00:00, 36.62it/s]
+Downloaded 0.05 GB:  64%|██████▍   | 52/81 [00:03<00:00, 36.62it/s]
+Downloaded 0.05 GB:  64%|██████▍   | 52/81 [00:03<00:00, 36.62it/s]
+Downloaded 0.05 GB:  64%|██████▍   | 52/81 [00:03<00:00, 36.62it/s]
+Downloaded 0.05 GB:  69%|██████▉   | 56/81 [00:03<00:00, 36.82it/s]
+Downloaded 0.06 GB:  69%|██████▉   | 56/81 [00:03<00:00, 36.82it/s]
+Downloaded 0.06 GB:  69%|██████▉   | 56/81 [00:03<00:00, 36.82it/s]
+Downloaded 0.06 GB:  69%|██████▉   | 56/81 [00:03<00:00, 36.82it/s]
+Downloaded 0.06 GB:  69%|██████▉   | 56/81 [00:03<00:00, 36.82it/s]
+Downloaded 0.06 GB:  74%|███████▍  | 60/81 [00:03<00:00, 37.62it/s]
+Downloaded 0.06 GB:  74%|███████▍  | 60/81 [00:03<00:00, 37.62it/s]
+Downloaded 0.06 GB:  74%|███████▍  | 60/81 [00:03<00:00, 37.62it/s]
+Downloaded 0.06 GB:  74%|███████▍  | 60/81 [00:03<00:00, 37.62it/s]
+Downloaded 0.06 GB:  74%|███████▍  | 60/81 [00:03<00:00, 37.62it/s]
+Downloaded 0.06 GB:  79%|███████▉  | 64/81 [00:03<00:00, 35.61it/s]
+Downloaded 0.06 GB:  79%|███████▉  | 64/81 [00:03<00:00, 35.61it/s]
+Downloaded 0.06 GB:  79%|███████▉  | 64/81 [00:03<00:00, 35.61it/s]
+Downloaded 0.07 GB:  79%|███████▉  | 64/81 [00:03<00:00, 35.61it/s]
+Downloaded 0.07 GB:  79%|███████▉  | 64/81 [00:03<00:00, 35.61it/s]
+Downloaded 0.07 GB:  84%|████████▍ | 68/81 [00:03<00:00, 36.12it/s]
+Downloaded 0.07 GB:  84%|████████▍ | 68/81 [00:03<00:00, 36.12it/s]
+Downloaded 0.07 GB:  84%|████████▍ | 68/81 [00:04<00:00, 36.12it/s]
+Downloaded 0.07 GB:  84%|████████▍ | 68/81 [00:04<00:00, 36.12it/s]
+Downloaded 0.07 GB:  84%|████████▍ | 68/81 [00:04<00:00, 36.12it/s]
+Downloaded 0.07 GB:  89%|████████▉ | 72/81 [00:04<00:00, 37.13it/s]
+Downloaded 0.07 GB:  89%|████████▉ | 72/81 [00:04<00:00, 37.13it/s]
+Downloaded 0.07 GB:  89%|████████▉ | 72/81 [00:04<00:00, 37.13it/s]
+Downloaded 0.07 GB:  89%|████████▉ | 72/81 [00:04<00:00, 37.13it/s]
+Downloaded 0.07 GB:  89%|████████▉ | 72/81 [00:04<00:00, 37.13it/s]
+Downloaded 0.07 GB:  94%|█████████▍| 76/81 [00:04<00:00, 37.23it/s]
+Downloaded 0.08 GB:  94%|█████████▍| 76/81 [00:04<00:00, 37.23it/s]
+Downloaded 0.08 GB:  94%|█████████▍| 76/81 [00:04<00:00, 37.23it/s]
+Downloaded 0.08 GB:  94%|█████████▍| 76/81 [00:04<00:00, 37.23it/s]
+Downloaded 0.08 GB:  94%|█████████▍| 76/81 [00:04<00:00, 37.23it/s]
+Downloaded 0.08 GB:  94%|█████████▍| 76/81 [00:04<00:00, 37.23it/s]
+Downloaded 0.08 GB: 100%|██████████| 81/81 [00:04<00:00, 19.03it/s]
+Extracting dataset/arxiv.zip
+Processing...
+Loading necessary files...
+This might take a while.
+Processing graphs...
+
+  0%|          | 0/1 [00:00<?, ?it/s]
+100%|██████████| 1/1 [00:00<00:00, 24244.53it/s]
+Converting graphs into PyG objects...
+
+  0%|          | 0/1 [00:00<?, ?it/s]
+100%|██████████| 1/1 [00:00<00:00, 6114.15it/s]
+Saving...
+Done!
+/usr/local/lib/python3.11/site-packages/ogb/nodeproppred/dataset_pyg.py:69: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  self.data, self.slices = torch.load(self.processed_paths[0])
+Initialization start: network data collected.
+2025-07-30 00:12:59,339	INFO worker.py:1429 -- Using address 192.168.23.53:6379 set in the environment variable RAY_ADDRESS
+2025-07-30 00:12:59,339	INFO worker.py:1564 -- Connecting to existing Ray cluster at address: 192.168.23.53:6379...
+2025-07-30 00:12:59,347	INFO worker.py:1740 -- Connected to Ray cluster. View the dashboard at [1m[32mhttp://192.168.23.53:8265 [39m[22m
+Changing method to FedAvg
+[36m(Trainer pid=35157, ip=192.168.2.152)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+[36m(Trainer pid=35157, ip=192.168.2.152)[0m   return torch.load(io.BytesIO(b))
+/usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  return torch.load(io.BytesIO(b))
+[36m(Trainer pid=35155, ip=192.168.2.152)[0m Running GCN_arxiv
+Running GCN_arxiv
+//Log init_time: 6181.657 ms //end
+//Log Large1 init network: 434938.0 //end
+//Log Large2 init network: 281026.0 //end
+//Log Large3 init network: 270978.0 //end
+//Log Large4 init network: 268872.0 //end
+//Log Server init network: 100626102.0 //end
+//Log Initialization Communication Cost (MB): 97.16 //end
+Pretrain start time recorded.
+//pretrain_time: 6.621 ms//end
+//Log Max memory for Large1: 5599621120.0 //end
+//Log Max memory for Large2: 4588605440.0 //end
+//Log Max memory for Large3: 4583763968.0 //end
+//Log Max memory for Large4: 4585750528.0 //end
+//Log Max memory for Server: 2713591808.0 //end
+//Log Large1 network: 2973951.0 //end
+//Log Large2 network: 1709744.0 //end
+//Log Large3 network: 1619232.0 //end
+//Log Large4 network: 1618678.0 //end
+//Log Server network: 8522750.0 //end
+//Log Total Actual Pretrain Comm Cost: 15.68 MB //end
+Pretrain end time recorded and duration set to gauge.
+Train start: network data collected.
+global_rounds 200
+Round 1: Global Test Accuracy = 0.0794
+Round 2: Global Test Accuracy = 0.0875
+Round 3: Global Test Accuracy = 0.0819
+Round 4: Global Test Accuracy = 0.0846
+Round 5: Global Test Accuracy = 0.1129
+Round 6: Global Test Accuracy = 0.1626
+Round 7: Global Test Accuracy = 0.2091
+Round 8: Global Test Accuracy = 0.2396
+Round 9: Global Test Accuracy = 0.2589
+Round 10: Global Test Accuracy = 0.2737
+Round 11: Global Test Accuracy = 0.2858
+Round 12: Global Test Accuracy = 0.2970
+Round 13: Global Test Accuracy = 0.3068
+Round 14: Global Test Accuracy = 0.3154
+Round 15: Global Test Accuracy = 0.3233
+Round 16: Global Test Accuracy = 0.3303
+Round 17: Global Test Accuracy = 0.3375
+Round 18: Global Test Accuracy = 0.3440
+Round 19: Global Test Accuracy = 0.3492
+Round 20: Global Test Accuracy = 0.3550
+Round 21: Global Test Accuracy = 0.3602
+Round 22: Global Test Accuracy = 0.3651
+Round 23: Global Test Accuracy = 0.3695
+Round 24: Global Test Accuracy = 0.3756
+Round 25: Global Test Accuracy = 0.3795
+Round 26: Global Test Accuracy = 0.3837
+Round 27: Global Test Accuracy = 0.3877
+Round 28: Global Test Accuracy = 0.3915
+Round 29: Global Test Accuracy = 0.3951
+Round 30: Global Test Accuracy = 0.3985
+Round 31: Global Test Accuracy = 0.4015
+Round 32: Global Test Accuracy = 0.4047
+Round 33: Global Test Accuracy = 0.4071
+Round 34: Global Test Accuracy = 0.4097
+Round 35: Global Test Accuracy = 0.4123
+Round 36: Global Test Accuracy = 0.4144
+Round 37: Global Test Accuracy = 0.4173
+Round 38: Global Test Accuracy = 0.4203
+Round 39: Global Test Accuracy = 0.4227
+Round 40: Global Test Accuracy = 0.4247
+Round 41: Global Test Accuracy = 0.4271
+Round 42: Global Test Accuracy = 0.4289
+Round 43: Global Test Accuracy = 0.4312
+Round 44: Global Test Accuracy = 0.4335
+Round 45: Global Test Accuracy = 0.4355
+Round 46: Global Test Accuracy = 0.4370
+Round 47: Global Test Accuracy = 0.4385
+Round 48: Global Test Accuracy = 0.4401
+Round 49: Global Test Accuracy = 0.4419
+Round 50: Global Test Accuracy = 0.4436
+Round 51: Global Test Accuracy = 0.4451
+Round 52: Global Test Accuracy = 0.4462
+Round 53: Global Test Accuracy = 0.4475
+Round 54: Global Test Accuracy = 0.4491
+Round 55: Global Test Accuracy = 0.4505
+Round 56: Global Test Accuracy = 0.4512
+Round 57: Global Test Accuracy = 0.4529
+Round 58: Global Test Accuracy = 0.4537
+Round 59: Global Test Accuracy = 0.4548
+Round 60: Global Test Accuracy = 0.4560
+Round 61: Global Test Accuracy = 0.4573
+Round 62: Global Test Accuracy = 0.4587
+Round 63: Global Test Accuracy = 0.4594
+Round 64: Global Test Accuracy = 0.4603
+Round 65: Global Test Accuracy = 0.4611
+Round 66: Global Test Accuracy = 0.4620
+Round 67: Global Test Accuracy = 0.4632
+Round 68: Global Test Accuracy = 0.4639
+Round 69: Global Test Accuracy = 0.4646
+Round 70: Global Test Accuracy = 0.4655
+Round 71: Global Test Accuracy = 0.4662
+Round 72: Global Test Accuracy = 0.4675
+Round 73: Global Test Accuracy = 0.4680
+Round 74: Global Test Accuracy = 0.4690
+Round 75: Global Test Accuracy = 0.4697
+Round 76: Global Test Accuracy = 0.4704
+Round 77: Global Test Accuracy = 0.4710
+Round 78: Global Test Accuracy = 0.4717
+Round 79: Global Test Accuracy = 0.4718
+Round 80: Global Test Accuracy = 0.4726
+Round 81: Global Test Accuracy = 0.4734
+Round 82: Global Test Accuracy = 0.4740
+Round 83: Global Test Accuracy = 0.4746
+Round 84: Global Test Accuracy = 0.4752
+Round 85: Global Test Accuracy = 0.4756
+Round 86: Global Test Accuracy = 0.4764
+Round 87: Global Test Accuracy = 0.4767
+Round 88: Global Test Accuracy = 0.4776
+Round 89: Global Test Accuracy = 0.4782
+Round 90: Global Test Accuracy = 0.4788
+Round 91: Global Test Accuracy = 0.4791
+Round 92: Global Test Accuracy = 0.4797
+Round 93: Global Test Accuracy = 0.4798
+Round 94: Global Test Accuracy = 0.4805
+Round 95: Global Test Accuracy = 0.4809
+Round 96: Global Test Accuracy = 0.4815
+Round 97: Global Test Accuracy = 0.4819
+Round 98: Global Test Accuracy = 0.4820
+Round 99: Global Test Accuracy = 0.4824
+Round 100: Global Test Accuracy = 0.4829
+Round 101: Global Test Accuracy = 0.4833
+Round 102: Global Test Accuracy = 0.4835
+Round 103: Global Test Accuracy = 0.4839
+Round 104: Global Test Accuracy = 0.4844
+Round 105: Global Test Accuracy = 0.4846
+Round 106: Global Test Accuracy = 0.4854
+Round 107: Global Test Accuracy = 0.4856
+Round 108: Global Test Accuracy = 0.4861
+Round 109: Global Test Accuracy = 0.4869
+Round 110: Global Test Accuracy = 0.4868
+Round 111: Global Test Accuracy = 0.4873
+Round 112: Global Test Accuracy = 0.4879
+Round 113: Global Test Accuracy = 0.4880
+Round 114: Global Test Accuracy = 0.4883
+Round 115: Global Test Accuracy = 0.4889
+Round 116: Global Test Accuracy = 0.4890
+Round 117: Global Test Accuracy = 0.4894
+Round 118: Global Test Accuracy = 0.4896
+Round 119: Global Test Accuracy = 0.4897
+Round 120: Global Test Accuracy = 0.4899
+Round 121: Global Test Accuracy = 0.4901
+Round 122: Global Test Accuracy = 0.4905
+Round 123: Global Test Accuracy = 0.4908
+Round 124: Global Test Accuracy = 0.4910
+Round 125: Global Test Accuracy = 0.4912
+Round 126: Global Test Accuracy = 0.4917
+Round 127: Global Test Accuracy = 0.4918
+Round 128: Global Test Accuracy = 0.4919
+Round 129: Global Test Accuracy = 0.4924
+Round 130: Global Test Accuracy = 0.4922
+Round 131: Global Test Accuracy = 0.4926
+Round 132: Global Test Accuracy = 0.4927
+Round 133: Global Test Accuracy = 0.4927
+Round 134: Global Test Accuracy = 0.4928
+Round 135: Global Test Accuracy = 0.4935
+Round 136: Global Test Accuracy = 0.4940
+Round 137: Global Test Accuracy = 0.4941
+Round 138: Global Test Accuracy = 0.4946
+Round 139: Global Test Accuracy = 0.4944
+Round 140: Global Test Accuracy = 0.4948
+Round 141: Global Test Accuracy = 0.4953
+Round 142: Global Test Accuracy = 0.4952
+Round 143: Global Test Accuracy = 0.4954
+Round 144: Global Test Accuracy = 0.4956
+Round 145: Global Test Accuracy = 0.4958
+Round 146: Global Test Accuracy = 0.4959
+Round 147: Global Test Accuracy = 0.4965
+Round 148: Global Test Accuracy = 0.4968
+Round 149: Global Test Accuracy = 0.4967
+Round 150: Global Test Accuracy = 0.4970
+Round 151: Global Test Accuracy = 0.4973
+Round 152: Global Test Accuracy = 0.4976
+Round 153: Global Test Accuracy = 0.4973
+Round 154: Global Test Accuracy = 0.4975
+Round 155: Global Test Accuracy = 0.4978
+Round 156: Global Test Accuracy = 0.4983
+Round 157: Global Test Accuracy = 0.4983
+Round 158: Global Test Accuracy = 0.4982
+Round 159: Global Test Accuracy = 0.4983
+Round 160: Global Test Accuracy = 0.4984
+Round 161: Global Test Accuracy = 0.4987
+Round 162: Global Test Accuracy = 0.4989
+Round 163: Global Test Accuracy = 0.4990
+Round 164: Global Test Accuracy = 0.4991
+Round 165: Global Test Accuracy = 0.4991
+Round 166: Global Test Accuracy = 0.4992
+Round 167: Global Test Accuracy = 0.4992
+Round 168: Global Test Accuracy = 0.4993
+Round 169: Global Test Accuracy = 0.4997
+Round 170: Global Test Accuracy = 0.4996
+Round 171: Global Test Accuracy = 0.4995
+Round 172: Global Test Accuracy = 0.4998
+Round 173: Global Test Accuracy = 0.5000
+Round 174: Global Test Accuracy = 0.5003
+Round 175: Global Test Accuracy = 0.5004
+Round 176: Global Test Accuracy = 0.5010
+Round 177: Global Test Accuracy = 0.5009
+Round 178: Global Test Accuracy = 0.5011
+Round 179: Global Test Accuracy = 0.5012
+Round 180: Global Test Accuracy = 0.5015
+Round 181: Global Test Accuracy = 0.5016
+Round 182: Global Test Accuracy = 0.5016
+Round 183: Global Test Accuracy = 0.5016
+Round 184: Global Test Accuracy = 0.5018
+Round 185: Global Test Accuracy = 0.5021
+Round 186: Global Test Accuracy = 0.5021
+Round 187: Global Test Accuracy = 0.5021
+Round 188: Global Test Accuracy = 0.5024
+Round 189: Global Test Accuracy = 0.5024
+Round 190: Global Test Accuracy = 0.5025
+Round 191: Global Test Accuracy = 0.5027
+Round 192: Global Test Accuracy = 0.5029
+Round 193: Global Test Accuracy = 0.5030
+Round 194: Global Test Accuracy = 0.5030
+Round 195: Global Test Accuracy = 0.5032
+Round 196: Global Test Accuracy = 0.5031
+Round 197: Global Test Accuracy = 0.5032
+Round 198: Global Test Accuracy = 0.5034
+Round 199: Global Test Accuracy = 0.5038
+Round 200: Global Test Accuracy = 0.5041
+//train_time: 48693.814000000006 ms//end
+//Log Max memory for Large1: 6223532032.0 //end
+//Log Max memory for Large2: 5151256576.0 //end
+//Log Max memory for Large3: 5174272000.0 //end
+//Log Max memory for Large4: 5166587904.0 //end
+//Log Max memory for Server: 2753622016.0 //end
+//Log Large1 network: 374031615.0 //end
+//Log Large2 network: 370987649.0 //end
+//Log Large3 network: 370804637.0 //end
+//Log Large4 network: 370761206.0 //end
+//Log Server network: 1478886454.0 //end
+//Log Total Actual Train Comm Cost: 2828.09 MB //end
+Train end time recorded and duration set to gauge.
+[Training Time] Dataset: ogbn-arxiv, Batch Size: -1, Trainers: 40, Hops: 0, IID Beta: 10.0 => Training Time = 78.70 seconds
+average_final_test_loss, 1.7924328259626288
+Average test accuracy, 0.504063535172726
+
+================================================================================
+INDIVIDUAL TRAINER MEMORY USAGE
+================================================================================
+
+====================================================================================================
+TRAINER MEMORY vs LOCAL GRAPH SIZE
+====================================================================================================
+Trainer  Memory(MB)   Nodes    Edges    Memory/Node  Memory/Edge 
+----------------------------------------------------------------------------------------------------
+0        719.8        4209     1094     0.171        0.658       
+1        714.4        4379     1384     0.163        0.516       
+2        734.4        4254     1266     0.173        0.580       
+3        710.4        4324     2002     0.164        0.355       
+4        730.8        4325     2094     0.169        0.349       
+5        716.1        4136     1532     0.173        0.467       
+6        720.9        4398     1684     0.164        0.428       
+7        709.2        3929     1058     0.181        0.670       
+8        709.7        4258     2070     0.167        0.343       
+9        726.0        4294     1506     0.169        0.482       
+10       720.3        4245     1962     0.170        0.367       
+11       714.4        4041     1746     0.177        0.409       
+12       730.6        3731     1648     0.196        0.443       
+13       692.8        4311     1410     0.161        0.491       
+14       717.2        4223     1746     0.170        0.411       
+15       724.7        4333     1520     0.167        0.477       
+16       715.2        4198     1252     0.170        0.571       
+17       729.7        4284     1184     0.170        0.616       
+18       711.1        4401     1562     0.162        0.455       
+19       721.5        4247     1370     0.170        0.527       
+20       707.2        4325     1908     0.164        0.371       
+21       721.4        4334     2628     0.166        0.275       
+22       716.7        3886     992      0.184        0.722       
+23       748.4        4388     1338     0.171        0.559       
+24       722.3        3770     932      0.192        0.775       
+25       729.5        4245     1594     0.172        0.458       
+26       721.7        4239     1510     0.170        0.478       
+27       723.3        4330     1722     0.167        0.420       
+28       719.9        4352     1366     0.165        0.527       
+29       727.2        4362     1474     0.167        0.493       
+30       715.7        4282     1638     0.167        0.437       
+31       708.2        4299     2584     0.165        0.274       
+32       727.2        4251     1466     0.171        0.496       
+33       699.2        3823     1026     0.183        0.681       
+34       717.9        4358     2056     0.165        0.349       
+35       723.2        4515     1930     0.160        0.375       
+36       711.2        4275     1266     0.166        0.562       
+37       709.7        4250     1416     0.167        0.501       
+38       725.1        4294     1344     0.169        0.540       
+39       715.6        4245     1306     0.169        0.548       
+====================================================================================================
+Total Memory Usage: 28759.7 MB (28.09 GB)
+Total Nodes: 169343, Total Edges: 62586
+Average Memory per Trainer: 719.0 MB
+Average Nodes per Trainer: 4233.6
+Average Edges per Trainer: 1564.7
+Max Memory: 748.4 MB (Trainer 23)
+Min Memory: 692.8 MB (Trainer 13)
+Overall Memory/Node Ratio: 0.170 MB/node
+Overall Memory/Edge Ratio: 0.460 MB/edge
+====================================================================================================
+//Log Theoretical Pretrain Comm Cost: 0.00 MB //end
+//Log Theoretical Train Comm Cost: 2674.32 MB //end
+
+================================================================================
+CSV FORMAT RESULT:
+DS,IID,BS,Time[s],FinalAcc[%],CompTime[s],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
+ogbn-arxiv,10.0,-1,114.9,0.50,78.7,2674.3,748.4,0.394,0.167,0
+================================================================================
+
+================================================================================
+EXPERIMENT SUMMARY
+================================================================================
+Dataset: ogbn-arxiv
+Method: FedAvg
+Trainers: 40
+IID Beta: 10.0
+Batch Size: -1
+Hops: 0
+Total Execution Time: 114.92 seconds
+Training Time: 78.73 seconds
+Pretrain Comm Cost: 0.00 MB
+Training Comm Cost: 2674.32 MB
+================================================================================
+
+[36m(Trainer pid=35124, ip=192.168.52.140)[0m Running GCN_arxiv[32m [repeated 39x across cluster][0m
+[36m(Trainer pid=35128, ip=192.168.52.140)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.[32m [repeated 39x across cluster][0m
+[36m(Trainer pid=35128, ip=192.168.52.140)[0m   return torch.load(io.BytesIO(b))[32m [repeated 39x across cluster][0m
+Experiment 1/1 completed for:
+  Dataset: ogbn-arxiv, Trainers: 40, IID Beta: 10.0
+  Method: fedgcn if 0 > 0 else FedAvg, Batch Size: -1
+Benchmark completed.
+
+------------------------------------------
+Job 'raysubmit_dndB5BVttBEUzEGQ' succeeded
+------------------------------------------
+
