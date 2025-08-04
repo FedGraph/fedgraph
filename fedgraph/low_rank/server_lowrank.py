@@ -17,14 +17,13 @@ class Server_LowRank(Server):
                  device: torch.device, trainers: list, args: Any):
         super().__init__(feature_dim, args_hidden, class_num, device, trainers, args)
         
-        # Low-rank specific configurations
+ 
         self.use_lowrank = getattr(args, 'use_lowrank', False)
         self.lowrank_method = getattr(args, 'lowrank_method', 'fixed')  # 'fixed', 'adaptive', 'energy'
         self.compression_ratio = getattr(args, 'compression_ratio', 2.0)
         self.energy_threshold = getattr(args, 'energy_threshold', 0.95)
         self.fixed_rank = getattr(args, 'fixed_rank', 10)
         
-        # Statistics tracking
         self.compression_stats = []
         
         print(f"Server initialized with low-rank compression: {self.use_lowrank}")
@@ -73,7 +72,7 @@ class Server_LowRank(Server):
                 U, S, V = svd_compress(param, rank)
                 compressed_params[name] = {'U': U, 'S': S, 'V': V, 'rank': rank}
                 
-                # Calculate compression statistics
+  
                 original_size = param.numel()
                 compressed_size = U.numel() + S.numel() + V.numel()
                 ratio = original_size / compressed_size
@@ -121,11 +120,11 @@ class Server_LowRank(Server):
         
         for name, param_data in compressed_params.items():
             if isinstance(param_data, dict) and 'U' in param_data:
-                # Decompress using SVD
+       
                 U, S, V = param_data['U'], param_data['S'], param_data['V']
                 decompressed_params[name] = svd_decompress(U, S, V)
             else:
-                # Not compressed
+         
                 decompressed_params[name] = param_data
                 
         return decompressed_params
@@ -158,13 +157,11 @@ class Server_LowRank(Server):
         else:
             raise ValueError("sampling_type must be either 'random' or 'uniform'")
 
-        # Local training
         for trainer_idx in selected_trainers_indices:
             self.trainers[trainer_idx].train.remote(current_global_epoch)
 
-        # Collect and aggregate parameters
+ 
         if self.use_lowrank:
-            # Get compressed parameters
             params = [
                 self.trainers[trainer_idx].get_compressed_params.remote()
                 for trainer_idx in selected_trainers_indices
@@ -186,7 +183,6 @@ class Server_LowRank(Server):
             
             self.model = self.model.to(self.device)
             
-            # Broadcast compressed parameters
             self.broadcast_compressed_params(current_global_epoch, aggregated_compressed)
         else:
             # Standard FedAvg
@@ -229,7 +225,6 @@ class Server_LowRank(Server):
                     S_sum += param_data['S']
                     V_sum += param_data['V']
                 
-                # Average
                 aggregated['params'][name] = {
                     'U': U_sum / num_samples,
                     'S': S_sum / num_samples,

@@ -31,7 +31,13 @@ from fedgraph.utils_lp import (
     to_next_day,
 )
 from fedgraph.utils_nc import get_1hop_feature_sum, save_all_trainers_data
-
+try:
+    from .differential_privacy import Server_DP, Trainer_General_DP
+    DP_AVAILABLE = True
+    print("✓ Differential Privacy support loaded")
+except ImportError:
+    DP_AVAILABLE = False
+    print("⚠️ Differential Privacy not available")
 try:
     from .low_rank import Server_LowRank, Trainer_General_LowRank
     LOWRANK_AVAILABLE = True
@@ -77,6 +83,57 @@ def run_fedgraph(args: attridict) -> None:
         run_GC(args, data)
     elif args.fedgraph_task == "LP":
         run_LP(args)
+        
+def run_fedgraph_enhanced(args: attridict) -> None:
+    """
+    Enhanced run function with support for HE, DP, and Low-Rank compression.
+    """
+    # Validate mutually exclusive privacy options
+    privacy_options = [
+        getattr(args, 'use_encryption', False),
+        getattr(args, 'use_dp', False),
+        getattr(args, 'use_lowrank', False)
+    ]
+    
+    privacy_count = sum(privacy_options)
+    if privacy_count > 1:
+        privacy_names = []
+        if getattr(args, 'use_encryption', False): privacy_names.append("Homomorphic Encryption")
+        if getattr(args, 'use_dp', False): privacy_names.append("Differential Privacy")  
+        if getattr(args, 'use_lowrank', False): privacy_names.append("Low-Rank Compression")
+        
+        raise ValueError(f"Cannot use multiple privacy/compression methods simultaneously: {', '.join(privacy_names)}")
+    
+    # Print selected method
+    if getattr(args, 'use_encryption', False):
+        print("=== Using Homomorphic Encryption ===")
+    elif getattr(args, 'use_dp', False):
+        print("=== Using Differential Privacy ===")
+        print(f"DP parameters: ε={getattr(args, 'dp_epsilon', 1.0)}, δ={getattr(args, 'dp_delta', 1e-5)}")
+    elif getattr(args, 'use_lowrank', False):
+        print("=== Using Low-Rank Compression ===")
+    else:
+        print("=== Using Standard FedGraph ===")
+    
+    # Load data
+    if args.fedgraph_task != "NC" or not args.use_huggingface:
+        data = data_loader(args)
+    else:
+        data = None
+    
+    # Route to appropriate implementation
+    if args.fedgraph_task == "NC":
+        if getattr(args, 'use_dp', False):
+            run_NC_dp(args, data)
+        elif getattr(args, 'use_lowrank', False):
+            run_NC_lowrank(args, data)
+        else:
+            run_NC(args, data)  # Original with HE support
+    elif args.fedgraph_task == "GC":
+        run_GC(args, data)
+    elif args.fedgraph_task == "LP":
+        run_LP(args)
+
 
 
 def run_NC(args: attridict, data: Any = None) -> None:
@@ -617,6 +674,208 @@ def run_NC(args: attridict, data: Any = None) -> None:
     print(f"{'='*80}\n")
     ray.shutdown()
 
+
+def run_NC_dp(args: attridict, data: Any = None) -> None:
+    """
+    Enhanced NC training with Differential Privacy support for FedGCN pre-training.
+    """
+    monitor = Monitor(use_cluster=args.use_cluster)
+    monitor.init_time_start()
+
+    ray.init()
+    start_time = time.time()
+    torch.manual_seed(42)
+    pretrain_upload: float = 0.0
+    pretrain_download: float = 0.0
+    
+    if args.num_hops == 0:
+        print("Changing method to FedAvg")
+        args.method = "FedAvg"
+    
+    if not args.use_huggingface:
+        (
+            edge_index, features, labels, idx_train, idx_test, class_num,
+            split_node_indexes, communicate_node_global_indexes,
+            in_com_train_node_local_indexes, in_com_test_node_local_indexes,
+            global_edge_indexes_clients,
+        ) = data
+
+    if args.dataset in ["simulate", "cora", "citeseer", "pubmed", "reddit"]:
+        args_hidden = 16
+    else:
+        args_hidden = 256
+
+    num_cpus_per_trainer = args.num_cpus_per_trainer
+    if args.gpu:
+        device = torch.device("cuda")
+        num_gpus_per_trainer = args.num_gpus_per_trainer
+    else:
+        device = torch.device("cpu")
+        num_gpus_per_trainer = 0
+
+    # Define DP-enhanced trainer class
+    @ray.remote(
+        num_gpus=num_gpus_per_trainer,
+        num_cpus=num_cpus_per_trainer,
+        scheduling_strategy="SPREAD",
+    )
+    class Trainer(Trainer_General_DP):
+        def __init__(self, *args: Any, **kwds: Any):
+            super().__init__(*args, **kwds)
+
+    # Create trainers (same as original)
+    if args.use_huggingface:
+        trainers = [
+            Trainer.remote(
+                rank=i, args_hidden=args_hidden, device=device, args=args,
+            )
+            for i in range(args.n_trainer)
+        ]
+    else:
+        trainers = [
+            Trainer.remote(
+                rank=i, args_hidden=args_hidden, device=device, args=args,
+                local_node_index=split_node_indexes[i],
+                communicate_node_index=communicate_node_global_indexes[i],
+                adj=global_edge_indexes_clients[i],
+                train_labels=labels[communicate_node_global_indexes[i]][
+                    in_com_train_node_local_indexes[i]
+                ],
+                test_labels=labels[communicate_node_global_indexes[i]][
+                    in_com_test_node_local_indexes[i]
+                ],
+                features=features[split_node_indexes[i]],
+                idx_train=in_com_train_node_local_indexes[i],
+                idx_test=in_com_test_node_local_indexes[i],
+            )
+            for i in range(args.n_trainer)
+        ]
+
+    # Get trainer information
+    trainer_information = [
+        ray.get(trainers[i].get_info.remote()) for i in range(len(trainers))
+    ]
+
+    global_node_num = sum([info["features_num"] for info in trainer_information])
+    class_num = max([info["label_num"] for info in trainer_information])
+
+    train_data_weights = [
+        info["len_in_com_train_node_local_indexes"] for info in trainer_information
+    ]
+    test_data_weights = [
+        info["len_in_com_test_node_local_indexes"] for info in trainer_information
+    ]
+    communicate_node_global_indexes = [
+        info["communicate_node_global_index"] for info in trainer_information
+    ]
+
+    ray.get([
+        trainers[i].init_model.remote(global_node_num, class_num)
+        for i in range(len(trainers))
+    ])
+
+    # Create DP-enhanced server
+    server = Server_DP(features.shape[1], args_hidden, class_num, device, trainers, args)
+    server.broadcast_params(-1)
+    monitor.init_time_end()
+
+    # DP-enhanced pre-training
+    pretrain_start = time.time()
+    monitor.pretrain_time_start()
+    
+    if args.method != "FedAvg":
+        print("Starting DP-enhanced feature aggregation...")
+        
+        # Get local feature sums with DP preprocessing
+        local_feature_data = [
+            trainer.get_dp_local_feature_sum.remote() for trainer in server.trainers
+        ]
+        
+        results = ray.get(local_feature_data)
+        local_feature_sums = [r[0] for r in results]  # Extract tensors
+        computation_stats = [r[1] for r in results]   # Extract stats
+        
+        # Calculate upload sizes
+        upload_sizes = [
+            local_sum.element_size() * local_sum.nelement() 
+            for local_sum in local_feature_sums
+        ]
+        pretrain_upload = sum(upload_sizes) / (1024 * 1024)  # MB
+        
+        # DP aggregation at server
+        global_feature_sum, dp_stats = server.aggregate_dp_feature_sums(local_feature_sums)
+        
+        # Print DP statistics
+        server.print_dp_stats(dp_stats)
+        
+        # Distribute back to trainers
+        download_sizes = []
+        for i in range(args.n_trainer):
+            communicate_nodes = communicate_node_global_indexes[i].clone().detach().to(device)
+            trainer_aggregation = global_feature_sum[communicate_nodes]
+            download_sizes.append(
+                trainer_aggregation.element_size() * trainer_aggregation.nelement()
+            )
+            server.trainers[i].load_feature_aggregation.remote(trainer_aggregation)
+        
+        pretrain_download = sum(download_sizes) / (1024 * 1024)  # MB
+        
+        [trainer.relabel_adj.remote() for trainer in server.trainers]
+
+    monitor.pretrain_time_end()
+    monitor.add_pretrain_comm_cost(
+        upload_mb=pretrain_upload,
+        download_mb=pretrain_download,
+    )
+
+    # Regular training phase (same as original)
+    monitor.train_time_start()
+    print("Starting federated training with DP-enhanced pre-training...")
+    
+    global_acc_list = []
+    for i in range(args.global_rounds):
+        server.train(i)
+
+        results = [trainer.local_test.remote() for trainer in server.trainers]
+        results = np.array([ray.get(result) for result in results])
+        average_test_accuracy = np.average(
+            [row[1] for row in results], weights=test_data_weights, axis=0
+        )
+        global_acc_list.append(average_test_accuracy)
+
+        print(f"Round {i+1}: Global Test Accuracy = {average_test_accuracy:.4f}")
+
+        model_size_mb = server.get_model_size() / (1024 * 1024)
+        monitor.add_train_comm_cost(
+            upload_mb=model_size_mb * args.n_trainer,
+            download_mb=model_size_mb * args.n_trainer,
+        )
+
+    monitor.train_time_end()
+
+    # Final evaluation
+    results = [trainer.local_test.remote() for trainer in server.trainers]
+    results = np.array([ray.get(result) for result in results])
+
+    average_final_test_loss = np.average(
+        [row[0] for row in results], weights=test_data_weights, axis=0
+    )
+    average_final_test_accuracy = np.average(
+        [row[1] for row in results], weights=test_data_weights, axis=0
+    )
+    
+    print(f"Final test loss: {average_final_test_loss:.4f}")
+    print(f"Final test accuracy: {average_final_test_accuracy:.4f}")
+    
+    # Print final privacy budget
+    if args.use_dp:
+        server.privacy_accountant.print_privacy_budget()
+    
+    if monitor is not None:
+        monitor.print_comm_cost()
+    
+    ray.shutdown()
+    
 def run_NC_lowrank(args: attridict, data: Any = None) -> None:
     
     if not LOWRANK_AVAILABLE:

@@ -21,10 +21,10 @@ def svd_compress(tensor: torch.Tensor, rank: int) -> Tuple[torch.Tensor, torch.T
     if tensor.dim() != 2:
         raise ValueError("SVD compression only supports 2D tensors")
     
-    # Perform SVD
+
     U, S, V = torch.svd(tensor)
     
-    # Truncate to specified rank
+
     rank = min(rank, min(tensor.shape), len(S))
     U_compressed = U[:, :rank]
     S_compressed = S[:rank]
@@ -91,12 +91,11 @@ def auto_select_rank(tensor: torch.Tensor, compression_ratio: float = 2.0,
     m, n = tensor.shape
     max_rank = min(m, n)
     
-    # Method 1: Based on compression ratio
+
     target_size = (m * n) / compression_ratio
     rank_from_ratio = int((target_size - m - n) / (m + n + 1))
     rank_from_ratio = max(1, min(rank_from_ratio, max_rank))
     
-    # Method 2: Based on energy preservation
     _, S, _ = torch.svd(tensor)
     total_energy = torch.sum(S ** 2)
     cumulative_energy = torch.cumsum(S ** 2, dim=0)
@@ -105,5 +104,5 @@ def auto_select_rank(tensor: torch.Tensor, compression_ratio: float = 2.0,
     rank_from_energy = torch.sum(energy_ratios < energy_threshold).item() + 1
     rank_from_energy = min(rank_from_energy, max_rank)
     
-    # Use the more conservative (smaller) rank
+
     return min(rank_from_ratio, rank_from_energy)
