@@ -440,11 +440,79 @@ def run_NC(args: attridict, data: Any = None) -> None:
     # The server start training of all trainers and aggregate the parameters
     # at every global round.
     training_start = time.time()
+    
+    # Time tracking variables for pure training and communication
+    total_pure_training_time = 0.0  # forward + gradient descent
+    total_communication_time = 0.0  # parameter aggregation
+    
     print("global_rounds", args.global_rounds)
     global_acc_list = []
     for i in range(args.global_rounds):
-        server.train(i)
+        # Pure training phase - forward + gradient descent only
+        pure_training_start = time.time()
+        
+        # Execute only training (forward + gradient descent)
+        train_refs = [trainer.train.remote(i) for trainer in server.trainers]
+        ray.get(train_refs)
+        
+        pure_training_end = time.time()
+        round_training_time = pure_training_end - pure_training_start
+        total_pure_training_time += round_training_time
+        
+        # Communication phase - parameter aggregation and broadcast
+        comm_start = time.time()
+        
+        if args.use_encryption:
+            # Encrypted parameter aggregation
+            encrypted_params = [
+                trainer.get_encrypted_params.remote() for trainer in server.trainers
+            ]
+            params_list = ray.get(encrypted_params)
+            
+            # Server-side aggregation
+            aggregated_params, metadata, _ = server.aggregate_encrypted_params(params_list)
+            
+            # Distribute aggregated parameters
+            decrypt_refs = [
+                trainer.load_encrypted_params.remote(
+                    (aggregated_params, metadata), i
+                )
+                for trainer in server.trainers
+            ]
+            ray.get(decrypt_refs)
+        else:
+            # Regular parameter aggregation
+            # Get parameters from all trainers
+            params_refs = [trainer.get_params.remote() for trainer in server.trainers]
+            param_results = ray.get(params_refs)
+            
+            # Aggregate parameters on server - avoid in-place operations
+            server.zero_params()
+            
+            # Move model to CPU for aggregation
+            server.model = server.model.to("cpu")
+            
+            # Aggregate parameters safely
+            for param_result in param_results:
+                for p, mp in zip(param_result, server.model.parameters()):
+                    mp.data = mp.data + p.cpu()
+            
+            # Move back to device and average
+            server.model = server.model.to(server.device)
+            
+            # Average the parameters
+            with torch.no_grad():
+                for p in server.model.parameters():
+                    p.data = p.data / len(server.trainers)
 
+            # Broadcast updated parameters to all trainers
+            server.broadcast_params(i)
+        
+        comm_end = time.time()
+        round_comm_time = comm_end - comm_start
+        total_communication_time += round_comm_time
+
+        # Testing phase (not counted in training or communication time)
         results = [trainer.local_test.remote() for trainer in server.trainers]
         results = np.array([ray.get(result) for result in results])
         average_test_accuracy = np.average(
@@ -453,6 +521,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
         global_acc_list.append(average_test_accuracy)
 
         print(f"Round {i+1}: Global Test Accuracy = {average_test_accuracy:.4f}")
+        print(f"Round {i+1}: Training Time = {round_training_time:.2f}s, Communication Time = {round_comm_time:.2f}s")
 
         model_size_mb = server.get_model_size() / (1024 * 1024)
         monitor.add_train_comm_cost(
@@ -460,12 +529,30 @@ def run_NC(args: attridict, data: Any = None) -> None:
             download_mb=model_size_mb * args.n_trainer,
         )
     monitor.train_time_end()
-    training_time = time.time() - training_start
+    total_time = time.time() - training_start
 
-    # Print for plotting use
+    # Print time breakdown
+    print(f"\n{'='*80}")
+    print("TIME BREAKDOWN (excluding initialization)")
+    print(f"{'='*80}")
+    print(f"Total Pure Training Time (forward + gradient descent): {total_pure_training_time:.2f} seconds")
+    print(f"Total Communication Time (parameter aggregation): {total_communication_time:.2f} seconds")
+    print(f"Total Training + Communication Time: {total_time:.2f} seconds")
+    print(f"Training Time Percentage: {(total_pure_training_time/total_time)*100:.1f}%")
+    print(f"Communication Time Percentage: {(total_communication_time/total_time)*100:.1f}%")
+    print(f"Average Training Time per Round: {total_pure_training_time/args.global_rounds:.2f} seconds")
+    print(f"Average Communication Time per Round: {total_communication_time/args.global_rounds:.2f} seconds")
+    print(f"{'='*80}")
+
+    # Print for plotting use - now shows pure training time
     print(
-        f"[Training Time] Dataset: {args.dataset}, Batch Size: {args.batch_size}, Trainers: {args.n_trainer}, "
-        f"Hops: {args.num_hops}, IID Beta: {args.iid_beta} => Training Time = {training_time:.2f} seconds"
+        f"[Pure Training Time] Dataset: {args.dataset}, Batch Size: {args.batch_size}, Trainers: {args.n_trainer}, "
+        f"Hops: {args.num_hops}, IID Beta: {args.iid_beta} => Pure Training Time = {total_pure_training_time:.2f} seconds"
+    )
+    
+    print(
+        f"[Communication Time] Dataset: {args.dataset}, Batch Size: {args.batch_size}, Trainers: {args.n_trainer}, "
+        f"Hops: {args.num_hops}, IID Beta: {args.iid_beta} => Communication Time = {total_communication_time:.2f} seconds"
     )
 
     if args.use_encryption:
@@ -488,26 +575,25 @@ def run_NC(args: attridict, data: Any = None) -> None:
             download_mb=training_download,
         )
         print("\nTraining Phase Metrics:")
-        print(f"Total Training Time: {training_time:.2f} seconds")
+        print(f"Total Training Time: {total_pure_training_time:.2f} seconds")  # Use pure training time
         print(f"Training Upload: {training_upload:.2f} MB")
         print(f"Training Download: {training_download:.2f} MB")
         print(f"Total Training Communication Cost: {training_comm_cost:.2f} MB")
 
         # Overall totals
-        total_time = time.time() - start_time
+        total_exec_time = time.time() - start_time
         total_upload = pretrain_upload + training_upload
         total_download = pretrain_download + training_download
         total_comm_cost = total_upload + total_download
 
         print("\nOverall Totals:")
-        print(f"Total Execution Time: {total_time:.2f} seconds")
+        print(f"Total Execution Time: {total_exec_time:.2f} seconds")
         print(f"Total Upload: {total_upload:.2f} MB")
         print(f"Total Download: {total_download:.2f} MB")
         print(f"Total Communication Cost: {total_comm_cost:.2f} MB")
-        print(f"Pre-training Time %: {(pretrain_time/total_time)*100:.1f}%")
-        print(f"Training Time %: {(training_time/total_time)*100:.1f}%")
-        print(f"Pre-training Comm %: {(pretrain_comm_cost/total_comm_cost)*100:.1f}%")
-        print(f"Training Comm %: {(training_comm_cost/total_comm_cost)*100:.1f}%")
+        print(f"Pre-training Time %: {(pretrain_time/total_exec_time)*100:.1f}%")
+        print(f"Training Time %: {(total_pure_training_time/total_exec_time)*100:.1f}%")
+        print(f"Communication Time %: {(total_communication_time/total_exec_time)*100:.1f}%")
     #######################################################################
     # Summarize Experiment Results
     # ----------------------------
@@ -601,8 +687,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
         monitor.print_comm_cost()
 
     # Calculate required metrics for CSV output
-    total_time = time.time() - start_time
-    training_time = time.time() - training_start
+    total_exec_time = time.time() - start_time
 
     # Get model size - works in both cluster and local environments
     model_size_mb = 0.0
@@ -627,7 +712,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
 
     # Calculate average round time
     avg_round_time = (
-        training_time / args.global_rounds if args.global_rounds > 0 else 0.0
+        total_pure_training_time / args.global_rounds if args.global_rounds > 0 else 0.0
     )
 
     # Get total communication cost from monitor (works in cluster)
@@ -641,13 +726,14 @@ def run_NC(args: attridict, data: Any = None) -> None:
     print(f"\n{'='*80}")
     print("CSV FORMAT RESULT:")
     print(
-        "DS,IID,BS,Time[s],FinalAcc[%],CompTime[s],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams"
+        "DS,IID,BS,TotalTime[s],PureTrainingTime[s],CommTime[s],FinalAcc[%],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams"
     )
     print(
         f"{args.dataset},{args.iid_beta},{args.batch_size},"
-        f"{total_time:.1f},"
+        f"{total_exec_time:.1f},"
+        f"{total_pure_training_time:.1f},"
+        f"{total_communication_time:.1f},"
         f"{average_final_test_accuracy:.2f},"
-        f"{training_time:.1f},"
         f"{total_comm_cost_mb:.1f},"
         f"{peak_memory_mb:.1f},"
         f"{avg_round_time:.3f},"
@@ -666,7 +752,8 @@ def run_NC(args: attridict, data: Any = None) -> None:
     print(f"Batch Size: {args.batch_size}")
     print(f"Hops: {args.num_hops}")
     print(f"Total Execution Time: {time.time() - start_time:.2f} seconds")
-    print(f"Training Time: {training_time:.2f} seconds")
+    print(f"Pure Training Time: {total_pure_training_time:.2f} seconds")
+    print(f"Communication Time: {total_communication_time:.2f} seconds")
     print(f"Pretrain Comm Cost: {pretrain_upload + pretrain_download:.2f} MB")
     print(f"Training Comm Cost: {monitor.train_theoretical_comm_MB:.2f} MB")
     if args.use_encryption:

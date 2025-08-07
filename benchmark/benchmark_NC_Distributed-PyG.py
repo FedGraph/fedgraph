@@ -1,113 +1,45 @@
 #!/usr/bin/env python3
-"""
-benchmark_NC_Distributed-PyG_metrics.py
+import warnings, logging
+warnings.filterwarnings('ignore')
+logging.disable(logging.CRITICAL)
 
-- Memory usage (peak GPU/CPU memory)
-- Computation time (training time per round)
-- Communication cost (model size × rounds × clients)
-"""
-
-import argparse
-import os
-import time
-from dataclasses import dataclass
-from typing import Dict, Tuple
-
-import numpy as np
-import psutil
-import torch
-import torch.nn.functional as F
-from torch_geometric.datasets import Planetoid
+import argparse, time, resource, torch, torch.nn.functional as F
 from torch_geometric.nn import GCNConv
+from torch_geometric.datasets import Planetoid
+import numpy as np
 
-# ─── Edit this list to choose which datasets to benchmark ────────────────
-DATASETS = ["cora", "citeseer", "pubmed", "ogbn-arxiv"]
+# Distributed PyG imports
+from torch_geometric.loader import NeighborLoader
+from torch_geometric.nn.models import GCN as PyGGCN
+from torch.distributed import init_process_group, destroy_process_group
+from torch.nn.parallel import DistributedDataParallel as DDP
+import torch.multiprocessing as mp
+import os
+
+DATASETS = ['cora', 'citeseer', 'pubmed']
 IID_BETAS = [10000.0, 100.0, 10.0]
-BATCH_SIZE = -1  # full-batch training
-CLIENTS = 10
-ROUNDS = 200
+CLIENT_NUM = 10
+TOTAL_ROUNDS = 200
+LOCAL_STEPS = 1
+LEARNING_RATE = 0.1
+HIDDEN_DIM = 64
+DROPOUT_RATE = 0.0
 
-# ─── Toggle cluster/RPC mode here (or via --use_cluster flag) ────────────
-use_cluster = False
+PLANETOID_NAMES = {
+    'cora': 'Cora',
+    'citeseer': 'CiteSeer',
+    'pubmed': 'PubMed'
+}
 
-# ────────────────────────────────────────────────────────────────────────────
+def peak_memory_mb():
+    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return (usage / 1024**2) if usage > 1024**2 else (usage / 1024)
 
-
-@dataclass
-class Metrics:
-    """Container for all metrics"""
-
-    accuracy: float = 0.0
-    total_time: float = 0.0
-    computation_time: float = 0.0
-    communication_cost_mb: float = 0.0
-    peak_memory_mb: float = 0.0
-    avg_time_per_round: float = 0.0
-    model_size_mb: float = 0.0
-    total_params: int = 0
-
-
-class GCN(torch.nn.Module):
-    """Two-layer GCN for node classification."""
-
-    def __init__(self, in_feats, hidden, out_feats):
-        super().__init__()
-        self.conv1 = GCNConv(in_feats, hidden)
-        self.conv2 = GCNConv(hidden, out_feats)
-
-    def forward(self, x, edge_index):
-        x = self.conv1(x, edge_index)
-        x = F.relu(x)
-        x = self.conv2(x, edge_index)
-        return x
-
-
-def get_memory_usage() -> Dict[str, float]:
-    """Get current memory usage in MB"""
-    # CPU memory
-    process = psutil.Process(os.getpid())
-    cpu_memory_mb = process.memory_info().rss / 1024 / 1024
-
-    # GPU memory if available
-    gpu_memory_mb = 0
-    if torch.cuda.is_available():
-        gpu_memory_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
-        torch.cuda.reset_peak_memory_stats()
-
-    return {
-        "cpu_mb": cpu_memory_mb,
-        "gpu_mb": gpu_memory_mb,
-        "total_mb": cpu_memory_mb + gpu_memory_mb,
-    }
-
-
-def get_model_size(model: torch.nn.Module) -> Tuple[float, int]:
-    """Calculate model size in MB and total parameters"""
-    total_params = sum(p.numel() for p in model.parameters())
-    # Each parameter is float32 (4 bytes)
-    model_size_mb = (total_params * 4) / 1024 / 1024
-    return model_size_mb, total_params
-
-
-def calculate_communication_cost(
-    model_size_mb: float, rounds: int, clients: int
-) -> float:
-    """
-    Calculate total communication cost in MB.
-    Each round: server sends model to all clients + clients send models back
-    """
-    # Download: server → clients (model_size × clients)
-    # Upload: clients → server (model_size × clients)
+def calculate_communication_cost(model_size_mb, rounds, clients):
     cost_per_round = model_size_mb * clients * 2
-    total_cost = cost_per_round * rounds
-    return total_cost
-
+    return cost_per_round * rounds
 
 def dirichlet_partition(labels, num_clients, alpha):
-    """
-    Partition node indices per class over clients using a Dirichlet distribution.
-    Returns a list of index tensors, one per client.
-    """
     labels = labels.cpu().numpy()
     num_classes = labels.max() + 1
     idx_by_class = [np.where(labels == c)[0] for c in range(num_classes)]
@@ -124,206 +56,239 @@ def dirichlet_partition(labels, num_clients, alpha):
             client_idxs[i].extend(idx[start : start + cnt])
             start += cnt
 
-    # convert to torch tensors
     return [torch.tensor(ci, dtype=torch.long) for ci in client_idxs]
 
+class DistributedGCN(torch.nn.Module):
+    def __init__(self, in_channels, hidden_channels, out_channels, num_layers=2, dropout=0.0):
+        super().__init__()
+        self.num_layers = num_layers
+        self.dropout = dropout
+        
+        self.convs = torch.nn.ModuleList()
+        self.convs.append(GCNConv(in_channels, hidden_channels))
+        for _ in range(num_layers - 2):
+            self.convs.append(GCNConv(hidden_channels, hidden_channels))
+        self.convs.append(GCNConv(hidden_channels, out_channels))
+    
+    def forward(self, x, edge_index):
+        for i, conv in enumerate(self.convs):
+            x = conv(x, edge_index)
+            if i < len(self.convs) - 1:
+                x = F.relu(x)
+                x = F.dropout(x, p=self.dropout, training=self.training)
+        return x
 
-def load_dataset(name):
-    """
-    Load one of Planetoid or OGBN-Arxiv / OGBN-Papers100M datasets.
-    Returns (data, num_node_features, num_classes).
-    """
-    if name in ["cora", "citeseer", "pubmed"]:
-        ds = Planetoid(root="data", name=name)
-        data = ds[0]
-        return data, ds.num_node_features, ds.num_classes
+def setup_distributed(rank, world_size):
+    """Initialize distributed training"""
+    os.environ['MASTER_ADDR'] = 'localhost'
+    os.environ['MASTER_PORT'] = '12355'
+    init_process_group("gloo", rank=rank, world_size=world_size)
 
-    if name in ["ogbn-arxiv", "ogbn-papers100M"]:
-        from ogb.nodeproppred import PygNodePropPredDataset
+def cleanup_distributed():
+    """Cleanup distributed training"""
+    destroy_process_group()
 
-        ds = PygNodePropPredDataset(name=name, root="data")
-        data = ds[0]
-        data.y = data.y.squeeze()
-        split_idx = ds.get_idx_split()
-        train_idx, test_idx = split_idx["train"], split_idx["test"]
-        N = data.num_nodes
-        train_mask = torch.zeros(N, dtype=torch.bool)
-        test_mask = torch.zeros(N, dtype=torch.bool)
-        train_mask[train_idx] = True
-        test_mask[test_idx] = True
-        data.train_mask = train_mask
-        data.test_mask = test_mask
-        return data, data.x.size(1), int(data.y.max().item() + 1)
-
-    raise ValueError(f"Unsupported dataset: {name}")
-
-
-def run_one(ds_name, beta, batch_size, use_cluster_flag):
-    """
-    Run one FedAvg simulation on the given dataset with metrics tracking:
-      1) load data
-      2) partition training nodes with Dirichlet(alpha=beta)
-      3) federated training for ROUNDS rounds
-      4) print per-round test accuracy at rounds 1,10,20,...
-      5) return (elapsed_time, final_test_accuracy, metrics)
-    """
-    # Initialize metrics
-    metrics = Metrics()
-
-    # Track initial memory
-    initial_memory = get_memory_usage()
-
-    # 1) load dataset
-    data, in_feats, num_classes = load_dataset(ds_name)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    data = data.to(device)
-
-    print(f"\nRunning {ds_name} with β={beta}")
-    print(f"Dataset: {data.num_nodes:,} nodes, {data.edge_index.size(1):,} edges")
-
-    # 2) partition only training nodes
-    train_idx = data.train_mask.nonzero().view(-1)
-    client_parts = dirichlet_partition(data.y[train_idx], CLIENTS, beta)
-    client_idxs = [train_idx[part] for part in client_parts]
-
-    # 3) build model and global parameters
-    model = GCN(in_feats, 64, num_classes).to(device)
-
-    # Calculate model size
-    model_size_mb, total_params = get_model_size(model)
-    metrics.model_size_mb = model_size_mb
-    metrics.total_params = total_params
-
-    if use_cluster_flag:
-        # placeholder for RPC/DDP initialization
-        pass
-    global_params = [p.data.clone() for p in model.parameters()]
-
-    # Track computation time
-    computation_times = []
-    peak_memory = initial_memory["total_mb"]
-
-    # 4) federated training loop
-    t0 = time.time()
-    for r in range(1, ROUNDS + 1):
-        round_start = time.time()
-
-        local_params = []
-        for c in range(CLIENTS):
-            # load global weights
-            for p, gp in zip(model.parameters(), global_params):
-                p.data.copy_(gp)
-
-            model.train()
-            optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
-
-            # one full-batch local update
-            optimizer.zero_grad()
-            out = model(data.x, data.edge_index)
-            idx = client_idxs[c].to(device)
-            loss = F.cross_entropy(out[idx], data.y[idx])
-            loss.backward()
-            optimizer.step()
-
-            local_params.append([p.data.clone() for p in model.parameters()])
-
-        # FedAvg aggregation
-        with torch.no_grad():
-            for gp in global_params:
-                gp.zero_()
-            for lp in local_params:
-                for gp, p in zip(global_params, lp):
-                    gp.add_(p)
-            for gp in global_params:
-                gp.div_(CLIENTS)
-
-        round_time = time.time() - round_start
-        computation_times.append(round_time)
-
-        # Track memory
-        current_memory = get_memory_usage()
-        peak_memory = max(peak_memory, current_memory["total_mb"])
-
-        # evaluate at specified rounds
-        if r == 1 or r % 10 == 0:
-            for p, gp in zip(model.parameters(), global_params):
-                p.data.copy_(gp)
-            model.eval()
-            logits = model(data.x, data.edge_index)
-            preds = logits.argmax(dim=1)
-            test_idx = data.test_mask.nonzero().view(-1)
-            correct = (preds[test_idx] == data.y[test_idx]).sum().item()
-            acc = 100.0 * correct / test_idx.size(0)
-
-            # Calculate current communication cost (theoretical)
-            current_comm_cost = calculate_communication_cost(model_size_mb, r, CLIENTS)
-
-            print(
-                f"[{ds_name} β={beta}] Round {r:3d} → "
-                f"Test Acc: {acc:.2f}% | "
-                f"Computation Time: {round_time:.2f}s | "
-                f"Memory: {current_memory['total_mb']:.1f}MB | "
-                f"Comm Cost: {current_comm_cost:.1f}MB"
-            )
-
-    elapsed = time.time() - t0
-
-    # final evaluation
-    for p, gp in zip(model.parameters(), global_params):
-        p.data.copy_(gp)
-    model.eval()
-    logits = model(data.x, data.edge_index)
-    preds = logits.argmax(dim=1)
-    test_idx = data.test_mask.nonzero().view(-1)
-    correct = (preds[test_idx] == data.y[test_idx]).sum().item()
-    final_acc = 100.0 * correct / test_idx.size(0)
-
-    # Calculate final metrics
-    metrics.accuracy = final_acc
-    metrics.total_time = elapsed
-    metrics.computation_time = sum(computation_times)
-    metrics.avg_time_per_round = np.mean(computation_times)
-    metrics.communication_cost_mb = calculate_communication_cost(
-        model_size_mb, ROUNDS, CLIENTS
+def train_client(rank, world_size, data, client_indices, model_state, device):
+    """Training function for each client process"""
+    # Setup distributed environment
+    setup_distributed(rank, world_size)
+    
+    # Create model and wrap with DDP
+    model = DistributedGCN(
+        data.x.size(1), 
+        HIDDEN_DIM, 
+        int(data.y.max().item()) + 1, 
+        num_layers=2, 
+        dropout=DROPOUT_RATE
+    ).to(device)
+    
+    model = DDP(model, device_ids=None if device.type == 'cpu' else [device])
+    model.load_state_dict(model_state)
+    
+    # Create data loader for this client
+    loader = NeighborLoader(
+        data,
+        input_nodes=client_indices,
+        num_neighbors=[10, 10],
+        batch_size=512 if len(client_indices) > 512 else len(client_indices),
+        shuffle=True
     )
-    metrics.peak_memory_mb = peak_memory
+    
+    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    model.train()
+    
+    # Local training
+    for epoch in range(LOCAL_STEPS):
+        total_loss = 0
+        for batch in loader:
+            batch = batch.to(device)
+            optimizer.zero_grad()
+            out = model(batch.x, batch.edge_index)
+            
+            # Use only the nodes in the current batch that are in training set
+            mask = batch.train_mask[:batch.batch_size]
+            if mask.sum() > 0:
+                loss = F.cross_entropy(out[:batch.batch_size][mask], batch.y[:batch.batch_size][mask])
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
+    
+    cleanup_distributed()
+    return model.module.state_dict()
 
-    return elapsed, final_acc, metrics
-
+def run_distributed_pyg_experiment(ds, beta):
+    device = torch.device('cpu')  # Use CPU for simplicity
+    ds_obj = Planetoid(root='data/', name=PLANETOID_NAMES[ds])
+    data = ds_obj[0].to(device)
+    in_channels = data.x.size(1)
+    num_classes = int(data.y.max().item()) + 1
+    
+    print(f"Running {ds} with β={beta}")
+    print(f"Dataset: {data.num_nodes:,} nodes, {data.edge_index.size(1):,} edges")
+    
+    # Partition training nodes
+    train_idx = data.train_mask.nonzero(as_tuple=False).view(-1)
+    test_idx = data.test_mask.nonzero(as_tuple=False).view(-1)
+    
+    client_parts = dirichlet_partition(data.y[train_idx], CLIENT_NUM, beta)
+    client_idxs = [train_idx[part] for part in client_parts]
+    
+    # Initialize global model
+    global_model = DistributedGCN(
+        in_channels, 
+        HIDDEN_DIM, 
+        num_classes, 
+        num_layers=2, 
+        dropout=DROPOUT_RATE
+    ).to(device)
+    
+    t0 = time.time()
+    
+    # Federated training loop using simulated distributed training
+    for round_idx in range(TOTAL_ROUNDS):
+        global_state = global_model.state_dict()
+        local_states = []
+        
+        # Simulate distributed training for each client
+        for client_id in range(CLIENT_NUM):
+            # Create client model
+            client_model = DistributedGCN(
+                in_channels, 
+                HIDDEN_DIM, 
+                num_classes, 
+                num_layers=2, 
+                dropout=DROPOUT_RATE
+            ).to(device)
+            
+            # Load global state
+            client_model.load_state_dict(global_state)
+            
+            # Create client data loader using PyG's NeighborLoader
+            client_loader = NeighborLoader(
+                data,
+                input_nodes=client_idxs[client_id],
+                num_neighbors=[10, 10],
+                batch_size=min(512, len(client_idxs[client_id])),
+                shuffle=True
+            )
+            
+            optimizer = torch.optim.Adam(client_model.parameters(), lr=LEARNING_RATE)
+            client_model.train()
+            
+            # Local training
+            for epoch in range(LOCAL_STEPS):
+                for batch in client_loader:
+                    batch = batch.to(device)
+                    optimizer.zero_grad()
+                    out = client_model(batch.x, batch.edge_index)
+                    
+                    # Use only the nodes that are actually in training set
+                    local_train_mask = torch.isin(batch.n_id[:batch.batch_size], client_idxs[client_id])
+                    if local_train_mask.sum() > 0:
+                        loss = F.cross_entropy(
+                            out[:batch.batch_size][local_train_mask], 
+                            batch.y[:batch.batch_size][local_train_mask]
+                        )
+                        loss.backward()
+                        optimizer.step()
+            
+            local_states.append(client_model.state_dict())
+        
+        # FedAvg aggregation
+        global_state = global_model.state_dict()
+        for key in global_state.keys():
+            global_state[key] = torch.stack([state[key].float() for state in local_states]).mean(0)
+        
+        global_model.load_state_dict(global_state)
+    
+    dur = time.time() - t0
+    
+    # Final evaluation using NeighborLoader for test set
+    global_model.eval()
+    test_loader = NeighborLoader(
+        data,
+        input_nodes=test_idx,
+        num_neighbors=[10, 10],
+        batch_size=min(1024, len(test_idx)),
+        shuffle=False
+    )
+    
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for batch in test_loader:
+            batch = batch.to(device)
+            out = global_model(batch.x, batch.edge_index)
+            pred = out[:batch.batch_size].argmax(dim=-1)
+            correct += (pred == batch.y[:batch.batch_size]).sum().item()
+            total += batch.batch_size
+    
+    accuracy = correct / total * 100
+    
+    # Calculate metrics
+    total_params = sum(p.numel() for p in global_model.parameters())
+    model_size_mb = total_params * 4 / 1024**2
+    comm_cost = calculate_communication_cost(model_size_mb, TOTAL_ROUNDS, CLIENT_NUM)
+    mem = peak_memory_mb()
+    
+    return {
+        'accuracy': accuracy,
+        'total_time': dur,
+        'computation_time': dur,
+        'communication_cost_mb': comm_cost,
+        'peak_memory_mb': mem,
+        'avg_time_per_round': dur / TOTAL_ROUNDS,
+        'model_size_mb': model_size_mb,
+        'total_params': total_params,
+        'nodes': data.num_nodes,
+        'edges': data.edge_index.size(1)
+    }
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--use_cluster",
-        action="store_true",
-        help="Enable RPC/DDP cluster mode for large OGBN datasets",
-    )
+    parser.add_argument("--use_cluster", action="store_true")
     args = parser.parse_args()
-    global use_cluster
-    use_cluster = args.use_cluster
 
-    # Enhanced CSV summary header
-    print(
-        "\nDS,IID,BS,Time[s],FinalAcc[%],CompTime[s],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams"
-    )
-
+    print("\nDS,IID,BS,Time[s],FinalAcc[%],CompTime[s],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams")
+    
     for ds in DATASETS:
         for beta in IID_BETAS:
-            elapsed, acc, metrics = run_one(ds, beta, BATCH_SIZE, use_cluster)
+            try:
+                metrics = run_distributed_pyg_experiment(ds, beta)
+                print(
+                    f"{ds},{beta},-1,"
+                    f"{metrics['total_time']:.1f},"
+                    f"{metrics['accuracy']:.2f},"
+                    f"{metrics['computation_time']:.1f},"
+                    f"{metrics['communication_cost_mb']:.1f},"
+                    f"{metrics['peak_memory_mb']:.1f},"
+                    f"{metrics['avg_time_per_round']:.3f},"
+                    f"{metrics['model_size_mb']:.3f},"
+                    f"{metrics['total_params']}"
+                )
+            except Exception as e:
+                print(f"Error running {ds} with β={beta}: {e}")
+                print(f"{ds},{beta},-1,0.0,0.00,0.0,0.0,0.0,0.000,0.000,0")
 
-            # Print comprehensive results
-            print(
-                f"{ds},{beta},{BATCH_SIZE},"
-                f"{metrics.total_time:.1f},"
-                f"{metrics.accuracy:.2f},"
-                f"{metrics.computation_time:.1f},"
-                f"{metrics.communication_cost_mb:.1f},"
-                f"{metrics.peak_memory_mb:.1f},"
-                f"{metrics.avg_time_per_round:.3f},"
-                f"{metrics.model_size_mb:.3f},"
-                f"{metrics.total_params}"
-            )
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

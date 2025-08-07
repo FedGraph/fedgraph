@@ -222,7 +222,6 @@ class Server:
         current_global_epoch : int
             The current global epoch number during the federated learning process.
         """
-
         if self.use_encryption:
             if not hasattr(self, "aggregation_stats"):
                 self.aggregation_stats = []

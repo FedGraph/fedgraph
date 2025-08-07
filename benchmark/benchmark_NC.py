@@ -26,7 +26,7 @@ datasets = [
 ]  # You can add more: ["cora", "citeseer", "ogbn-arxiv", "ogbn-products"]
 # datasets = ["ogbn-papers100M"]
 # Number of trainers to test
-n_trainers = [40]
+n_trainers = [15]
 
 # Number of hops for neighbor aggregation
 # num_hops_list = [0, 1]
