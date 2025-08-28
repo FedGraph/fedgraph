@@ -172,190 +172,128 @@ def extract_metrics(exp_text, algorithm, dataset, trainers):
 
 
 def generate_accuracy_comparison(df, output_file="gc_accuracy_comparison.pdf"):
-    """Generate accuracy plot with datasets on x-axis and algorithms as legend"""
     if df.empty or df["Accuracy"].isna().all():
         print("No accuracy data available to plot")
         return None
-
-    # Filter out rows with missing accuracy
     df_filtered = df.dropna(subset=["Accuracy"])
-
-    # Create a grouped DataFrame
     comparison_data = (
         df_filtered.groupby(["Dataset", "Algorithm"])
         .agg({"Accuracy": "mean"})
         .reset_index()
     )
-
     print(f"Plotting accuracy comparison with {len(comparison_data)} data points")
-
-    # Create figure
-    plt.figure(figsize=(12, 6))
-
-    # Get unique datasets and algorithms in desired order
+    plt.figure(figsize=(14, 8))
     datasets = sorted(
         comparison_data["Dataset"].unique(),
         key=lambda x: ["IMDB-BINARY", "IMDB-MULTI", "MUTAG", "BZR", "COX2"].index(x)
         if x in ["IMDB-BINARY", "IMDB-MULTI", "MUTAG", "BZR", "COX2"]
         else 999,
     )
-
     algorithms = sorted(
         comparison_data["Algorithm"].unique(),
         key=lambda x: ["FedAvg", "GCFL", "GCFL+", "GCFL+dWs"].index(x)
         if x in ["FedAvg", "GCFL", "GCFL+", "GCFL+dWs"]
         else 999,
     )
-
-    # Set x positions
     x_positions = np.arange(len(datasets))
-
-    # Bar width
     width = 0.8 / len(algorithms)
-
-    # Colors
-    algorithm_colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
-
-    # Plot bars for each algorithm
+    actual_colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
     for i, algo in enumerate(algorithms):
         algo_data = comparison_data[comparison_data["Algorithm"] == algo]
-
-        # Prepare data in dataset order
         accuracy_values = []
-
-        # Ensure consistent ordering
         for dataset in datasets:
             dataset_row = algo_data[algo_data["Dataset"] == dataset]
             if not dataset_row.empty and not pd.isna(dataset_row["Accuracy"].values[0]):
                 accuracy_values.append(dataset_row["Accuracy"].values[0])
             else:
                 accuracy_values.append(0)
-
-        # Plot bars
         plt.bar(
             x_positions + (i - len(algorithms) / 2 + 0.5) * width,
             accuracy_values,
             width=width,
             label=algo,
-            color=algorithm_colors[i % len(algorithm_colors)],
+            color=actual_colors[i % len(actual_colors)],
         )
-
-    # Set chart properties
-    plt.title("Accuracy Comparison", fontsize=30)
+    #plt.title("Accuracy Comparison", fontsize=30)
     plt.xlabel("Dataset", fontsize=30)
     plt.ylabel("Accuracy", fontsize=30)
-    plt.xticks(x_positions, datasets, rotation=45, fontsize=30)
+    plt.xticks(x_positions, datasets, rotation=30, fontsize=20)
     plt.yticks(fontsize=30)
     plt.ylim(0, 1.0)
     plt.legend(
-        title="Algorithms",
+        #title="Algorithms",
         loc="upper left",
         bbox_to_anchor=(1, 1),
-        fontsize=25,
-        title_fontsize=25,
+        fontsize=22,
+        #title_fontsize=25,
     )
     plt.grid(False)
     plt.tight_layout()
-
-    # Save and close
     plt.savefig(output_file, dpi=300)
     plt.close()
-
     print(f"Accuracy comparison plot saved to: {output_file}")
     return output_file
 
 
 def generate_train_time_comparison(df, output_file="gc_train_time_comparison.pdf"):
-    """Generate train time plot with datasets on x-axis and algorithms as legend"""
     if df.empty or df["Train_Time_ms"].isna().all():
         print("No training time data available to plot")
         return None
-
-    # Filter out rows with missing train time
     df_filtered = df.dropna(subset=["Train_Time_ms"])
-
-    # Create a grouped DataFrame
     comparison_data = (
         df_filtered.groupby(["Dataset", "Algorithm"])
         .agg({"Train_Time_ms": "mean"})
         .reset_index()
     )
-
     print(f"Plotting training time comparison with {len(comparison_data)} data points")
-
-    # Create figure
-    plt.figure(figsize=(12, 6))
-
-    # Get unique datasets and algorithms in desired order
+    plt.figure(figsize=(14, 8))
     datasets = sorted(
         comparison_data["Dataset"].unique(),
         key=lambda x: ["IMDB-BINARY", "IMDB-MULTI", "MUTAG", "BZR", "COX2"].index(x)
         if x in ["IMDB-BINARY", "IMDB-MULTI", "MUTAG", "BZR", "COX2"]
         else 999,
     )
-
     algorithms = sorted(
         comparison_data["Algorithm"].unique(),
         key=lambda x: ["FedAvg", "GCFL", "GCFL+", "GCFL+dWs"].index(x)
         if x in ["FedAvg", "GCFL", "GCFL+", "GCFL+dWs"]
         else 999,
     )
-
-    # Set x positions
     x_positions = np.arange(len(datasets))
-
-    # Bar width
     width = 0.8 / len(algorithms)
-
-    # Colors
-    algorithm_colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
-
-    # Plot bars for each algorithm
+    actual_colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
     for i, algo in enumerate(algorithms):
         algo_data = comparison_data[comparison_data["Algorithm"] == algo]
-
-        # Prepare data in dataset order
         time_values = []
-
-        # Ensure consistent ordering
         for dataset in datasets:
             dataset_row = algo_data[algo_data["Dataset"] == dataset]
-            if not dataset_row.empty and not pd.isna(
-                dataset_row["Train_Time_ms"].values[0]
-            ):
-                time_values.append(dataset_row["Train_Time_ms"].values[0])
+            if not dataset_row.empty and not pd.isna(dataset_row["Train_Time_ms"].values[0]):
+                time_values.append(dataset_row["Train_Time_ms"].values[0] / 1000.0)
             else:
                 time_values.append(0)
-
-        # Plot bars
         plt.bar(
             x_positions + (i - len(algorithms) / 2 + 0.5) * width,
             time_values,
             width=width,
             label=algo,
-            color=algorithm_colors[i % len(algorithm_colors)],
+            color=actual_colors[i % len(actual_colors)],
         )
-
-    # Set chart properties
-    plt.title("Training Time Comparison", fontsize=30)
+    #plt.title("Training Time Comparison", fontsize=30)
     plt.xlabel("Dataset", fontsize=30)
-    plt.ylabel("Training Time (ms)", fontsize=28)
-    plt.xticks(x_positions, datasets, rotation=45, fontsize=30)
+    plt.ylabel("Training Time (s)", fontsize=28)
+    plt.xticks(x_positions, datasets, rotation=30, fontsize=20)
     plt.yticks(fontsize=28)
     plt.legend(
-        title="Algorithms",
+        #title="Algorithms",
         loc="upper left",
         bbox_to_anchor=(1, 1),
-        fontsize=25,
-        title_fontsize=25,
+        fontsize=22,
+        #title_fontsize=25,
     )
     plt.grid(False)
     plt.tight_layout()
-
-    # Save and close
     plt.savefig(output_file, dpi=300)
     plt.close()
-
     print(f"Training time comparison plot saved to: {output_file}")
     return output_file
 
@@ -457,17 +395,17 @@ def generate_comm_cost_comparison(df, output_file="gc_comm_cost_comparison.pdf")
         current_pos += 1
 
     # Plot settings
-    plt.title("Communication Cost Comparison", fontsize=30)
+    #plt.title("Communication Cost Comparison", fontsize=30)
     plt.xlabel("Dataset", fontsize=30)
     plt.ylabel("Communication Cost (MB)", fontsize=28)
-    plt.xticks(x_positions, datasets, rotation=45, fontsize=30)
+    plt.xticks(x_positions, datasets, rotation=30, fontsize=20)
     plt.yticks(fontsize=28)
     plt.legend(
-        title="Legend",
+        #title="Legend",
         loc="upper left",
         bbox_to_anchor=(1, 1),
-        fontsize=22,
-        title_fontsize=25,
+        fontsize=18,
+        #title_fontsize=25,
     )
     plt.grid(False)
     plt.tight_layout()

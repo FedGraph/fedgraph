@@ -11,7 +11,7 @@ Run a simple example of FedGraph.
 # Load libraries
 # --------------
 
-import os
+from typing import Any, Dict
 
 import attridict
 
@@ -20,7 +20,7 @@ from fedgraph.federated_methods import run_fedgraph
 #######################################################################
 # Specify the Node Classification configuration
 # ---------------------------------------------
-config = {
+config: Dict[str, Any] = {
     # Task, Method, and Dataset Settings
     "fedgraph_task": "NC",
     "dataset": "cora",
