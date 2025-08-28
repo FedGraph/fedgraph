@@ -43,9 +43,9 @@ def extract_nc_data(logfile):
         iid_beta = float(iid_beta_match.group(1))
         algo_match = re.search(r"method': '([A-Za-z0-9+_]+)'", exp)
         if not algo_match:
-            algo_match = re.search(r"Changing method to ([A-Za-z0-9+_]+)", exp)
+            algo_match = re.search(r"Changing method to ([A-Za-z0-9+_]+)", exp) 
         algorithm = algo_match.group(1).strip() if algo_match else "FedAvg"
-        if dataset not in ["cora", "citeseer", "pubmed", "ogbn-arxiv"]:
+        if dataset not in ["cora", "citeseer", "pubmed"]: #, "ogbn-arxiv"
             continue
         result = extract_metrics(exp, algorithm, dataset, trainers, iid_beta)
         if result:
@@ -63,7 +63,8 @@ def extract_metrics(exp_text, algorithm, dataset, trainers, iid_beta):
     else:
         accuracy = float(final_accuracy_match.group(1))
     train_time_match = re.search(r"//train_time: ([\d.]+) ms//end", exp_text)
-    train_time = float(train_time_match.group(1)) if train_time_match else None
+    train_time_ms = float(train_time_match.group(1)) if train_time_match else None
+    train_time_s = train_time_ms / 1000.0 if train_time_ms is not None else None
     theoretical_pretrain = re.findall(
         r"//Log Theoretical Pretrain Comm Cost: ([\d.]+) MB //end", exp_text
     )
@@ -91,7 +92,8 @@ def extract_metrics(exp_text, algorithm, dataset, trainers, iid_beta):
         "Trainers": trainers,
         "IID_Beta": iid_beta,
         "Accuracy": accuracy,
-        "Train_Time_ms": train_time,
+        "Train_Time_ms": train_time_ms,
+        "Train_Time_s": train_time_s,
         "Theoretical_Pretrain_MB": float(theoretical_pretrain[-1])
         if theoretical_pretrain
         else 0,
@@ -119,12 +121,12 @@ def extract_metrics(exp_text, algorithm, dataset, trainers, iid_beta):
 
 
 def plot_metric(df, metric, ylabel, filename_prefix):
-    datasets = ["cora", "citeseer", "pubmed", "ogbn-arxiv"]
-    algorithms = ["FedAvg", "fedgcn"]
-    colors = {"FedAvg": "#1f77b4", "fedgcn": "#ff7f0e"}
+    datasets = ["cora", "citeseer", "pubmed"] #, "ogbn-arxiv"
+    algorithms = ["FedAvg", "FedGCN"]
+    colors = {"FedAvg": "#1f77b4", "FedGCN": "#ff7f0e"}
     target_betas = [10000.0, 100.0, 10.0]
     for beta in target_betas:
-        plt.figure(figsize=(10, 6))
+        plt.figure(figsize=(12, 6))
         df_beta = df[df["IID_Beta"] == beta]
         x_positions = np.arange(len(datasets))
         width = 0.35
@@ -134,7 +136,8 @@ def plot_metric(df, metric, ylabel, filename_prefix):
             for dataset in datasets:
                 temp = df_algo[df_algo["Dataset"] == dataset]
                 if not temp.empty and not pd.isna(temp[metric].values[0]):
-                    values.append(temp[metric].values[0])
+                    val = temp[metric].values[0]
+                    values.append(val)
                 else:
                     values.append(0)
             plt.bar(
@@ -144,33 +147,36 @@ def plot_metric(df, metric, ylabel, filename_prefix):
                 label=algo,
                 color=colors[algo],
             )
-        if metric == "Train_Time_ms":
-            plt.yscale("log")
-        plt.title(f"{ylabel} (IID Beta={beta})", fontsize=26)
-        plt.xlabel("Dataset", fontsize=26)
+        # plt.title(f"{ylabel} (IID Beta={beta})", fontsize=26)
+        # plt.xlabel("Dataset", fontsize=26)
         plt.ylabel(ylabel, fontsize=24)
-        plt.xticks(x_positions + width / 2, datasets, rotation=45, fontsize=24)
+        pretty_names = ["Cora", "Citeseer", "Pubmed"]
+        plt.xticks(x_positions + width / 2, pretty_names, rotation=0, fontsize=24)
         plt.yticks(fontsize=24)
-        plt.legend(fontsize=24)
+        plt.legend(
+            loc="upper left",
+            bbox_to_anchor=(1, 1),
+            fontsize=24,
+        )
         plt.tight_layout()
         plt.savefig(f"{filename_prefix}_beta{int(beta)}.pdf", dpi=300)
         plt.close()
 
 
 def plot_comm_cost(df):
-    datasets = ["cora", "citeseer", "pubmed", "ogbn-arxiv"]
-    algorithms = ["FedAvg", "fedgcn"]
-    actual_colors = {"FedAvg": "#1f77b4", "fedgcn": "#ff7f0e"}
+    datasets = ["cora", "citeseer", "pubmed"] #, "ogbn-arxiv"
+    algorithms = ["FedAvg", "FedGCN"]
+    actual_colors = {"FedAvg": "#1f77b4", "FedGCN": "#ff7f0e"}
     theoretical_colors = {
         "FedAvg": "#aec7e8",
-        "fedgcn_pretrain": "#c5b0d5",
-        "fedgcn_train": "#98df8a",
+        "FedGCN_Pretrain": "#c5b0d5",
+        "FedGCN_Train": "#98df8a",
     }
     pretrain_colors_actual = "#2ca02c"
     target_betas = [10000.0, 100.0, 10.0]
 
     for beta in target_betas:
-        plt.figure(figsize=(10, 6))
+        plt.figure(figsize=(12, 6))
         df_beta = df[df["IID_Beta"] == beta]
         x_positions = np.arange(len(datasets))
         width = 0.18
@@ -246,20 +252,21 @@ def plot_comm_cost(df):
                         xpos_theo,
                         pretrain_theo,
                         width=width,
-                        color=theoretical_colors["fedgcn_pretrain"],
+                        color=theoretical_colors["FedGCN_Pretrain"],
                     )
                     plt.bar(
                         xpos_theo,
                         train_theo,
                         width=width,
                         bottom=pretrain_theo,
-                        color=theoretical_colors["fedgcn_train"],
+                        color=theoretical_colors["FedGCN_Train"],
                     )
 
-        plt.title(f"Communication Cost (IID Beta={beta})", fontsize=22)
-        plt.xlabel("Dataset", fontsize=22)
+        # plt.title(f"Communication Cost (IID Beta={beta})", fontsize=22)
+        # plt.xlabel("Dataset", fontsize=22)
         plt.ylabel("Communication Cost (MB)", fontsize=22)
-        plt.xticks(x_positions, datasets, rotation=45, fontsize=22)
+        pretty_names = ["Cora", "Citeseer", "Pubmed"]
+        plt.xticks(x_positions, pretty_names, rotation=0, fontsize=22)
         plt.yticks(fontsize=24)
         plt.grid(axis="y", linestyle="--", alpha=0.5)
 
@@ -283,7 +290,7 @@ def plot_comm_cost(df):
             ],
             loc="upper left",
             bbox_to_anchor=(1, 1),
-            fontsize=16,
+            fontsize=14,
         )
 
         plt.tight_layout()
@@ -325,9 +332,13 @@ if __name__ == "__main__":
         else:
             df = process_all_log_files(os.getcwd())
     if not df.empty:
-        df.to_csv("nc_data_raw.csv", index=False)
+        # Only save ms to CSV
+        df_csv = df.copy()
+        if "Train_Time_s" in df_csv.columns:
+            df_csv = df_csv.drop(columns=["Train_Time_s"])
+        df_csv.to_csv("nc_data_raw.csv", index=False)
         plot_metric(df, "Accuracy", "Accuracy", "nc_accuracy_comparison")
         plot_metric(
-            df, "Train_Time_ms", "Training Time (ms)", "nc_train_time_comparison"
+            df, "Train_Time_s", "Training Time (s)", "nc_train_time_comparison"
         )
         plot_comm_cost(df)
