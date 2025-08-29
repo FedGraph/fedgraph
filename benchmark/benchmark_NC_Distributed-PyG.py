@@ -10,10 +10,8 @@ import numpy as np
 
 # Distributed PyG imports
 from torch_geometric.loader import NeighborLoader
-from torch_geometric.nn.models import GCN as PyGGCN
 from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
-import torch.multiprocessing as mp
 import os
 
 DATASETS = ['cora', 'citeseer', 'pubmed']

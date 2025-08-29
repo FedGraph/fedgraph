@@ -1,18 +1,18 @@
-2025-07-29 16:41:55,521	INFO dashboard_sdk.py:338 -- Uploading package gcs://_ray_pkg_6a7ef53356c4fb94.zip.
-2025-07-29 16:41:55,527	INFO packaging.py:575 -- Creating a file package for local module '.'.
+2025-07-30 13:49:19,852	INFO dashboard_sdk.py:338 -- Uploading package gcs://_ray_pkg_1345582de8a45901.zip.
+2025-07-30 13:49:19,877	INFO packaging.py:575 -- Creating a file package for local module '.'.
 Job submission server address: http://localhost:8265
 
 -------------------------------------------------------
-Job 'raysubmit_9ZqxtFJXMFdWsB1i' submitted successfully
+Job 'raysubmit_CyaZneqttXKVTqc2' submitted successfully
 -------------------------------------------------------
 
 Next steps
   Query the logs of the job:
-    ray job logs raysubmit_9ZqxtFJXMFdWsB1i
+    ray job logs raysubmit_CyaZneqttXKVTqc2
   Query the status of the job:
-    ray job status raysubmit_9ZqxtFJXMFdWsB1i
+    ray job status raysubmit_CyaZneqttXKVTqc2
   Request the job to be stopped:
-    ray job stop raysubmit_9ZqxtFJXMFdWsB1i
+    ray job stop raysubmit_CyaZneqttXKVTqc2
 
 Tailing logs until the job exits (disable with --no-wait):
 
@@ -39,253 +39,466 @@ Downloaded ./data/cora/raw/ind.cora.graph
 Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.cora.test.index to ./data/cora/raw/ind.cora.test.index...
 Downloaded ./data/cora/raw/ind.cora.test.index
 Initialization start: network data collected.
-2025-07-29 23:42:03,909	INFO worker.py:1429 -- Using address 192.168.23.53:6379 set in the environment variable RAY_ADDRESS
-2025-07-29 23:42:03,909	INFO worker.py:1564 -- Connecting to existing Ray cluster at address: 192.168.23.53:6379...
-2025-07-29 23:42:03,918	INFO worker.py:1740 -- Connected to Ray cluster. View the dashboard at [1m[32mhttp://192.168.23.53:8265 [39m[22m
+2025-07-30 20:49:30,375	INFO worker.py:1429 -- Using address 192.168.37.160:6379 set in the environment variable RAY_ADDRESS
+2025-07-30 20:49:30,375	INFO worker.py:1564 -- Connecting to existing Ray cluster at address: 192.168.37.160:6379...
+2025-07-30 20:49:30,385	INFO worker.py:1740 -- Connected to Ray cluster. View the dashboard at [1m[32mhttp://192.168.37.160:8265 [39m[22m
 Changing method to FedAvg
-[36m(Trainer pid=19378, ip=192.168.2.152)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
-[36m(Trainer pid=19378, ip=192.168.2.152)[0m   return torch.load(io.BytesIO(b))
+[36m(Trainer pid=4946, ip=192.168.38.0)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+[36m(Trainer pid=4946, ip=192.168.38.0)[0m   return torch.load(io.BytesIO(b))
 /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
   return torch.load(io.BytesIO(b))
-//Log init_time: 5636.370999999999 ms //end
-//Log Large1 init network: 619343.0 //end
-//Log Large2 init network: 132999.0 //end
-//Log Large3 init network: 161423.0 //end
-//Log Large4 init network: 116053.0 //end
-//Log Server init network: 37033703.0 //end
-//Log Initialization Communication Cost (MB): 36.30 //end
+//Log init_time: 5538.02 ms //end
+//Log Large1 init network: 128474.0 //end
+//Log Large2 init network: 102308.0 //end
+//Log Large3 init network: 603908.0 //end
+//Log Large4 init network: 123806.0 //end
+//Log Server init network: 37307539.0 //end
+//Log Initialization Communication Cost (MB): 36.49 //end
 Pretrain start time recorded.
-//pretrain_time: 7.197 ms//end
-//Log Max memory for Large1: 3771801600.0 //end
-//Log Max memory for Large2: 1625608192.0 //end
-//Log Max memory for Large3: 1209032704.0 //end
-//Log Max memory for Large4: 1629134848.0 //end
-//Log Max memory for Server: 1876127744.0 //end
-//Log Large1 network: 3647300.0 //end
-//Log Large2 network: 727663.0 //end
-//Log Large3 network: 535093.0 //end
-//Log Large4 network: 695583.0 //end
-//Log Server network: 2047766.0 //end
-//Log Total Actual Pretrain Comm Cost: 7.30 MB //end
+//pretrain_time: 5.896 ms//end
+//Log Max memory for Large1: 1631059968.0 //end
+//Log Max memory for Large2: 1209851904.0 //end
+//Log Max memory for Large3: 3757998080.0 //end
+//Log Max memory for Large4: 1649438720.0 //end
+//Log Max memory for Server: 1786683392.0 //end
+//Log Large1 network: 719912.0 //end
+//Log Large2 network: 606182.0 //end
+//Log Large3 network: 3689273.0 //end
+//Log Large4 network: 725306.0 //end
+//Log Server network: 2058016.0 //end
+//Log Total Actual Pretrain Comm Cost: 7.44 MB //end
 Pretrain end time recorded and duration set to gauge.
 Train start: network data collected.
 global_rounds 200
-Round 1: Global Test Accuracy = 0.1470
-Round 2: Global Test Accuracy = 0.1510
-Round 3: Global Test Accuracy = 0.1560
-Round 4: Global Test Accuracy = 0.1620
-Round 5: Global Test Accuracy = 0.1630
-Round 6: Global Test Accuracy = 0.1690
-Round 7: Global Test Accuracy = 0.1740
-Round 8: Global Test Accuracy = 0.1780
-Round 9: Global Test Accuracy = 0.1830
-Round 10: Global Test Accuracy = 0.1810
+Round 1: Global Test Accuracy = 0.1590
+Round 1: Training Time = 0.01s, Communication Time = 0.02s
+Round 2: Global Test Accuracy = 0.1600
+Round 2: Training Time = 0.01s, Communication Time = 0.02s
+Round 3: Global Test Accuracy = 0.1600
+Round 3: Training Time = 0.01s, Communication Time = 0.02s
+Round 4: Global Test Accuracy = 0.1580
+Round 4: Training Time = 0.01s, Communication Time = 0.01s
+Round 5: Global Test Accuracy = 0.1580
+Round 5: Training Time = 0.01s, Communication Time = 0.01s
+Round 6: Global Test Accuracy = 0.1620
+Round 6: Training Time = 0.01s, Communication Time = 0.01s
+Round 7: Global Test Accuracy = 0.1670
+Round 7: Training Time = 0.01s, Communication Time = 0.01s
+Round 8: Global Test Accuracy = 0.1690
+Round 8: Training Time = 0.01s, Communication Time = 0.02s
+Round 9: Global Test Accuracy = 0.1730
+Round 9: Training Time = 0.01s, Communication Time = 0.02s
+Round 10: Global Test Accuracy = 0.1800
+Round 10: Training Time = 0.01s, Communication Time = 0.01s
 Round 11: Global Test Accuracy = 0.1880
+Round 11: Training Time = 0.01s, Communication Time = 0.01s
 Round 12: Global Test Accuracy = 0.1960
-Round 13: Global Test Accuracy = 0.1960
-Round 14: Global Test Accuracy = 0.1940
-Round 15: Global Test Accuracy = 0.1990
-Round 16: Global Test Accuracy = 0.2070
+Round 12: Training Time = 0.01s, Communication Time = 0.01s
+Round 13: Global Test Accuracy = 0.1970
+Round 13: Training Time = 0.01s, Communication Time = 0.01s
+Round 14: Global Test Accuracy = 0.1970
+Round 14: Training Time = 0.01s, Communication Time = 0.01s
+Round 15: Global Test Accuracy = 0.2000
+Round 15: Training Time = 0.01s, Communication Time = 0.01s
+Round 16: Global Test Accuracy = 0.2030
+Round 16: Training Time = 0.01s, Communication Time = 0.01s
 Round 17: Global Test Accuracy = 0.2100
-Round 18: Global Test Accuracy = 0.2090
+Round 17: Training Time = 0.01s, Communication Time = 0.01s
+Round 18: Global Test Accuracy = 0.2170
+Round 18: Training Time = 0.01s, Communication Time = 0.01s
 Round 19: Global Test Accuracy = 0.2230
-Round 20: Global Test Accuracy = 0.2190
-Round 21: Global Test Accuracy = 0.2260
-Round 22: Global Test Accuracy = 0.2280
-Round 23: Global Test Accuracy = 0.2340
-Round 24: Global Test Accuracy = 0.2380
-Round 25: Global Test Accuracy = 0.2380
-Round 26: Global Test Accuracy = 0.2450
-Round 27: Global Test Accuracy = 0.2460
-Round 28: Global Test Accuracy = 0.2530
-Round 29: Global Test Accuracy = 0.2580
-Round 30: Global Test Accuracy = 0.2640
-Round 31: Global Test Accuracy = 0.2690
-Round 32: Global Test Accuracy = 0.2750
-Round 33: Global Test Accuracy = 0.2750
-Round 34: Global Test Accuracy = 0.2810
-Round 35: Global Test Accuracy = 0.2860
-Round 36: Global Test Accuracy = 0.2930
-Round 37: Global Test Accuracy = 0.2990
-Round 38: Global Test Accuracy = 0.3000
-Round 39: Global Test Accuracy = 0.3050
-Round 40: Global Test Accuracy = 0.3140
-Round 41: Global Test Accuracy = 0.3200
-Round 42: Global Test Accuracy = 0.3210
-Round 43: Global Test Accuracy = 0.3290
+Round 19: Training Time = 0.01s, Communication Time = 0.01s
+Round 20: Global Test Accuracy = 0.2300
+Round 20: Training Time = 0.01s, Communication Time = 0.02s
+Round 21: Global Test Accuracy = 0.2340
+Round 21: Training Time = 0.01s, Communication Time = 0.01s
+Round 22: Global Test Accuracy = 0.2410
+Round 22: Training Time = 0.01s, Communication Time = 0.01s
+Round 23: Global Test Accuracy = 0.2430
+Round 23: Training Time = 0.01s, Communication Time = 0.01s
+Round 24: Global Test Accuracy = 0.2450
+Round 24: Training Time = 0.01s, Communication Time = 0.01s
+Round 25: Global Test Accuracy = 0.2530
+Round 25: Training Time = 0.01s, Communication Time = 0.01s
+Round 26: Global Test Accuracy = 0.2660
+Round 26: Training Time = 0.01s, Communication Time = 0.01s
+Round 27: Global Test Accuracy = 0.2690
+Round 27: Training Time = 0.01s, Communication Time = 0.01s
+Round 28: Global Test Accuracy = 0.2740
+Round 28: Training Time = 0.01s, Communication Time = 0.01s
+Round 29: Global Test Accuracy = 0.2720
+Round 29: Training Time = 0.01s, Communication Time = 0.01s
+Round 30: Global Test Accuracy = 0.2830
+Round 30: Training Time = 0.01s, Communication Time = 0.01s
+Round 31: Global Test Accuracy = 0.2840
+Round 31: Training Time = 0.01s, Communication Time = 0.01s
+Round 32: Global Test Accuracy = 0.2880
+Round 32: Training Time = 0.01s, Communication Time = 0.01s
+Round 33: Global Test Accuracy = 0.2910
+Round 33: Training Time = 0.01s, Communication Time = 0.01s
+Round 34: Global Test Accuracy = 0.2910
+Round 34: Training Time = 0.01s, Communication Time = 0.01s
+Round 35: Global Test Accuracy = 0.2990
+Round 35: Training Time = 0.01s, Communication Time = 0.01s
+Round 36: Global Test Accuracy = 0.3020
+Round 36: Training Time = 0.01s, Communication Time = 0.01s
+Round 37: Global Test Accuracy = 0.3080
+Round 37: Training Time = 0.01s, Communication Time = 0.01s
+Round 38: Global Test Accuracy = 0.3130
+Round 38: Training Time = 0.01s, Communication Time = 0.01s
+Round 39: Global Test Accuracy = 0.3170
+Round 39: Training Time = 0.01s, Communication Time = 0.01s
+Round 40: Global Test Accuracy = 0.3170
+Round 40: Training Time = 0.01s, Communication Time = 0.01s
+Round 41: Global Test Accuracy = 0.3240
+Round 41: Training Time = 0.01s, Communication Time = 0.02s
+Round 42: Global Test Accuracy = 0.3310
+Round 42: Training Time = 0.01s, Communication Time = 0.02s
+Round 43: Global Test Accuracy = 0.3310
+Round 43: Training Time = 0.01s, Communication Time = 0.02s
 Round 44: Global Test Accuracy = 0.3320
-Round 45: Global Test Accuracy = 0.3360
-Round 46: Global Test Accuracy = 0.3460
-Round 47: Global Test Accuracy = 0.3450
-Round 48: Global Test Accuracy = 0.3470
-Round 49: Global Test Accuracy = 0.3500
-Round 50: Global Test Accuracy = 0.3570
-Round 51: Global Test Accuracy = 0.3590
-Round 52: Global Test Accuracy = 0.3620
-Round 53: Global Test Accuracy = 0.3690
-Round 54: Global Test Accuracy = 0.3730
-Round 55: Global Test Accuracy = 0.3750
-Round 56: Global Test Accuracy = 0.3770
-Round 57: Global Test Accuracy = 0.3830
-Round 58: Global Test Accuracy = 0.3850
-Round 59: Global Test Accuracy = 0.3830
-Round 60: Global Test Accuracy = 0.3920
-Round 61: Global Test Accuracy = 0.3910
-Round 62: Global Test Accuracy = 0.3970
-Round 63: Global Test Accuracy = 0.3960
-Round 64: Global Test Accuracy = 0.4020
-Round 65: Global Test Accuracy = 0.4010
-Round 66: Global Test Accuracy = 0.4070
-Round 67: Global Test Accuracy = 0.4120
-Round 68: Global Test Accuracy = 0.4160
-Round 69: Global Test Accuracy = 0.4150
-Round 70: Global Test Accuracy = 0.4230
-Round 71: Global Test Accuracy = 0.4290
-Round 72: Global Test Accuracy = 0.4340
-Round 73: Global Test Accuracy = 0.4400
-Round 74: Global Test Accuracy = 0.4410
-Round 75: Global Test Accuracy = 0.4480
-Round 76: Global Test Accuracy = 0.4510
-Round 77: Global Test Accuracy = 0.4530
-Round 78: Global Test Accuracy = 0.4550
-Round 79: Global Test Accuracy = 0.4560
-Round 80: Global Test Accuracy = 0.4600
-Round 81: Global Test Accuracy = 0.4650
-Round 82: Global Test Accuracy = 0.4620
-Round 83: Global Test Accuracy = 0.4690
-Round 84: Global Test Accuracy = 0.4740
-Round 85: Global Test Accuracy = 0.4800
-Round 86: Global Test Accuracy = 0.4800
-Round 87: Global Test Accuracy = 0.4810
-Round 88: Global Test Accuracy = 0.4820
-Round 89: Global Test Accuracy = 0.4870
-Round 90: Global Test Accuracy = 0.4930
-Round 91: Global Test Accuracy = 0.4910
-Round 92: Global Test Accuracy = 0.4950
-Round 93: Global Test Accuracy = 0.4980
-Round 94: Global Test Accuracy = 0.5030
-Round 95: Global Test Accuracy = 0.5040
-Round 96: Global Test Accuracy = 0.5060
-Round 97: Global Test Accuracy = 0.5090
-Round 98: Global Test Accuracy = 0.5100
-Round 99: Global Test Accuracy = 0.5120
-Round 100: Global Test Accuracy = 0.5160
-Round 101: Global Test Accuracy = 0.5170
-Round 102: Global Test Accuracy = 0.5160
-Round 103: Global Test Accuracy = 0.5210
-Round 104: Global Test Accuracy = 0.5220
-Round 105: Global Test Accuracy = 0.5260
-Round 106: Global Test Accuracy = 0.5240
-Round 107: Global Test Accuracy = 0.5290
-Round 108: Global Test Accuracy = 0.5310
-Round 109: Global Test Accuracy = 0.5330
-Round 110: Global Test Accuracy = 0.5350
-Round 111: Global Test Accuracy = 0.5370
-Round 112: Global Test Accuracy = 0.5360
-Round 113: Global Test Accuracy = 0.5390
-Round 114: Global Test Accuracy = 0.5440
+Round 44: Training Time = 0.01s, Communication Time = 0.01s
+Round 45: Global Test Accuracy = 0.3380
+Round 45: Training Time = 0.01s, Communication Time = 0.01s
+Round 46: Global Test Accuracy = 0.3410
+Round 46: Training Time = 0.01s, Communication Time = 0.01s
+Round 47: Global Test Accuracy = 0.3440
+Round 47: Training Time = 0.01s, Communication Time = 0.02s
+Round 48: Global Test Accuracy = 0.3570
+Round 48: Training Time = 0.01s, Communication Time = 0.01s
+Round 49: Global Test Accuracy = 0.3620
+Round 49: Training Time = 0.01s, Communication Time = 0.01s
+Round 50: Global Test Accuracy = 0.3700
+Round 50: Training Time = 0.01s, Communication Time = 0.02s
+Round 51: Global Test Accuracy = 0.3800
+Round 51: Training Time = 0.01s, Communication Time = 0.01s
+Round 52: Global Test Accuracy = 0.3830
+Round 52: Training Time = 0.01s, Communication Time = 0.01s
+Round 53: Global Test Accuracy = 0.3830
+Round 53: Training Time = 0.01s, Communication Time = 0.01s
+Round 54: Global Test Accuracy = 0.3880
+Round 54: Training Time = 0.01s, Communication Time = 0.01s
+Round 55: Global Test Accuracy = 0.3900
+Round 55: Training Time = 0.01s, Communication Time = 0.01s
+Round 56: Global Test Accuracy = 0.3940
+Round 56: Training Time = 0.01s, Communication Time = 0.01s
+Round 57: Global Test Accuracy = 0.4010
+Round 57: Training Time = 0.01s, Communication Time = 0.01s
+Round 58: Global Test Accuracy = 0.4030
+Round 58: Training Time = 0.01s, Communication Time = 0.01s
+Round 59: Global Test Accuracy = 0.4090
+Round 59: Training Time = 0.01s, Communication Time = 0.01s
+Round 60: Global Test Accuracy = 0.4140
+Round 60: Training Time = 0.01s, Communication Time = 0.01s
+Round 61: Global Test Accuracy = 0.4180
+Round 61: Training Time = 0.01s, Communication Time = 0.02s
+Round 62: Global Test Accuracy = 0.4250
+Round 62: Training Time = 0.01s, Communication Time = 0.02s
+Round 63: Global Test Accuracy = 0.4280
+Round 63: Training Time = 0.01s, Communication Time = 0.01s
+Round 64: Global Test Accuracy = 0.4330
+Round 64: Training Time = 0.01s, Communication Time = 0.01s
+Round 65: Global Test Accuracy = 0.4340
+Round 65: Training Time = 0.01s, Communication Time = 0.01s
+Round 66: Global Test Accuracy = 0.4360
+Round 66: Training Time = 0.01s, Communication Time = 0.01s
+Round 67: Global Test Accuracy = 0.4410
+Round 67: Training Time = 0.01s, Communication Time = 0.01s
+Round 68: Global Test Accuracy = 0.4460
+Round 68: Training Time = 0.01s, Communication Time = 0.01s
+Round 69: Global Test Accuracy = 0.4510
+Round 69: Training Time = 0.01s, Communication Time = 0.01s
+Round 70: Global Test Accuracy = 0.4510
+Round 70: Training Time = 0.01s, Communication Time = 0.01s
+Round 71: Global Test Accuracy = 0.4570
+Round 71: Training Time = 0.01s, Communication Time = 0.01s
+Round 72: Global Test Accuracy = 0.4580
+Round 72: Training Time = 0.01s, Communication Time = 0.01s
+Round 73: Global Test Accuracy = 0.4660
+Round 73: Training Time = 0.01s, Communication Time = 0.01s
+Round 74: Global Test Accuracy = 0.4680
+Round 74: Training Time = 0.01s, Communication Time = 0.01s
+Round 75: Global Test Accuracy = 0.4710
+Round 75: Training Time = 0.01s, Communication Time = 0.01s
+Round 76: Global Test Accuracy = 0.4710
+Round 76: Training Time = 0.01s, Communication Time = 0.01s
+Round 77: Global Test Accuracy = 0.4740
+Round 77: Training Time = 0.01s, Communication Time = 0.01s
+Round 78: Global Test Accuracy = 0.4700
+Round 78: Training Time = 0.01s, Communication Time = 0.01s
+Round 79: Global Test Accuracy = 0.4760
+Round 79: Training Time = 0.01s, Communication Time = 0.01s
+Round 80: Global Test Accuracy = 0.4790
+Round 80: Training Time = 0.01s, Communication Time = 0.01s
+Round 81: Global Test Accuracy = 0.4830
+Round 81: Training Time = 0.01s, Communication Time = 0.01s
+Round 82: Global Test Accuracy = 0.4800
+Round 82: Training Time = 0.01s, Communication Time = 0.01s
+Round 83: Global Test Accuracy = 0.4890
+Round 83: Training Time = 0.01s, Communication Time = 0.01s
+Round 84: Global Test Accuracy = 0.4920
+Round 84: Training Time = 0.01s, Communication Time = 0.01s
+Round 85: Global Test Accuracy = 0.4950
+Round 85: Training Time = 0.01s, Communication Time = 0.01s
+Round 86: Global Test Accuracy = 0.5040
+Round 86: Training Time = 0.01s, Communication Time = 0.01s
+Round 87: Global Test Accuracy = 0.5070
+Round 87: Training Time = 0.01s, Communication Time = 0.01s
+Round 88: Global Test Accuracy = 0.5110
+Round 88: Training Time = 0.01s, Communication Time = 0.01s
+Round 89: Global Test Accuracy = 0.5170
+Round 89: Training Time = 0.01s, Communication Time = 0.01s
+Round 90: Global Test Accuracy = 0.5180
+Round 90: Training Time = 0.01s, Communication Time = 0.01s
+Round 91: Global Test Accuracy = 0.5210
+Round 91: Training Time = 0.01s, Communication Time = 0.01s
+Round 92: Global Test Accuracy = 0.5210
+Round 92: Training Time = 0.01s, Communication Time = 0.01s
+Round 93: Global Test Accuracy = 0.5270
+Round 93: Training Time = 0.01s, Communication Time = 0.01s
+Round 94: Global Test Accuracy = 0.5270
+Round 94: Training Time = 0.01s, Communication Time = 0.01s
+Round 95: Global Test Accuracy = 0.5300
+Round 95: Training Time = 0.01s, Communication Time = 0.01s
+Round 96: Global Test Accuracy = 0.5300
+Round 96: Training Time = 0.01s, Communication Time = 0.01s
+Round 97: Global Test Accuracy = 0.5340
+Round 97: Training Time = 0.01s, Communication Time = 0.01s
+Round 98: Global Test Accuracy = 0.5340
+Round 98: Training Time = 0.01s, Communication Time = 0.01s
+Round 99: Global Test Accuracy = 0.5340
+Round 99: Training Time = 0.01s, Communication Time = 0.01s
+Round 100: Global Test Accuracy = 0.5380
+Round 100: Training Time = 0.01s, Communication Time = 0.01s
+Round 101: Global Test Accuracy = 0.5390
+Round 101: Training Time = 0.01s, Communication Time = 0.01s
+Round 102: Global Test Accuracy = 0.5380
+Round 102: Training Time = 0.01s, Communication Time = 0.01s
+Round 103: Global Test Accuracy = 0.5390
+Round 103: Training Time = 0.01s, Communication Time = 0.01s
+Round 104: Global Test Accuracy = 0.5370
+Round 104: Training Time = 0.01s, Communication Time = 0.01s
+Round 105: Global Test Accuracy = 0.5420
+Round 105: Training Time = 0.01s, Communication Time = 0.02s
+Round 106: Global Test Accuracy = 0.5410
+Round 106: Training Time = 0.01s, Communication Time = 0.02s
+Round 107: Global Test Accuracy = 0.5430
+Round 107: Training Time = 0.01s, Communication Time = 0.01s
+Round 108: Global Test Accuracy = 0.5420
+Round 108: Training Time = 0.01s, Communication Time = 0.01s
+Round 109: Global Test Accuracy = 0.5450
+Round 109: Training Time = 0.01s, Communication Time = 0.01s
+Round 110: Global Test Accuracy = 0.5410
+Round 110: Training Time = 0.01s, Communication Time = 0.01s
+Round 111: Global Test Accuracy = 0.5480
+Round 111: Training Time = 0.01s, Communication Time = 0.01s
+Round 112: Global Test Accuracy = 0.5490
+Round 112: Training Time = 0.01s, Communication Time = 0.01s
+Round 113: Global Test Accuracy = 0.5480
+Round 113: Training Time = 0.01s, Communication Time = 0.01s
+Round 114: Global Test Accuracy = 0.5470
+Round 114: Training Time = 0.01s, Communication Time = 0.01s
 Round 115: Global Test Accuracy = 0.5480
-Round 116: Global Test Accuracy = 0.5480
-Round 117: Global Test Accuracy = 0.5490
+Round 115: Training Time = 0.01s, Communication Time = 0.01s
+Round 116: Global Test Accuracy = 0.5490
+Round 116: Training Time = 0.01s, Communication Time = 0.01s
+Round 117: Global Test Accuracy = 0.5520
+Round 117: Training Time = 0.01s, Communication Time = 0.01s
 Round 118: Global Test Accuracy = 0.5500
-Round 119: Global Test Accuracy = 0.5500
+Round 118: Training Time = 0.01s, Communication Time = 0.01s
+Round 119: Global Test Accuracy = 0.5510
+Round 119: Training Time = 0.01s, Communication Time = 0.01s
 Round 120: Global Test Accuracy = 0.5530
-Round 121: Global Test Accuracy = 0.5530
-Round 122: Global Test Accuracy = 0.5550
-Round 123: Global Test Accuracy = 0.5570
-Round 124: Global Test Accuracy = 0.5570
-Round 125: Global Test Accuracy = 0.5570
-Round 126: Global Test Accuracy = 0.5620
-Round 127: Global Test Accuracy = 0.5620
-Round 128: Global Test Accuracy = 0.5660
-Round 129: Global Test Accuracy = 0.5680
-Round 130: Global Test Accuracy = 0.5660
-Round 131: Global Test Accuracy = 0.5680
-Round 132: Global Test Accuracy = 0.5700
-Round 133: Global Test Accuracy = 0.5710
-Round 134: Global Test Accuracy = 0.5690
-Round 135: Global Test Accuracy = 0.5700
-Round 136: Global Test Accuracy = 0.5730
-Round 137: Global Test Accuracy = 0.5710
-Round 138: Global Test Accuracy = 0.5720
-Round 139: Global Test Accuracy = 0.5720
-Round 140: Global Test Accuracy = 0.5730
-Round 141: Global Test Accuracy = 0.5740
-Round 142: Global Test Accuracy = 0.5730
-Round 143: Global Test Accuracy = 0.5760
+Round 120: Training Time = 0.01s, Communication Time = 0.01s
+Round 121: Global Test Accuracy = 0.5500
+Round 121: Training Time = 0.01s, Communication Time = 0.01s
+Round 122: Global Test Accuracy = 0.5520
+Round 122: Training Time = 0.01s, Communication Time = 0.01s
+Round 123: Global Test Accuracy = 0.5540
+Round 123: Training Time = 0.01s, Communication Time = 0.01s
+Round 124: Global Test Accuracy = 0.5540
+Round 124: Training Time = 0.01s, Communication Time = 0.01s
+Round 125: Global Test Accuracy = 0.5530
+Round 125: Training Time = 0.01s, Communication Time = 0.01s
+Round 126: Global Test Accuracy = 0.5550
+Round 126: Training Time = 0.01s, Communication Time = 0.01s
+Round 127: Global Test Accuracy = 0.5540
+Round 127: Training Time = 0.01s, Communication Time = 0.01s
+Round 128: Global Test Accuracy = 0.5560
+Round 128: Training Time = 0.01s, Communication Time = 0.01s
+Round 129: Global Test Accuracy = 0.5580
+Round 129: Training Time = 0.01s, Communication Time = 0.01s
+Round 130: Global Test Accuracy = 0.5580
+Round 130: Training Time = 0.01s, Communication Time = 0.01s
+Round 131: Global Test Accuracy = 0.5580
+Round 131: Training Time = 0.01s, Communication Time = 0.01s
+Round 132: Global Test Accuracy = 0.5590
+Round 132: Training Time = 0.01s, Communication Time = 0.01s
+Round 133: Global Test Accuracy = 0.5590
+Round 133: Training Time = 0.01s, Communication Time = 0.01s
+Round 134: Global Test Accuracy = 0.5600
+Round 134: Training Time = 0.01s, Communication Time = 0.01s
+Round 135: Global Test Accuracy = 0.5630
+Round 135: Training Time = 0.01s, Communication Time = 0.01s
+Round 136: Global Test Accuracy = 0.5640
+Round 136: Training Time = 0.01s, Communication Time = 0.01s
+Round 137: Global Test Accuracy = 0.5660
+Round 137: Training Time = 0.01s, Communication Time = 0.01s
+Round 138: Global Test Accuracy = 0.5660
+Round 138: Training Time = 0.01s, Communication Time = 0.01s
+Round 139: Global Test Accuracy = 0.5710
+Round 139: Training Time = 0.01s, Communication Time = 0.01s
+Round 140: Global Test Accuracy = 0.5710
+Round 140: Training Time = 0.01s, Communication Time = 0.01s
+Round 141: Global Test Accuracy = 0.5720
+Round 141: Training Time = 0.01s, Communication Time = 0.01s
+Round 142: Global Test Accuracy = 0.5740
+Round 142: Training Time = 0.01s, Communication Time = 0.01s
+Round 143: Global Test Accuracy = 0.5740
+Round 143: Training Time = 0.01s, Communication Time = 0.01s
 Round 144: Global Test Accuracy = 0.5740
-Round 145: Global Test Accuracy = 0.5720
-Round 146: Global Test Accuracy = 0.5740
-Round 147: Global Test Accuracy = 0.5740
-Round 148: Global Test Accuracy = 0.5710
-Round 149: Global Test Accuracy = 0.5750
-Round 150: Global Test Accuracy = 0.5740
-Round 151: Global Test Accuracy = 0.5760
-Round 152: Global Test Accuracy = 0.5760
-Round 153: Global Test Accuracy = 0.5780
-Round 154: Global Test Accuracy = 0.5780
-Round 155: Global Test Accuracy = 0.5770
-Round 156: Global Test Accuracy = 0.5770
-Round 157: Global Test Accuracy = 0.5780
-Round 158: Global Test Accuracy = 0.5760
-Round 159: Global Test Accuracy = 0.5770
-Round 160: Global Test Accuracy = 0.5770
-Round 161: Global Test Accuracy = 0.5790
-Round 162: Global Test Accuracy = 0.5800
-Round 163: Global Test Accuracy = 0.5800
-Round 164: Global Test Accuracy = 0.5770
-Round 165: Global Test Accuracy = 0.5790
-Round 166: Global Test Accuracy = 0.5790
-Round 167: Global Test Accuracy = 0.5850
-Round 168: Global Test Accuracy = 0.5840
-Round 169: Global Test Accuracy = 0.5840
-Round 170: Global Test Accuracy = 0.5830
-Round 171: Global Test Accuracy = 0.5840
-Round 172: Global Test Accuracy = 0.5860
-Round 173: Global Test Accuracy = 0.5830
-Round 174: Global Test Accuracy = 0.5850
-Round 175: Global Test Accuracy = 0.5890
-Round 176: Global Test Accuracy = 0.5890
-Round 177: Global Test Accuracy = 0.5900
-Round 178: Global Test Accuracy = 0.5880
-Round 179: Global Test Accuracy = 0.5870
-Round 180: Global Test Accuracy = 0.5820
-Round 181: Global Test Accuracy = 0.5860
-Round 182: Global Test Accuracy = 0.5880
-Round 183: Global Test Accuracy = 0.5890
-Round 184: Global Test Accuracy = 0.5880
-Round 185: Global Test Accuracy = 0.5900
-Round 186: Global Test Accuracy = 0.5890
-Round 187: Global Test Accuracy = 0.5910
-Round 188: Global Test Accuracy = 0.5900
-Round 189: Global Test Accuracy = 0.5940
-Round 190: Global Test Accuracy = 0.5910
-Round 191: Global Test Accuracy = 0.5920
-Round 192: Global Test Accuracy = 0.5910
-Round 193: Global Test Accuracy = 0.5900
-Round 194: Global Test Accuracy = 0.5930
-Round 195: Global Test Accuracy = 0.5930
-Round 196: Global Test Accuracy = 0.5930
-Round 197: Global Test Accuracy = 0.5960
-Round 198: Global Test Accuracy = 0.5960
-Round 199: Global Test Accuracy = 0.5980
-Round 200: Global Test Accuracy = 0.5990
-//train_time: 4615.958 ms//end
-//Log Max memory for Large1: 3787202560.0 //end
-//Log Max memory for Large2: 1659736064.0 //end
-//Log Max memory for Large3: 1226600448.0 //end
-//Log Max memory for Large4: 1657864192.0 //end
-//Log Max memory for Server: 2021797888.0 //end
-//Log Large1 network: 42410662.0 //end
-//Log Large2 network: 58500489.0 //end
-//Log Large3 network: 39131657.0 //end
-//Log Large4 network: 58476490.0 //end
-//Log Server network: 195379232.0 //end
-//Log Total Actual Train Comm Cost: 375.65 MB //end
+Round 144: Training Time = 0.01s, Communication Time = 0.01s
+Round 145: Global Test Accuracy = 0.5780
+Round 145: Training Time = 0.01s, Communication Time = 0.01s
+Round 146: Global Test Accuracy = 0.5790
+Round 146: Training Time = 0.01s, Communication Time = 0.01s
+Round 147: Global Test Accuracy = 0.5810
+Round 147: Training Time = 0.01s, Communication Time = 0.01s
+Round 148: Global Test Accuracy = 0.5830
+Round 148: Training Time = 0.01s, Communication Time = 0.01s
+Round 149: Global Test Accuracy = 0.5840
+Round 149: Training Time = 0.01s, Communication Time = 0.02s
+Round 150: Global Test Accuracy = 0.5840
+Round 150: Training Time = 0.01s, Communication Time = 0.02s
+Round 151: Global Test Accuracy = 0.5850
+Round 151: Training Time = 0.01s, Communication Time = 0.01s
+Round 152: Global Test Accuracy = 0.5880
+Round 152: Training Time = 0.01s, Communication Time = 0.01s
+Round 153: Global Test Accuracy = 0.5910
+Round 153: Training Time = 0.01s, Communication Time = 0.01s
+Round 154: Global Test Accuracy = 0.5900
+Round 154: Training Time = 0.01s, Communication Time = 0.01s
+Round 155: Global Test Accuracy = 0.5910
+Round 155: Training Time = 0.01s, Communication Time = 0.01s
+Round 156: Global Test Accuracy = 0.5890
+Round 156: Training Time = 0.01s, Communication Time = 0.01s
+Round 157: Global Test Accuracy = 0.5880
+Round 157: Training Time = 0.01s, Communication Time = 0.01s
+Round 158: Global Test Accuracy = 0.5910
+Round 158: Training Time = 0.01s, Communication Time = 0.01s
+Round 159: Global Test Accuracy = 0.5920
+Round 159: Training Time = 0.01s, Communication Time = 0.01s
+Round 160: Global Test Accuracy = 0.5910
+Round 160: Training Time = 0.01s, Communication Time = 0.01s
+Round 161: Global Test Accuracy = 0.5890
+Round 161: Training Time = 0.01s, Communication Time = 0.01s
+Round 162: Global Test Accuracy = 0.5880
+Round 162: Training Time = 0.01s, Communication Time = 0.01s
+Round 163: Global Test Accuracy = 0.5880
+Round 163: Training Time = 0.01s, Communication Time = 0.01s
+Round 164: Global Test Accuracy = 0.5920
+Round 164: Training Time = 0.01s, Communication Time = 0.01s
+Round 165: Global Test Accuracy = 0.5920
+Round 165: Training Time = 0.01s, Communication Time = 0.01s
+Round 166: Global Test Accuracy = 0.5920
+Round 166: Training Time = 0.01s, Communication Time = 0.01s
+Round 167: Global Test Accuracy = 0.5910
+Round 167: Training Time = 0.01s, Communication Time = 0.01s
+Round 168: Global Test Accuracy = 0.5900
+Round 168: Training Time = 0.01s, Communication Time = 0.01s
+Round 169: Global Test Accuracy = 0.5910
+Round 169: Training Time = 0.01s, Communication Time = 0.01s
+Round 170: Global Test Accuracy = 0.5930
+Round 170: Training Time = 0.01s, Communication Time = 0.01s
+Round 171: Global Test Accuracy = 0.5940
+Round 171: Training Time = 0.01s, Communication Time = 0.01s
+Round 172: Global Test Accuracy = 0.5930
+Round 172: Training Time = 0.01s, Communication Time = 0.01s
+Round 173: Global Test Accuracy = 0.5930
+Round 173: Training Time = 0.01s, Communication Time = 0.01s
+Round 174: Global Test Accuracy = 0.5940
+Round 174: Training Time = 0.01s, Communication Time = 0.01s
+Round 175: Global Test Accuracy = 0.5950
+Round 175: Training Time = 0.01s, Communication Time = 0.01s
+Round 176: Global Test Accuracy = 0.5960
+Round 176: Training Time = 0.01s, Communication Time = 0.01s
+Round 177: Global Test Accuracy = 0.5950
+Round 177: Training Time = 0.01s, Communication Time = 0.01s
+Round 178: Global Test Accuracy = 0.5970
+Round 178: Training Time = 0.01s, Communication Time = 0.01s
+Round 179: Global Test Accuracy = 0.5950
+Round 179: Training Time = 0.01s, Communication Time = 0.01s
+Round 180: Global Test Accuracy = 0.5990
+Round 180: Training Time = 0.01s, Communication Time = 0.01s
+Round 181: Global Test Accuracy = 0.5960
+Round 181: Training Time = 0.01s, Communication Time = 0.01s
+Round 182: Global Test Accuracy = 0.5980
+Round 182: Training Time = 0.01s, Communication Time = 0.01s
+Round 183: Global Test Accuracy = 0.6020
+Round 183: Training Time = 0.01s, Communication Time = 0.01s
+Round 184: Global Test Accuracy = 0.5970
+Round 184: Training Time = 0.01s, Communication Time = 0.01s
+Round 185: Global Test Accuracy = 0.6020
+Round 185: Training Time = 0.01s, Communication Time = 0.01s
+Round 186: Global Test Accuracy = 0.6030
+Round 186: Training Time = 0.01s, Communication Time = 0.01s
+Round 187: Global Test Accuracy = 0.6040
+Round 187: Training Time = 0.01s, Communication Time = 0.01s
+Round 188: Global Test Accuracy = 0.6040
+Round 188: Training Time = 0.01s, Communication Time = 0.01s
+Round 189: Global Test Accuracy = 0.6040
+Round 189: Training Time = 0.01s, Communication Time = 0.01s
+Round 190: Global Test Accuracy = 0.6080
+Round 190: Training Time = 0.01s, Communication Time = 0.01s
+Round 191: Global Test Accuracy = 0.6020
+Round 191: Training Time = 0.01s, Communication Time = 0.01s
+Round 192: Global Test Accuracy = 0.6040
+Round 192: Training Time = 0.01s, Communication Time = 0.01s
+Round 193: Global Test Accuracy = 0.6050
+Round 193: Training Time = 0.01s, Communication Time = 0.01s
+Round 194: Global Test Accuracy = 0.6060
+Round 194: Training Time = 0.01s, Communication Time = 0.02s
+Round 195: Global Test Accuracy = 0.6050
+Round 195: Training Time = 0.01s, Communication Time = 0.01s
+Round 196: Global Test Accuracy = 0.6050
+Round 196: Training Time = 0.01s, Communication Time = 0.01s
+Round 197: Global Test Accuracy = 0.6040
+Round 197: Training Time = 0.01s, Communication Time = 0.01s
+Round 198: Global Test Accuracy = 0.6030
+Round 198: Training Time = 0.01s, Communication Time = 0.01s
+Round 199: Global Test Accuracy = 0.6040
+Round 199: Training Time = 0.01s, Communication Time = 0.01s
+Round 200: Global Test Accuracy = 0.6070
+Round 200: Training Time = 0.01s, Communication Time = 0.01s
+//train_time: 5008.143999999999 ms//end
+//Log Max memory for Large1: 1660645376.0 //end
+//Log Max memory for Large2: 1226010624.0 //end
+//Log Max memory for Large3: 3778813952.0 //end
+//Log Max memory for Large4: 1683275776.0 //end
+//Log Max memory for Server: 1934327808.0 //end
+//Log Large1 network: 58403441.0 //end
+//Log Large2 network: 39110789.0 //end
+//Log Large3 network: 42394521.0 //end
+//Log Large4 network: 58467674.0 //end
+//Log Server network: 195475248.0 //end
+//Log Total Actual Train Comm Cost: 375.61 MB //end
 Train end time recorded and duration set to gauge.
-[Training Time] Dataset: cora, Batch Size: -1, Trainers: 10, Hops: 0, IID Beta: 10.0 => Training Time = 34.62 seconds
-average_final_test_loss, 1.2754487755298614
-Average test accuracy, 0.599
+
+================================================================================
+TIME BREAKDOWN (excluding initialization)
+================================================================================
+Total Pure Training Time (forward + gradient descent): 1.36 seconds
+Total Communication Time (parameter aggregation): 2.78 seconds
+Total Training + Communication Time: 35.01 seconds
+Training Time Percentage: 3.9%
+Communication Time Percentage: 8.0%
+Average Training Time per Round: 0.01 seconds
+Average Communication Time per Round: 0.01 seconds
+================================================================================
+[Pure Training Time] Dataset: cora, Batch Size: -1, Trainers: 10, Hops: 0, IID Beta: 10.0 => Pure Training Time = 1.36 seconds
+[Communication Time] Dataset: cora, Batch Size: -1, Trainers: 10, Hops: 0, IID Beta: 10.0 => Communication Time = 2.78 seconds
+average_final_test_loss, 1.251101580262184
+Average test accuracy, 0.607
 
 ================================================================================
 INDIVIDUAL TRAINER MEMORY USAGE
@@ -296,34 +509,34 @@ TRAINER MEMORY vs LOCAL GRAPH SIZE
 ====================================================================================================
 Trainer  Memory(MB)   Nodes    Edges    Memory/Node  Memory/Edge 
 ----------------------------------------------------------------------------------------------------
-0        662.6        293      128      2.261        5.176       
-1        661.6        287      94       2.305        7.038       
-2        660.8        267      100      2.475        6.608       
-3        661.8        248      100      2.668        6.618       
-4        664.1        276      110      2.406        6.037       
-5        661.4        275      106      2.405        6.240       
-6        660.8        289      118      2.287        5.600       
-7        663.5        249      80       2.665        8.294       
-8        660.9        266      176      2.484        3.755       
-9        661.7        258      64       2.565        10.339      
+0        661.2        267      110      2.476        6.011       
+1        661.4        286      122      2.313        5.421       
+2        660.2        249      114      2.652        5.792       
+3        662.5        280      152      2.366        4.358       
+4        661.9        244      78       2.713        8.486       
+5        661.1        269      94       2.458        7.033       
+6        662.2        262      60       2.528        11.037      
+7        663.0        276      108      2.402        6.139       
+8        661.8        285      106      2.322        6.243       
+9        662.1        290      170      2.283        3.895       
 ====================================================================================================
-Total Memory Usage: 6619.1 MB (6.46 GB)
-Total Nodes: 2708, Total Edges: 1076
-Average Memory per Trainer: 661.9 MB
+Total Memory Usage: 6617.5 MB (6.46 GB)
+Total Nodes: 2708, Total Edges: 1114
+Average Memory per Trainer: 661.7 MB
 Average Nodes per Trainer: 270.8
-Average Edges per Trainer: 107.6
-Max Memory: 664.1 MB (Trainer 4)
-Min Memory: 660.8 MB (Trainer 6)
+Average Edges per Trainer: 111.4
+Max Memory: 663.0 MB (Trainer 7)
+Min Memory: 660.2 MB (Trainer 2)
 Overall Memory/Node Ratio: 2.444 MB/node
-Overall Memory/Edge Ratio: 6.152 MB/edge
+Overall Memory/Edge Ratio: 5.940 MB/edge
 ====================================================================================================
 //Log Theoretical Pretrain Comm Cost: 0.00 MB //end
 //Log Theoretical Train Comm Cost: 351.91 MB //end
 
 ================================================================================
 CSV FORMAT RESULT:
-DS,IID,BS,Time[s],FinalAcc[%],CompTime[s],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
-cora,10.0,-1,70.3,0.60,34.6,351.9,664.1,0.173,0.088,0
+DS,IID,BS,TotalTime[s],PureTrainingTime[s],CommTime[s],FinalAcc[%],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
+cora,10.0,-1,70.5,1.4,2.8,0.61,351.9,663.0,0.007,0.088,0
 ================================================================================
 
 ================================================================================
@@ -335,14 +548,15 @@ Trainers: 10
 IID Beta: 10.0
 Batch Size: -1
 Hops: 0
-Total Execution Time: 70.26 seconds
-Training Time: 34.63 seconds
+Total Execution Time: 70.54 seconds
+Pure Training Time: 1.36 seconds
+Communication Time: 2.78 seconds
 Pretrain Comm Cost: 0.00 MB
 Training Comm Cost: 351.91 MB
 ================================================================================
 
-[36m(Trainer pid=19386, ip=192.168.52.140)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.[32m [repeated 9x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)[0m
-[36m(Trainer pid=19386, ip=192.168.52.140)[0m   return torch.load(io.BytesIO(b))[32m [repeated 9x across cluster][0m
+[36m(Trainer pid=8941, ip=192.168.53.228)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.[32m [repeated 9x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)[0m
+[36m(Trainer pid=8941, ip=192.168.53.228)[0m   return torch.load(io.BytesIO(b))[32m [repeated 9x across cluster][0m
 Experiment 1/1 completed for:
   Dataset: cora, Trainers: 10, IID Beta: 10.0
   Method: fedgcn if 0 > 0 else FedAvg, Batch Size: -1
@@ -370,251 +584,464 @@ Downloaded ./data/citeseer/raw/ind.citeseer.graph
 Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.citeseer.test.index to ./data/citeseer/raw/ind.citeseer.test.index...
 Downloaded ./data/citeseer/raw/ind.citeseer.test.index
 Initialization start: network data collected.
-2025-07-29 23:43:21,576	INFO worker.py:1429 -- Using address 192.168.23.53:6379 set in the environment variable RAY_ADDRESS
-2025-07-29 23:43:21,576	INFO worker.py:1564 -- Connecting to existing Ray cluster at address: 192.168.23.53:6379...
-2025-07-29 23:43:21,582	INFO worker.py:1740 -- Connected to Ray cluster. View the dashboard at [1m[32mhttp://192.168.23.53:8265 [39m[22m
+2025-07-30 20:50:48,444	INFO worker.py:1429 -- Using address 192.168.37.160:6379 set in the environment variable RAY_ADDRESS
+2025-07-30 20:50:48,445	INFO worker.py:1564 -- Connecting to existing Ray cluster at address: 192.168.37.160:6379...
+2025-07-30 20:50:48,451	INFO worker.py:1740 -- Connected to Ray cluster. View the dashboard at [1m[32mhttp://192.168.37.160:8265 [39m[22m
 Changing method to FedAvg
-[36m(Trainer pid=19931, ip=192.168.2.152)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
-[36m(Trainer pid=19931, ip=192.168.2.152)[0m   return torch.load(io.BytesIO(b))
-//Log init_time: 5484.028 ms //end
-//Log Large1 init network: 653330.0 //end
-//Log Large2 init network: 148511.0 //end
-//Log Large3 init network: 146657.0 //end
-//Log Large4 init network: 116205.0 //end
-//Log Server init network: 50120964.0 //end
-//Log Initialization Communication Cost (MB): 48.81 //end
+[36m(Trainer pid=5419, ip=192.168.38.0)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+[36m(Trainer pid=5419, ip=192.168.38.0)[0m   return torch.load(io.BytesIO(b))
+//Log init_time: 5391.439 ms //end
+//Log Large1 init network: 139618.0 //end
+//Log Large2 init network: 123691.0 //end
+//Log Large3 init network: 625421.0 //end
+//Log Large4 init network: 149357.0 //end
+//Log Server init network: 50102975.0 //end
+//Log Initialization Communication Cost (MB): 48.77 //end
 Pretrain start time recorded.
-//pretrain_time: 7.458 ms//end
-//Log Max memory for Large1: 4070793216.0 //end
-//Log Max memory for Large2: 1230151680.0 //end
-//Log Max memory for Large3: 1654071296.0 //end
-//Log Max memory for Large4: 1228120064.0 //end
-//Log Max memory for Server: 2114228224.0 //end
-//Log Large1 network: 3368480.0 //end
-//Log Large2 network: 644688.0 //end
-//Log Large3 network: 759418.0 //end
-//Log Large4 network: 641129.0 //end
-//Log Server network: 3545132.0 //end
-//Log Total Actual Pretrain Comm Cost: 8.54 MB //end
+//pretrain_time: 5.659 ms//end
+//Log Max memory for Large1: 1230168064.0 //end
+//Log Max memory for Large2: 1661456384.0 //end
+//Log Max memory for Large3: 4056334336.0 //end
+//Log Max memory for Large4: 1247854592.0 //end
+//Log Max memory for Server: 2022117376.0 //end
+//Log Large1 network: 591989.0 //end
+//Log Large2 network: 718344.0 //end
+//Log Large3 network: 3353676.0 //end
+//Log Large4 network: 627961.0 //end
+//Log Server network: 3580606.0 //end
+//Log Total Actual Pretrain Comm Cost: 8.46 MB //end
 Pretrain end time recorded and duration set to gauge.
 Train start: network data collected.
 global_rounds 200
-Round 1: Global Test Accuracy = 0.1710
-Round 2: Global Test Accuracy = 0.1780
-Round 3: Global Test Accuracy = 0.1850
-Round 4: Global Test Accuracy = 0.1900
-Round 5: Global Test Accuracy = 0.1960
-Round 6: Global Test Accuracy = 0.1990
-Round 7: Global Test Accuracy = 0.2040
-Round 8: Global Test Accuracy = 0.2030
-Round 9: Global Test Accuracy = 0.2090
-Round 10: Global Test Accuracy = 0.2120
-Round 11: Global Test Accuracy = 0.2110
-Round 12: Global Test Accuracy = 0.2160
-Round 13: Global Test Accuracy = 0.2190
-Round 14: Global Test Accuracy = 0.2230
-Round 15: Global Test Accuracy = 0.2250
-Round 16: Global Test Accuracy = 0.2370
-Round 17: Global Test Accuracy = 0.2360
-Round 18: Global Test Accuracy = 0.2380
-Round 19: Global Test Accuracy = 0.2470
-Round 20: Global Test Accuracy = 0.2550
-Round 21: Global Test Accuracy = 0.2530
-Round 22: Global Test Accuracy = 0.2570
-Round 23: Global Test Accuracy = 0.2700
-Round 24: Global Test Accuracy = 0.2710
-Round 25: Global Test Accuracy = 0.2820
-Round 26: Global Test Accuracy = 0.2920
-Round 27: Global Test Accuracy = 0.3060
-Round 28: Global Test Accuracy = 0.3160
-Round 29: Global Test Accuracy = 0.3190
-Round 30: Global Test Accuracy = 0.3240
-Round 31: Global Test Accuracy = 0.3260
-Round 32: Global Test Accuracy = 0.3310
-Round 33: Global Test Accuracy = 0.3440
-Round 34: Global Test Accuracy = 0.3490
-Round 35: Global Test Accuracy = 0.3570
-Round 36: Global Test Accuracy = 0.3680
-Round 37: Global Test Accuracy = 0.3780
-Round 38: Global Test Accuracy = 0.3790
-Round 39: Global Test Accuracy = 0.3820
-Round 40: Global Test Accuracy = 0.3930
-Round 41: Global Test Accuracy = 0.3940
-Round 42: Global Test Accuracy = 0.4020
-Round 43: Global Test Accuracy = 0.4120
-Round 44: Global Test Accuracy = 0.4140
-Round 45: Global Test Accuracy = 0.4230
-Round 46: Global Test Accuracy = 0.4310
-Round 47: Global Test Accuracy = 0.4360
-Round 48: Global Test Accuracy = 0.4340
-Round 49: Global Test Accuracy = 0.4380
-Round 50: Global Test Accuracy = 0.4440
-Round 51: Global Test Accuracy = 0.4540
-Round 52: Global Test Accuracy = 0.4560
-Round 53: Global Test Accuracy = 0.4640
-Round 54: Global Test Accuracy = 0.4600
-Round 55: Global Test Accuracy = 0.4730
-Round 56: Global Test Accuracy = 0.4750
-Round 57: Global Test Accuracy = 0.4840
-Round 58: Global Test Accuracy = 0.4830
-Round 59: Global Test Accuracy = 0.4850
-Round 60: Global Test Accuracy = 0.4820
-Round 61: Global Test Accuracy = 0.4890
-Round 62: Global Test Accuracy = 0.4910
-Round 63: Global Test Accuracy = 0.4950
-Round 64: Global Test Accuracy = 0.4960
-Round 65: Global Test Accuracy = 0.4910
-Round 66: Global Test Accuracy = 0.4940
-Round 67: Global Test Accuracy = 0.4970
-Round 68: Global Test Accuracy = 0.4980
-Round 69: Global Test Accuracy = 0.4990
-Round 70: Global Test Accuracy = 0.5040
-Round 71: Global Test Accuracy = 0.5010
-Round 72: Global Test Accuracy = 0.5070
-Round 73: Global Test Accuracy = 0.5120
-Round 74: Global Test Accuracy = 0.5080
-Round 75: Global Test Accuracy = 0.5120
-Round 76: Global Test Accuracy = 0.5120
-Round 77: Global Test Accuracy = 0.5130
-Round 78: Global Test Accuracy = 0.5110
-Round 79: Global Test Accuracy = 0.5210
-Round 80: Global Test Accuracy = 0.5220
-Round 81: Global Test Accuracy = 0.5190
-Round 82: Global Test Accuracy = 0.5210
-Round 83: Global Test Accuracy = 0.5200
-Round 84: Global Test Accuracy = 0.5210
-Round 85: Global Test Accuracy = 0.5220
-Round 86: Global Test Accuracy = 0.5200
-Round 87: Global Test Accuracy = 0.5220
-Round 88: Global Test Accuracy = 0.5220
-Round 89: Global Test Accuracy = 0.5170
-Round 90: Global Test Accuracy = 0.5220
-Round 91: Global Test Accuracy = 0.5210
-Round 92: Global Test Accuracy = 0.5200
-Round 93: Global Test Accuracy = 0.5270
-Round 94: Global Test Accuracy = 0.5320
-Round 95: Global Test Accuracy = 0.5350
-Round 96: Global Test Accuracy = 0.5360
-Round 97: Global Test Accuracy = 0.5330
-Round 98: Global Test Accuracy = 0.5330
-Round 99: Global Test Accuracy = 0.5330
-Round 100: Global Test Accuracy = 0.5310
-Round 101: Global Test Accuracy = 0.5310
-Round 102: Global Test Accuracy = 0.5360
-Round 103: Global Test Accuracy = 0.5360
-Round 104: Global Test Accuracy = 0.5330
-Round 105: Global Test Accuracy = 0.5330
-Round 106: Global Test Accuracy = 0.5300
-Round 107: Global Test Accuracy = 0.5330
-Round 108: Global Test Accuracy = 0.5300
-Round 109: Global Test Accuracy = 0.5390
-Round 110: Global Test Accuracy = 0.5350
-Round 111: Global Test Accuracy = 0.5420
-Round 112: Global Test Accuracy = 0.5380
-Round 113: Global Test Accuracy = 0.5410
-Round 114: Global Test Accuracy = 0.5370
-Round 115: Global Test Accuracy = 0.5380
-Round 116: Global Test Accuracy = 0.5460
-Round 117: Global Test Accuracy = 0.5470
-Round 118: Global Test Accuracy = 0.5450
-Round 119: Global Test Accuracy = 0.5460
-Round 120: Global Test Accuracy = 0.5470
-Round 121: Global Test Accuracy = 0.5480
-Round 122: Global Test Accuracy = 0.5450
-Round 123: Global Test Accuracy = 0.5430
-Round 124: Global Test Accuracy = 0.5470
-Round 125: Global Test Accuracy = 0.5460
-Round 126: Global Test Accuracy = 0.5490
-Round 127: Global Test Accuracy = 0.5480
-Round 128: Global Test Accuracy = 0.5520
-Round 129: Global Test Accuracy = 0.5520
-Round 130: Global Test Accuracy = 0.5480
-Round 131: Global Test Accuracy = 0.5480
-Round 132: Global Test Accuracy = 0.5520
-Round 133: Global Test Accuracy = 0.5530
-Round 134: Global Test Accuracy = 0.5550
-Round 135: Global Test Accuracy = 0.5500
-Round 136: Global Test Accuracy = 0.5530
-Round 137: Global Test Accuracy = 0.5560
-Round 138: Global Test Accuracy = 0.5560
-Round 139: Global Test Accuracy = 0.5560
-Round 140: Global Test Accuracy = 0.5570
-Round 141: Global Test Accuracy = 0.5560
-Round 142: Global Test Accuracy = 0.5570
+Round 1: Global Test Accuracy = 0.1740
+Round 1: Training Time = 0.01s, Communication Time = 0.03s
+Round 2: Global Test Accuracy = 0.1710
+Round 2: Training Time = 0.01s, Communication Time = 0.02s
+Round 3: Global Test Accuracy = 0.1800
+Round 3: Training Time = 0.01s, Communication Time = 0.02s
+Round 4: Global Test Accuracy = 0.1840
+Round 4: Training Time = 0.01s, Communication Time = 0.05s
+Round 5: Global Test Accuracy = 0.1910
+Round 5: Training Time = 0.01s, Communication Time = 0.02s
+Round 6: Global Test Accuracy = 0.1960
+Round 6: Training Time = 0.04s, Communication Time = 0.02s
+Round 7: Global Test Accuracy = 0.2020
+Round 7: Training Time = 0.01s, Communication Time = 0.02s
+Round 8: Global Test Accuracy = 0.2050
+Round 8: Training Time = 0.01s, Communication Time = 0.02s
+Round 9: Global Test Accuracy = 0.2100
+Round 9: Training Time = 0.01s, Communication Time = 0.02s
+Round 10: Global Test Accuracy = 0.2140
+Round 10: Training Time = 0.01s, Communication Time = 0.02s
+Round 11: Global Test Accuracy = 0.2250
+Round 11: Training Time = 0.01s, Communication Time = 0.02s
+Round 12: Global Test Accuracy = 0.2300
+Round 12: Training Time = 0.01s, Communication Time = 0.02s
+Round 13: Global Test Accuracy = 0.2340
+Round 13: Training Time = 0.01s, Communication Time = 0.06s
+Round 14: Global Test Accuracy = 0.2370
+Round 14: Training Time = 0.01s, Communication Time = 0.02s
+Round 15: Global Test Accuracy = 0.2440
+Round 15: Training Time = 0.01s, Communication Time = 0.05s
+Round 16: Global Test Accuracy = 0.2540
+Round 16: Training Time = 0.01s, Communication Time = 0.02s
+Round 17: Global Test Accuracy = 0.2650
+Round 17: Training Time = 0.01s, Communication Time = 0.05s
+Round 18: Global Test Accuracy = 0.2750
+Round 18: Training Time = 0.01s, Communication Time = 0.02s
+Round 19: Global Test Accuracy = 0.2870
+Round 19: Training Time = 0.01s, Communication Time = 0.05s
+Round 20: Global Test Accuracy = 0.2930
+Round 20: Training Time = 0.01s, Communication Time = 0.02s
+Round 21: Global Test Accuracy = 0.3010
+Round 21: Training Time = 0.01s, Communication Time = 0.05s
+Round 22: Global Test Accuracy = 0.3140
+Round 22: Training Time = 0.01s, Communication Time = 0.02s
+Round 23: Global Test Accuracy = 0.3200
+Round 23: Training Time = 0.01s, Communication Time = 0.05s
+Round 24: Global Test Accuracy = 0.3290
+Round 24: Training Time = 0.01s, Communication Time = 0.02s
+Round 25: Global Test Accuracy = 0.3310
+Round 25: Training Time = 0.01s, Communication Time = 0.05s
+Round 26: Global Test Accuracy = 0.3360
+Round 26: Training Time = 0.01s, Communication Time = 0.02s
+Round 27: Global Test Accuracy = 0.3490
+Round 27: Training Time = 0.01s, Communication Time = 0.05s
+Round 28: Global Test Accuracy = 0.3580
+Round 28: Training Time = 0.01s, Communication Time = 0.02s
+Round 29: Global Test Accuracy = 0.3580
+Round 29: Training Time = 0.01s, Communication Time = 0.06s
+Round 30: Global Test Accuracy = 0.3720
+Round 30: Training Time = 0.01s, Communication Time = 0.02s
+Round 31: Global Test Accuracy = 0.3780
+Round 31: Training Time = 0.01s, Communication Time = 0.05s
+Round 32: Global Test Accuracy = 0.3860
+Round 32: Training Time = 0.01s, Communication Time = 0.02s
+Round 33: Global Test Accuracy = 0.3930
+Round 33: Training Time = 0.01s, Communication Time = 0.05s
+Round 34: Global Test Accuracy = 0.3940
+Round 34: Training Time = 0.01s, Communication Time = 0.02s
+Round 35: Global Test Accuracy = 0.3950
+Round 35: Training Time = 0.05s, Communication Time = 0.02s
+Round 36: Global Test Accuracy = 0.4020
+Round 36: Training Time = 0.01s, Communication Time = 0.02s
+Round 37: Global Test Accuracy = 0.4060
+Round 37: Training Time = 0.01s, Communication Time = 0.04s
+Round 38: Global Test Accuracy = 0.4170
+Round 38: Training Time = 0.01s, Communication Time = 0.02s
+Round 39: Global Test Accuracy = 0.4110
+Round 39: Training Time = 0.01s, Communication Time = 0.04s
+Round 40: Global Test Accuracy = 0.4220
+Round 40: Training Time = 0.01s, Communication Time = 0.02s
+Round 41: Global Test Accuracy = 0.4290
+Round 41: Training Time = 0.01s, Communication Time = 0.05s
+Round 42: Global Test Accuracy = 0.4350
+Round 42: Training Time = 0.01s, Communication Time = 0.02s
+Round 43: Global Test Accuracy = 0.4410
+Round 43: Training Time = 0.01s, Communication Time = 0.05s
+Round 44: Global Test Accuracy = 0.4470
+Round 44: Training Time = 0.01s, Communication Time = 0.02s
+Round 45: Global Test Accuracy = 0.4470
+Round 45: Training Time = 0.01s, Communication Time = 0.02s
+Round 46: Global Test Accuracy = 0.4510
+Round 46: Training Time = 0.01s, Communication Time = 0.02s
+Round 47: Global Test Accuracy = 0.4580
+Round 47: Training Time = 0.01s, Communication Time = 0.02s
+Round 48: Global Test Accuracy = 0.4580
+Round 48: Training Time = 0.01s, Communication Time = 0.05s
+Round 49: Global Test Accuracy = 0.4670
+Round 49: Training Time = 0.01s, Communication Time = 0.02s
+Round 50: Global Test Accuracy = 0.4740
+Round 50: Training Time = 0.01s, Communication Time = 0.05s
+Round 51: Global Test Accuracy = 0.4740
+Round 51: Training Time = 0.01s, Communication Time = 0.02s
+Round 52: Global Test Accuracy = 0.4800
+Round 52: Training Time = 0.01s, Communication Time = 0.05s
+Round 53: Global Test Accuracy = 0.4840
+Round 53: Training Time = 0.01s, Communication Time = 0.02s
+Round 54: Global Test Accuracy = 0.4910
+Round 54: Training Time = 0.01s, Communication Time = 0.07s
+Round 55: Global Test Accuracy = 0.4910
+Round 55: Training Time = 0.01s, Communication Time = 0.02s
+Round 56: Global Test Accuracy = 0.4920
+Round 56: Training Time = 0.01s, Communication Time = 0.04s
+Round 57: Global Test Accuracy = 0.4970
+Round 57: Training Time = 0.01s, Communication Time = 0.02s
+Round 58: Global Test Accuracy = 0.4960
+Round 58: Training Time = 0.01s, Communication Time = 0.05s
+Round 59: Global Test Accuracy = 0.5050
+Round 59: Training Time = 0.01s, Communication Time = 0.02s
+Round 60: Global Test Accuracy = 0.5020
+Round 60: Training Time = 0.01s, Communication Time = 0.05s
+Round 61: Global Test Accuracy = 0.5060
+Round 61: Training Time = 0.01s, Communication Time = 0.02s
+Round 62: Global Test Accuracy = 0.5020
+Round 62: Training Time = 0.01s, Communication Time = 0.05s
+Round 63: Global Test Accuracy = 0.5030
+Round 63: Training Time = 0.01s, Communication Time = 0.02s
+Round 64: Global Test Accuracy = 0.5070
+Round 64: Training Time = 0.01s, Communication Time = 0.05s
+Round 65: Global Test Accuracy = 0.5120
+Round 65: Training Time = 0.01s, Communication Time = 0.02s
+Round 66: Global Test Accuracy = 0.5200
+Round 66: Training Time = 0.01s, Communication Time = 0.05s
+Round 67: Global Test Accuracy = 0.5190
+Round 67: Training Time = 0.01s, Communication Time = 0.02s
+Round 68: Global Test Accuracy = 0.5210
+Round 68: Training Time = 0.01s, Communication Time = 0.05s
+Round 69: Global Test Accuracy = 0.5300
+Round 69: Training Time = 0.01s, Communication Time = 0.02s
+Round 70: Global Test Accuracy = 0.5250
+Round 70: Training Time = 0.01s, Communication Time = 0.05s
+Round 71: Global Test Accuracy = 0.5310
+Round 71: Training Time = 0.01s, Communication Time = 0.02s
+Round 72: Global Test Accuracy = 0.5340
+Round 72: Training Time = 0.01s, Communication Time = 0.04s
+Round 73: Global Test Accuracy = 0.5370
+Round 73: Training Time = 0.01s, Communication Time = 0.02s
+Round 74: Global Test Accuracy = 0.5410
+Round 74: Training Time = 0.01s, Communication Time = 0.05s
+Round 75: Global Test Accuracy = 0.5440
+Round 75: Training Time = 0.01s, Communication Time = 0.07s
+Round 76: Global Test Accuracy = 0.5490
+Round 76: Training Time = 0.01s, Communication Time = 0.02s
+Round 77: Global Test Accuracy = 0.5430
+Round 77: Training Time = 0.01s, Communication Time = 0.04s
+Round 78: Global Test Accuracy = 0.5470
+Round 78: Training Time = 0.01s, Communication Time = 0.02s
+Round 79: Global Test Accuracy = 0.5430
+Round 79: Training Time = 0.01s, Communication Time = 0.05s
+Round 80: Global Test Accuracy = 0.5440
+Round 80: Training Time = 0.01s, Communication Time = 0.02s
+Round 81: Global Test Accuracy = 0.5510
+Round 81: Training Time = 0.01s, Communication Time = 0.05s
+Round 82: Global Test Accuracy = 0.5480
+Round 82: Training Time = 0.01s, Communication Time = 0.02s
+Round 83: Global Test Accuracy = 0.5460
+Round 83: Training Time = 0.01s, Communication Time = 0.05s
+Round 84: Global Test Accuracy = 0.5470
+Round 84: Training Time = 0.01s, Communication Time = 0.02s
+Round 85: Global Test Accuracy = 0.5510
+Round 85: Training Time = 0.01s, Communication Time = 0.05s
+Round 86: Global Test Accuracy = 0.5520
+Round 86: Training Time = 0.01s, Communication Time = 0.02s
+Round 87: Global Test Accuracy = 0.5480
+Round 87: Training Time = 0.01s, Communication Time = 0.06s
+Round 88: Global Test Accuracy = 0.5610
+Round 88: Training Time = 0.01s, Communication Time = 0.02s
+Round 89: Global Test Accuracy = 0.5520
+Round 89: Training Time = 0.01s, Communication Time = 0.04s
+Round 90: Global Test Accuracy = 0.5580
+Round 90: Training Time = 0.01s, Communication Time = 0.02s
+Round 91: Global Test Accuracy = 0.5540
+Round 91: Training Time = 0.01s, Communication Time = 0.05s
+Round 92: Global Test Accuracy = 0.5490
+Round 92: Training Time = 0.01s, Communication Time = 0.02s
+Round 93: Global Test Accuracy = 0.5590
+Round 93: Training Time = 0.01s, Communication Time = 0.05s
+Round 94: Global Test Accuracy = 0.5520
+Round 94: Training Time = 0.01s, Communication Time = 0.02s
+Round 95: Global Test Accuracy = 0.5530
+Round 95: Training Time = 0.01s, Communication Time = 0.07s
+Round 96: Global Test Accuracy = 0.5500
+Round 96: Training Time = 0.01s, Communication Time = 0.02s
+Round 97: Global Test Accuracy = 0.5480
+Round 97: Training Time = 0.01s, Communication Time = 0.02s
+Round 98: Global Test Accuracy = 0.5490
+Round 98: Training Time = 0.01s, Communication Time = 0.02s
+Round 99: Global Test Accuracy = 0.5500
+Round 99: Training Time = 0.01s, Communication Time = 0.02s
+Round 100: Global Test Accuracy = 0.5530
+Round 100: Training Time = 0.01s, Communication Time = 0.02s
+Round 101: Global Test Accuracy = 0.5530
+Round 101: Training Time = 0.01s, Communication Time = 0.02s
+Round 102: Global Test Accuracy = 0.5520
+Round 102: Training Time = 0.01s, Communication Time = 0.06s
+Round 103: Global Test Accuracy = 0.5540
+Round 103: Training Time = 0.01s, Communication Time = 0.02s
+Round 104: Global Test Accuracy = 0.5520
+Round 104: Training Time = 0.01s, Communication Time = 0.06s
+Round 105: Global Test Accuracy = 0.5530
+Round 105: Training Time = 0.01s, Communication Time = 0.02s
+Round 106: Global Test Accuracy = 0.5540
+Round 106: Training Time = 0.05s, Communication Time = 0.02s
+Round 107: Global Test Accuracy = 0.5510
+Round 107: Training Time = 0.01s, Communication Time = 0.02s
+Round 108: Global Test Accuracy = 0.5530
+Round 108: Training Time = 0.01s, Communication Time = 0.05s
+Round 109: Global Test Accuracy = 0.5520
+Round 109: Training Time = 0.01s, Communication Time = 0.02s
+Round 110: Global Test Accuracy = 0.5520
+Round 110: Training Time = 0.01s, Communication Time = 0.05s
+Round 111: Global Test Accuracy = 0.5530
+Round 111: Training Time = 0.01s, Communication Time = 0.02s
+Round 112: Global Test Accuracy = 0.5530
+Round 112: Training Time = 0.01s, Communication Time = 0.05s
+Round 113: Global Test Accuracy = 0.5490
+Round 113: Training Time = 0.01s, Communication Time = 0.02s
+Round 114: Global Test Accuracy = 0.5490
+Round 114: Training Time = 0.01s, Communication Time = 0.05s
+Round 115: Global Test Accuracy = 0.5520
+Round 115: Training Time = 0.01s, Communication Time = 0.07s
+Round 116: Global Test Accuracy = 0.5490
+Round 116: Training Time = 0.01s, Communication Time = 0.02s
+Round 117: Global Test Accuracy = 0.5510
+Round 117: Training Time = 0.01s, Communication Time = 0.05s
+Round 118: Global Test Accuracy = 0.5530
+Round 118: Training Time = 0.01s, Communication Time = 0.02s
+Round 119: Global Test Accuracy = 0.5520
+Round 119: Training Time = 0.01s, Communication Time = 0.05s
+Round 120: Global Test Accuracy = 0.5510
+Round 120: Training Time = 0.01s, Communication Time = 0.02s
+Round 121: Global Test Accuracy = 0.5510
+Round 121: Training Time = 0.01s, Communication Time = 0.05s
+Round 122: Global Test Accuracy = 0.5550
+Round 122: Training Time = 0.01s, Communication Time = 0.02s
+Round 123: Global Test Accuracy = 0.5540
+Round 123: Training Time = 0.01s, Communication Time = 0.05s
+Round 124: Global Test Accuracy = 0.5570
+Round 124: Training Time = 0.01s, Communication Time = 0.02s
+Round 125: Global Test Accuracy = 0.5580
+Round 125: Training Time = 0.01s, Communication Time = 0.05s
+Round 126: Global Test Accuracy = 0.5570
+Round 126: Training Time = 0.01s, Communication Time = 0.02s
+Round 127: Global Test Accuracy = 0.5540
+Round 127: Training Time = 0.01s, Communication Time = 0.05s
+Round 128: Global Test Accuracy = 0.5560
+Round 128: Training Time = 0.01s, Communication Time = 0.02s
+Round 129: Global Test Accuracy = 0.5610
+Round 129: Training Time = 0.01s, Communication Time = 0.05s
+Round 130: Global Test Accuracy = 0.5600
+Round 130: Training Time = 0.01s, Communication Time = 0.02s
+Round 131: Global Test Accuracy = 0.5570
+Round 131: Training Time = 0.01s, Communication Time = 0.05s
+Round 132: Global Test Accuracy = 0.5590
+Round 132: Training Time = 0.01s, Communication Time = 0.02s
+Round 133: Global Test Accuracy = 0.5600
+Round 133: Training Time = 0.01s, Communication Time = 0.05s
+Round 134: Global Test Accuracy = 0.5580
+Round 134: Training Time = 0.01s, Communication Time = 0.02s
+Round 135: Global Test Accuracy = 0.5610
+Round 135: Training Time = 0.01s, Communication Time = 0.07s
+Round 136: Global Test Accuracy = 0.5610
+Round 136: Training Time = 0.01s, Communication Time = 0.02s
+Round 137: Global Test Accuracy = 0.5570
+Round 137: Training Time = 0.01s, Communication Time = 0.05s
+Round 138: Global Test Accuracy = 0.5620
+Round 138: Training Time = 0.01s, Communication Time = 0.02s
+Round 139: Global Test Accuracy = 0.5610
+Round 139: Training Time = 0.01s, Communication Time = 0.04s
+Round 140: Global Test Accuracy = 0.5610
+Round 140: Training Time = 0.01s, Communication Time = 0.02s
+Round 141: Global Test Accuracy = 0.5620
+Round 141: Training Time = 0.01s, Communication Time = 0.05s
+Round 142: Global Test Accuracy = 0.5620
+Round 142: Training Time = 0.01s, Communication Time = 0.02s
 Round 143: Global Test Accuracy = 0.5560
-Round 144: Global Test Accuracy = 0.5610
-Round 145: Global Test Accuracy = 0.5600
-Round 146: Global Test Accuracy = 0.5640
-Round 147: Global Test Accuracy = 0.5600
-Round 148: Global Test Accuracy = 0.5580
-Round 149: Global Test Accuracy = 0.5590
-Round 150: Global Test Accuracy = 0.5580
-Round 151: Global Test Accuracy = 0.5560
-Round 152: Global Test Accuracy = 0.5550
-Round 153: Global Test Accuracy = 0.5590
-Round 154: Global Test Accuracy = 0.5570
-Round 155: Global Test Accuracy = 0.5600
-Round 156: Global Test Accuracy = 0.5620
-Round 157: Global Test Accuracy = 0.5600
-Round 158: Global Test Accuracy = 0.5590
-Round 159: Global Test Accuracy = 0.5600
-Round 160: Global Test Accuracy = 0.5600
-Round 161: Global Test Accuracy = 0.5600
-Round 162: Global Test Accuracy = 0.5610
-Round 163: Global Test Accuracy = 0.5620
-Round 164: Global Test Accuracy = 0.5590
+Round 143: Training Time = 0.01s, Communication Time = 0.05s
+Round 144: Global Test Accuracy = 0.5590
+Round 144: Training Time = 0.01s, Communication Time = 0.02s
+Round 145: Global Test Accuracy = 0.5560
+Round 145: Training Time = 0.01s, Communication Time = 0.05s
+Round 146: Global Test Accuracy = 0.5590
+Round 146: Training Time = 0.01s, Communication Time = 0.02s
+Round 147: Global Test Accuracy = 0.5580
+Round 147: Training Time = 0.01s, Communication Time = 0.04s
+Round 148: Global Test Accuracy = 0.5570
+Round 148: Training Time = 0.01s, Communication Time = 0.02s
+Round 149: Global Test Accuracy = 0.5560
+Round 149: Training Time = 0.01s, Communication Time = 0.05s
+Round 150: Global Test Accuracy = 0.5570
+Round 150: Training Time = 0.01s, Communication Time = 0.02s
+Round 151: Global Test Accuracy = 0.5570
+Round 151: Training Time = 0.01s, Communication Time = 0.05s
+Round 152: Global Test Accuracy = 0.5570
+Round 152: Training Time = 0.01s, Communication Time = 0.02s
+Round 153: Global Test Accuracy = 0.5570
+Round 153: Training Time = 0.01s, Communication Time = 0.04s
+Round 154: Global Test Accuracy = 0.5560
+Round 154: Training Time = 0.01s, Communication Time = 0.02s
+Round 155: Global Test Accuracy = 0.5560
+Round 155: Training Time = 0.01s, Communication Time = 0.05s
+Round 156: Global Test Accuracy = 0.5580
+Round 156: Training Time = 0.01s, Communication Time = 0.03s
+Round 157: Global Test Accuracy = 0.5560
+Round 157: Training Time = 0.05s, Communication Time = 0.02s
+Round 158: Global Test Accuracy = 0.5560
+Round 158: Training Time = 0.01s, Communication Time = 0.02s
+Round 159: Global Test Accuracy = 0.5560
+Round 159: Training Time = 0.01s, Communication Time = 0.02s
+Round 160: Global Test Accuracy = 0.5550
+Round 160: Training Time = 0.01s, Communication Time = 0.02s
+Round 161: Global Test Accuracy = 0.5570
+Round 161: Training Time = 0.01s, Communication Time = 0.02s
+Round 162: Global Test Accuracy = 0.5590
+Round 162: Training Time = 0.01s, Communication Time = 0.02s
+Round 163: Global Test Accuracy = 0.5590
+Round 163: Training Time = 0.01s, Communication Time = 0.02s
+Round 164: Global Test Accuracy = 0.5540
+Round 164: Training Time = 0.01s, Communication Time = 0.02s
 Round 165: Global Test Accuracy = 0.5570
-Round 166: Global Test Accuracy = 0.5560
-Round 167: Global Test Accuracy = 0.5600
-Round 168: Global Test Accuracy = 0.5580
-Round 169: Global Test Accuracy = 0.5570
-Round 170: Global Test Accuracy = 0.5590
-Round 171: Global Test Accuracy = 0.5610
-Round 172: Global Test Accuracy = 0.5610
-Round 173: Global Test Accuracy = 0.5580
-Round 174: Global Test Accuracy = 0.5600
-Round 175: Global Test Accuracy = 0.5610
+Round 165: Training Time = 0.01s, Communication Time = 0.02s
+Round 166: Global Test Accuracy = 0.5600
+Round 166: Training Time = 0.01s, Communication Time = 0.02s
+Round 167: Global Test Accuracy = 0.5590
+Round 167: Training Time = 0.01s, Communication Time = 0.02s
+Round 168: Global Test Accuracy = 0.5600
+Round 168: Training Time = 0.01s, Communication Time = 0.02s
+Round 169: Global Test Accuracy = 0.5630
+Round 169: Training Time = 0.01s, Communication Time = 0.02s
+Round 170: Global Test Accuracy = 0.5600
+Round 170: Training Time = 0.01s, Communication Time = 0.02s
+Round 171: Global Test Accuracy = 0.5570
+Round 171: Training Time = 0.03s, Communication Time = 0.02s
+Round 172: Global Test Accuracy = 0.5600
+Round 172: Training Time = 0.01s, Communication Time = 0.02s
+Round 173: Global Test Accuracy = 0.5600
+Round 173: Training Time = 0.03s, Communication Time = 0.02s
+Round 174: Global Test Accuracy = 0.5590
+Round 174: Training Time = 0.01s, Communication Time = 0.02s
+Round 175: Global Test Accuracy = 0.5590
+Round 175: Training Time = 0.01s, Communication Time = 0.04s
 Round 176: Global Test Accuracy = 0.5610
+Round 176: Training Time = 0.01s, Communication Time = 0.02s
 Round 177: Global Test Accuracy = 0.5600
-Round 178: Global Test Accuracy = 0.5560
-Round 179: Global Test Accuracy = 0.5590
-Round 180: Global Test Accuracy = 0.5590
-Round 181: Global Test Accuracy = 0.5640
-Round 182: Global Test Accuracy = 0.5620
-Round 183: Global Test Accuracy = 0.5640
-Round 184: Global Test Accuracy = 0.5620
-Round 185: Global Test Accuracy = 0.5640
-Round 186: Global Test Accuracy = 0.5600
-Round 187: Global Test Accuracy = 0.5630
-Round 188: Global Test Accuracy = 0.5650
-Round 189: Global Test Accuracy = 0.5630
-Round 190: Global Test Accuracy = 0.5640
-Round 191: Global Test Accuracy = 0.5660
-Round 192: Global Test Accuracy = 0.5670
+Round 177: Training Time = 0.04s, Communication Time = 0.03s
+Round 178: Global Test Accuracy = 0.5600
+Round 178: Training Time = 0.01s, Communication Time = 0.02s
+Round 179: Global Test Accuracy = 0.5600
+Round 179: Training Time = 0.01s, Communication Time = 0.02s
+Round 180: Global Test Accuracy = 0.5610
+Round 180: Training Time = 0.01s, Communication Time = 0.05s
+Round 181: Global Test Accuracy = 0.5590
+Round 181: Training Time = 0.01s, Communication Time = 0.02s
+Round 182: Global Test Accuracy = 0.5590
+Round 182: Training Time = 0.01s, Communication Time = 0.06s
+Round 183: Global Test Accuracy = 0.5600
+Round 183: Training Time = 0.01s, Communication Time = 0.02s
+Round 184: Global Test Accuracy = 0.5610
+Round 184: Training Time = 0.01s, Communication Time = 0.06s
+Round 185: Global Test Accuracy = 0.5630
+Round 185: Training Time = 0.01s, Communication Time = 0.02s
+Round 186: Global Test Accuracy = 0.5620
+Round 186: Training Time = 0.04s, Communication Time = 0.02s
+Round 187: Global Test Accuracy = 0.5600
+Round 187: Training Time = 0.01s, Communication Time = 0.02s
+Round 188: Global Test Accuracy = 0.5610
+Round 188: Training Time = 0.01s, Communication Time = 0.02s
+Round 189: Global Test Accuracy = 0.5600
+Round 189: Training Time = 0.01s, Communication Time = 0.02s
+Round 190: Global Test Accuracy = 0.5580
+Round 190: Training Time = 0.01s, Communication Time = 0.02s
+Round 191: Global Test Accuracy = 0.5580
+Round 191: Training Time = 0.01s, Communication Time = 0.02s
+Round 192: Global Test Accuracy = 0.5610
+Round 192: Training Time = 0.01s, Communication Time = 0.02s
 Round 193: Global Test Accuracy = 0.5620
-Round 194: Global Test Accuracy = 0.5630
-Round 195: Global Test Accuracy = 0.5630
-Round 196: Global Test Accuracy = 0.5630
-Round 197: Global Test Accuracy = 0.5640
-Round 198: Global Test Accuracy = 0.5630
-Round 199: Global Test Accuracy = 0.5670
-Round 200: Global Test Accuracy = 0.5640
-//train_time: 12385.06 ms//end
-//Log Max memory for Large1: 4076826624.0 //end
-//Log Max memory for Large2: 1227841536.0 //end
-//Log Max memory for Large3: 1651367936.0 //end
-//Log Max memory for Large4: 1228677120.0 //end
-//Log Max memory for Server: 2103377920.0 //end
-//Log Large1 network: 152212503.0 //end
-//Log Large2 network: 99125070.0 //end
-//Log Large3 network: 148283436.0 //end
-//Log Large4 network: 99163659.0 //end
-//Log Server network: 494050031.0 //end
-//Log Total Actual Train Comm Cost: 946.84 MB //end
+Round 193: Training Time = 0.01s, Communication Time = 0.02s
+Round 194: Global Test Accuracy = 0.5590
+Round 194: Training Time = 0.01s, Communication Time = 0.04s
+Round 195: Global Test Accuracy = 0.5610
+Round 195: Training Time = 0.01s, Communication Time = 0.02s
+Round 196: Global Test Accuracy = 0.5580
+Round 196: Training Time = 0.01s, Communication Time = 0.05s
+Round 197: Global Test Accuracy = 0.5600
+Round 197: Training Time = 0.01s, Communication Time = 0.07s
+Round 198: Global Test Accuracy = 0.5600
+Round 198: Training Time = 0.01s, Communication Time = 0.02s
+Round 199: Global Test Accuracy = 0.5580
+Round 199: Training Time = 0.01s, Communication Time = 0.05s
+Round 200: Global Test Accuracy = 0.5600
+Round 200: Training Time = 0.01s, Communication Time = 0.02s
+//train_time: 10325.618999999999 ms//end
+//Log Max memory for Large1: 1222750208.0 //end
+//Log Max memory for Large2: 1663291392.0 //end
+//Log Max memory for Large3: 4067635200.0 //end
+//Log Max memory for Large4: 1248718848.0 //end
+//Log Max memory for Server: 2035634176.0 //end
+//Log Large1 network: 99010540.0 //end
+//Log Large2 network: 148186026.0 //end
+//Log Large3 network: 151629877.0 //end
+//Log Large4 network: 98884961.0 //end
+//Log Server network: 492588045.0 //end
+//Log Total Actual Train Comm Cost: 944.42 MB //end
 Train end time recorded and duration set to gauge.
-[Training Time] Dataset: citeseer, Batch Size: -1, Trainers: 10, Hops: 0, IID Beta: 10.0 => Training Time = 42.39 seconds
-average_final_test_loss, 1.233577429652214
-Average test accuracy, 0.564
+
+================================================================================
+TIME BREAKDOWN (excluding initialization)
+================================================================================
+Total Pure Training Time (forward + gradient descent): 1.79 seconds
+Total Communication Time (parameter aggregation): 6.55 seconds
+Total Training + Communication Time: 40.33 seconds
+Training Time Percentage: 4.4%
+Communication Time Percentage: 16.2%
+Average Training Time per Round: 0.01 seconds
+Average Communication Time per Round: 0.03 seconds
+================================================================================
+[Pure Training Time] Dataset: citeseer, Batch Size: -1, Trainers: 10, Hops: 0, IID Beta: 10.0 => Pure Training Time = 1.79 seconds
+[Communication Time] Dataset: citeseer, Batch Size: -1, Trainers: 10, Hops: 0, IID Beta: 10.0 => Communication Time = 6.55 seconds
+average_final_test_loss, 1.2355073530673981
+Average test accuracy, 0.56
 
 ================================================================================
 INDIVIDUAL TRAINER MEMORY USAGE
@@ -625,34 +1052,34 @@ TRAINER MEMORY vs LOCAL GRAPH SIZE
 ====================================================================================================
 Trainer  Memory(MB)   Nodes    Edges    Memory/Node  Memory/Edge 
 ----------------------------------------------------------------------------------------------------
-0        681.2        308      86       2.212        7.921       
-1        683.2        286      75       2.389        9.110       
-2        680.0        367      169      1.853        4.024       
-3        677.6        326      107      2.079        6.333       
-4        683.6        395      137      1.731        4.989       
-5        683.2        338      118      2.021        5.790       
-6        678.2        288      79       2.355        8.585       
-7        678.4        333      87       2.037        7.798       
-8        680.8        322      112      2.114        6.078       
-9        684.1        364      108      1.879        6.334       
+0        682.3        385      130      1.772        5.248       
+1        686.1        318      110      2.157        6.237       
+2        680.5        392      158      1.736        4.307       
+3        678.5        280      71       2.423        9.557       
+4        680.9        345      131      1.974        5.198       
+5        683.5        261      44       2.619        15.534      
+6        680.0        330      153      2.061        4.444       
+7        677.1        324      108      2.090        6.269       
+8        683.9        423      167      1.617        4.095       
+9        684.1        269      64       2.543        10.689      
 ====================================================================================================
-Total Memory Usage: 6810.3 MB (6.65 GB)
-Total Nodes: 3327, Total Edges: 1078
-Average Memory per Trainer: 681.0 MB
+Total Memory Usage: 6816.9 MB (6.66 GB)
+Total Nodes: 3327, Total Edges: 1136
+Average Memory per Trainer: 681.7 MB
 Average Nodes per Trainer: 332.7
-Average Edges per Trainer: 107.8
-Max Memory: 684.1 MB (Trainer 9)
-Min Memory: 677.6 MB (Trainer 3)
-Overall Memory/Node Ratio: 2.047 MB/node
-Overall Memory/Edge Ratio: 6.318 MB/edge
+Average Edges per Trainer: 113.6
+Max Memory: 686.1 MB (Trainer 1)
+Min Memory: 677.1 MB (Trainer 7)
+Overall Memory/Node Ratio: 2.049 MB/node
+Overall Memory/Edge Ratio: 6.001 MB/edge
 ====================================================================================================
 //Log Theoretical Pretrain Comm Cost: 0.00 MB //end
 //Log Theoretical Train Comm Cost: 905.85 MB //end
 
 ================================================================================
 CSV FORMAT RESULT:
-DS,IID,BS,Time[s],FinalAcc[%],CompTime[s],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
-citeseer,10.0,-1,77.9,0.56,42.4,905.9,684.1,0.212,0.226,0
+DS,IID,BS,TotalTime[s],PureTrainingTime[s],CommTime[s],FinalAcc[%],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
+citeseer,10.0,-1,75.7,1.8,6.5,0.56,905.9,686.1,0.009,0.226,0
 ================================================================================
 
 ================================================================================
@@ -664,14 +1091,15 @@ Trainers: 10
 IID Beta: 10.0
 Batch Size: -1
 Hops: 0
-Total Execution Time: 77.89 seconds
-Training Time: 42.40 seconds
+Total Execution Time: 75.73 seconds
+Pure Training Time: 1.79 seconds
+Communication Time: 6.55 seconds
 Pretrain Comm Cost: 0.00 MB
 Training Comm Cost: 905.85 MB
 ================================================================================
 
-[36m(Trainer pid=19876, ip=192.168.39.47)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.[32m [repeated 9x across cluster][0m
-[36m(Trainer pid=19876, ip=192.168.39.47)[0m   return torch.load(io.BytesIO(b))[32m [repeated 9x across cluster][0m
+[36m(Trainer pid=9415, ip=192.168.53.228)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.[32m [repeated 9x across cluster][0m
+[36m(Trainer pid=9415, ip=192.168.53.228)[0m   return torch.load(io.BytesIO(b))[32m [repeated 9x across cluster][0m
 Experiment 1/1 completed for:
   Dataset: citeseer, Trainers: 10, IID Beta: 10.0
   Method: fedgcn if 0 > 0 else FedAvg, Batch Size: -1
@@ -699,251 +1127,464 @@ Downloaded ./data/pubmed/raw/ind.pubmed.graph
 Downloading https://github.com/kimiyoung/planetoid/raw/master/data/ind.pubmed.test.index to ./data/pubmed/raw/ind.pubmed.test.index...
 Downloaded ./data/pubmed/raw/ind.pubmed.test.index
 Initialization start: network data collected.
-2025-07-29 23:44:52,645	INFO worker.py:1429 -- Using address 192.168.23.53:6379 set in the environment variable RAY_ADDRESS
-2025-07-29 23:44:52,646	INFO worker.py:1564 -- Connecting to existing Ray cluster at address: 192.168.23.53:6379...
-2025-07-29 23:44:52,651	INFO worker.py:1740 -- Connected to Ray cluster. View the dashboard at [1m[32mhttp://192.168.23.53:8265 [39m[22m
+2025-07-30 20:52:17,234	INFO worker.py:1429 -- Using address 192.168.37.160:6379 set in the environment variable RAY_ADDRESS
+2025-07-30 20:52:17,234	INFO worker.py:1564 -- Connecting to existing Ray cluster at address: 192.168.37.160:6379...
+2025-07-30 20:52:17,241	INFO worker.py:1740 -- Connected to Ray cluster. View the dashboard at [1m[32mhttp://192.168.37.160:8265 [39m[22m
 Changing method to FedAvg
-[36m(Trainer pid=24140, ip=192.168.0.191)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
-[36m(Trainer pid=24140, ip=192.168.0.191)[0m   return torch.load(io.BytesIO(b))
-//Log init_time: 5512.43 ms //end
-//Log Large1 init network: 596508.0 //end
-//Log Large2 init network: 205172.0 //end
-//Log Large3 init network: 113487.0 //end
-//Log Large4 init network: 132156.0 //end
-//Log Server init network: 40995893.0 //end
-//Log Initialization Communication Cost (MB): 40.10 //end
+[36m(Trainer pid=5803, ip=192.168.20.97)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+[36m(Trainer pid=5803, ip=192.168.20.97)[0m   return torch.load(io.BytesIO(b))
+//Log init_time: 5277.521 ms //end
+//Log Large1 init network: 118343.0 //end
+//Log Large2 init network: 108809.0 //end
+//Log Large3 init network: 578867.0 //end
+//Log Large4 init network: 81722.0 //end
+//Log Server init network: 40990836.0 //end
+//Log Initialization Communication Cost (MB): 39.94 //end
 Pretrain start time recorded.
-//pretrain_time: 6.339 ms//end
-//Log Max memory for Large1: 3640844288.0 //end
-//Log Max memory for Large2: 1646813184.0 //end
-//Log Max memory for Large3: 1224986624.0 //end
-//Log Max memory for Large4: 1647054848.0 //end
-//Log Max memory for Server: 2127888384.0 //end
-//Log Large1 network: 3521709.0 //end
-//Log Large2 network: 626905.0 //end
-//Log Large3 network: 577958.0 //end
-//Log Large4 network: 718262.0 //end
-//Log Server network: 1550891.0 //end
-//Log Total Actual Pretrain Comm Cost: 6.67 MB //end
+//pretrain_time: 7.273 ms//end
+//Log Max memory for Large1: 1635045376.0 //end
+//Log Max memory for Large2: 1234075648.0 //end
+//Log Max memory for Large3: 3637075968.0 //end
+//Log Max memory for Large4: 1662590976.0 //end
+//Log Max memory for Server: 2055835648.0 //end
+//Log Large1 network: 708571.0 //end
+//Log Large2 network: 578524.0 //end
+//Log Large3 network: 3506082.0 //end
+//Log Large4 network: 742849.0 //end
+//Log Server network: 1469897.0 //end
+//Log Total Actual Pretrain Comm Cost: 6.68 MB //end
 Pretrain end time recorded and duration set to gauge.
 Train start: network data collected.
 global_rounds 200
-Round 1: Global Test Accuracy = 0.3880
-Round 2: Global Test Accuracy = 0.3760
-Round 3: Global Test Accuracy = 0.3590
-Round 4: Global Test Accuracy = 0.3460
-Round 5: Global Test Accuracy = 0.3340
-Round 6: Global Test Accuracy = 0.3270
-Round 7: Global Test Accuracy = 0.3400
-Round 8: Global Test Accuracy = 0.3380
-Round 9: Global Test Accuracy = 0.3420
-Round 10: Global Test Accuracy = 0.3440
-Round 11: Global Test Accuracy = 0.3480
-Round 12: Global Test Accuracy = 0.3490
-Round 13: Global Test Accuracy = 0.3510
-Round 14: Global Test Accuracy = 0.3560
-Round 15: Global Test Accuracy = 0.3540
-Round 16: Global Test Accuracy = 0.3580
-Round 17: Global Test Accuracy = 0.3570
-Round 18: Global Test Accuracy = 0.3590
-Round 19: Global Test Accuracy = 0.3610
-Round 20: Global Test Accuracy = 0.3600
-Round 21: Global Test Accuracy = 0.3650
-Round 22: Global Test Accuracy = 0.3670
-Round 23: Global Test Accuracy = 0.3660
-Round 24: Global Test Accuracy = 0.3660
-Round 25: Global Test Accuracy = 0.3720
-Round 26: Global Test Accuracy = 0.3640
-Round 27: Global Test Accuracy = 0.3690
-Round 28: Global Test Accuracy = 0.3760
-Round 29: Global Test Accuracy = 0.3700
-Round 30: Global Test Accuracy = 0.3740
-Round 31: Global Test Accuracy = 0.3730
-Round 32: Global Test Accuracy = 0.3690
-Round 33: Global Test Accuracy = 0.3790
-Round 34: Global Test Accuracy = 0.3810
-Round 35: Global Test Accuracy = 0.3900
-Round 36: Global Test Accuracy = 0.3950
-Round 37: Global Test Accuracy = 0.3980
-Round 38: Global Test Accuracy = 0.3980
-Round 39: Global Test Accuracy = 0.3980
-Round 40: Global Test Accuracy = 0.4030
-Round 41: Global Test Accuracy = 0.4010
-Round 42: Global Test Accuracy = 0.4010
-Round 43: Global Test Accuracy = 0.4000
-Round 44: Global Test Accuracy = 0.4000
-Round 45: Global Test Accuracy = 0.4030
-Round 46: Global Test Accuracy = 0.3970
-Round 47: Global Test Accuracy = 0.4050
-Round 48: Global Test Accuracy = 0.3920
-Round 49: Global Test Accuracy = 0.3980
-Round 50: Global Test Accuracy = 0.3950
-Round 51: Global Test Accuracy = 0.3950
-Round 52: Global Test Accuracy = 0.4020
-Round 53: Global Test Accuracy = 0.4000
-Round 54: Global Test Accuracy = 0.4020
-Round 55: Global Test Accuracy = 0.4040
-Round 56: Global Test Accuracy = 0.3910
-Round 57: Global Test Accuracy = 0.3970
-Round 58: Global Test Accuracy = 0.4060
-Round 59: Global Test Accuracy = 0.4050
-Round 60: Global Test Accuracy = 0.4060
-Round 61: Global Test Accuracy = 0.4070
-Round 62: Global Test Accuracy = 0.4090
-Round 63: Global Test Accuracy = 0.4060
-Round 64: Global Test Accuracy = 0.4080
-Round 65: Global Test Accuracy = 0.4070
-Round 66: Global Test Accuracy = 0.4070
-Round 67: Global Test Accuracy = 0.4090
-Round 68: Global Test Accuracy = 0.4080
-Round 69: Global Test Accuracy = 0.4070
-Round 70: Global Test Accuracy = 0.4080
-Round 71: Global Test Accuracy = 0.4080
-Round 72: Global Test Accuracy = 0.4120
-Round 73: Global Test Accuracy = 0.4110
-Round 74: Global Test Accuracy = 0.4100
-Round 75: Global Test Accuracy = 0.4100
-Round 76: Global Test Accuracy = 0.4100
-Round 77: Global Test Accuracy = 0.4100
-Round 78: Global Test Accuracy = 0.4100
-Round 79: Global Test Accuracy = 0.4090
-Round 80: Global Test Accuracy = 0.4100
-Round 81: Global Test Accuracy = 0.4100
-Round 82: Global Test Accuracy = 0.4110
-Round 83: Global Test Accuracy = 0.4100
-Round 84: Global Test Accuracy = 0.4090
-Round 85: Global Test Accuracy = 0.4120
-Round 86: Global Test Accuracy = 0.4150
-Round 87: Global Test Accuracy = 0.4150
-Round 88: Global Test Accuracy = 0.4130
-Round 89: Global Test Accuracy = 0.4130
-Round 90: Global Test Accuracy = 0.4180
-Round 91: Global Test Accuracy = 0.4160
-Round 92: Global Test Accuracy = 0.4160
-Round 93: Global Test Accuracy = 0.4170
-Round 94: Global Test Accuracy = 0.4140
-Round 95: Global Test Accuracy = 0.4130
-Round 96: Global Test Accuracy = 0.4110
-Round 97: Global Test Accuracy = 0.4110
-Round 98: Global Test Accuracy = 0.4120
-Round 99: Global Test Accuracy = 0.4120
-Round 100: Global Test Accuracy = 0.4170
-Round 101: Global Test Accuracy = 0.4150
-Round 102: Global Test Accuracy = 0.4140
-Round 103: Global Test Accuracy = 0.4150
-Round 104: Global Test Accuracy = 0.4160
-Round 105: Global Test Accuracy = 0.4140
-Round 106: Global Test Accuracy = 0.4130
-Round 107: Global Test Accuracy = 0.4160
-Round 108: Global Test Accuracy = 0.4200
-Round 109: Global Test Accuracy = 0.4200
-Round 110: Global Test Accuracy = 0.4180
-Round 111: Global Test Accuracy = 0.4200
-Round 112: Global Test Accuracy = 0.4210
-Round 113: Global Test Accuracy = 0.4190
-Round 114: Global Test Accuracy = 0.4200
-Round 115: Global Test Accuracy = 0.4190
-Round 116: Global Test Accuracy = 0.4200
-Round 117: Global Test Accuracy = 0.4220
-Round 118: Global Test Accuracy = 0.4210
-Round 119: Global Test Accuracy = 0.4210
-Round 120: Global Test Accuracy = 0.4220
-Round 121: Global Test Accuracy = 0.4210
-Round 122: Global Test Accuracy = 0.4220
-Round 123: Global Test Accuracy = 0.4200
-Round 124: Global Test Accuracy = 0.4200
-Round 125: Global Test Accuracy = 0.4190
-Round 126: Global Test Accuracy = 0.4190
-Round 127: Global Test Accuracy = 0.4200
-Round 128: Global Test Accuracy = 0.4210
-Round 129: Global Test Accuracy = 0.4260
-Round 130: Global Test Accuracy = 0.4230
-Round 131: Global Test Accuracy = 0.4210
-Round 132: Global Test Accuracy = 0.4220
-Round 133: Global Test Accuracy = 0.4250
-Round 134: Global Test Accuracy = 0.4250
-Round 135: Global Test Accuracy = 0.4230
-Round 136: Global Test Accuracy = 0.4230
-Round 137: Global Test Accuracy = 0.4240
-Round 138: Global Test Accuracy = 0.4240
-Round 139: Global Test Accuracy = 0.4260
-Round 140: Global Test Accuracy = 0.4240
-Round 141: Global Test Accuracy = 0.4270
-Round 142: Global Test Accuracy = 0.4250
-Round 143: Global Test Accuracy = 0.4290
-Round 144: Global Test Accuracy = 0.4310
-Round 145: Global Test Accuracy = 0.4330
-Round 146: Global Test Accuracy = 0.4260
-Round 147: Global Test Accuracy = 0.4310
-Round 148: Global Test Accuracy = 0.4270
-Round 149: Global Test Accuracy = 0.4270
-Round 150: Global Test Accuracy = 0.4270
-Round 151: Global Test Accuracy = 0.4230
-Round 152: Global Test Accuracy = 0.4270
-Round 153: Global Test Accuracy = 0.4260
-Round 154: Global Test Accuracy = 0.4210
-Round 155: Global Test Accuracy = 0.4250
-Round 156: Global Test Accuracy = 0.4270
-Round 157: Global Test Accuracy = 0.4250
-Round 158: Global Test Accuracy = 0.4290
-Round 159: Global Test Accuracy = 0.4250
-Round 160: Global Test Accuracy = 0.4300
-Round 161: Global Test Accuracy = 0.4340
-Round 162: Global Test Accuracy = 0.4370
-Round 163: Global Test Accuracy = 0.4350
-Round 164: Global Test Accuracy = 0.4420
-Round 165: Global Test Accuracy = 0.4290
-Round 166: Global Test Accuracy = 0.4330
-Round 167: Global Test Accuracy = 0.4230
-Round 168: Global Test Accuracy = 0.4360
-Round 169: Global Test Accuracy = 0.4250
-Round 170: Global Test Accuracy = 0.4270
-Round 171: Global Test Accuracy = 0.4250
-Round 172: Global Test Accuracy = 0.4300
-Round 173: Global Test Accuracy = 0.4240
-Round 174: Global Test Accuracy = 0.4280
-Round 175: Global Test Accuracy = 0.4260
-Round 176: Global Test Accuracy = 0.4320
-Round 177: Global Test Accuracy = 0.4350
-Round 178: Global Test Accuracy = 0.4330
-Round 179: Global Test Accuracy = 0.4270
-Round 180: Global Test Accuracy = 0.4270
-Round 181: Global Test Accuracy = 0.4270
-Round 182: Global Test Accuracy = 0.4260
-Round 183: Global Test Accuracy = 0.4290
-Round 184: Global Test Accuracy = 0.4290
-Round 185: Global Test Accuracy = 0.4290
-Round 186: Global Test Accuracy = 0.4290
-Round 187: Global Test Accuracy = 0.4270
-Round 188: Global Test Accuracy = 0.4310
-Round 189: Global Test Accuracy = 0.4290
-Round 190: Global Test Accuracy = 0.4280
-Round 191: Global Test Accuracy = 0.4300
-Round 192: Global Test Accuracy = 0.4290
-Round 193: Global Test Accuracy = 0.4300
-Round 194: Global Test Accuracy = 0.4290
-Round 195: Global Test Accuracy = 0.4290
-Round 196: Global Test Accuracy = 0.4310
-Round 197: Global Test Accuracy = 0.4290
-Round 198: Global Test Accuracy = 0.4300
-Round 199: Global Test Accuracy = 0.4330
-Round 200: Global Test Accuracy = 0.4340
-//train_time: 4882.118 ms//end
-//Log Max memory for Large1: 3655589888.0 //end
-//Log Max memory for Large2: 1673977856.0 //end
-//Log Max memory for Large3: 1241882624.0 //end
-//Log Max memory for Large4: 1672359936.0 //end
-//Log Max memory for Server: 2182873088.0 //end
-//Log Large1 network: 18139068.0 //end
-//Log Large2 network: 22364861.0 //end
-//Log Large3 network: 15101749.0 //end
-//Log Large4 network: 22338102.0 //end
-//Log Server network: 75167193.0 //end
-//Log Total Actual Train Comm Cost: 146.02 MB //end
+Round 1: Global Test Accuracy = 0.3180
+Round 1: Training Time = 0.02s, Communication Time = 0.02s
+Round 2: Global Test Accuracy = 0.2150
+Round 2: Training Time = 0.01s, Communication Time = 0.01s
+Round 3: Global Test Accuracy = 0.1950
+Round 3: Training Time = 0.01s, Communication Time = 0.01s
+Round 4: Global Test Accuracy = 0.1870
+Round 4: Training Time = 0.01s, Communication Time = 0.01s
+Round 5: Global Test Accuracy = 0.1890
+Round 5: Training Time = 0.01s, Communication Time = 0.01s
+Round 6: Global Test Accuracy = 0.1870
+Round 6: Training Time = 0.01s, Communication Time = 0.01s
+Round 7: Global Test Accuracy = 0.1850
+Round 7: Training Time = 0.01s, Communication Time = 0.01s
+Round 8: Global Test Accuracy = 0.1830
+Round 8: Training Time = 0.01s, Communication Time = 0.01s
+Round 9: Global Test Accuracy = 0.1810
+Round 9: Training Time = 0.01s, Communication Time = 0.01s
+Round 10: Global Test Accuracy = 0.1810
+Round 10: Training Time = 0.01s, Communication Time = 0.01s
+Round 11: Global Test Accuracy = 0.1810
+Round 11: Training Time = 0.01s, Communication Time = 0.01s
+Round 12: Global Test Accuracy = 0.1810
+Round 12: Training Time = 0.01s, Communication Time = 0.01s
+Round 13: Global Test Accuracy = 0.1800
+Round 13: Training Time = 0.01s, Communication Time = 0.01s
+Round 14: Global Test Accuracy = 0.1800
+Round 14: Training Time = 0.01s, Communication Time = 0.01s
+Round 15: Global Test Accuracy = 0.1800
+Round 15: Training Time = 0.01s, Communication Time = 0.01s
+Round 16: Global Test Accuracy = 0.1800
+Round 16: Training Time = 0.01s, Communication Time = 0.01s
+Round 17: Global Test Accuracy = 0.1800
+Round 17: Training Time = 0.01s, Communication Time = 0.01s
+Round 18: Global Test Accuracy = 0.1800
+Round 18: Training Time = 0.01s, Communication Time = 0.01s
+Round 19: Global Test Accuracy = 0.1800
+Round 19: Training Time = 0.01s, Communication Time = 0.01s
+Round 20: Global Test Accuracy = 0.1800
+Round 20: Training Time = 0.01s, Communication Time = 0.01s
+Round 21: Global Test Accuracy = 0.1800
+Round 21: Training Time = 0.01s, Communication Time = 0.01s
+Round 22: Global Test Accuracy = 0.1800
+Round 22: Training Time = 0.01s, Communication Time = 0.01s
+Round 23: Global Test Accuracy = 0.1800
+Round 23: Training Time = 0.01s, Communication Time = 0.01s
+Round 24: Global Test Accuracy = 0.1800
+Round 24: Training Time = 0.01s, Communication Time = 0.01s
+Round 25: Global Test Accuracy = 0.1800
+Round 25: Training Time = 0.01s, Communication Time = 0.01s
+Round 26: Global Test Accuracy = 0.1800
+Round 26: Training Time = 0.01s, Communication Time = 0.01s
+Round 27: Global Test Accuracy = 0.1800
+Round 27: Training Time = 0.01s, Communication Time = 0.01s
+Round 28: Global Test Accuracy = 0.1800
+Round 28: Training Time = 0.01s, Communication Time = 0.01s
+Round 29: Global Test Accuracy = 0.1800
+Round 29: Training Time = 0.01s, Communication Time = 0.01s
+Round 30: Global Test Accuracy = 0.1800
+Round 30: Training Time = 0.01s, Communication Time = 0.01s
+Round 31: Global Test Accuracy = 0.1800
+Round 31: Training Time = 0.01s, Communication Time = 0.01s
+Round 32: Global Test Accuracy = 0.1800
+Round 32: Training Time = 0.01s, Communication Time = 0.01s
+Round 33: Global Test Accuracy = 0.1800
+Round 33: Training Time = 0.01s, Communication Time = 0.01s
+Round 34: Global Test Accuracy = 0.1800
+Round 34: Training Time = 0.01s, Communication Time = 0.01s
+Round 35: Global Test Accuracy = 0.1800
+Round 35: Training Time = 0.01s, Communication Time = 0.01s
+Round 36: Global Test Accuracy = 0.1800
+Round 36: Training Time = 0.01s, Communication Time = 0.01s
+Round 37: Global Test Accuracy = 0.1800
+Round 37: Training Time = 0.01s, Communication Time = 0.01s
+Round 38: Global Test Accuracy = 0.1800
+Round 38: Training Time = 0.01s, Communication Time = 0.01s
+Round 39: Global Test Accuracy = 0.1800
+Round 39: Training Time = 0.01s, Communication Time = 0.01s
+Round 40: Global Test Accuracy = 0.1800
+Round 40: Training Time = 0.01s, Communication Time = 0.01s
+Round 41: Global Test Accuracy = 0.1800
+Round 41: Training Time = 0.01s, Communication Time = 0.01s
+Round 42: Global Test Accuracy = 0.1800
+Round 42: Training Time = 0.01s, Communication Time = 0.01s
+Round 43: Global Test Accuracy = 0.1800
+Round 43: Training Time = 0.01s, Communication Time = 0.01s
+Round 44: Global Test Accuracy = 0.1800
+Round 44: Training Time = 0.01s, Communication Time = 0.01s
+Round 45: Global Test Accuracy = 0.1800
+Round 45: Training Time = 0.01s, Communication Time = 0.01s
+Round 46: Global Test Accuracy = 0.1800
+Round 46: Training Time = 0.01s, Communication Time = 0.01s
+Round 47: Global Test Accuracy = 0.1800
+Round 47: Training Time = 0.01s, Communication Time = 0.01s
+Round 48: Global Test Accuracy = 0.1800
+Round 48: Training Time = 0.01s, Communication Time = 0.01s
+Round 49: Global Test Accuracy = 0.1800
+Round 49: Training Time = 0.01s, Communication Time = 0.01s
+Round 50: Global Test Accuracy = 0.1800
+Round 50: Training Time = 0.01s, Communication Time = 0.01s
+Round 51: Global Test Accuracy = 0.1800
+Round 51: Training Time = 0.01s, Communication Time = 0.01s
+Round 52: Global Test Accuracy = 0.1800
+Round 52: Training Time = 0.01s, Communication Time = 0.01s
+Round 53: Global Test Accuracy = 0.1800
+Round 53: Training Time = 0.01s, Communication Time = 0.01s
+Round 54: Global Test Accuracy = 0.1800
+Round 54: Training Time = 0.01s, Communication Time = 0.01s
+Round 55: Global Test Accuracy = 0.1800
+Round 55: Training Time = 0.01s, Communication Time = 0.01s
+Round 56: Global Test Accuracy = 0.1800
+Round 56: Training Time = 0.01s, Communication Time = 0.01s
+Round 57: Global Test Accuracy = 0.1800
+Round 57: Training Time = 0.01s, Communication Time = 0.01s
+Round 58: Global Test Accuracy = 0.1800
+Round 58: Training Time = 0.01s, Communication Time = 0.01s
+Round 59: Global Test Accuracy = 0.1800
+Round 59: Training Time = 0.01s, Communication Time = 0.01s
+Round 60: Global Test Accuracy = 0.1800
+Round 60: Training Time = 0.01s, Communication Time = 0.01s
+Round 61: Global Test Accuracy = 0.1800
+Round 61: Training Time = 0.01s, Communication Time = 0.01s
+Round 62: Global Test Accuracy = 0.1800
+Round 62: Training Time = 0.01s, Communication Time = 0.01s
+Round 63: Global Test Accuracy = 0.1800
+Round 63: Training Time = 0.01s, Communication Time = 0.01s
+Round 64: Global Test Accuracy = 0.1800
+Round 64: Training Time = 0.01s, Communication Time = 0.01s
+Round 65: Global Test Accuracy = 0.1800
+Round 65: Training Time = 0.01s, Communication Time = 0.01s
+Round 66: Global Test Accuracy = 0.1800
+Round 66: Training Time = 0.01s, Communication Time = 0.01s
+Round 67: Global Test Accuracy = 0.1800
+Round 67: Training Time = 0.01s, Communication Time = 0.01s
+Round 68: Global Test Accuracy = 0.1800
+Round 68: Training Time = 0.01s, Communication Time = 0.01s
+Round 69: Global Test Accuracy = 0.1800
+Round 69: Training Time = 0.01s, Communication Time = 0.01s
+Round 70: Global Test Accuracy = 0.1800
+Round 70: Training Time = 0.01s, Communication Time = 0.01s
+Round 71: Global Test Accuracy = 0.1800
+Round 71: Training Time = 0.01s, Communication Time = 0.01s
+Round 72: Global Test Accuracy = 0.1800
+Round 72: Training Time = 0.01s, Communication Time = 0.01s
+Round 73: Global Test Accuracy = 0.1800
+Round 73: Training Time = 0.01s, Communication Time = 0.01s
+Round 74: Global Test Accuracy = 0.1800
+Round 74: Training Time = 0.01s, Communication Time = 0.01s
+Round 75: Global Test Accuracy = 0.1800
+Round 75: Training Time = 0.01s, Communication Time = 0.01s
+Round 76: Global Test Accuracy = 0.1800
+Round 76: Training Time = 0.01s, Communication Time = 0.01s
+Round 77: Global Test Accuracy = 0.1800
+Round 77: Training Time = 0.01s, Communication Time = 0.01s
+Round 78: Global Test Accuracy = 0.1800
+Round 78: Training Time = 0.01s, Communication Time = 0.01s
+Round 79: Global Test Accuracy = 0.1800
+Round 79: Training Time = 0.01s, Communication Time = 0.01s
+Round 80: Global Test Accuracy = 0.1800
+Round 80: Training Time = 0.01s, Communication Time = 0.01s
+Round 81: Global Test Accuracy = 0.1800
+Round 81: Training Time = 0.01s, Communication Time = 0.01s
+Round 82: Global Test Accuracy = 0.1800
+Round 82: Training Time = 0.01s, Communication Time = 0.01s
+Round 83: Global Test Accuracy = 0.1800
+Round 83: Training Time = 0.01s, Communication Time = 0.01s
+Round 84: Global Test Accuracy = 0.1800
+Round 84: Training Time = 0.01s, Communication Time = 0.01s
+Round 85: Global Test Accuracy = 0.1800
+Round 85: Training Time = 0.01s, Communication Time = 0.01s
+Round 86: Global Test Accuracy = 0.1800
+Round 86: Training Time = 0.01s, Communication Time = 0.01s
+Round 87: Global Test Accuracy = 0.1800
+Round 87: Training Time = 0.01s, Communication Time = 0.01s
+Round 88: Global Test Accuracy = 0.1800
+Round 88: Training Time = 0.01s, Communication Time = 0.01s
+Round 89: Global Test Accuracy = 0.1800
+Round 89: Training Time = 0.01s, Communication Time = 0.01s
+Round 90: Global Test Accuracy = 0.1800
+Round 90: Training Time = 0.01s, Communication Time = 0.01s
+Round 91: Global Test Accuracy = 0.1800
+Round 91: Training Time = 0.01s, Communication Time = 0.01s
+Round 92: Global Test Accuracy = 0.1800
+Round 92: Training Time = 0.01s, Communication Time = 0.01s
+Round 93: Global Test Accuracy = 0.1800
+Round 93: Training Time = 0.01s, Communication Time = 0.01s
+Round 94: Global Test Accuracy = 0.1800
+Round 94: Training Time = 0.01s, Communication Time = 0.01s
+Round 95: Global Test Accuracy = 0.1800
+Round 95: Training Time = 0.01s, Communication Time = 0.01s
+Round 96: Global Test Accuracy = 0.1800
+Round 96: Training Time = 0.01s, Communication Time = 0.01s
+Round 97: Global Test Accuracy = 0.1800
+Round 97: Training Time = 0.01s, Communication Time = 0.01s
+Round 98: Global Test Accuracy = 0.1800
+Round 98: Training Time = 0.01s, Communication Time = 0.01s
+Round 99: Global Test Accuracy = 0.1800
+Round 99: Training Time = 0.01s, Communication Time = 0.01s
+Round 100: Global Test Accuracy = 0.1800
+Round 100: Training Time = 0.01s, Communication Time = 0.01s
+Round 101: Global Test Accuracy = 0.1800
+Round 101: Training Time = 0.01s, Communication Time = 0.01s
+Round 102: Global Test Accuracy = 0.1800
+Round 102: Training Time = 0.01s, Communication Time = 0.01s
+Round 103: Global Test Accuracy = 0.1800
+Round 103: Training Time = 0.01s, Communication Time = 0.01s
+Round 104: Global Test Accuracy = 0.1800
+Round 104: Training Time = 0.01s, Communication Time = 0.01s
+Round 105: Global Test Accuracy = 0.1800
+Round 105: Training Time = 0.01s, Communication Time = 0.01s
+Round 106: Global Test Accuracy = 0.1800
+Round 106: Training Time = 0.01s, Communication Time = 0.01s
+Round 107: Global Test Accuracy = 0.1800
+Round 107: Training Time = 0.01s, Communication Time = 0.01s
+Round 108: Global Test Accuracy = 0.1800
+Round 108: Training Time = 0.01s, Communication Time = 0.01s
+Round 109: Global Test Accuracy = 0.1800
+Round 109: Training Time = 0.01s, Communication Time = 0.01s
+Round 110: Global Test Accuracy = 0.1800
+Round 110: Training Time = 0.01s, Communication Time = 0.01s
+Round 111: Global Test Accuracy = 0.1800
+Round 111: Training Time = 0.01s, Communication Time = 0.01s
+Round 112: Global Test Accuracy = 0.1800
+Round 112: Training Time = 0.01s, Communication Time = 0.01s
+Round 113: Global Test Accuracy = 0.1800
+Round 113: Training Time = 0.01s, Communication Time = 0.01s
+Round 114: Global Test Accuracy = 0.1800
+Round 114: Training Time = 0.01s, Communication Time = 0.01s
+Round 115: Global Test Accuracy = 0.1800
+Round 115: Training Time = 0.01s, Communication Time = 0.01s
+Round 116: Global Test Accuracy = 0.1800
+Round 116: Training Time = 0.01s, Communication Time = 0.01s
+Round 117: Global Test Accuracy = 0.1800
+Round 117: Training Time = 0.01s, Communication Time = 0.01s
+Round 118: Global Test Accuracy = 0.1800
+Round 118: Training Time = 0.01s, Communication Time = 0.01s
+Round 119: Global Test Accuracy = 0.1800
+Round 119: Training Time = 0.01s, Communication Time = 0.01s
+Round 120: Global Test Accuracy = 0.1800
+Round 120: Training Time = 0.01s, Communication Time = 0.01s
+Round 121: Global Test Accuracy = 0.1800
+Round 121: Training Time = 0.01s, Communication Time = 0.01s
+Round 122: Global Test Accuracy = 0.1800
+Round 122: Training Time = 0.01s, Communication Time = 0.01s
+Round 123: Global Test Accuracy = 0.1800
+Round 123: Training Time = 0.01s, Communication Time = 0.01s
+Round 124: Global Test Accuracy = 0.1800
+Round 124: Training Time = 0.01s, Communication Time = 0.01s
+Round 125: Global Test Accuracy = 0.1800
+Round 125: Training Time = 0.01s, Communication Time = 0.01s
+Round 126: Global Test Accuracy = 0.1800
+Round 126: Training Time = 0.01s, Communication Time = 0.01s
+Round 127: Global Test Accuracy = 0.1800
+Round 127: Training Time = 0.01s, Communication Time = 0.01s
+Round 128: Global Test Accuracy = 0.1800
+Round 128: Training Time = 0.01s, Communication Time = 0.01s
+Round 129: Global Test Accuracy = 0.1800
+Round 129: Training Time = 0.01s, Communication Time = 0.01s
+Round 130: Global Test Accuracy = 0.1800
+Round 130: Training Time = 0.01s, Communication Time = 0.01s
+Round 131: Global Test Accuracy = 0.1800
+Round 131: Training Time = 0.01s, Communication Time = 0.01s
+Round 132: Global Test Accuracy = 0.1800
+Round 132: Training Time = 0.01s, Communication Time = 0.01s
+Round 133: Global Test Accuracy = 0.1800
+Round 133: Training Time = 0.01s, Communication Time = 0.01s
+Round 134: Global Test Accuracy = 0.1800
+Round 134: Training Time = 0.01s, Communication Time = 0.01s
+Round 135: Global Test Accuracy = 0.1800
+Round 135: Training Time = 0.01s, Communication Time = 0.01s
+Round 136: Global Test Accuracy = 0.1800
+Round 136: Training Time = 0.01s, Communication Time = 0.01s
+Round 137: Global Test Accuracy = 0.1800
+Round 137: Training Time = 0.01s, Communication Time = 0.01s
+Round 138: Global Test Accuracy = 0.1800
+Round 138: Training Time = 0.01s, Communication Time = 0.01s
+Round 139: Global Test Accuracy = 0.1800
+Round 139: Training Time = 0.01s, Communication Time = 0.01s
+Round 140: Global Test Accuracy = 0.1800
+Round 140: Training Time = 0.01s, Communication Time = 0.01s
+Round 141: Global Test Accuracy = 0.1800
+Round 141: Training Time = 0.01s, Communication Time = 0.01s
+Round 142: Global Test Accuracy = 0.1800
+Round 142: Training Time = 0.01s, Communication Time = 0.01s
+Round 143: Global Test Accuracy = 0.1800
+Round 143: Training Time = 0.01s, Communication Time = 0.01s
+Round 144: Global Test Accuracy = 0.1800
+Round 144: Training Time = 0.01s, Communication Time = 0.01s
+Round 145: Global Test Accuracy = 0.1800
+Round 145: Training Time = 0.01s, Communication Time = 0.01s
+Round 146: Global Test Accuracy = 0.1800
+Round 146: Training Time = 0.01s, Communication Time = 0.01s
+Round 147: Global Test Accuracy = 0.1800
+Round 147: Training Time = 0.01s, Communication Time = 0.01s
+Round 148: Global Test Accuracy = 0.1800
+Round 148: Training Time = 0.01s, Communication Time = 0.01s
+Round 149: Global Test Accuracy = 0.1800
+Round 149: Training Time = 0.01s, Communication Time = 0.01s
+Round 150: Global Test Accuracy = 0.1800
+Round 150: Training Time = 0.01s, Communication Time = 0.01s
+Round 151: Global Test Accuracy = 0.1800
+Round 151: Training Time = 0.01s, Communication Time = 0.02s
+Round 152: Global Test Accuracy = 0.1800
+Round 152: Training Time = 0.01s, Communication Time = 0.01s
+Round 153: Global Test Accuracy = 0.1800
+Round 153: Training Time = 0.01s, Communication Time = 0.01s
+Round 154: Global Test Accuracy = 0.1800
+Round 154: Training Time = 0.01s, Communication Time = 0.01s
+Round 155: Global Test Accuracy = 0.1800
+Round 155: Training Time = 0.01s, Communication Time = 0.01s
+Round 156: Global Test Accuracy = 0.1800
+Round 156: Training Time = 0.01s, Communication Time = 0.01s
+Round 157: Global Test Accuracy = 0.1800
+Round 157: Training Time = 0.01s, Communication Time = 0.01s
+Round 158: Global Test Accuracy = 0.1800
+Round 158: Training Time = 0.01s, Communication Time = 0.01s
+Round 159: Global Test Accuracy = 0.1800
+Round 159: Training Time = 0.01s, Communication Time = 0.01s
+Round 160: Global Test Accuracy = 0.1800
+Round 160: Training Time = 0.01s, Communication Time = 0.01s
+Round 161: Global Test Accuracy = 0.1800
+Round 161: Training Time = 0.01s, Communication Time = 0.01s
+Round 162: Global Test Accuracy = 0.1800
+Round 162: Training Time = 0.01s, Communication Time = 0.01s
+Round 163: Global Test Accuracy = 0.1800
+Round 163: Training Time = 0.01s, Communication Time = 0.01s
+Round 164: Global Test Accuracy = 0.1800
+Round 164: Training Time = 0.01s, Communication Time = 0.01s
+Round 165: Global Test Accuracy = 0.1800
+Round 165: Training Time = 0.01s, Communication Time = 0.01s
+Round 166: Global Test Accuracy = 0.1800
+Round 166: Training Time = 0.01s, Communication Time = 0.01s
+Round 167: Global Test Accuracy = 0.1800
+Round 167: Training Time = 0.01s, Communication Time = 0.01s
+Round 168: Global Test Accuracy = 0.1800
+Round 168: Training Time = 0.01s, Communication Time = 0.01s
+Round 169: Global Test Accuracy = 0.1800
+Round 169: Training Time = 0.01s, Communication Time = 0.01s
+Round 170: Global Test Accuracy = 0.1800
+Round 170: Training Time = 0.01s, Communication Time = 0.01s
+Round 171: Global Test Accuracy = 0.1800
+Round 171: Training Time = 0.01s, Communication Time = 0.01s
+Round 172: Global Test Accuracy = 0.1800
+Round 172: Training Time = 0.01s, Communication Time = 0.01s
+Round 173: Global Test Accuracy = 0.1800
+Round 173: Training Time = 0.01s, Communication Time = 0.01s
+Round 174: Global Test Accuracy = 0.1800
+Round 174: Training Time = 0.01s, Communication Time = 0.01s
+Round 175: Global Test Accuracy = 0.1800
+Round 175: Training Time = 0.01s, Communication Time = 0.01s
+Round 176: Global Test Accuracy = 0.1800
+Round 176: Training Time = 0.01s, Communication Time = 0.01s
+Round 177: Global Test Accuracy = 0.1800
+Round 177: Training Time = 0.01s, Communication Time = 0.01s
+Round 178: Global Test Accuracy = 0.1800
+Round 178: Training Time = 0.01s, Communication Time = 0.01s
+Round 179: Global Test Accuracy = 0.1800
+Round 179: Training Time = 0.01s, Communication Time = 0.01s
+Round 180: Global Test Accuracy = 0.1800
+Round 180: Training Time = 0.01s, Communication Time = 0.01s
+Round 181: Global Test Accuracy = 0.1800
+Round 181: Training Time = 0.01s, Communication Time = 0.01s
+Round 182: Global Test Accuracy = 0.1800
+Round 182: Training Time = 0.01s, Communication Time = 0.01s
+Round 183: Global Test Accuracy = 0.1800
+Round 183: Training Time = 0.01s, Communication Time = 0.01s
+Round 184: Global Test Accuracy = 0.1800
+Round 184: Training Time = 0.01s, Communication Time = 0.01s
+Round 185: Global Test Accuracy = 0.1800
+Round 185: Training Time = 0.01s, Communication Time = 0.01s
+Round 186: Global Test Accuracy = 0.1800
+Round 186: Training Time = 0.01s, Communication Time = 0.01s
+Round 187: Global Test Accuracy = 0.1800
+Round 187: Training Time = 0.01s, Communication Time = 0.01s
+Round 188: Global Test Accuracy = 0.1800
+Round 188: Training Time = 0.01s, Communication Time = 0.01s
+Round 189: Global Test Accuracy = 0.1800
+Round 189: Training Time = 0.01s, Communication Time = 0.01s
+Round 190: Global Test Accuracy = 0.1800
+Round 190: Training Time = 0.01s, Communication Time = 0.01s
+Round 191: Global Test Accuracy = 0.1800
+Round 191: Training Time = 0.01s, Communication Time = 0.01s
+Round 192: Global Test Accuracy = 0.1800
+Round 192: Training Time = 0.01s, Communication Time = 0.02s
+Round 193: Global Test Accuracy = 0.1800
+Round 193: Training Time = 0.01s, Communication Time = 0.01s
+Round 194: Global Test Accuracy = 0.1800
+Round 194: Training Time = 0.01s, Communication Time = 0.01s
+Round 195: Global Test Accuracy = 0.1800
+Round 195: Training Time = 0.01s, Communication Time = 0.01s
+Round 196: Global Test Accuracy = 0.1800
+Round 196: Training Time = 0.01s, Communication Time = 0.01s
+Round 197: Global Test Accuracy = 0.1800
+Round 197: Training Time = 0.01s, Communication Time = 0.01s
+Round 198: Global Test Accuracy = 0.1800
+Round 198: Training Time = 0.01s, Communication Time = 0.01s
+Round 199: Global Test Accuracy = 0.1800
+Round 199: Training Time = 0.01s, Communication Time = 0.01s
+Round 200: Global Test Accuracy = 0.1800
+Round 200: Training Time = 0.01s, Communication Time = 0.01s
+//train_time: 5293.991 ms//end
+//Log Max memory for Large1: 1662857216.0 //end
+//Log Max memory for Large2: 1253654528.0 //end
+//Log Max memory for Large3: 3646488576.0 //end
+//Log Max memory for Large4: 1690083328.0 //end
+//Log Max memory for Server: 2119036928.0 //end
+//Log Large1 network: 22349777.0 //end
+//Log Large2 network: 15067409.0 //end
+//Log Large3 network: 18155121.0 //end
+//Log Large4 network: 22399520.0 //end
+//Log Server network: 75250568.0 //end
+//Log Total Actual Train Comm Cost: 146.12 MB //end
 Train end time recorded and duration set to gauge.
-[Training Time] Dataset: pubmed, Batch Size: -1, Trainers: 10, Hops: 0, IID Beta: 10.0 => Training Time = 34.88 seconds
-average_final_test_loss, 1.068279592037201
-Average test accuracy, 0.434
+
+================================================================================
+TIME BREAKDOWN (excluding initialization)
+================================================================================
+Total Pure Training Time (forward + gradient descent): 1.77 seconds
+Total Communication Time (parameter aggregation): 2.60 seconds
+Total Training + Communication Time: 35.30 seconds
+Training Time Percentage: 5.0%
+Communication Time Percentage: 7.4%
+Average Training Time per Round: 0.01 seconds
+Average Communication Time per Round: 0.01 seconds
+================================================================================
+[Pure Training Time] Dataset: pubmed, Batch Size: -1, Trainers: 10, Hops: 0, IID Beta: 10.0 => Pure Training Time = 1.77 seconds
+[Communication Time] Dataset: pubmed, Batch Size: -1, Trainers: 10, Hops: 0, IID Beta: 10.0 => Communication Time = 2.60 seconds
+average_final_test_loss, 1.1552776092290877
+Average test accuracy, 0.18
 
 ================================================================================
 INDIVIDUAL TRAINER MEMORY USAGE
@@ -954,34 +1595,34 @@ TRAINER MEMORY vs LOCAL GRAPH SIZE
 ====================================================================================================
 Trainer  Memory(MB)   Nodes    Edges    Memory/Node  Memory/Edge 
 ----------------------------------------------------------------------------------------------------
-0        666.3        2313     1347     0.288        0.495       
-1        664.2        1837     816      0.362        0.814       
-2        664.7        1723     724      0.386        0.918       
-3        662.8        1926     929      0.344        0.713       
-4        663.2        1716     646      0.386        1.027       
-5        664.1        1812     838      0.367        0.792       
-6        665.0        2035     1136     0.327        0.585       
-7        666.1        2371     1202     0.281        0.554       
-8        666.0        1958     912      0.340        0.730       
-9        666.6        2026     697      0.329        0.956       
+0        662.4        1884     865      0.352        0.766       
+1        664.4        1839     884      0.361        0.752       
+2        666.3        2191     1210     0.304        0.551       
+3        663.0        1888     696      0.351        0.953       
+4        664.7        1917     848      0.347        0.784       
+5        664.5        1872     744      0.355        0.893       
+6        667.2        2435     1674     0.274        0.399       
+7        665.8        2154     934      0.309        0.713       
+8        663.4        1908     830      0.348        0.799       
+9        663.3        1629     484      0.407        1.370       
 ====================================================================================================
-Total Memory Usage: 6649.0 MB (6.49 GB)
-Total Nodes: 19717, Total Edges: 9247
-Average Memory per Trainer: 664.9 MB
+Total Memory Usage: 6644.8 MB (6.49 GB)
+Total Nodes: 19717, Total Edges: 9169
+Average Memory per Trainer: 664.5 MB
 Average Nodes per Trainer: 1971.7
-Average Edges per Trainer: 924.7
-Max Memory: 666.6 MB (Trainer 9)
-Min Memory: 662.8 MB (Trainer 3)
+Average Edges per Trainer: 916.9
+Max Memory: 667.2 MB (Trainer 6)
+Min Memory: 662.4 MB (Trainer 0)
 Overall Memory/Node Ratio: 0.337 MB/node
-Overall Memory/Edge Ratio: 0.719 MB/edge
+Overall Memory/Edge Ratio: 0.725 MB/edge
 ====================================================================================================
 //Log Theoretical Pretrain Comm Cost: 0.00 MB //end
 //Log Theoretical Train Comm Cost: 123.09 MB //end
 
 ================================================================================
 CSV FORMAT RESULT:
-DS,IID,BS,Time[s],FinalAcc[%],CompTime[s],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
-pubmed,10.0,-1,70.4,0.43,34.9,123.1,666.6,0.174,0.031,0
+DS,IID,BS,TotalTime[s],PureTrainingTime[s],CommTime[s],FinalAcc[%],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
+pubmed,10.0,-1,70.6,1.8,2.6,0.18,123.1,667.2,0.009,0.031,0
 ================================================================================
 
 ================================================================================
@@ -993,14 +1634,15 @@ Trainers: 10
 IID Beta: 10.0
 Batch Size: -1
 Hops: 0
-Total Execution Time: 70.42 seconds
-Training Time: 34.90 seconds
+Total Execution Time: 70.59 seconds
+Pure Training Time: 1.77 seconds
+Communication Time: 2.60 seconds
 Pretrain Comm Cost: 0.00 MB
 Training Comm Cost: 123.09 MB
 ================================================================================
 
-[36m(Trainer pid=20490, ip=192.168.52.140)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.[32m [repeated 9x across cluster][0m
-[36m(Trainer pid=20490, ip=192.168.52.140)[0m   return torch.load(io.BytesIO(b))[32m [repeated 9x across cluster][0m
+[36m(Trainer pid=10025, ip=192.168.53.228)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.[32m [repeated 9x across cluster][0m
+[36m(Trainer pid=10025, ip=192.168.53.228)[0m   return torch.load(io.BytesIO(b))[32m [repeated 9x across cluster][0m
 Experiment 1/1 completed for:
   Dataset: pubmed, Trainers: 10, IID Beta: 10.0
   Method: fedgcn if 0 > 0 else FedAvg, Batch Size: -1
@@ -1016,110 +1658,109 @@ Downloading http://snap.stanford.edu/ogb/data/nodeproppred/arxiv.zip
 
   0%|          | 0/81 [00:00<?, ?it/s]
 Downloaded 0.00 GB:   0%|          | 0/81 [00:00<?, ?it/s]
-Downloaded 0.00 GB:   1%|          | 1/81 [00:00<01:13,  1.08it/s]
-Downloaded 0.00 GB:   1%|          | 1/81 [00:01<01:13,  1.08it/s]
-Downloaded 0.00 GB:   2%|▏         | 2/81 [00:01<00:39,  2.01it/s]
-Downloaded 0.00 GB:   2%|▏         | 2/81 [00:01<00:39,  2.01it/s]
-Downloaded 0.00 GB:   4%|▎         | 3/81 [00:01<00:25,  3.01it/s]
-Downloaded 0.00 GB:   4%|▎         | 3/81 [00:01<00:25,  3.01it/s]
-Downloaded 0.00 GB:   5%|▍         | 4/81 [00:01<00:21,  3.60it/s]
-Downloaded 0.00 GB:   5%|▍         | 4/81 [00:01<00:21,  3.60it/s]
-Downloaded 0.01 GB:   5%|▍         | 4/81 [00:01<00:21,  3.60it/s]
-Downloaded 0.01 GB:   7%|▋         | 6/81 [00:01<00:13,  5.43it/s]
-Downloaded 0.01 GB:   7%|▋         | 6/81 [00:01<00:13,  5.43it/s]
-Downloaded 0.01 GB:   9%|▊         | 7/81 [00:01<00:12,  5.93it/s]
-Downloaded 0.01 GB:   9%|▊         | 7/81 [00:01<00:12,  5.93it/s]
-Downloaded 0.01 GB:   9%|▊         | 7/81 [00:01<00:12,  5.93it/s]
-Downloaded 0.01 GB:  11%|█         | 9/81 [00:01<00:08,  8.05it/s]
-Downloaded 0.01 GB:  11%|█         | 9/81 [00:01<00:08,  8.05it/s]
-Downloaded 0.01 GB:  11%|█         | 9/81 [00:02<00:08,  8.05it/s]
-Downloaded 0.01 GB:  14%|█▎        | 11/81 [00:02<00:07,  9.83it/s]
-Downloaded 0.01 GB:  14%|█▎        | 11/81 [00:02<00:07,  9.83it/s]
-Downloaded 0.01 GB:  14%|█▎        | 11/81 [00:02<00:07,  9.83it/s]
-Downloaded 0.01 GB:  14%|█▎        | 11/81 [00:02<00:07,  9.83it/s]
-Downloaded 0.01 GB:  17%|█▋        | 14/81 [00:02<00:05, 13.10it/s]
-Downloaded 0.01 GB:  17%|█▋        | 14/81 [00:02<00:05, 13.10it/s]
-Downloaded 0.02 GB:  17%|█▋        | 14/81 [00:02<00:05, 13.10it/s]
-Downloaded 0.02 GB:  17%|█▋        | 14/81 [00:02<00:05, 13.10it/s]
-Downloaded 0.02 GB:  21%|██        | 17/81 [00:02<00:04, 15.65it/s]
-Downloaded 0.02 GB:  21%|██        | 17/81 [00:02<00:04, 15.65it/s]
-Downloaded 0.02 GB:  21%|██        | 17/81 [00:02<00:04, 15.65it/s]
-Downloaded 0.02 GB:  21%|██        | 17/81 [00:02<00:04, 15.65it/s]
-Downloaded 0.02 GB:  25%|██▍       | 20/81 [00:02<00:03, 17.66it/s]
-Downloaded 0.02 GB:  25%|██▍       | 20/81 [00:02<00:03, 17.66it/s]
-Downloaded 0.02 GB:  25%|██▍       | 20/81 [00:02<00:03, 17.66it/s]
-Downloaded 0.02 GB:  25%|██▍       | 20/81 [00:02<00:03, 17.66it/s]
-Downloaded 0.02 GB:  28%|██▊       | 23/81 [00:02<00:03, 19.31it/s]
-Downloaded 0.02 GB:  28%|██▊       | 23/81 [00:02<00:03, 19.31it/s]
-Downloaded 0.02 GB:  28%|██▊       | 23/81 [00:02<00:03, 19.31it/s]
-Downloaded 0.03 GB:  28%|██▊       | 23/81 [00:02<00:03, 19.31it/s]
-Downloaded 0.03 GB:  28%|██▊       | 23/81 [00:02<00:03, 19.31it/s]
-Downloaded 0.03 GB:  33%|███▎      | 27/81 [00:02<00:02, 22.47it/s]
-Downloaded 0.03 GB:  33%|███▎      | 27/81 [00:02<00:02, 22.47it/s]
-Downloaded 0.03 GB:  33%|███▎      | 27/81 [00:02<00:02, 22.47it/s]
-Downloaded 0.03 GB:  33%|███▎      | 27/81 [00:02<00:02, 22.47it/s]
-Downloaded 0.03 GB:  33%|███▎      | 27/81 [00:02<00:02, 22.47it/s]
-Downloaded 0.03 GB:  33%|███▎      | 27/81 [00:02<00:02, 22.47it/s]
-Downloaded 0.03 GB:  40%|███▉      | 32/81 [00:02<00:01, 27.08it/s]
-Downloaded 0.03 GB:  40%|███▉      | 32/81 [00:02<00:01, 27.08it/s]
-Downloaded 0.03 GB:  40%|███▉      | 32/81 [00:02<00:01, 27.08it/s]
-Downloaded 0.03 GB:  40%|███▉      | 32/81 [00:02<00:01, 27.08it/s]
-Downloaded 0.04 GB:  40%|███▉      | 32/81 [00:02<00:01, 27.08it/s]
-Downloaded 0.04 GB:  40%|███▉      | 32/81 [00:02<00:01, 27.08it/s]
-Downloaded 0.04 GB:  46%|████▌     | 37/81 [00:02<00:01, 30.93it/s]
-Downloaded 0.04 GB:  46%|████▌     | 37/81 [00:02<00:01, 30.93it/s]
-Downloaded 0.04 GB:  46%|████▌     | 37/81 [00:02<00:01, 30.93it/s]
-Downloaded 0.04 GB:  46%|████▌     | 37/81 [00:03<00:01, 30.93it/s]
-Downloaded 0.04 GB:  46%|████▌     | 37/81 [00:03<00:01, 30.93it/s]
-Downloaded 0.04 GB:  46%|████▌     | 37/81 [00:03<00:01, 30.93it/s]
-Downloaded 0.04 GB:  52%|█████▏    | 42/81 [00:03<00:01, 33.09it/s]
-Downloaded 0.04 GB:  52%|█████▏    | 42/81 [00:03<00:01, 33.09it/s]
-Downloaded 0.04 GB:  52%|█████▏    | 42/81 [00:03<00:01, 33.09it/s]
-Downloaded 0.04 GB:  52%|█████▏    | 42/81 [00:03<00:01, 33.09it/s]
-Downloaded 0.04 GB:  52%|█████▏    | 42/81 [00:03<00:01, 33.09it/s]
-Downloaded 0.05 GB:  52%|█████▏    | 42/81 [00:03<00:01, 33.09it/s]
-Downloaded 0.05 GB:  52%|█████▏    | 42/81 [00:03<00:01, 33.09it/s]
-Downloaded 0.05 GB:  59%|█████▉    | 48/81 [00:03<00:00, 36.16it/s]
-Downloaded 0.05 GB:  59%|█████▉    | 48/81 [00:03<00:00, 36.16it/s]
-Downloaded 0.05 GB:  59%|█████▉    | 48/81 [00:03<00:00, 36.16it/s]
-Downloaded 0.05 GB:  59%|█████▉    | 48/81 [00:03<00:00, 36.16it/s]
-Downloaded 0.05 GB:  59%|█████▉    | 48/81 [00:03<00:00, 36.16it/s]
-Downloaded 0.05 GB:  59%|█████▉    | 48/81 [00:03<00:00, 36.16it/s]
-Downloaded 0.05 GB:  65%|██████▌   | 53/81 [00:03<00:00, 36.75it/s]
-Downloaded 0.05 GB:  65%|██████▌   | 53/81 [00:03<00:00, 36.75it/s]
-Downloaded 0.05 GB:  65%|██████▌   | 53/81 [00:03<00:00, 36.75it/s]
-Downloaded 0.05 GB:  65%|██████▌   | 53/81 [00:03<00:00, 36.75it/s]
-Downloaded 0.06 GB:  65%|██████▌   | 53/81 [00:03<00:00, 36.75it/s]
-Downloaded 0.06 GB:  65%|██████▌   | 53/81 [00:03<00:00, 36.75it/s]
-Downloaded 0.06 GB:  72%|███████▏  | 58/81 [00:03<00:00, 37.06it/s]
-Downloaded 0.06 GB:  72%|███████▏  | 58/81 [00:03<00:00, 37.06it/s]
-Downloaded 0.06 GB:  72%|███████▏  | 58/81 [00:03<00:00, 37.06it/s]
-Downloaded 0.06 GB:  72%|███████▏  | 58/81 [00:03<00:00, 37.06it/s]
-Downloaded 0.06 GB:  72%|███████▏  | 58/81 [00:03<00:00, 37.06it/s]
-Downloaded 0.06 GB:  72%|███████▏  | 58/81 [00:03<00:00, 37.06it/s]
-Downloaded 0.06 GB:  78%|███████▊  | 63/81 [00:03<00:00, 37.38it/s]
-Downloaded 0.06 GB:  78%|███████▊  | 63/81 [00:03<00:00, 37.38it/s]
-Downloaded 0.06 GB:  78%|███████▊  | 63/81 [00:03<00:00, 37.38it/s]
-Downloaded 0.06 GB:  78%|███████▊  | 63/81 [00:03<00:00, 37.38it/s]
-Downloaded 0.07 GB:  78%|███████▊  | 63/81 [00:03<00:00, 37.38it/s]
-Downloaded 0.07 GB:  78%|███████▊  | 63/81 [00:03<00:00, 37.38it/s]
-Downloaded 0.07 GB:  84%|████████▍ | 68/81 [00:03<00:00, 37.59it/s]
-Downloaded 0.07 GB:  84%|████████▍ | 68/81 [00:03<00:00, 37.59it/s]
-Downloaded 0.07 GB:  84%|████████▍ | 68/81 [00:03<00:00, 37.59it/s]
-Downloaded 0.07 GB:  84%|████████▍ | 68/81 [00:03<00:00, 37.59it/s]
-Downloaded 0.07 GB:  84%|████████▍ | 68/81 [00:03<00:00, 37.59it/s]
-Downloaded 0.07 GB:  84%|████████▍ | 68/81 [00:03<00:00, 37.59it/s]
-Downloaded 0.07 GB:  84%|████████▍ | 68/81 [00:03<00:00, 37.59it/s]
-Downloaded 0.07 GB:  91%|█████████▏| 74/81 [00:03<00:00, 39.20it/s]
-Downloaded 0.07 GB:  91%|█████████▏| 74/81 [00:03<00:00, 39.20it/s]
-Downloaded 0.07 GB:  91%|█████████▏| 74/81 [00:03<00:00, 39.20it/s]
-Downloaded 0.08 GB:  91%|█████████▏| 74/81 [00:03<00:00, 39.20it/s]
-Downloaded 0.08 GB:  91%|█████████▏| 74/81 [00:03<00:00, 39.20it/s]
-Downloaded 0.08 GB:  91%|█████████▏| 74/81 [00:04<00:00, 39.20it/s]
-Downloaded 0.08 GB:  98%|█████████▊| 79/81 [00:04<00:00, 38.91it/s]
-Downloaded 0.08 GB:  98%|█████████▊| 79/81 [00:04<00:00, 38.91it/s]
-Downloaded 0.08 GB:  98%|█████████▊| 79/81 [00:04<00:00, 38.91it/s]
-Downloaded 0.08 GB: 100%|██████████| 81/81 [00:04<00:00, 20.08it/s]
+Downloaded 0.00 GB:   1%|          | 1/81 [00:00<01:03,  1.25it/s]
+Downloaded 0.00 GB:   1%|          | 1/81 [00:01<01:03,  1.25it/s]
+Downloaded 0.00 GB:   2%|▏         | 2/81 [00:01<00:38,  2.06it/s]
+Downloaded 0.00 GB:   2%|▏         | 2/81 [00:01<00:38,  2.06it/s]
+Downloaded 0.00 GB:   4%|▎         | 3/81 [00:01<00:25,  3.05it/s]
+Downloaded 0.00 GB:   4%|▎         | 3/81 [00:01<00:25,  3.05it/s]
+Downloaded 0.00 GB:   5%|▍         | 4/81 [00:01<00:21,  3.63it/s]
+Downloaded 0.00 GB:   5%|▍         | 4/81 [00:01<00:21,  3.63it/s]
+Downloaded 0.00 GB:   6%|▌         | 5/81 [00:01<00:17,  4.47it/s]
+Downloaded 0.01 GB:   6%|▌         | 5/81 [00:01<00:17,  4.47it/s]
+Downloaded 0.01 GB:   6%|▌         | 5/81 [00:01<00:17,  4.47it/s]
+Downloaded 0.01 GB:   9%|▊         | 7/81 [00:01<00:10,  6.82it/s]
+Downloaded 0.01 GB:   9%|▊         | 7/81 [00:01<00:10,  6.82it/s]
+Downloaded 0.01 GB:   9%|▊         | 7/81 [00:01<00:10,  6.82it/s]
+Downloaded 0.01 GB:  11%|█         | 9/81 [00:01<00:08,  8.86it/s]
+Downloaded 0.01 GB:  11%|█         | 9/81 [00:01<00:08,  8.86it/s]
+Downloaded 0.01 GB:  11%|█         | 9/81 [00:01<00:08,  8.86it/s]
+Downloaded 0.01 GB:  14%|█▎        | 11/81 [00:01<00:06, 10.56it/s]
+Downloaded 0.01 GB:  14%|█▎        | 11/81 [00:01<00:06, 10.56it/s]
+Downloaded 0.01 GB:  14%|█▎        | 11/81 [00:02<00:06, 10.56it/s]
+Downloaded 0.01 GB:  14%|█▎        | 11/81 [00:02<00:06, 10.56it/s]
+Downloaded 0.01 GB:  14%|█▎        | 11/81 [00:02<00:06, 10.56it/s]
+Downloaded 0.01 GB:  19%|█▊        | 15/81 [00:02<00:04, 15.92it/s]
+Downloaded 0.02 GB:  19%|█▊        | 15/81 [00:02<00:04, 15.92it/s]
+Downloaded 0.02 GB:  19%|█▊        | 15/81 [00:02<00:04, 15.92it/s]
+Downloaded 0.02 GB:  19%|█▊        | 15/81 [00:02<00:04, 15.92it/s]
+Downloaded 0.02 GB:  19%|█▊        | 15/81 [00:02<00:04, 15.92it/s]
+Downloaded 0.02 GB:  23%|██▎       | 19/81 [00:02<00:02, 21.19it/s]
+Downloaded 0.02 GB:  23%|██▎       | 19/81 [00:02<00:02, 21.19it/s]
+Downloaded 0.02 GB:  23%|██▎       | 19/81 [00:02<00:02, 21.19it/s]
+Downloaded 0.02 GB:  23%|██▎       | 19/81 [00:02<00:02, 21.19it/s]
+Downloaded 0.02 GB:  23%|██▎       | 19/81 [00:02<00:02, 21.19it/s]
+Downloaded 0.02 GB:  23%|██▎       | 19/81 [00:02<00:02, 21.19it/s]
+Downloaded 0.02 GB:  30%|██▉       | 24/81 [00:02<00:02, 26.22it/s]
+Downloaded 0.02 GB:  30%|██▉       | 24/81 [00:02<00:02, 26.22it/s]
+Downloaded 0.03 GB:  30%|██▉       | 24/81 [00:02<00:02, 26.22it/s]
+Downloaded 0.03 GB:  30%|██▉       | 24/81 [00:02<00:02, 26.22it/s]
+Downloaded 0.03 GB:  30%|██▉       | 24/81 [00:02<00:02, 26.22it/s]
+Downloaded 0.03 GB:  30%|██▉       | 24/81 [00:02<00:02, 26.22it/s]
+Downloaded 0.03 GB:  36%|███▌      | 29/81 [00:02<00:01, 29.22it/s]
+Downloaded 0.03 GB:  36%|███▌      | 29/81 [00:02<00:01, 29.22it/s]
+Downloaded 0.03 GB:  36%|███▌      | 29/81 [00:02<00:01, 29.22it/s]
+Downloaded 0.03 GB:  36%|███▌      | 29/81 [00:02<00:01, 29.22it/s]
+Downloaded 0.03 GB:  36%|███▌      | 29/81 [00:02<00:01, 29.22it/s]
+Downloaded 0.03 GB:  36%|███▌      | 29/81 [00:02<00:01, 29.22it/s]
+Downloaded 0.03 GB:  42%|████▏     | 34/81 [00:02<00:01, 31.99it/s]
+Downloaded 0.03 GB:  42%|████▏     | 34/81 [00:02<00:01, 31.99it/s]
+Downloaded 0.04 GB:  42%|████▏     | 34/81 [00:02<00:01, 31.99it/s]
+Downloaded 0.04 GB:  42%|████▏     | 34/81 [00:02<00:01, 31.99it/s]
+Downloaded 0.04 GB:  42%|████▏     | 34/81 [00:02<00:01, 31.99it/s]
+Downloaded 0.04 GB:  42%|████▏     | 34/81 [00:02<00:01, 31.99it/s]
+Downloaded 0.04 GB:  48%|████▊     | 39/81 [00:02<00:01, 33.78it/s]
+Downloaded 0.04 GB:  48%|████▊     | 39/81 [00:02<00:01, 33.78it/s]
+Downloaded 0.04 GB:  48%|████▊     | 39/81 [00:02<00:01, 33.78it/s]
+Downloaded 0.04 GB:  48%|████▊     | 39/81 [00:02<00:01, 33.78it/s]
+Downloaded 0.04 GB:  48%|████▊     | 39/81 [00:02<00:01, 33.78it/s]
+Downloaded 0.04 GB:  48%|████▊     | 39/81 [00:02<00:01, 33.78it/s]
+Downloaded 0.04 GB:  48%|████▊     | 39/81 [00:02<00:01, 33.78it/s]
+Downloaded 0.04 GB:  56%|█████▌    | 45/81 [00:02<00:00, 36.53it/s]
+Downloaded 0.04 GB:  56%|█████▌    | 45/81 [00:02<00:00, 36.53it/s]
+Downloaded 0.05 GB:  56%|█████▌    | 45/81 [00:02<00:00, 36.53it/s]
+Downloaded 0.05 GB:  56%|█████▌    | 45/81 [00:02<00:00, 36.53it/s]
+Downloaded 0.05 GB:  56%|█████▌    | 45/81 [00:02<00:00, 36.53it/s]
+Downloaded 0.05 GB:  56%|█████▌    | 45/81 [00:02<00:00, 36.53it/s]
+Downloaded 0.05 GB:  62%|██████▏   | 50/81 [00:02<00:00, 36.86it/s]
+Downloaded 0.05 GB:  62%|██████▏   | 50/81 [00:03<00:00, 36.86it/s]
+Downloaded 0.05 GB:  62%|██████▏   | 50/81 [00:03<00:00, 36.86it/s]
+Downloaded 0.05 GB:  62%|██████▏   | 50/81 [00:03<00:00, 36.86it/s]
+Downloaded 0.05 GB:  62%|██████▏   | 50/81 [00:03<00:00, 36.86it/s]
+Downloaded 0.05 GB:  62%|██████▏   | 50/81 [00:03<00:00, 36.86it/s]
+Downloaded 0.05 GB:  68%|██████▊   | 55/81 [00:03<00:00, 37.20it/s]
+Downloaded 0.05 GB:  68%|██████▊   | 55/81 [00:03<00:00, 37.20it/s]
+Downloaded 0.06 GB:  68%|██████▊   | 55/81 [00:03<00:00, 37.20it/s]
+Downloaded 0.06 GB:  68%|██████▊   | 55/81 [00:03<00:00, 37.20it/s]
+Downloaded 0.06 GB:  68%|██████▊   | 55/81 [00:03<00:00, 37.20it/s]
+Downloaded 0.06 GB:  68%|██████▊   | 55/81 [00:03<00:00, 37.20it/s]
+Downloaded 0.06 GB:  74%|███████▍  | 60/81 [00:03<00:00, 37.44it/s]
+Downloaded 0.06 GB:  74%|███████▍  | 60/81 [00:03<00:00, 37.44it/s]
+Downloaded 0.06 GB:  74%|███████▍  | 60/81 [00:03<00:00, 37.44it/s]
+Downloaded 0.06 GB:  74%|███████▍  | 60/81 [00:03<00:00, 37.44it/s]
+Downloaded 0.06 GB:  74%|███████▍  | 60/81 [00:03<00:00, 37.44it/s]
+Downloaded 0.06 GB:  74%|███████▍  | 60/81 [00:03<00:00, 37.44it/s]
+Downloaded 0.06 GB:  80%|████████  | 65/81 [00:03<00:00, 37.60it/s]
+Downloaded 0.06 GB:  80%|████████  | 65/81 [00:03<00:00, 37.60it/s]
+Downloaded 0.07 GB:  80%|████████  | 65/81 [00:03<00:00, 37.60it/s]
+Downloaded 0.07 GB:  80%|████████  | 65/81 [00:03<00:00, 37.60it/s]
+Downloaded 0.07 GB:  80%|████████  | 65/81 [00:03<00:00, 37.60it/s]
+Downloaded 0.07 GB:  80%|████████  | 65/81 [00:03<00:00, 37.60it/s]
+Downloaded 0.07 GB:  86%|████████▋ | 70/81 [00:03<00:00, 37.72it/s]
+Downloaded 0.07 GB:  86%|████████▋ | 70/81 [00:03<00:00, 37.72it/s]
+Downloaded 0.07 GB:  86%|████████▋ | 70/81 [00:03<00:00, 37.72it/s]
+Downloaded 0.07 GB:  86%|████████▋ | 70/81 [00:03<00:00, 37.72it/s]
+Downloaded 0.07 GB:  86%|████████▋ | 70/81 [00:03<00:00, 37.72it/s]
+Downloaded 0.07 GB:  86%|████████▋ | 70/81 [00:03<00:00, 37.72it/s]
+Downloaded 0.07 GB:  93%|█████████▎| 75/81 [00:03<00:00, 39.91it/s]
+Downloaded 0.07 GB:  93%|█████████▎| 75/81 [00:03<00:00, 39.91it/s]
+Downloaded 0.08 GB:  93%|█████████▎| 75/81 [00:03<00:00, 39.91it/s]
+Downloaded 0.08 GB:  93%|█████████▎| 75/81 [00:03<00:00, 39.91it/s]
+Downloaded 0.08 GB:  93%|█████████▎| 75/81 [00:03<00:00, 39.91it/s]
+Downloaded 0.08 GB:  93%|█████████▎| 75/81 [00:03<00:00, 39.91it/s]
+Downloaded 0.08 GB:  99%|█████████▉| 80/81 [00:03<00:00, 39.31it/s]
+Downloaded 0.08 GB:  99%|█████████▉| 80/81 [00:03<00:00, 39.31it/s]
+Downloaded 0.08 GB: 100%|██████████| 81/81 [00:03<00:00, 21.62it/s]
 Extracting dataset/arxiv.zip
 Processing...
 Loading necessary files...
@@ -1127,265 +1768,478 @@ This might take a while.
 Processing graphs...
 
   0%|          | 0/1 [00:00<?, ?it/s]
-100%|██████████| 1/1 [00:00<00:00, 22310.13it/s]
+100%|██████████| 1/1 [00:00<00:00, 27962.03it/s]
 Converting graphs into PyG objects...
 
   0%|          | 0/1 [00:00<?, ?it/s]
-100%|██████████| 1/1 [00:00<00:00, 6820.01it/s]
+100%|██████████| 1/1 [00:00<00:00, 7002.18it/s]
 Saving...
 Done!
 /usr/local/lib/python3.11/site-packages/ogb/nodeproppred/dataset_pyg.py:69: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
   self.data, self.slices = torch.load(self.processed_paths[0])
 Initialization start: network data collected.
-2025-07-29 23:46:17,974	INFO worker.py:1429 -- Using address 192.168.23.53:6379 set in the environment variable RAY_ADDRESS
-2025-07-29 23:46:17,974	INFO worker.py:1564 -- Connecting to existing Ray cluster at address: 192.168.23.53:6379...
-2025-07-29 23:46:17,981	INFO worker.py:1740 -- Connected to Ray cluster. View the dashboard at [1m[32mhttp://192.168.23.53:8265 [39m[22m
+2025-07-30 20:53:42,547	INFO worker.py:1429 -- Using address 192.168.37.160:6379 set in the environment variable RAY_ADDRESS
+2025-07-30 20:53:42,547	INFO worker.py:1564 -- Connecting to existing Ray cluster at address: 192.168.37.160:6379...
+2025-07-30 20:53:42,553	INFO worker.py:1740 -- Connected to Ray cluster. View the dashboard at [1m[32mhttp://192.168.37.160:8265 [39m[22m
 Changing method to FedAvg
-[36m(Trainer pid=21062, ip=192.168.2.152)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
-[36m(Trainer pid=21062, ip=192.168.2.152)[0m   return torch.load(io.BytesIO(b))
 /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
   return torch.load(io.BytesIO(b))
-[36m(Trainer pid=21076, ip=192.168.52.140)[0m Running GCN_arxiv
+[36m(Trainer pid=6541, ip=192.168.38.0)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+[36m(Trainer pid=6541, ip=192.168.38.0)[0m   return torch.load(io.BytesIO(b))
+[36m(Trainer pid=10540, ip=192.168.53.228)[0m Running GCN_arxiv
 Running GCN_arxiv
-//Log init_time: 5773.349999999999 ms //end
-//Log Large1 init network: 656432.0 //end
-//Log Large2 init network: 126938.0 //end
-//Log Large3 init network: 489648.0 //end
-//Log Large4 init network: 126575.0 //end
-//Log Server init network: 98731165.0 //end
-//Log Initialization Communication Cost (MB): 95.49 //end
+//Log init_time: 5607.692 ms //end
+//Log Large1 init network: 131592.0 //end
+//Log Large2 init network: 138005.0 //end
+//Log Large3 init network: 637315.0 //end
+//Log Large4 init network: 117856.0 //end
+//Log Server init network: 98774089.0 //end
+//Log Initialization Communication Cost (MB): 95.18 //end
 Pretrain start time recorded.
-//pretrain_time: 6.5649999999999995 ms//end
-//Log Max memory for Large1: 4105142272.0 //end
-//Log Max memory for Large2: 1250516992.0 //end
-//Log Max memory for Large3: 1690021888.0 //end
-//Log Max memory for Large4: 1256878080.0 //end
-//Log Max memory for Server: 2453504000.0 //end
-//Log Large1 network: 3667518.0 //end
-//Log Large2 network: 868249.0 //end
-//Log Large3 network: 755612.0 //end
-//Log Large4 network: 875283.0 //end
-//Log Server network: 2983333.0 //end
-//Log Total Actual Pretrain Comm Cost: 8.73 MB //end
+//pretrain_time: 5.269 ms//end
+//Log Max memory for Large1: 1249603584.0 //end
+//Log Max memory for Large2: 1699594240.0 //end
+//Log Max memory for Large3: 4102037504.0 //end
+//Log Max memory for Large4: 1265373184.0 //end
+//Log Max memory for Server: 2337726464.0 //end
+//Log Large1 network: 860304.0 //end
+//Log Large2 network: 612489.0 //end
+//Log Large3 network: 3681895.0 //end
+//Log Large4 network: 856776.0 //end
+//Log Server network: 3025814.0 //end
+//Log Total Actual Pretrain Comm Cost: 8.62 MB //end
 Pretrain end time recorded and duration set to gauge.
 Train start: network data collected.
 global_rounds 200
-Round 1: Global Test Accuracy = 0.0885
-Round 2: Global Test Accuracy = 0.0914
-Round 3: Global Test Accuracy = 0.0684
-Round 4: Global Test Accuracy = 0.0806
-Round 5: Global Test Accuracy = 0.1476
-Round 6: Global Test Accuracy = 0.2249
-Round 7: Global Test Accuracy = 0.2528
-Round 8: Global Test Accuracy = 0.2633
-Round 9: Global Test Accuracy = 0.2719
-Round 10: Global Test Accuracy = 0.2793
-Round 11: Global Test Accuracy = 0.2858
-Round 12: Global Test Accuracy = 0.2938
-Round 13: Global Test Accuracy = 0.3010
-Round 14: Global Test Accuracy = 0.3078
-Round 15: Global Test Accuracy = 0.3150
-Round 16: Global Test Accuracy = 0.3214
-Round 17: Global Test Accuracy = 0.3289
-Round 18: Global Test Accuracy = 0.3370
-Round 19: Global Test Accuracy = 0.3445
-Round 20: Global Test Accuracy = 0.3508
-Round 21: Global Test Accuracy = 0.3577
-Round 22: Global Test Accuracy = 0.3621
-Round 23: Global Test Accuracy = 0.3675
-Round 24: Global Test Accuracy = 0.3750
-Round 25: Global Test Accuracy = 0.3824
-Round 26: Global Test Accuracy = 0.3881
-Round 27: Global Test Accuracy = 0.3935
-Round 28: Global Test Accuracy = 0.3999
-Round 29: Global Test Accuracy = 0.4053
-Round 30: Global Test Accuracy = 0.4105
-Round 31: Global Test Accuracy = 0.4144
-Round 32: Global Test Accuracy = 0.4175
-Round 33: Global Test Accuracy = 0.4234
-Round 34: Global Test Accuracy = 0.4278
-Round 35: Global Test Accuracy = 0.4326
-Round 36: Global Test Accuracy = 0.4362
-Round 37: Global Test Accuracy = 0.4380
-Round 38: Global Test Accuracy = 0.4434
-Round 39: Global Test Accuracy = 0.4460
-Round 40: Global Test Accuracy = 0.4486
-Round 41: Global Test Accuracy = 0.4531
-Round 42: Global Test Accuracy = 0.4557
-Round 43: Global Test Accuracy = 0.4601
-Round 44: Global Test Accuracy = 0.4639
-Round 45: Global Test Accuracy = 0.4663
-Round 46: Global Test Accuracy = 0.4673
-Round 47: Global Test Accuracy = 0.4691
-Round 48: Global Test Accuracy = 0.4713
-Round 49: Global Test Accuracy = 0.4744
-Round 50: Global Test Accuracy = 0.4751
-Round 51: Global Test Accuracy = 0.4775
-Round 52: Global Test Accuracy = 0.4783
-Round 53: Global Test Accuracy = 0.4789
-Round 54: Global Test Accuracy = 0.4797
-Round 55: Global Test Accuracy = 0.4823
-Round 56: Global Test Accuracy = 0.4829
-Round 57: Global Test Accuracy = 0.4847
-Round 58: Global Test Accuracy = 0.4864
-Round 59: Global Test Accuracy = 0.4879
-Round 60: Global Test Accuracy = 0.4895
-Round 61: Global Test Accuracy = 0.4903
-Round 62: Global Test Accuracy = 0.4922
-Round 63: Global Test Accuracy = 0.4936
-Round 64: Global Test Accuracy = 0.4947
-Round 65: Global Test Accuracy = 0.4952
-Round 66: Global Test Accuracy = 0.4961
-Round 67: Global Test Accuracy = 0.4970
-Round 68: Global Test Accuracy = 0.4973
-Round 69: Global Test Accuracy = 0.4991
-Round 70: Global Test Accuracy = 0.4997
-Round 71: Global Test Accuracy = 0.5006
-Round 72: Global Test Accuracy = 0.5016
-Round 73: Global Test Accuracy = 0.5019
-Round 74: Global Test Accuracy = 0.5022
-Round 75: Global Test Accuracy = 0.5039
-Round 76: Global Test Accuracy = 0.5049
-Round 77: Global Test Accuracy = 0.5060
-Round 78: Global Test Accuracy = 0.5068
-Round 79: Global Test Accuracy = 0.5075
-Round 80: Global Test Accuracy = 0.5082
-Round 81: Global Test Accuracy = 0.5096
-Round 82: Global Test Accuracy = 0.5095
-Round 83: Global Test Accuracy = 0.5099
-Round 84: Global Test Accuracy = 0.5118
-Round 85: Global Test Accuracy = 0.5124
-Round 86: Global Test Accuracy = 0.5132
-Round 87: Global Test Accuracy = 0.5125
-Round 88: Global Test Accuracy = 0.5133
-Round 89: Global Test Accuracy = 0.5139
-Round 90: Global Test Accuracy = 0.5136
-Round 91: Global Test Accuracy = 0.5130
-Round 92: Global Test Accuracy = 0.5148
-Round 93: Global Test Accuracy = 0.5151
-Round 94: Global Test Accuracy = 0.5162
-Round 95: Global Test Accuracy = 0.5161
-Round 96: Global Test Accuracy = 0.5173
-Round 97: Global Test Accuracy = 0.5188
-Round 98: Global Test Accuracy = 0.5189
-Round 99: Global Test Accuracy = 0.5191
-Round 100: Global Test Accuracy = 0.5194
-Round 101: Global Test Accuracy = 0.5202
-Round 102: Global Test Accuracy = 0.5214
-Round 103: Global Test Accuracy = 0.5219
-Round 104: Global Test Accuracy = 0.5229
-Round 105: Global Test Accuracy = 0.5230
-Round 106: Global Test Accuracy = 0.5237
-Round 107: Global Test Accuracy = 0.5242
-Round 108: Global Test Accuracy = 0.5244
-Round 109: Global Test Accuracy = 0.5247
-Round 110: Global Test Accuracy = 0.5244
-Round 111: Global Test Accuracy = 0.5256
-Round 112: Global Test Accuracy = 0.5252
-Round 113: Global Test Accuracy = 0.5254
-Round 114: Global Test Accuracy = 0.5262
-Round 115: Global Test Accuracy = 0.5263
-Round 116: Global Test Accuracy = 0.5264
-Round 117: Global Test Accuracy = 0.5271
-Round 118: Global Test Accuracy = 0.5269
-Round 119: Global Test Accuracy = 0.5274
-Round 120: Global Test Accuracy = 0.5280
-Round 121: Global Test Accuracy = 0.5285
-Round 122: Global Test Accuracy = 0.5280
-Round 123: Global Test Accuracy = 0.5283
-Round 124: Global Test Accuracy = 0.5288
-Round 125: Global Test Accuracy = 0.5298
-Round 126: Global Test Accuracy = 0.5300
-Round 127: Global Test Accuracy = 0.5300
+Round 1: Global Test Accuracy = 0.0895
+Round 1: Training Time = 0.28s, Communication Time = 0.03s
+Round 2: Global Test Accuracy = 0.0907
+Round 2: Training Time = 0.23s, Communication Time = 0.03s
+Round 3: Global Test Accuracy = 0.0688
+Round 3: Training Time = 0.22s, Communication Time = 0.03s
+Round 4: Global Test Accuracy = 0.0801
+Round 4: Training Time = 0.21s, Communication Time = 0.03s
+Round 5: Global Test Accuracy = 0.1477
+Round 5: Training Time = 0.22s, Communication Time = 0.03s
+Round 6: Global Test Accuracy = 0.2302
+Round 6: Training Time = 0.19s, Communication Time = 0.03s
+Round 7: Global Test Accuracy = 0.2546
+Round 7: Training Time = 0.20s, Communication Time = 0.03s
+Round 8: Global Test Accuracy = 0.2636
+Round 8: Training Time = 0.21s, Communication Time = 0.03s
+Round 9: Global Test Accuracy = 0.2698
+Round 9: Training Time = 0.22s, Communication Time = 0.03s
+Round 10: Global Test Accuracy = 0.2767
+Round 10: Training Time = 0.22s, Communication Time = 0.03s
+Round 11: Global Test Accuracy = 0.2839
+Round 11: Training Time = 0.22s, Communication Time = 0.04s
+Round 12: Global Test Accuracy = 0.2910
+Round 12: Training Time = 0.22s, Communication Time = 0.03s
+Round 13: Global Test Accuracy = 0.2986
+Round 13: Training Time = 0.21s, Communication Time = 0.03s
+Round 14: Global Test Accuracy = 0.3063
+Round 14: Training Time = 0.21s, Communication Time = 0.03s
+Round 15: Global Test Accuracy = 0.3132
+Round 15: Training Time = 0.22s, Communication Time = 0.03s
+Round 16: Global Test Accuracy = 0.3193
+Round 16: Training Time = 0.22s, Communication Time = 0.03s
+Round 17: Global Test Accuracy = 0.3278
+Round 17: Training Time = 0.21s, Communication Time = 0.03s
+Round 18: Global Test Accuracy = 0.3339
+Round 18: Training Time = 0.23s, Communication Time = 0.03s
+Round 19: Global Test Accuracy = 0.3400
+Round 19: Training Time = 0.22s, Communication Time = 0.03s
+Round 20: Global Test Accuracy = 0.3470
+Round 20: Training Time = 0.21s, Communication Time = 0.03s
+Round 21: Global Test Accuracy = 0.3535
+Round 21: Training Time = 0.22s, Communication Time = 0.03s
+Round 22: Global Test Accuracy = 0.3607
+Round 22: Training Time = 0.22s, Communication Time = 0.03s
+Round 23: Global Test Accuracy = 0.3665
+Round 23: Training Time = 0.21s, Communication Time = 0.03s
+Round 24: Global Test Accuracy = 0.3729
+Round 24: Training Time = 0.22s, Communication Time = 0.03s
+Round 25: Global Test Accuracy = 0.3795
+Round 25: Training Time = 0.19s, Communication Time = 0.03s
+Round 26: Global Test Accuracy = 0.3862
+Round 26: Training Time = 0.20s, Communication Time = 0.03s
+Round 27: Global Test Accuracy = 0.3910
+Round 27: Training Time = 0.20s, Communication Time = 0.03s
+Round 28: Global Test Accuracy = 0.3969
+Round 28: Training Time = 0.23s, Communication Time = 0.03s
+Round 29: Global Test Accuracy = 0.4014
+Round 29: Training Time = 0.23s, Communication Time = 0.03s
+Round 30: Global Test Accuracy = 0.4070
+Round 30: Training Time = 0.26s, Communication Time = 0.03s
+Round 31: Global Test Accuracy = 0.4120
+Round 31: Training Time = 0.24s, Communication Time = 0.03s
+Round 32: Global Test Accuracy = 0.4161
+Round 32: Training Time = 0.24s, Communication Time = 0.03s
+Round 33: Global Test Accuracy = 0.4224
+Round 33: Training Time = 0.23s, Communication Time = 0.03s
+Round 34: Global Test Accuracy = 0.4272
+Round 34: Training Time = 0.26s, Communication Time = 0.03s
+Round 35: Global Test Accuracy = 0.4306
+Round 35: Training Time = 0.25s, Communication Time = 0.03s
+Round 36: Global Test Accuracy = 0.4355
+Round 36: Training Time = 0.22s, Communication Time = 0.03s
+Round 37: Global Test Accuracy = 0.4381
+Round 37: Training Time = 0.22s, Communication Time = 0.03s
+Round 38: Global Test Accuracy = 0.4423
+Round 38: Training Time = 0.22s, Communication Time = 0.03s
+Round 39: Global Test Accuracy = 0.4464
+Round 39: Training Time = 0.24s, Communication Time = 0.03s
+Round 40: Global Test Accuracy = 0.4481
+Round 40: Training Time = 0.24s, Communication Time = 0.03s
+Round 41: Global Test Accuracy = 0.4508
+Round 41: Training Time = 0.25s, Communication Time = 0.03s
+Round 42: Global Test Accuracy = 0.4546
+Round 42: Training Time = 0.22s, Communication Time = 0.03s
+Round 43: Global Test Accuracy = 0.4579
+Round 43: Training Time = 0.22s, Communication Time = 0.03s
+Round 44: Global Test Accuracy = 0.4595
+Round 44: Training Time = 0.21s, Communication Time = 0.03s
+Round 45: Global Test Accuracy = 0.4630
+Round 45: Training Time = 0.23s, Communication Time = 0.03s
+Round 46: Global Test Accuracy = 0.4646
+Round 46: Training Time = 0.22s, Communication Time = 0.03s
+Round 47: Global Test Accuracy = 0.4666
+Round 47: Training Time = 0.25s, Communication Time = 0.04s
+Round 48: Global Test Accuracy = 0.4672
+Round 48: Training Time = 0.21s, Communication Time = 0.04s
+Round 49: Global Test Accuracy = 0.4691
+Round 49: Training Time = 0.22s, Communication Time = 0.03s
+Round 50: Global Test Accuracy = 0.4712
+Round 50: Training Time = 0.23s, Communication Time = 0.03s
+Round 51: Global Test Accuracy = 0.4732
+Round 51: Training Time = 0.23s, Communication Time = 0.03s
+Round 52: Global Test Accuracy = 0.4748
+Round 52: Training Time = 0.23s, Communication Time = 0.03s
+Round 53: Global Test Accuracy = 0.4783
+Round 53: Training Time = 0.22s, Communication Time = 0.03s
+Round 54: Global Test Accuracy = 0.4800
+Round 54: Training Time = 0.23s, Communication Time = 0.03s
+Round 55: Global Test Accuracy = 0.4819
+Round 55: Training Time = 0.22s, Communication Time = 0.03s
+Round 56: Global Test Accuracy = 0.4835
+Round 56: Training Time = 0.22s, Communication Time = 0.03s
+Round 57: Global Test Accuracy = 0.4846
+Round 57: Training Time = 0.24s, Communication Time = 0.03s
+Round 58: Global Test Accuracy = 0.4869
+Round 58: Training Time = 0.24s, Communication Time = 0.03s
+Round 59: Global Test Accuracy = 0.4884
+Round 59: Training Time = 0.23s, Communication Time = 0.03s
+Round 60: Global Test Accuracy = 0.4889
+Round 60: Training Time = 0.25s, Communication Time = 0.03s
+Round 61: Global Test Accuracy = 0.4891
+Round 61: Training Time = 0.24s, Communication Time = 0.03s
+Round 62: Global Test Accuracy = 0.4904
+Round 62: Training Time = 0.25s, Communication Time = 0.03s
+Round 63: Global Test Accuracy = 0.4921
+Round 63: Training Time = 0.22s, Communication Time = 0.03s
+Round 64: Global Test Accuracy = 0.4933
+Round 64: Training Time = 0.25s, Communication Time = 0.03s
+Round 65: Global Test Accuracy = 0.4943
+Round 65: Training Time = 0.24s, Communication Time = 0.03s
+Round 66: Global Test Accuracy = 0.4965
+Round 66: Training Time = 0.22s, Communication Time = 0.03s
+Round 67: Global Test Accuracy = 0.4968
+Round 67: Training Time = 0.23s, Communication Time = 0.03s
+Round 68: Global Test Accuracy = 0.4980
+Round 68: Training Time = 0.23s, Communication Time = 0.03s
+Round 69: Global Test Accuracy = 0.4985
+Round 69: Training Time = 0.21s, Communication Time = 0.03s
+Round 70: Global Test Accuracy = 0.4986
+Round 70: Training Time = 0.23s, Communication Time = 0.03s
+Round 71: Global Test Accuracy = 0.4987
+Round 71: Training Time = 0.27s, Communication Time = 0.03s
+Round 72: Global Test Accuracy = 0.4993
+Round 72: Training Time = 0.25s, Communication Time = 0.03s
+Round 73: Global Test Accuracy = 0.5011
+Round 73: Training Time = 0.23s, Communication Time = 0.03s
+Round 74: Global Test Accuracy = 0.5023
+Round 74: Training Time = 0.23s, Communication Time = 0.03s
+Round 75: Global Test Accuracy = 0.5028
+Round 75: Training Time = 0.24s, Communication Time = 0.03s
+Round 76: Global Test Accuracy = 0.5032
+Round 76: Training Time = 0.24s, Communication Time = 0.02s
+Round 77: Global Test Accuracy = 0.5041
+Round 77: Training Time = 0.24s, Communication Time = 0.03s
+Round 78: Global Test Accuracy = 0.5052
+Round 78: Training Time = 0.22s, Communication Time = 0.03s
+Round 79: Global Test Accuracy = 0.5061
+Round 79: Training Time = 0.25s, Communication Time = 0.03s
+Round 80: Global Test Accuracy = 0.5076
+Round 80: Training Time = 0.23s, Communication Time = 0.03s
+Round 81: Global Test Accuracy = 0.5078
+Round 81: Training Time = 0.23s, Communication Time = 0.03s
+Round 82: Global Test Accuracy = 0.5082
+Round 82: Training Time = 0.23s, Communication Time = 0.03s
+Round 83: Global Test Accuracy = 0.5088
+Round 83: Training Time = 0.22s, Communication Time = 0.03s
+Round 84: Global Test Accuracy = 0.5094
+Round 84: Training Time = 0.22s, Communication Time = 0.03s
+Round 85: Global Test Accuracy = 0.5108
+Round 85: Training Time = 0.22s, Communication Time = 0.03s
+Round 86: Global Test Accuracy = 0.5113
+Round 86: Training Time = 0.22s, Communication Time = 0.03s
+Round 87: Global Test Accuracy = 0.5109
+Round 87: Training Time = 0.21s, Communication Time = 0.03s
+Round 88: Global Test Accuracy = 0.5118
+Round 88: Training Time = 0.24s, Communication Time = 0.03s
+Round 89: Global Test Accuracy = 0.5120
+Round 89: Training Time = 0.23s, Communication Time = 0.03s
+Round 90: Global Test Accuracy = 0.5133
+Round 90: Training Time = 0.23s, Communication Time = 0.03s
+Round 91: Global Test Accuracy = 0.5142
+Round 91: Training Time = 0.23s, Communication Time = 0.03s
+Round 92: Global Test Accuracy = 0.5150
+Round 92: Training Time = 0.23s, Communication Time = 0.03s
+Round 93: Global Test Accuracy = 0.5149
+Round 93: Training Time = 0.22s, Communication Time = 0.03s
+Round 94: Global Test Accuracy = 0.5154
+Round 94: Training Time = 0.22s, Communication Time = 0.03s
+Round 95: Global Test Accuracy = 0.5151
+Round 95: Training Time = 0.22s, Communication Time = 0.03s
+Round 96: Global Test Accuracy = 0.5166
+Round 96: Training Time = 0.21s, Communication Time = 0.03s
+Round 97: Global Test Accuracy = 0.5174
+Round 97: Training Time = 0.21s, Communication Time = 0.03s
+Round 98: Global Test Accuracy = 0.5180
+Round 98: Training Time = 0.23s, Communication Time = 0.03s
+Round 99: Global Test Accuracy = 0.5193
+Round 99: Training Time = 0.24s, Communication Time = 0.03s
+Round 100: Global Test Accuracy = 0.5192
+Round 100: Training Time = 0.23s, Communication Time = 0.03s
+Round 101: Global Test Accuracy = 0.5192
+Round 101: Training Time = 0.21s, Communication Time = 0.03s
+Round 102: Global Test Accuracy = 0.5200
+Round 102: Training Time = 0.23s, Communication Time = 0.03s
+Round 103: Global Test Accuracy = 0.5206
+Round 103: Training Time = 0.22s, Communication Time = 0.03s
+Round 104: Global Test Accuracy = 0.5215
+Round 104: Training Time = 0.23s, Communication Time = 0.03s
+Round 105: Global Test Accuracy = 0.5222
+Round 105: Training Time = 0.24s, Communication Time = 0.04s
+Round 106: Global Test Accuracy = 0.5210
+Round 106: Training Time = 0.24s, Communication Time = 0.03s
+Round 107: Global Test Accuracy = 0.5212
+Round 107: Training Time = 0.23s, Communication Time = 0.03s
+Round 108: Global Test Accuracy = 0.5216
+Round 108: Training Time = 0.23s, Communication Time = 0.03s
+Round 109: Global Test Accuracy = 0.5228
+Round 109: Training Time = 0.23s, Communication Time = 0.03s
+Round 110: Global Test Accuracy = 0.5223
+Round 110: Training Time = 0.23s, Communication Time = 0.03s
+Round 111: Global Test Accuracy = 0.5231
+Round 111: Training Time = 0.24s, Communication Time = 0.03s
+Round 112: Global Test Accuracy = 0.5238
+Round 112: Training Time = 0.23s, Communication Time = 0.03s
+Round 113: Global Test Accuracy = 0.5239
+Round 113: Training Time = 0.24s, Communication Time = 0.03s
+Round 114: Global Test Accuracy = 0.5241
+Round 114: Training Time = 0.24s, Communication Time = 0.03s
+Round 115: Global Test Accuracy = 0.5247
+Round 115: Training Time = 0.20s, Communication Time = 0.03s
+Round 116: Global Test Accuracy = 0.5251
+Round 116: Training Time = 0.23s, Communication Time = 0.03s
+Round 117: Global Test Accuracy = 0.5249
+Round 117: Training Time = 0.24s, Communication Time = 0.03s
+Round 118: Global Test Accuracy = 0.5256
+Round 118: Training Time = 0.25s, Communication Time = 0.03s
+Round 119: Global Test Accuracy = 0.5260
+Round 119: Training Time = 0.26s, Communication Time = 0.03s
+Round 120: Global Test Accuracy = 0.5265
+Round 120: Training Time = 0.24s, Communication Time = 0.03s
+Round 121: Global Test Accuracy = 0.5268
+Round 121: Training Time = 0.24s, Communication Time = 0.03s
+Round 122: Global Test Accuracy = 0.5262
+Round 122: Training Time = 0.24s, Communication Time = 0.03s
+Round 123: Global Test Accuracy = 0.5266
+Round 123: Training Time = 0.24s, Communication Time = 0.03s
+Round 124: Global Test Accuracy = 0.5271
+Round 124: Training Time = 0.24s, Communication Time = 0.03s
+Round 125: Global Test Accuracy = 0.5277
+Round 125: Training Time = 0.23s, Communication Time = 0.03s
+Round 126: Global Test Accuracy = 0.5283
+Round 126: Training Time = 0.25s, Communication Time = 0.03s
+Round 127: Global Test Accuracy = 0.5287
+Round 127: Training Time = 0.25s, Communication Time = 0.03s
 Round 128: Global Test Accuracy = 0.5298
-Round 129: Global Test Accuracy = 0.5302
-Round 130: Global Test Accuracy = 0.5304
-Round 131: Global Test Accuracy = 0.5306
-Round 132: Global Test Accuracy = 0.5312
-Round 133: Global Test Accuracy = 0.5314
-Round 134: Global Test Accuracy = 0.5311
-Round 135: Global Test Accuracy = 0.5319
-Round 136: Global Test Accuracy = 0.5325
-Round 137: Global Test Accuracy = 0.5325
-Round 138: Global Test Accuracy = 0.5324
-Round 139: Global Test Accuracy = 0.5326
-Round 140: Global Test Accuracy = 0.5333
-Round 141: Global Test Accuracy = 0.5338
-Round 142: Global Test Accuracy = 0.5337
-Round 143: Global Test Accuracy = 0.5340
-Round 144: Global Test Accuracy = 0.5341
-Round 145: Global Test Accuracy = 0.5340
-Round 146: Global Test Accuracy = 0.5346
-Round 147: Global Test Accuracy = 0.5351
-Round 148: Global Test Accuracy = 0.5348
-Round 149: Global Test Accuracy = 0.5353
-Round 150: Global Test Accuracy = 0.5356
-Round 151: Global Test Accuracy = 0.5362
-Round 152: Global Test Accuracy = 0.5358
-Round 153: Global Test Accuracy = 0.5364
-Round 154: Global Test Accuracy = 0.5365
-Round 155: Global Test Accuracy = 0.5365
+Round 128: Training Time = 0.24s, Communication Time = 0.03s
+Round 129: Global Test Accuracy = 0.5290
+Round 129: Training Time = 0.22s, Communication Time = 0.03s
+Round 130: Global Test Accuracy = 0.5301
+Round 130: Training Time = 0.22s, Communication Time = 0.03s
+Round 131: Global Test Accuracy = 0.5300
+Round 131: Training Time = 0.23s, Communication Time = 0.03s
+Round 132: Global Test Accuracy = 0.5305
+Round 132: Training Time = 0.22s, Communication Time = 0.03s
+Round 133: Global Test Accuracy = 0.5307
+Round 133: Training Time = 0.20s, Communication Time = 0.03s
+Round 134: Global Test Accuracy = 0.5309
+Round 134: Training Time = 0.22s, Communication Time = 0.03s
+Round 135: Global Test Accuracy = 0.5312
+Round 135: Training Time = 0.23s, Communication Time = 0.03s
+Round 136: Global Test Accuracy = 0.5314
+Round 136: Training Time = 0.22s, Communication Time = 0.03s
+Round 137: Global Test Accuracy = 0.5319
+Round 137: Training Time = 0.22s, Communication Time = 0.03s
+Round 138: Global Test Accuracy = 0.5326
+Round 138: Training Time = 0.24s, Communication Time = 0.04s
+Round 139: Global Test Accuracy = 0.5331
+Round 139: Training Time = 0.21s, Communication Time = 0.03s
+Round 140: Global Test Accuracy = 0.5329
+Round 140: Training Time = 0.21s, Communication Time = 0.03s
+Round 141: Global Test Accuracy = 0.5334
+Round 141: Training Time = 0.22s, Communication Time = 0.03s
+Round 142: Global Test Accuracy = 0.5334
+Round 142: Training Time = 0.26s, Communication Time = 0.03s
+Round 143: Global Test Accuracy = 0.5331
+Round 143: Training Time = 0.25s, Communication Time = 0.03s
+Round 144: Global Test Accuracy = 0.5332
+Round 144: Training Time = 0.25s, Communication Time = 0.03s
+Round 145: Global Test Accuracy = 0.5330
+Round 145: Training Time = 0.23s, Communication Time = 0.03s
+Round 146: Global Test Accuracy = 0.5332
+Round 146: Training Time = 0.25s, Communication Time = 0.03s
+Round 147: Global Test Accuracy = 0.5334
+Round 147: Training Time = 0.24s, Communication Time = 0.03s
+Round 148: Global Test Accuracy = 0.5340
+Round 148: Training Time = 0.24s, Communication Time = 0.03s
+Round 149: Global Test Accuracy = 0.5344
+Round 149: Training Time = 0.24s, Communication Time = 0.03s
+Round 150: Global Test Accuracy = 0.5341
+Round 150: Training Time = 0.23s, Communication Time = 0.03s
+Round 151: Global Test Accuracy = 0.5350
+Round 151: Training Time = 0.23s, Communication Time = 0.03s
+Round 152: Global Test Accuracy = 0.5348
+Round 152: Training Time = 0.25s, Communication Time = 0.03s
+Round 153: Global Test Accuracy = 0.5357
+Round 153: Training Time = 0.22s, Communication Time = 0.04s
+Round 154: Global Test Accuracy = 0.5362
+Round 154: Training Time = 0.22s, Communication Time = 0.03s
+Round 155: Global Test Accuracy = 0.5360
+Round 155: Training Time = 0.22s, Communication Time = 0.03s
 Round 156: Global Test Accuracy = 0.5367
+Round 156: Training Time = 0.22s, Communication Time = 0.03s
 Round 157: Global Test Accuracy = 0.5367
-Round 158: Global Test Accuracy = 0.5375
-Round 159: Global Test Accuracy = 0.5378
-Round 160: Global Test Accuracy = 0.5375
-Round 161: Global Test Accuracy = 0.5376
-Round 162: Global Test Accuracy = 0.5375
-Round 163: Global Test Accuracy = 0.5375
-Round 164: Global Test Accuracy = 0.5382
-Round 165: Global Test Accuracy = 0.5383
-Round 166: Global Test Accuracy = 0.5386
+Round 157: Training Time = 0.22s, Communication Time = 0.03s
+Round 158: Global Test Accuracy = 0.5367
+Round 158: Training Time = 0.23s, Communication Time = 0.03s
+Round 159: Global Test Accuracy = 0.5365
+Round 159: Training Time = 0.22s, Communication Time = 0.03s
+Round 160: Global Test Accuracy = 0.5365
+Round 160: Training Time = 0.19s, Communication Time = 0.03s
+Round 161: Global Test Accuracy = 0.5369
+Round 161: Training Time = 0.21s, Communication Time = 0.03s
+Round 162: Global Test Accuracy = 0.5372
+Round 162: Training Time = 0.21s, Communication Time = 0.03s
+Round 163: Global Test Accuracy = 0.5373
+Round 163: Training Time = 0.23s, Communication Time = 0.03s
+Round 164: Global Test Accuracy = 0.5379
+Round 164: Training Time = 0.22s, Communication Time = 0.03s
+Round 165: Global Test Accuracy = 0.5379
+Round 165: Training Time = 0.23s, Communication Time = 0.04s
+Round 166: Global Test Accuracy = 0.5385
+Round 166: Training Time = 0.27s, Communication Time = 0.03s
 Round 167: Global Test Accuracy = 0.5386
-Round 168: Global Test Accuracy = 0.5391
-Round 169: Global Test Accuracy = 0.5397
-Round 170: Global Test Accuracy = 0.5399
-Round 171: Global Test Accuracy = 0.5406
-Round 172: Global Test Accuracy = 0.5399
-Round 173: Global Test Accuracy = 0.5395
+Round 167: Training Time = 0.23s, Communication Time = 0.03s
+Round 168: Global Test Accuracy = 0.5390
+Round 168: Training Time = 0.22s, Communication Time = 0.03s
+Round 169: Global Test Accuracy = 0.5392
+Round 169: Training Time = 0.22s, Communication Time = 0.03s
+Round 170: Global Test Accuracy = 0.5392
+Round 170: Training Time = 0.24s, Communication Time = 0.03s
+Round 171: Global Test Accuracy = 0.5397
+Round 171: Training Time = 0.24s, Communication Time = 0.03s
+Round 172: Global Test Accuracy = 0.5397
+Round 172: Training Time = 0.25s, Communication Time = 0.03s
+Round 173: Global Test Accuracy = 0.5399
+Round 173: Training Time = 0.25s, Communication Time = 0.03s
 Round 174: Global Test Accuracy = 0.5403
-Round 175: Global Test Accuracy = 0.5402
-Round 176: Global Test Accuracy = 0.5399
-Round 177: Global Test Accuracy = 0.5408
-Round 178: Global Test Accuracy = 0.5403
-Round 179: Global Test Accuracy = 0.5408
-Round 180: Global Test Accuracy = 0.5411
-Round 181: Global Test Accuracy = 0.5414
-Round 182: Global Test Accuracy = 0.5414
-Round 183: Global Test Accuracy = 0.5423
-Round 184: Global Test Accuracy = 0.5424
-Round 185: Global Test Accuracy = 0.5425
+Round 174: Training Time = 0.23s, Communication Time = 0.03s
+Round 175: Global Test Accuracy = 0.5404
+Round 175: Training Time = 0.23s, Communication Time = 0.03s
+Round 176: Global Test Accuracy = 0.5400
+Round 176: Training Time = 0.22s, Communication Time = 0.02s
+Round 177: Global Test Accuracy = 0.5402
+Round 177: Training Time = 0.23s, Communication Time = 0.03s
+Round 178: Global Test Accuracy = 0.5407
+Round 178: Training Time = 0.23s, Communication Time = 0.03s
+Round 179: Global Test Accuracy = 0.5406
+Round 179: Training Time = 0.24s, Communication Time = 0.03s
+Round 180: Global Test Accuracy = 0.5409
+Round 180: Training Time = 0.23s, Communication Time = 0.04s
+Round 181: Global Test Accuracy = 0.5410
+Round 181: Training Time = 0.22s, Communication Time = 0.03s
+Round 182: Global Test Accuracy = 0.5413
+Round 182: Training Time = 0.22s, Communication Time = 0.03s
+Round 183: Global Test Accuracy = 0.5413
+Round 183: Training Time = 0.23s, Communication Time = 0.03s
+Round 184: Global Test Accuracy = 0.5413
+Round 184: Training Time = 0.23s, Communication Time = 0.03s
+Round 185: Global Test Accuracy = 0.5418
+Round 185: Training Time = 0.23s, Communication Time = 0.03s
 Round 186: Global Test Accuracy = 0.5425
-Round 187: Global Test Accuracy = 0.5430
-Round 188: Global Test Accuracy = 0.5429
-Round 189: Global Test Accuracy = 0.5427
-Round 190: Global Test Accuracy = 0.5430
-Round 191: Global Test Accuracy = 0.5428
-Round 192: Global Test Accuracy = 0.5431
-Round 193: Global Test Accuracy = 0.5435
-Round 194: Global Test Accuracy = 0.5429
-Round 195: Global Test Accuracy = 0.5428
-Round 196: Global Test Accuracy = 0.5431
-Round 197: Global Test Accuracy = 0.5432
-Round 198: Global Test Accuracy = 0.5435
-Round 199: Global Test Accuracy = 0.5438
-Round 200: Global Test Accuracy = 0.5436
-//train_time: 55411.657 ms//end
-//Log Max memory for Large1: 4809351168.0 //end
-//Log Max memory for Large2: 1837445120.0 //end
-//Log Max memory for Large3: 2320560128.0 //end
-//Log Max memory for Large4: 1812250624.0 //end
-//Log Max memory for Server: 2451841024.0 //end
-//Log Large1 network: 120132427.0 //end
-//Log Large2 network: 75560699.0 //end
-//Log Large3 network: 112410978.0 //end
-//Log Large4 network: 75499427.0 //end
-//Log Server network: 373217585.0 //end
-//Log Total Actual Train Comm Cost: 721.76 MB //end
+Round 186: Training Time = 0.23s, Communication Time = 0.03s
+Round 187: Global Test Accuracy = 0.5428
+Round 187: Training Time = 0.19s, Communication Time = 0.03s
+Round 188: Global Test Accuracy = 0.5433
+Round 188: Training Time = 0.23s, Communication Time = 0.03s
+Round 189: Global Test Accuracy = 0.5437
+Round 189: Training Time = 0.23s, Communication Time = 0.04s
+Round 190: Global Test Accuracy = 0.5436
+Round 190: Training Time = 0.28s, Communication Time = 0.03s
+Round 191: Global Test Accuracy = 0.5435
+Round 191: Training Time = 0.26s, Communication Time = 0.03s
+Round 192: Global Test Accuracy = 0.5435
+Round 192: Training Time = 0.25s, Communication Time = 0.03s
+Round 193: Global Test Accuracy = 0.5436
+Round 193: Training Time = 0.23s, Communication Time = 0.03s
+Round 194: Global Test Accuracy = 0.5435
+Round 194: Training Time = 0.22s, Communication Time = 0.02s
+Round 195: Global Test Accuracy = 0.5441
+Round 195: Training Time = 0.24s, Communication Time = 0.04s
+Round 196: Global Test Accuracy = 0.5441
+Round 196: Training Time = 0.23s, Communication Time = 0.03s
+Round 197: Global Test Accuracy = 0.5442
+Round 197: Training Time = 0.23s, Communication Time = 0.03s
+Round 198: Global Test Accuracy = 0.5440
+Round 198: Training Time = 0.25s, Communication Time = 0.03s
+Round 199: Global Test Accuracy = 0.5443
+Round 199: Training Time = 0.23s, Communication Time = 0.03s
+Round 200: Global Test Accuracy = 0.5443
+Round 200: Training Time = 0.22s, Communication Time = 0.03s
+//train_time: 66203.49500000001 ms//end
+//Log Max memory for Large1: 1707630592.0 //end
+//Log Max memory for Large2: 2438094848.0 //end
+//Log Max memory for Large3: 4860891136.0 //end
+//Log Max memory for Large4: 1817120768.0 //end
+//Log Max memory for Server: 2338189312.0 //end
+//Log Large1 network: 75537070.0 //end
+//Log Large2 network: 112593926.0 //end
+//Log Large3 network: 121211441.0 //end
+//Log Large4 network: 75580346.0 //end
+//Log Server network: 372416661.0 //end
+//Log Total Actual Train Comm Cost: 722.26 MB //end
 Train end time recorded and duration set to gauge.
-[Training Time] Dataset: ogbn-arxiv, Batch Size: -1, Trainers: 10, Hops: 0, IID Beta: 10.0 => Training Time = 85.41 seconds
-average_final_test_loss, 1.6896145127279396
-Average test accuracy, 0.5436084192333807
+
+================================================================================
+TIME BREAKDOWN (excluding initialization)
+================================================================================
+Total Pure Training Time (forward + gradient descent): 45.82 seconds
+Total Communication Time (parameter aggregation): 5.95 seconds
+Total Training + Communication Time: 96.21 seconds
+Training Time Percentage: 47.6%
+Communication Time Percentage: 6.2%
+Average Training Time per Round: 0.23 seconds
+Average Communication Time per Round: 0.03 seconds
+================================================================================
+[Pure Training Time] Dataset: ogbn-arxiv, Batch Size: -1, Trainers: 10, Hops: 0, IID Beta: 10.0 => Pure Training Time = 45.82 seconds
+[Communication Time] Dataset: ogbn-arxiv, Batch Size: -1, Trainers: 10, Hops: 0, IID Beta: 10.0 => Communication Time = 5.95 seconds
+average_final_test_loss, 1.695587201822202
+Average test accuracy, 0.5442668148056704
 
 ================================================================================
 INDIVIDUAL TRAINER MEMORY USAGE
@@ -1396,34 +2250,34 @@ TRAINER MEMORY vs LOCAL GRAPH SIZE
 ====================================================================================================
 Trainer  Memory(MB)   Nodes    Edges    Memory/Node  Memory/Edge 
 ----------------------------------------------------------------------------------------------------
-0        890.0        15177    17262    0.059        0.052       
-1        781.6        16981    30972    0.046        0.025       
-2        909.1        16988    22556    0.054        0.040       
-3        928.4        17994    35094    0.052        0.026       
-4        921.2        17581    26052    0.052        0.035       
-5        754.4        16880    19370    0.045        0.039       
-6        792.0        17316    27046    0.046        0.029       
-7        809.3        17171    27856    0.047        0.029       
-8        752.9        15973    18920    0.047        0.040       
-9        907.2        17282    24680    0.052        0.037       
+0        794.2        16818    24070    0.047        0.033       
+1        803.9        17146    22196    0.047        0.036       
+2        818.0        17081    27432    0.048        0.030       
+3        992.0        16376    20730    0.061        0.048       
+4        907.9        15889    15120    0.057        0.060       
+5        760.3        17104    24382    0.044        0.031       
+6        867.8        16472    20248    0.053        0.043       
+7        862.0        16946    28604    0.051        0.030       
+8        859.9        18262    44676    0.047        0.019       
+9        793.9        17249    35348    0.046        0.022       
 ====================================================================================================
-Total Memory Usage: 8446.1 MB (8.25 GB)
-Total Nodes: 169343, Total Edges: 249808
-Average Memory per Trainer: 844.6 MB
+Total Memory Usage: 8460.1 MB (8.26 GB)
+Total Nodes: 169343, Total Edges: 262806
+Average Memory per Trainer: 846.0 MB
 Average Nodes per Trainer: 16934.3
-Average Edges per Trainer: 24980.8
-Max Memory: 928.4 MB (Trainer 3)
-Min Memory: 752.9 MB (Trainer 8)
+Average Edges per Trainer: 26280.6
+Max Memory: 992.0 MB (Trainer 3)
+Min Memory: 760.3 MB (Trainer 5)
 Overall Memory/Node Ratio: 0.050 MB/node
-Overall Memory/Edge Ratio: 0.034 MB/edge
+Overall Memory/Edge Ratio: 0.032 MB/edge
 ====================================================================================================
 //Log Theoretical Pretrain Comm Cost: 0.00 MB //end
 //Log Theoretical Train Comm Cost: 668.58 MB //end
 
 ================================================================================
 CSV FORMAT RESULT:
-DS,IID,BS,Time[s],FinalAcc[%],CompTime[s],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
-ogbn-arxiv,10.0,-1,121.3,0.54,85.5,668.6,928.4,0.428,0.167,0
+DS,IID,BS,TotalTime[s],PureTrainingTime[s],CommTime[s],FinalAcc[%],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
+ogbn-arxiv,10.0,-1,131.9,45.8,6.0,0.54,668.6,992.0,0.229,0.167,0
 ================================================================================
 
 ================================================================================
@@ -1435,21 +2289,22 @@ Trainers: 10
 IID Beta: 10.0
 Batch Size: -1
 Hops: 0
-Total Execution Time: 121.28 seconds
-Training Time: 85.50 seconds
+Total Execution Time: 131.89 seconds
+Pure Training Time: 45.82 seconds
+Communication Time: 5.95 seconds
 Pretrain Comm Cost: 0.00 MB
 Training Comm Cost: 668.58 MB
 ================================================================================
 
-[36m(Trainer pid=21065, ip=192.168.2.152)[0m Running GCN_arxiv[32m [repeated 9x across cluster][0m
-[36m(Trainer pid=21077, ip=192.168.52.140)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.[32m [repeated 9x across cluster][0m
-[36m(Trainer pid=21077, ip=192.168.52.140)[0m   return torch.load(io.BytesIO(b))[32m [repeated 9x across cluster][0m
+[36m(Trainer pid=6543, ip=192.168.38.0)[0m Running GCN_arxiv[32m [repeated 9x across cluster][0m
+[36m(Trainer pid=10541, ip=192.168.53.228)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.[32m [repeated 9x across cluster][0m
+[36m(Trainer pid=10541, ip=192.168.53.228)[0m   return torch.load(io.BytesIO(b))[32m [repeated 9x across cluster][0m
 Experiment 1/1 completed for:
   Dataset: ogbn-arxiv, Trainers: 10, IID Beta: 10.0
   Method: fedgcn if 0 > 0 else FedAvg, Batch Size: -1
 Benchmark completed.
 
 ------------------------------------------
-Job 'raysubmit_9ZqxtFJXMFdWsB1i' succeeded
+Job 'raysubmit_CyaZneqttXKVTqc2' succeeded
 ------------------------------------------
 
