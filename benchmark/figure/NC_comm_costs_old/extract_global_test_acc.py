@@ -67,7 +67,7 @@ def plot_accuracy_curves_grouped(results):
     colors = {"FedAvg": "#1f77b4", "fedgcn": "#ff7f0e"}
 
     for dataset_key, dataset_title in datasets.items():
-        plt.figure(figsize=(10, 9))  # Taller for better visual clarity
+        plt.figure(figsize=(10, 5))  # Shorter figure for compact display
         for algo in algos:
             df = results.get((dataset_key, algo))
             if df is not None and not df.empty:
@@ -80,11 +80,11 @@ def plot_accuracy_curves_grouped(results):
                 )
         plt.title(dataset_title, fontsize=38)
         plt.xlabel("Training Round", fontsize=34)
-        plt.ylabel("Global Test Accuracy", fontsize=34)
+        plt.ylabel("Test Accuracy", fontsize=34)
         plt.grid(True, linestyle="--", alpha=0.6)
         plt.xticks(fontsize=30)
         plt.yticks(fontsize=30)
-        plt.legend(fontsize=30, loc="lower right")
+        plt.legend(fontsize=20, loc="lower right")
         plt.tight_layout()
         plt.savefig(f"nc_accuracy_curve_{dataset_key}.pdf", dpi=300)
         plt.close()
