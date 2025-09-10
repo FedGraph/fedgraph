@@ -50,16 +50,16 @@ config: Dict[str, Any] = {
     "saveto_huggingface": False,  # Save partitioned dataset to Hugging Face Hub
     # Scalability and Cluster Configuration
     "use_cluster": False,  # Use Kubernetes for scalability if True
-    # Low-rank compression settings 
+    # Low-rank compression settings
     "use_lowrank": False,
     "lowrank_method": "fixed",
     "fixed_rank": 8,
-    "use_dp": False,       
-    "dp_epsilon": 2.0,         
-    "dp_delta": 1e-5,          
-    "dp_mechanism": "gaussian", # "gaussian", "laplace", "local"
-    "dp_sensitivity": 1.0,      
-    "dp_clip_norm": 1.0,  
+    "use_dp": False,
+    "dp_epsilon": 2.0,
+    "dp_delta": 1e-5,
+    "dp_mechanism": "gaussian",  # "gaussian", "laplace", "local"
+    "dp_sensitivity": 1.0,
+    "dp_clip_norm": 1.0,
 }
 
 #######################################################################
@@ -67,7 +67,7 @@ config: Dict[str, Any] = {
 # -------------------
 
 config = attridict(config)
-#run_fedgraph(config)
+# run_fedgraph(config)
 
 #######################################################################
 # Specify the Graph Classification configuration

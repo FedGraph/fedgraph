@@ -43,9 +43,9 @@ def extract_nc_data(logfile):
         iid_beta = float(iid_beta_match.group(1))
         algo_match = re.search(r"method': '([A-Za-z0-9+_]+)'", exp)
         if not algo_match:
-            algo_match = re.search(r"Changing method to ([A-Za-z0-9+_]+)", exp) 
+            algo_match = re.search(r"Changing method to ([A-Za-z0-9+_]+)", exp)
         algorithm = algo_match.group(1).strip() if algo_match else "FedAvg"
-        if dataset not in ["cora", "citeseer", "pubmed"]: #, "ogbn-arxiv"
+        if dataset not in ["cora", "citeseer", "pubmed"]:  # , "ogbn-arxiv"
             continue
         result = extract_metrics(exp, algorithm, dataset, trainers, iid_beta)
         if result:
@@ -121,7 +121,7 @@ def extract_metrics(exp_text, algorithm, dataset, trainers, iid_beta):
 
 
 def plot_metric(df, metric, ylabel, filename_prefix):
-    datasets = ["cora", "citeseer", "pubmed"] #, "ogbn-arxiv"
+    datasets = ["cora", "citeseer", "pubmed"]  # , "ogbn-arxiv"
     algorithms = ["FedAvg", "FedGCN"]
     colors = {"FedAvg": "#1f77b4", "FedGCN": "#ff7f0e"}
     target_betas = [10000.0, 100.0, 10.0]
@@ -164,7 +164,7 @@ def plot_metric(df, metric, ylabel, filename_prefix):
 
 
 def plot_comm_cost(df):
-    datasets = ["cora", "citeseer", "pubmed"] #, "ogbn-arxiv"
+    datasets = ["cora", "citeseer", "pubmed"]  # , "ogbn-arxiv"
     algorithms = ["FedAvg", "FedGCN"]
     actual_colors = {"FedAvg": "#1f77b4", "FedGCN": "#ff7f0e"}
     theoretical_colors = {
@@ -338,7 +338,5 @@ if __name__ == "__main__":
             df_csv = df_csv.drop(columns=["Train_Time_s"])
         df_csv.to_csv("nc_data_raw.csv", index=False)
         plot_metric(df, "Accuracy", "Accuracy", "nc_accuracy_comparison")
-        plot_metric(
-            df, "Train_Time_s", "Training Time (s)", "nc_train_time_comparison"
-        )
+        plot_metric(df, "Train_Time_s", "Training Time (s)", "nc_train_time_comparison")
         plot_comm_cost(df)

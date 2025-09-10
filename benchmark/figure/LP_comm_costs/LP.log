@@ -42,11 +42,11 @@ To: /tmp/ray/session_2025-05-14_20-44-36_016650_1/runtime_resources/working_dir_
 
   0%|          | 0.00/278M [00:00<?, ?B/s]
   3%|▎         | 9.44M/278M [00:00<00:02, 93.4MB/s]
-  8%|▊         | 21.5M/278M [00:00<00:02, 101MB/s] 
+  8%|▊         | 21.5M/278M [00:00<00:02, 101MB/s]
  17%|█▋        | 47.2M/278M [00:00<00:01, 169MB/s]
  25%|██▌       | 69.7M/278M [00:00<00:01, 189MB/s]
  32%|███▏      | 89.1M/278M [00:00<00:01, 154MB/s]
- 38%|███▊      | 106M/278M [00:00<00:01, 134MB/s] 
+ 38%|███▊      | 106M/278M [00:00<00:01, 134MB/s]
  43%|████▎     | 121M/278M [00:00<00:01, 128MB/s]
  53%|█████▎    | 146M/278M [00:00<00:00, 161MB/s]
  61%|██████▏   | 170M/278M [00:01<00:00, 182MB/s]
@@ -65,11 +65,11 @@ To: /tmp/ray/session_2025-05-14_20-44-36_016650_1/runtime_resources/working_dir_
 
   0%|          | 0.00/118M [00:00<?, ?B/s]
   4%|▍         | 4.72M/118M [00:00<00:02, 45.9MB/s]
- 21%|██        | 24.6M/118M [00:00<00:00, 135MB/s] 
+ 21%|██        | 24.6M/118M [00:00<00:00, 135MB/s]
  39%|███▉      | 46.1M/118M [00:00<00:00, 168MB/s]
  54%|█████▎    | 63.4M/118M [00:00<00:00, 157MB/s]
  72%|███████▏  | 85.5M/118M [00:00<00:00, 177MB/s]
- 89%|████████▉ | 105M/118M [00:00<00:00, 183MB/s] 
+ 89%|████████▉ | 105M/118M [00:00<00:00, 183MB/s]
 100%|██████████| 118M/118M [00:00<00:00, 172MB/s]
 Downloaded data_US to data/LPDataset/data_US.txt
 gpu not detected
@@ -89,7 +89,7 @@ Pretrain start time recorded.
 [36m(Trainer pid=68093, ip=192.168.14.54)[0m Downloading...
 [36m(Trainer pid=68093, ip=192.168.14.54)[0m From: https://drive.google.com/uc?id=1RUsyGrsz4hmY3OA3b-oqyh5yqlks02-p
 [36m(Trainer pid=68093, ip=192.168.14.54)[0m To: /tmp/ray/session_2025-05-14_20-44-36_016650_1/runtime_resources/working_dir_files/_ray_pkg_f82b624e2786f519/data/LPDataset/traveled_users.txt
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
   0%|          | 0.00/552k [00:00<?, ?B/s]
 100%|██████████| 552k/552k [00:00<00:00, 13.1MB/s]
 [36m(Trainer pid=68093, ip=192.168.14.54)[0m Downloaded traveled_users to data/LPDataset/traveled_users.txt
@@ -98,57 +98,57 @@ Pretrain start time recorded.
 [36m(Trainer pid=68093, ip=192.168.14.54)[0m From (original): https://drive.google.com/uc?id=1CnBlVXqCbfjSswagTci5D7nAqO7laU_J
 [36m(Trainer pid=68093, ip=192.168.14.54)[0m From (redirected): https://drive.google.com/uc?id=1CnBlVXqCbfjSswagTci5D7nAqO7laU_J&confirm=t&uuid=4b96146c-eb4e-4ff8-9993-5c585cbb967f
 [36m(Trainer pid=68093, ip=192.168.14.54)[0m To: /tmp/ray/session_2025-05-14_20-44-36_016650_1/runtime_resources/working_dir_files/_ray_pkg_f82b624e2786f519/data/LPDataset/data_global.txt
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
   0%|          | 0.00/278M [00:00<?, ?B/s]
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
   4%|▍         | 10.5M/278M [00:00<00:02, 103MB/s]
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
  13%|█▎        | 35.1M/278M [00:00<00:01, 186MB/s]
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
  21%|██        | 57.1M/278M [00:00<00:01, 200MB/s]
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
  29%|██▉       | 81.3M/278M [00:00<00:00, 215MB/s]
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
- 38%|███▊      | 105M/278M [00:00<00:00, 224MB/s] 
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
+ 38%|███▊      | 105M/278M [00:00<00:00, 224MB/s]
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
  47%|████▋     | 130M/278M [00:00<00:00, 230MB/s]
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
  55%|█████▌    | 153M/278M [00:00<00:00, 179MB/s]
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
  64%|██████▍   | 178M/278M [00:00<00:00, 197MB/s]
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
  73%|███████▎  | 202M/278M [00:00<00:00, 209MB/s]
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
  82%|████████▏ | 228M/278M [00:01<00:00, 222MB/s]
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
  91%|█████████ | 253M/278M [00:01<00:00, 227MB/s]
 [36m(Trainer pid=68093, ip=192.168.14.54)[0m Downloaded data_global to data/LPDataset/data_global.txt
 [36m(Trainer pid=68093, ip=192.168.14.54)[0m Downloading data_US from https://drive.google.com/uc?id=1g3nH-UovAFwj4wKLTr4rBP18hlBtVJLd...
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
  99%|█████████▉| 276M/278M [00:01<00:00, 230MB/s]
 100%|██████████| 278M/278M [00:01<00:00, 212MB/s]
 [36m(Trainer pid=68093, ip=192.168.14.54)[0m Downloading...
 [36m(Trainer pid=68093, ip=192.168.14.54)[0m From (original): https://drive.google.com/uc?id=1g3nH-UovAFwj4wKLTr4rBP18hlBtVJLd
 [36m(Trainer pid=68093, ip=192.168.14.54)[0m From (redirected): https://drive.google.com/uc?id=1g3nH-UovAFwj4wKLTr4rBP18hlBtVJLd&confirm=t&uuid=4be7f7c7-348a-41d4-8f69-4dcec73c93e0
 [36m(Trainer pid=68093, ip=192.168.14.54)[0m To: /tmp/ray/session_2025-05-14_20-44-36_016650_1/runtime_resources/working_dir_files/_ray_pkg_f82b624e2786f519/data/LPDataset/data_US.txt
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
   0%|          | 0.00/118M [00:00<?, ?B/s]
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
   2%|▏         | 2.62M/118M [00:00<00:04, 25.8MB/s]
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
- 20%|█▉        | 23.6M/118M [00:00<00:00, 128MB/s] 
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
+ 20%|█▉        | 23.6M/118M [00:00<00:00, 128MB/s]
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
  39%|███▉      | 46.1M/118M [00:00<00:00, 170MB/s]
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
  54%|█████▎    | 63.4M/118M [00:00<00:00, 111MB/s]
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
  71%|███████   | 83.4M/118M [00:00<00:00, 134MB/s]
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
- 89%|████████▊ | 105M/118M [00:00<00:00, 155MB/s] 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
+ 89%|████████▊ | 105M/118M [00:00<00:00, 155MB/s]
 [36m(Trainer pid=68093, ip=192.168.14.54)[0m Downloaded data_US to data/LPDataset/data_US.txt
 [36m(Trainer pid=68093, ip=192.168.14.54)[0m printing in getdata, path: data/LPDataset
 [36m(Trainer pid=68093, ip=192.168.14.54)[0m Loading data in data/LPDataset/data_US.txt
-[36m(Trainer pid=68093, ip=192.168.14.54)[0m 
+[36m(Trainer pid=68093, ip=192.168.14.54)[0m
 100%|██████████| 118M/118M [00:00<00:00, 133MB/s]
 //Log Max memory for Large1: 5409419264.0 //end
 //Log Max memory for Large2: 4796280832.0 //end
@@ -309,7 +309,7 @@ To: /tmp/ray/session_2025-05-14_20-44-36_016650_1/runtime_resources/working_dir_
 
   0%|          | 0.00/57.1M [00:00<?, ?B/s]
   8%|▊         | 4.72M/57.1M [00:00<00:01, 37.0MB/s]
- 48%|████▊     | 27.3M/57.1M [00:00<00:00, 136MB/s] 
+ 48%|████▊     | 27.3M/57.1M [00:00<00:00, 136MB/s]
  79%|███████▉  | 45.1M/57.1M [00:00<00:00, 153MB/s]
 100%|██████████| 57.1M/57.1M [00:00<00:00, 147MB/s]
 Downloaded data_BR to data/LPDataset/data_BR.txt
@@ -331,24 +331,24 @@ Pretrain start time recorded.
 [36m(Trainer pid=69067, ip=192.168.42.57)[0m Downloading...
 [36m(Trainer pid=69067, ip=192.168.42.57)[0m From: https://drive.google.com/uc?id=1RUsyGrsz4hmY3OA3b-oqyh5yqlks02-p
 [36m(Trainer pid=69067, ip=192.168.42.57)[0m To: /tmp/ray/session_2025-05-14_20-44-36_016650_1/runtime_resources/working_dir_files/_ray_pkg_f82b624e2786f519/data/LPDataset/traveled_users.txt
-[36m(Trainer pid=69067, ip=192.168.42.57)[0m 
+[36m(Trainer pid=69067, ip=192.168.42.57)[0m
   0%|          | 0.00/552k [00:00<?, ?B/s]
 [36m(Trainer pid=69067, ip=192.168.42.57)[0m Downloaded traveled_users to data/LPDataset/traveled_users.txt
 [36m(Trainer pid=69067, ip=192.168.42.57)[0m Downloading data_global from https://drive.google.com/uc?id=1CnBlVXqCbfjSswagTci5D7nAqO7laU_J...
-[36m(Trainer pid=69067, ip=192.168.42.57)[0m 
+[36m(Trainer pid=69067, ip=192.168.42.57)[0m
 100%|██████████| 552k/552k [00:00<00:00, 10.3MB/s]
 [36m(Trainer pid=69067, ip=192.168.42.57)[0m From (original): https://drive.google.com/uc?id=1CnBlVXqCbfjSswagTci5D7nAqO7laU_J
 [36m(Trainer pid=69067, ip=192.168.42.57)[0m From (redirected): https://drive.google.com/uc?id=1CnBlVXqCbfjSswagTci5D7nAqO7laU_J&confirm=t&uuid=822824c9-ee81-415b-84c2-8eab4f4c3ff5
-[36m(Trainer pid=69067, ip=192.168.42.57)[0m 
+[36m(Trainer pid=69067, ip=192.168.42.57)[0m
   2%|▏         | 6.29M/278M [00:00<00:04, 59.2MB/s]
-[36m(Trainer pid=69067, ip=192.168.42.57)[0m 
+[36m(Trainer pid=69067, ip=192.168.42.57)[0m
   5%|▌         | 14.2M/278M [00:00<00:03, 69.6MB/s]
 [36m(Trainer pid=68917, ip=192.168.39.156)[0m Downloading...[32m [repeated 3x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)[0m
 [36m(Trainer pid=68917, ip=192.168.39.156)[0m From: https://drive.google.com/uc?id=1RUsyGrsz4hmY3OA3b-oqyh5yqlks02-p
 [36m(Trainer pid=68917, ip=192.168.39.156)[0m To: /tmp/ray/session_2025-05-14_20-44-36_016650_1/runtime_resources/working_dir_files/_ray_pkg_f82b624e2786f519/data/LPDataset/data_global.txt[32m [repeated 3x across cluster][0m
-[36m(Trainer pid=68917, ip=192.168.39.156)[0m 
+[36m(Trainer pid=68917, ip=192.168.39.156)[0m
   0%|          | 0.00/278M [00:00<?, ?B/s][32m [repeated 3x across cluster][0m
-[36m(Trainer pid=68917, ip=192.168.39.156)[0m 
+[36m(Trainer pid=68917, ip=192.168.39.156)[0m
  96%|█████████▌| 266M/278M [00:01<00:00, 176MB/s]
 [36m(Trainer pid=68917, ip=192.168.39.156)[0m Downloaded data_global to data/LPDataset/data_global.txt
 [36m(Trainer pid=68917, ip=192.168.39.156)[0m Downloading data_US from https://drive.google.com/uc?id=1g3nH-UovAFwj4wKLTr4rBP18hlBtVJLd...
@@ -356,26 +356,26 @@ Pretrain start time recorded.
 [36m(Trainer pid=68917, ip=192.168.39.156)[0m Downloading traveled_users from https://drive.google.com/uc?id=1RUsyGrsz4hmY3OA3b-oqyh5yqlks02-p...
 [36m(Trainer pid=68917, ip=192.168.39.156)[0m Downloaded traveled_users to data/LPDataset/traveled_users.txt
 [36m(Trainer pid=68917, ip=192.168.39.156)[0m Downloading data_global from https://drive.google.com/uc?id=1CnBlVXqCbfjSswagTci5D7nAqO7laU_J...
-[36m(Trainer pid=68917, ip=192.168.39.156)[0m 
+[36m(Trainer pid=68917, ip=192.168.39.156)[0m
 100%|██████████| 278M/278M [00:01<00:00, 175MB/s]
 [36m(Trainer pid=69067, ip=192.168.42.57)[0m Downloading data_BR from https://drive.google.com/uc?id=1tg69D1-NSTrKvaAGZELBeECsPh6MAnaS...
 [36m(Trainer pid=68917, ip=192.168.39.156)[0m From (original): https://drive.google.com/uc?id=1g3nH-UovAFwj4wKLTr4rBP18hlBtVJLd[32m [repeated 2x across cluster][0m
 [36m(Trainer pid=68917, ip=192.168.39.156)[0m From (redirected): https://drive.google.com/uc?id=1g3nH-UovAFwj4wKLTr4rBP18hlBtVJLd&confirm=t&uuid=46d7af04-6573-438e-a378-7499b457f75f[32m [repeated 2x across cluster][0m
-[36m(Trainer pid=69067, ip=192.168.42.57)[0m 
+[36m(Trainer pid=69067, ip=192.168.42.57)[0m
  87%|████████▋ | 242M/278M [00:01<00:00, 145MB/s][32m [repeated 26x across cluster][0m
 [36m(Trainer pid=68917, ip=192.168.39.156)[0m Downloaded data_US to data/LPDataset/data_US.txt
 [36m(Trainer pid=68917, ip=192.168.39.156)[0m printing in getdata, path: data/LPDataset
 [36m(Trainer pid=68917, ip=192.168.39.156)[0m Loading data in data/LPDataset/data_US.txt
 [36m(Trainer pid=68917, ip=192.168.39.156)[0m Downloading...
 [36m(Trainer pid=68917, ip=192.168.39.156)[0m To: /tmp/ray/session_2025-05-14_20-44-36_016650_1/runtime_resources/working_dir_files/_ray_pkg_f82b624e2786f519/data/LPDataset/data_US.txt
-[36m(Trainer pid=68917, ip=192.168.39.156)[0m 
+[36m(Trainer pid=68917, ip=192.168.39.156)[0m
   0%|          | 0.00/118M [00:00<?, ?B/s]
 [36m(Trainer pid=69067, ip=192.168.42.57)[0m Downloading...
 [36m(Trainer pid=69067, ip=192.168.42.57)[0m From: https://drive.google.com/uc?id=1tg69D1-NSTrKvaAGZELBeECsPh6MAnaS
 [36m(Trainer pid=69067, ip=192.168.42.57)[0m To: /tmp/ray/session_2025-05-14_20-44-36_016650_1/runtime_resources/working_dir_files/_ray_pkg_f82b624e2786f519/data/LPDataset/data_BR.txt
-[36m(Trainer pid=69067, ip=192.168.42.57)[0m 
+[36m(Trainer pid=69067, ip=192.168.42.57)[0m
   0%|          | 0.00/57.1M [00:00<?, ?B/s]
-[36m(Trainer pid=68917, ip=192.168.39.156)[0m 
+[36m(Trainer pid=68917, ip=192.168.39.156)[0m
 100%|█████████▉| 118M/118M [00:00<00:00, 162MB/s]
 100%|██████████| 118M/118M [00:00<00:00, 127MB/s][32m [repeated 3x across cluster][0m
 [36m(Trainer pid=69067, ip=192.168.42.57)[0m Downloaded data_BR to data/LPDataset/data_BR.txt
@@ -386,9 +386,9 @@ Pretrain start time recorded.
 [36m(Trainer pid=69067, ip=192.168.42.57)[0m printing in getdata, path: data/LPDataset
 [36m(Trainer pid=69067, ip=192.168.42.57)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
 [36m(Trainer pid=69067, ip=192.168.42.57)[0m   return torch.load(io.BytesIO(b))
-[36m(Trainer pid=69067, ip=192.168.42.57)[0m 
+[36m(Trainer pid=69067, ip=192.168.42.57)[0m
  73%|███████▎  | 41.9M/57.1M [00:00<00:00, 143MB/s][32m [repeated 11x across cluster][0m
-[36m(Trainer pid=69067, ip=192.168.42.57)[0m 
+[36m(Trainer pid=69067, ip=192.168.42.57)[0m
  99%|█████████▉| 56.6M/57.1M [00:00<00:00, 137MB/s]
 100%|██████████| 57.1M/57.1M [00:00<00:00, 134MB/s]
 //Log Max memory for Large1: 6030352384.0 //end
@@ -610,7 +610,7 @@ To: /tmp/ray/session_2025-05-14_20-44-36_016650_1/runtime_resources/working_dir_
 
   0%|          | 0.00/43.9M [00:00<?, ?B/s]
  21%|██▏       | 9.44M/43.9M [00:00<00:00, 92.7MB/s]
- 70%|███████   | 30.9M/43.9M [00:00<00:00, 160MB/s] 
+ 70%|███████   | 30.9M/43.9M [00:00<00:00, 160MB/s]
 100%|██████████| 43.9M/43.9M [00:00<00:00, 166MB/s]
 Downloaded data_ID to data/LPDataset/data_ID.txt
 Downloading data_TR from https://drive.google.com/uc?id=1Tz2ckCrEHy0wn075JRYtKE9MNIyd6nTx...
@@ -631,7 +631,7 @@ To: /tmp/ray/session_2025-05-14_20-44-36_016650_1/runtime_resources/working_dir_
 
   0%|          | 0.00/28.7M [00:00<?, ?B/s]
  16%|█▋        | 4.72M/28.7M [00:00<00:00, 46.6MB/s]
- 73%|███████▎  | 21.0M/28.7M [00:00<00:00, 114MB/s] 
+ 73%|███████▎  | 21.0M/28.7M [00:00<00:00, 114MB/s]
 100%|██████████| 28.7M/28.7M [00:00<00:00, 111MB/s]
 Downloaded data_JP to data/LPDataset/data_JP.txt
 gpu not detected
@@ -658,14 +658,14 @@ Pretrain start time recorded.
 [36m(Trainer pid=70209, ip=192.168.42.57)[0m Downloading...
 [36m(Trainer pid=70209, ip=192.168.42.57)[0m From: https://drive.google.com/uc?id=1Tz2ckCrEHy0wn075JRYtKE9MNIyd6nTx
 [36m(Trainer pid=70209, ip=192.168.42.57)[0m To: /tmp/ray/session_2025-05-14_20-44-36_016650_1/runtime_resources/working_dir_files/_ray_pkg_f82b624e2786f519/data/LPDataset/data_TR.txt
-[36m(Trainer pid=70209, ip=192.168.42.57)[0m 
+[36m(Trainer pid=70209, ip=192.168.42.57)[0m
   0%|          | 0.00/30.0M [00:00<?, ?B/s]
-[36m(Trainer pid=70209, ip=192.168.42.57)[0m 
+[36m(Trainer pid=70209, ip=192.168.42.57)[0m
  35%|███▍      | 10.5M/30.0M [00:00<00:00, 101MB/s]
 [36m(Trainer pid=70209, ip=192.168.42.57)[0m Downloaded data_TR to data/LPDataset/data_TR.txt
 [36m(Trainer pid=70209, ip=192.168.42.57)[0m printing in getdata, path: data/LPDataset
 [36m(Trainer pid=70209, ip=192.168.42.57)[0m Loading data in data/LPDataset/data_TR.txt
-[36m(Trainer pid=70209, ip=192.168.42.57)[0m 
+[36m(Trainer pid=70209, ip=192.168.42.57)[0m
 100%|██████████| 30.0M/30.0M [00:00<00:00, 167MB/s]
 [36m(Trainer pid=70065, ip=192.168.39.156)[0m Downloaded data_ID to data/LPDataset/data_ID.txt
 [36m(Trainer pid=70065, ip=192.168.39.156)[0m Loading data in data/LPDataset/data_ID.txt
@@ -678,23 +678,23 @@ Pretrain start time recorded.
 [36m(Trainer pid=74113, ip=192.168.14.62)[0m Downloading...[32m [repeated 6x across cluster][0m
 [36m(Trainer pid=70215, ip=192.168.14.54)[0m From: https://drive.google.com/uc?id=1tg69D1-NSTrKvaAGZELBeECsPh6MAnaS[32m [repeated 4x across cluster][0m
 [36m(Trainer pid=74113, ip=192.168.14.62)[0m To: /tmp/ray/session_2025-05-14_20-44-36_016650_1/runtime_resources/working_dir_files/_ray_pkg_f82b624e2786f519/data/LPDataset/data_global.txt[32m [repeated 6x across cluster][0m
-[36m(Trainer pid=74113, ip=192.168.14.62)[0m 
+[36m(Trainer pid=74113, ip=192.168.14.62)[0m
   0%|          | 0.00/278M [00:00<?, ?B/s][32m [repeated 6x across cluster][0m
-[36m(Trainer pid=74108, ip=192.168.14.62)[0m 
+[36m(Trainer pid=74108, ip=192.168.14.62)[0m
  63%|██████▎   | 175M/278M [00:00<00:00, 216MB/s][32m [repeated 18x across cluster][0m
-[36m(Trainer pid=70065, ip=192.168.39.156)[0m 
+[36m(Trainer pid=70065, ip=192.168.39.156)[0m
 100%|██████████| 43.9M/43.9M [00:00<00:00, 165MB/s]
 [36m(Trainer pid=70209, ip=192.168.42.57)[0m Device: 'cpu'
 [36m(Trainer pid=70209, ip=192.168.42.57)[0m [Debug] Trainer running on node IP: 192.168.42.57
 [36m(Trainer pid=74113, ip=192.168.14.62)[0m Downloading traveled_users from https://drive.google.com/uc?id=1RUsyGrsz4hmY3OA3b-oqyh5yqlks02-p...
 [36m(Trainer pid=70215, ip=192.168.14.54)[0m printing in getdata, path: data/LPDataset[32m [repeated 2x across cluster][0m
-[36m(Trainer pid=74108, ip=192.168.14.62)[0m 
+[36m(Trainer pid=74108, ip=192.168.14.62)[0m
  94%|█████████▎| 261M/278M [00:01<00:00, 202MB/s]
 [36m(Trainer pid=74108, ip=192.168.14.62)[0m Downloaded data_global to data/LPDataset/data_global.txt
 [36m(Trainer pid=74108, ip=192.168.14.62)[0m Downloading data_US from https://drive.google.com/uc?id=1g3nH-UovAFwj4wKLTr4rBP18hlBtVJLd...
 [36m(Trainer pid=74113, ip=192.168.14.62)[0m Downloaded traveled_users to data/LPDataset/traveled_users.txt
 [36m(Trainer pid=74113, ip=192.168.14.62)[0m Downloading data_global from https://drive.google.com/uc?id=1CnBlVXqCbfjSswagTci5D7nAqO7laU_J...
-[36m(Trainer pid=74108, ip=192.168.14.62)[0m 
+[36m(Trainer pid=74108, ip=192.168.14.62)[0m
 100%|██████████| 278M/278M [00:01<00:00, 206MB/s]
 [36m(Trainer pid=70209, ip=192.168.42.57)[0m /usr/local/lib/python3.11/site-packages/torch/storage.py:414: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
 [36m(Trainer pid=70209, ip=192.168.42.57)[0m   return torch.load(io.BytesIO(b))
@@ -708,13 +708,13 @@ Pretrain start time recorded.
 [36m(Trainer pid=74108, ip=192.168.14.62)[0m Downloading...[32m [repeated 2x across cluster][0m
 [36m(Trainer pid=74113, ip=192.168.14.62)[0m From: https://drive.google.com/uc?id=1IPBW4dRYk52x8TahfBqFOh3GdxoYafJ2
 [36m(Trainer pid=74108, ip=192.168.14.62)[0m To: /tmp/ray/session_2025-05-14_20-44-36_016650_1/runtime_resources/working_dir_files/_ray_pkg_f82b624e2786f519/data/LPDataset/data_US.txt[32m [repeated 2x across cluster][0m
-[36m(Trainer pid=74108, ip=192.168.14.62)[0m 
+[36m(Trainer pid=74108, ip=192.168.14.62)[0m
   0%|          | 0.00/118M [00:00<?, ?B/s][32m [repeated 2x across cluster][0m
-[36m(Trainer pid=74108, ip=192.168.14.62)[0m 
+[36m(Trainer pid=74108, ip=192.168.14.62)[0m
  90%|█████████ | 107M/118M [00:00<00:00, 197MB/s] [32m [repeated 18x across cluster][0m
 [36m(Trainer pid=74108, ip=192.168.14.62)[0m Downloaded data_US to data/LPDataset/data_US.txt
 [36m(Trainer pid=74108, ip=192.168.14.62)[0m Loading data in data/LPDataset/data_US.txt
-[36m(Trainer pid=74108, ip=192.168.14.62)[0m 
+[36m(Trainer pid=74108, ip=192.168.14.62)[0m
 100%|██████████| 118M/118M [00:00<00:00, 169MB/s][32m [repeated 5x across cluster][0m
 [36m(Trainer pid=74113, ip=192.168.14.62)[0m Device: 'cpu'[32m [repeated 3x across cluster][0m
 [36m(Trainer pid=74113, ip=192.168.14.62)[0m [Debug] Trainer running on node IP: 192.168.14.62[32m [repeated 3x across cluster][0m

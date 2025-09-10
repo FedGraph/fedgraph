@@ -9,7 +9,8 @@ import sys
 import time
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
+
 import attridict
 import numpy as np
 import pandas as pd
@@ -31,8 +32,10 @@ from fedgraph.utils_lp import (
     to_next_day,
 )
 from fedgraph.utils_nc import get_1hop_feature_sum, save_all_trainers_data
+
 try:
     from .differential_privacy import Server_DP, Trainer_General_DP
+
     DP_AVAILABLE = True
     print("✓ Differential Privacy support loaded")
 except ImportError:
@@ -40,9 +43,12 @@ except ImportError:
     print("⚠️ Differential Privacy not available")
 try:
     from .low_rank import Server_LowRank, Trainer_General_LowRank
+
     LOWRANK_AVAILABLE = True
 except ImportError:
     LOWRANK_AVAILABLE = False
+
+
 def run_fedgraph(args: attridict) -> None:
     """
     Run the training process for the specified task.
@@ -59,73 +65,87 @@ def run_fedgraph(args: attridict) -> None:
     data: Any
         Input data for the federated learning task. Format depends on the specific task and
         will be explained in more detail below inside specific functions.
-    """ # Validate configuration for low-rank compression
-    if hasattr(args, 'use_lowrank') and args.use_lowrank:
+    """  # Validate configuration for low-rank compression
+    if hasattr(args, "use_lowrank") and args.use_lowrank:
         if args.fedgraph_task != "NC":
-            raise ValueError("Low-rank compression currently only supported for NC tasks")
+            raise ValueError(
+                "Low-rank compression currently only supported for NC tasks"
+            )
         if args.method != "FedAvg":
-            raise ValueError("Low-rank compression currently only supported for FedAvg method")
+            raise ValueError(
+                "Low-rank compression currently only supported for FedAvg method"
+            )
         if args.use_encryption:
-            raise ValueError("Cannot use both encryption and low-rank compression simultaneously")
-    
+            raise ValueError(
+                "Cannot use both encryption and low-rank compression simultaneously"
+            )
+
     # Load data
     if args.fedgraph_task != "NC" or not args.use_huggingface:
         data = data_loader(args)
     else:
         data = None
-    
+
     if args.fedgraph_task == "NC":
-        if hasattr(args, 'use_lowrank') and args.use_lowrank:
+        if hasattr(args, "use_lowrank") and args.use_lowrank:
             run_NC_lowrank(args, data)
         else:
-            run_NC(args, data)  
+            run_NC(args, data)
     elif args.fedgraph_task == "GC":
         run_GC(args, data)
     elif args.fedgraph_task == "LP":
         run_LP(args)
-        
+
+
 def run_fedgraph_enhanced(args: attridict) -> None:
     """
     Enhanced run function with support for HE, DP, and Low-Rank compression.
     """
     # Validate mutually exclusive privacy options
     privacy_options = [
-        getattr(args, 'use_encryption', False),
-        getattr(args, 'use_dp', False),
-        getattr(args, 'use_lowrank', False)
+        getattr(args, "use_encryption", False),
+        getattr(args, "use_dp", False),
+        getattr(args, "use_lowrank", False),
     ]
-    
+
     privacy_count = sum(privacy_options)
     if privacy_count > 1:
         privacy_names = []
-        if getattr(args, 'use_encryption', False): privacy_names.append("Homomorphic Encryption")
-        if getattr(args, 'use_dp', False): privacy_names.append("Differential Privacy")  
-        if getattr(args, 'use_lowrank', False): privacy_names.append("Low-Rank Compression")
-        
-        raise ValueError(f"Cannot use multiple privacy/compression methods simultaneously: {', '.join(privacy_names)}")
-    
+        if getattr(args, "use_encryption", False):
+            privacy_names.append("Homomorphic Encryption")
+        if getattr(args, "use_dp", False):
+            privacy_names.append("Differential Privacy")
+        if getattr(args, "use_lowrank", False):
+            privacy_names.append("Low-Rank Compression")
+
+        raise ValueError(
+            f"Cannot use multiple privacy/compression methods simultaneously: {', '.join(privacy_names)}"
+        )
+
     # Print selected method
-    if getattr(args, 'use_encryption', False):
+    if getattr(args, "use_encryption", False):
         print("=== Using Homomorphic Encryption ===")
-    elif getattr(args, 'use_dp', False):
+    elif getattr(args, "use_dp", False):
         print("=== Using Differential Privacy ===")
-        print(f"DP parameters: ε={getattr(args, 'dp_epsilon', 1.0)}, δ={getattr(args, 'dp_delta', 1e-5)}")
-    elif getattr(args, 'use_lowrank', False):
+        print(
+            f"DP parameters: ε={getattr(args, 'dp_epsilon', 1.0)}, δ={getattr(args, 'dp_delta', 1e-5)}"
+        )
+    elif getattr(args, "use_lowrank", False):
         print("=== Using Low-Rank Compression ===")
     else:
         print("=== Using Standard FedGraph ===")
-    
+
     # Load data
     if args.fedgraph_task != "NC" or not args.use_huggingface:
         data = data_loader(args)
     else:
         data = None
-    
+
     # Route to appropriate implementation
     if args.fedgraph_task == "NC":
-        if getattr(args, 'use_dp', False):
+        if getattr(args, "use_dp", False):
             run_NC_dp(args, data)
-        elif getattr(args, 'use_lowrank', False):
+        elif getattr(args, "use_lowrank", False):
             run_NC_lowrank(args, data)
         else:
             run_NC(args, data)  # Original with HE support
@@ -133,7 +153,6 @@ def run_fedgraph_enhanced(args: attridict) -> None:
         run_GC(args, data)
     elif args.fedgraph_task == "LP":
         run_LP(args)
-
 
 
 def run_NC(args: attridict, data: Any = None) -> None:
@@ -440,43 +459,43 @@ def run_NC(args: attridict, data: Any = None) -> None:
     # The server start training of all trainers and aggregate the parameters
     # at every global round.
     training_start = time.time()
-    
+
     # Time tracking variables for pure training and communication
     total_pure_training_time = 0.0  # forward + gradient descent
     total_communication_time = 0.0  # parameter aggregation
-    
+
     print("global_rounds", args.global_rounds)
     global_acc_list = []
     for i in range(args.global_rounds):
         # Pure training phase - forward + gradient descent only
         pure_training_start = time.time()
-        
+
         # Execute only training (forward + gradient descent)
         train_refs = [trainer.train.remote(i) for trainer in server.trainers]
         ray.get(train_refs)
-        
+
         pure_training_end = time.time()
         round_training_time = pure_training_end - pure_training_start
         total_pure_training_time += round_training_time
-        
+
         # Communication phase - parameter aggregation and broadcast
         comm_start = time.time()
-        
+
         if args.use_encryption:
             # Encrypted parameter aggregation
             encrypted_params = [
                 trainer.get_encrypted_params.remote() for trainer in server.trainers
             ]
             params_list = ray.get(encrypted_params)
-            
+
             # Server-side aggregation
-            aggregated_params, metadata, _ = server.aggregate_encrypted_params(params_list)
-            
+            aggregated_params, metadata, _ = server.aggregate_encrypted_params(
+                params_list
+            )
+
             # Distribute aggregated parameters
             decrypt_refs = [
-                trainer.load_encrypted_params.remote(
-                    (aggregated_params, metadata), i
-                )
+                trainer.load_encrypted_params.remote((aggregated_params, metadata), i)
                 for trainer in server.trainers
             ]
             ray.get(decrypt_refs)
@@ -485,21 +504,21 @@ def run_NC(args: attridict, data: Any = None) -> None:
             # Get parameters from all trainers
             params_refs = [trainer.get_params.remote() for trainer in server.trainers]
             param_results = ray.get(params_refs)
-            
+
             # Aggregate parameters on server - avoid in-place operations
             server.zero_params()
-            
+
             # Move model to CPU for aggregation
             server.model = server.model.to("cpu")
-            
+
             # Aggregate parameters safely
             for param_result in param_results:
                 for p, mp in zip(param_result, server.model.parameters()):
                     mp.data = mp.data + p.cpu()
-            
+
             # Move back to device and average
             server.model = server.model.to(server.device)
-            
+
             # Average the parameters
             with torch.no_grad():
                 for p in server.model.parameters():
@@ -507,7 +526,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
 
             # Broadcast updated parameters to all trainers
             server.broadcast_params(i)
-        
+
         comm_end = time.time()
         round_comm_time = comm_end - comm_start
         total_communication_time += round_comm_time
@@ -521,7 +540,9 @@ def run_NC(args: attridict, data: Any = None) -> None:
         global_acc_list.append(average_test_accuracy)
 
         print(f"Round {i+1}: Global Test Accuracy = {average_test_accuracy:.4f}")
-        print(f"Round {i+1}: Training Time = {round_training_time:.2f}s, Communication Time = {round_comm_time:.2f}s")
+        print(
+            f"Round {i+1}: Training Time = {round_training_time:.2f}s, Communication Time = {round_comm_time:.2f}s"
+        )
 
         model_size_mb = server.get_model_size() / (1024 * 1024)
         monitor.add_train_comm_cost(
@@ -535,13 +556,23 @@ def run_NC(args: attridict, data: Any = None) -> None:
     print(f"\n{'='*80}")
     print("TIME BREAKDOWN (excluding initialization)")
     print(f"{'='*80}")
-    print(f"Total Pure Training Time (forward + gradient descent): {total_pure_training_time:.2f} seconds")
-    print(f"Total Communication Time (parameter aggregation): {total_communication_time:.2f} seconds")
+    print(
+        f"Total Pure Training Time (forward + gradient descent): {total_pure_training_time:.2f} seconds"
+    )
+    print(
+        f"Total Communication Time (parameter aggregation): {total_communication_time:.2f} seconds"
+    )
     print(f"Total Training + Communication Time: {total_time:.2f} seconds")
     print(f"Training Time Percentage: {(total_pure_training_time/total_time)*100:.1f}%")
-    print(f"Communication Time Percentage: {(total_communication_time/total_time)*100:.1f}%")
-    print(f"Average Training Time per Round: {total_pure_training_time/args.global_rounds:.2f} seconds")
-    print(f"Average Communication Time per Round: {total_communication_time/args.global_rounds:.2f} seconds")
+    print(
+        f"Communication Time Percentage: {(total_communication_time/total_time)*100:.1f}%"
+    )
+    print(
+        f"Average Training Time per Round: {total_pure_training_time/args.global_rounds:.2f} seconds"
+    )
+    print(
+        f"Average Communication Time per Round: {total_communication_time/args.global_rounds:.2f} seconds"
+    )
     print(f"{'='*80}")
 
     # Print for plotting use - now shows pure training time
@@ -549,7 +580,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
         f"[Pure Training Time] Dataset: {args.dataset}, Batch Size: {args.batch_size}, Trainers: {args.n_trainer}, "
         f"Hops: {args.num_hops}, IID Beta: {args.iid_beta} => Pure Training Time = {total_pure_training_time:.2f} seconds"
     )
-    
+
     print(
         f"[Communication Time] Dataset: {args.dataset}, Batch Size: {args.batch_size}, Trainers: {args.n_trainer}, "
         f"Hops: {args.num_hops}, IID Beta: {args.iid_beta} => Communication Time = {total_communication_time:.2f} seconds"
@@ -575,7 +606,9 @@ def run_NC(args: attridict, data: Any = None) -> None:
             download_mb=training_download,
         )
         print("\nTraining Phase Metrics:")
-        print(f"Total Training Time: {total_pure_training_time:.2f} seconds")  # Use pure training time
+        print(
+            f"Total Training Time: {total_pure_training_time:.2f} seconds"
+        )  # Use pure training time
         print(f"Training Upload: {training_upload:.2f} MB")
         print(f"Training Download: {training_download:.2f} MB")
         print(f"Total Training Communication Cost: {training_comm_cost:.2f} MB")
@@ -593,7 +626,9 @@ def run_NC(args: attridict, data: Any = None) -> None:
         print(f"Total Communication Cost: {total_comm_cost:.2f} MB")
         print(f"Pre-training Time %: {(pretrain_time/total_exec_time)*100:.1f}%")
         print(f"Training Time %: {(total_pure_training_time/total_exec_time)*100:.1f}%")
-        print(f"Communication Time %: {(total_communication_time/total_exec_time)*100:.1f}%")
+        print(
+            f"Communication Time %: {(total_communication_time/total_exec_time)*100:.1f}%"
+        )
     #######################################################################
     # Summarize Experiment Results
     # ----------------------------
@@ -774,16 +809,23 @@ def run_NC_dp(args: attridict, data: Any = None) -> None:
     torch.manual_seed(42)
     pretrain_upload: float = 0.0
     pretrain_download: float = 0.0
-    
+
     if args.num_hops == 0:
         print("Changing method to FedAvg")
         args.method = "FedAvg"
-    
+
     if not args.use_huggingface:
         (
-            edge_index, features, labels, idx_train, idx_test, class_num,
-            split_node_indexes, communicate_node_global_indexes,
-            in_com_train_node_local_indexes, in_com_test_node_local_indexes,
+            edge_index,
+            features,
+            labels,
+            idx_train,
+            idx_test,
+            class_num,
+            split_node_indexes,
+            communicate_node_global_indexes,
+            in_com_train_node_local_indexes,
+            in_com_test_node_local_indexes,
             global_edge_indexes_clients,
         ) = data
 
@@ -814,14 +856,20 @@ def run_NC_dp(args: attridict, data: Any = None) -> None:
     if args.use_huggingface:
         trainers = [
             Trainer.remote(
-                rank=i, args_hidden=args_hidden, device=device, args=args,
+                rank=i,
+                args_hidden=args_hidden,
+                device=device,
+                args=args,
             )
             for i in range(args.n_trainer)
         ]
     else:
         trainers = [
             Trainer.remote(
-                rank=i, args_hidden=args_hidden, device=device, args=args,
+                rank=i,
+                args_hidden=args_hidden,
+                device=device,
+                args=args,
                 local_node_index=split_node_indexes[i],
                 communicate_node_index=communicate_node_global_indexes[i],
                 adj=global_edge_indexes_clients[i],
@@ -856,57 +904,65 @@ def run_NC_dp(args: attridict, data: Any = None) -> None:
         info["communicate_node_global_index"] for info in trainer_information
     ]
 
-    ray.get([
-        trainers[i].init_model.remote(global_node_num, class_num)
-        for i in range(len(trainers))
-    ])
+    ray.get(
+        [
+            trainers[i].init_model.remote(global_node_num, class_num)
+            for i in range(len(trainers))
+        ]
+    )
 
     # Create DP-enhanced server
-    server = Server_DP(features.shape[1], args_hidden, class_num, device, trainers, args)
+    server = Server_DP(
+        features.shape[1], args_hidden, class_num, device, trainers, args
+    )
     server.broadcast_params(-1)
     monitor.init_time_end()
 
     # DP-enhanced pre-training
     pretrain_start = time.time()
     monitor.pretrain_time_start()
-    
+
     if args.method != "FedAvg":
         print("Starting DP-enhanced feature aggregation...")
-        
+
         # Get local feature sums with DP preprocessing
         local_feature_data = [
             trainer.get_dp_local_feature_sum.remote() for trainer in server.trainers
         ]
-        
+
         results = ray.get(local_feature_data)
         local_feature_sums = [r[0] for r in results]  # Extract tensors
-        computation_stats = [r[1] for r in results]   # Extract stats
-        
+        computation_stats = [r[1] for r in results]  # Extract stats
+
         # Calculate upload sizes
         upload_sizes = [
-            local_sum.element_size() * local_sum.nelement() 
+            local_sum.element_size() * local_sum.nelement()
             for local_sum in local_feature_sums
         ]
         pretrain_upload = sum(upload_sizes) / (1024 * 1024)  # MB
-        
+
         # DP aggregation at server
-        global_feature_sum, dp_stats = server.aggregate_dp_feature_sums(local_feature_sums)
-        
+        global_feature_sum, dp_stats = server.aggregate_dp_feature_sums(
+            local_feature_sums
+        )
+
         # Print DP statistics
         server.print_dp_stats(dp_stats)
-        
+
         # Distribute back to trainers
         download_sizes = []
         for i in range(args.n_trainer):
-            communicate_nodes = communicate_node_global_indexes[i].clone().detach().to(device)
+            communicate_nodes = (
+                communicate_node_global_indexes[i].clone().detach().to(device)
+            )
             trainer_aggregation = global_feature_sum[communicate_nodes]
             download_sizes.append(
                 trainer_aggregation.element_size() * trainer_aggregation.nelement()
             )
             server.trainers[i].load_feature_aggregation.remote(trainer_aggregation)
-        
+
         pretrain_download = sum(download_sizes) / (1024 * 1024)  # MB
-        
+
         [trainer.relabel_adj.remote() for trainer in server.trainers]
 
     monitor.pretrain_time_end()
@@ -918,7 +974,7 @@ def run_NC_dp(args: attridict, data: Any = None) -> None:
     # Regular training phase (same as original)
     monitor.train_time_start()
     print("Starting federated training with DP-enhanced pre-training...")
-    
+
     global_acc_list = []
     for i in range(args.global_rounds):
         server.train(i)
@@ -950,53 +1006,64 @@ def run_NC_dp(args: attridict, data: Any = None) -> None:
     average_final_test_accuracy = np.average(
         [row[1] for row in results], weights=test_data_weights, axis=0
     )
-    
+
     print(f"Final test loss: {average_final_test_loss:.4f}")
     print(f"Final test accuracy: {average_final_test_accuracy:.4f}")
-    
+
     # Print final privacy budget
     if args.use_dp:
         server.privacy_accountant.print_privacy_budget()
-    
+
     if monitor is not None:
         monitor.print_comm_cost()
-    
+
     ray.shutdown()
-    
+
+
 def run_NC_lowrank(args: attridict, data: Any = None) -> None:
-    
     if not LOWRANK_AVAILABLE:
-        raise ImportError("Low-rank compression modules not available. Please implement the low-rank functionality in fedgraph.low_rank")
-    
+        raise ImportError(
+            "Low-rank compression modules not available. Please implement the low-rank functionality in fedgraph.low_rank"
+        )
+
     print("=== Running NC with Low-Rank Compression ===")
     print(f"Low-rank method: {getattr(args, 'lowrank_method', 'fixed')}")
-    if hasattr(args, 'lowrank_method'):
-        if args.lowrank_method == 'fixed':
+    if hasattr(args, "lowrank_method"):
+        if args.lowrank_method == "fixed":
             print(f"Fixed rank: {getattr(args, 'fixed_rank', 10)}")
-        elif args.lowrank_method == 'adaptive':
-            print(f"Target compression ratio: {getattr(args, 'compression_ratio', 2.0)}")
-        elif args.lowrank_method == 'energy':
+        elif args.lowrank_method == "adaptive":
+            print(
+                f"Target compression ratio: {getattr(args, 'compression_ratio', 2.0)}"
+            )
+        elif args.lowrank_method == "energy":
             print(f"Energy threshold: {getattr(args, 'energy_threshold', 0.95)}")
-    
+
     monitor = Monitor(use_cluster=args.use_cluster)
     monitor.init_time_start()
 
     ray.init()
     start_time = time.time()
     torch.manual_seed(42)
-    
+
     if args.num_hops == 0:
         print("Changing method to FedAvg")
         args.method = "FedAvg"
 
     if not args.use_huggingface:
         (
-            edge_index, features, labels, idx_train, idx_test, class_num,
-            split_node_indexes, communicate_node_global_indexes,
-            in_com_train_node_local_indexes, in_com_test_node_local_indexes,
+            edge_index,
+            features,
+            labels,
+            idx_train,
+            idx_test,
+            class_num,
+            split_node_indexes,
+            communicate_node_global_indexes,
+            in_com_train_node_local_indexes,
+            in_com_test_node_local_indexes,
             global_edge_indexes_clients,
         ) = data
-        
+
         if args.saveto_huggingface:
             save_all_trainers_data(
                 split_node_indexes=split_node_indexes,
@@ -1025,7 +1092,6 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
         device = torch.device("cpu")
         num_gpus_per_trainer = 0
 
-  
     @ray.remote(
         num_gpus=num_gpus_per_trainer,
         num_cpus=num_cpus_per_trainer,
@@ -1039,14 +1105,20 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
     if args.use_huggingface:
         trainers = [
             Trainer.remote(
-                rank=i, args_hidden=args_hidden, device=device, args=args,
+                rank=i,
+                args_hidden=args_hidden,
+                device=device,
+                args=args,
             )
             for i in range(args.n_trainer)
         ]
     else:
         trainers = [
             Trainer.remote(
-                rank=i, args_hidden=args_hidden, device=device, args=args,
+                rank=i,
+                args_hidden=args_hidden,
+                device=device,
+                args=args,
                 local_node_index=split_node_indexes[i],
                 communicate_node_index=communicate_node_global_indexes[i],
                 adj=global_edge_indexes_clients[i],
@@ -1078,11 +1150,13 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
         info["len_in_com_test_node_local_indexes"] for info in trainer_information
     ]
 
-    # Initialize models 
-    ray.get([
-        trainers[i].init_model.remote(global_node_num, class_num)
-        for i in range(len(trainers))
-    ])
+    # Initialize models
+    ray.get(
+        [
+            trainers[i].init_model.remote(global_node_num, class_num)
+            for i in range(len(trainers))
+        ]
+    )
 
     server = Server_LowRank(
         features.shape[1], args_hidden, class_num, device, trainers, args
@@ -1091,18 +1165,15 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
     server.broadcast_params(-1)
     monitor.init_time_end()
 
-
     monitor.pretrain_time_start()
 
     monitor.pretrain_time_end()
 
-  
     monitor.train_time_start()
     print("Starting federated training with low-rank compression...")
-    
+
     global_acc_list = []
     for i in range(args.global_rounds):
-   
         server.train(i)
 
         # Evaluation
@@ -1121,13 +1192,13 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
             upload_mb=model_size_mb * args.n_trainer,
             download_mb=model_size_mb * args.n_trainer,
         )
-        
-        if (i + 1) % 10 == 0 and hasattr(server, 'print_compression_stats'):
+
+        if (i + 1) % 10 == 0 and hasattr(server, "print_compression_stats"):
             server.print_compression_stats()
 
     monitor.train_time_end()
 
-    # Final evaluation 
+    # Final evaluation
     results = [trainer.local_test.remote() for trainer in server.trainers]
     results = np.array([ray.get(result) for result in results])
 
@@ -1137,19 +1208,20 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
     average_final_test_accuracy = np.average(
         [row[1] for row in results], weights=test_data_weights, axis=0
     )
-    
+
     print(f"Final test loss: {average_final_test_loss:.4f}")
     print(f"Final test accuracy: {average_final_test_accuracy:.4f}")
-    
+
     # Print final compression statistics
-    if hasattr(server, 'print_compression_stats'):
+    if hasattr(server, "print_compression_stats"):
         server.print_compression_stats()
-    
+
     if monitor is not None:
         monitor.print_comm_cost()
-    
+
     ray.shutdown()
-    
+
+
 def run_GC(args: attridict, data: Any) -> None:
     """
     Entrance of the training process for graph classification.
@@ -1609,7 +1681,9 @@ def run_GCFL_algorithm(
     trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
 
     # Initialize clustering statistics tracking
-    clustering_stats = {
+    from typing import Dict, List, Union
+
+    clustering_stats: Dict[str, Any] = {
         "total_clustering_events": 0,
         "similarity_computations": 0,
         "dtw_computations": 0,
@@ -1620,7 +1694,9 @@ def run_GCFL_algorithm(
 
     global_params_id = ray.put(server.W)
     if algorithm_type in ["gcfl_plus", "gcfl_plus_dWs"]:
-        seqs_grads: Any = {ray.get(c.get_id.remote()): [] for c in trainers}
+        seqs_grads: Dict[int, List[Any]] = {
+            ray.get(c.get_id.remote()): [] for c in trainers
+        }
 
         # Perform update_params before communication rounds for GCFL+ and GCFL+ dWs
 
@@ -1692,14 +1768,18 @@ def run_GCFL_algorithm(
             if mean_norm < EPS_1 and max_norm > EPS_2 and len(idc) > 2 and c_round > 20:
                 # Record that clustering occurred in this round
                 round_clustering_occurred = True
-                clustering_stats["total_clustering_events"] += 1
+                clustering_stats["total_clustering_events"] = (
+                    clustering_stats.get("total_clustering_events", 0) + 1
+                )
 
                 # marginal condition for gcfl, gcfl+, gcfl+dws
                 if algorithm_type == "gcfl" or all(
                     len(value) >= seq_length for value in seqs_grads.values()
                 ):
                     # Record model cache operation
-                    clustering_stats["model_cache_operations"] += 1
+                    clustering_stats["model_cache_operations"] = (
+                        clustering_stats.get("model_cache_operations", 0) + 1
+                    )
 
                     # Cache model - full weight data uses actual model size
                     full_weight = ray.get(trainers[idc[0]].get_total_weight.remote())
@@ -1708,7 +1788,9 @@ def run_GCFL_algorithm(
 
                     if algorithm_type == "gcfl":
                         # Record similarity computation
-                        clustering_stats["similarity_computations"] += 1
+                        clustering_stats["similarity_computations"] = (
+                            clustering_stats.get("similarity_computations", 0) + 1
+                        )
 
                         # Similarity computation - requires gradients from all trainers
                         similarity_matrix = server.compute_pairwise_similarities(
@@ -1722,7 +1804,9 @@ def run_GCFL_algorithm(
 
                     else:  # gcfl+, gcfl+dws
                         # Record DTW computation
-                        clustering_stats["dtw_computations"] += 1
+                        clustering_stats["dtw_computations"] = (
+                            clustering_stats.get("dtw_computations", 0) + 1
+                        )
 
                         # Sequence data: seq_length scalars per trainer
                         seq_data_size_bytes = (
@@ -1746,8 +1830,10 @@ def run_GCFL_algorithm(
 
         # Record clustering statistics for this round
         if round_clustering_occurred:
-            clustering_stats["rounds_with_clustering"].append(c_round)
-        clustering_stats["cluster_sizes_per_round"].append(len(cluster_indices_new))
+            if isinstance(clustering_stats["rounds_with_clustering"], list):
+                clustering_stats["rounds_with_clustering"].append(c_round)
+        if isinstance(clustering_stats["cluster_sizes_per_round"], list):
+            clustering_stats["cluster_sizes_per_round"].append(len(cluster_indices_new))
 
         cluster_indices = cluster_indices_new
         trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
@@ -1836,7 +1922,7 @@ def run_GCFL_algorithm(
     return frame
 
 
-def run_LP(args: attridict) -> None:
+def run_LP(args: Any) -> None:
     """
     Implements various federated learning methods for link prediction tasks with support
     for online learning and buffer mechanisms. Handles temporal aspects of link prediction

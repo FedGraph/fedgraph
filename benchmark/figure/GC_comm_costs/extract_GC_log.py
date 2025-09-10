@@ -214,18 +214,18 @@ def generate_accuracy_comparison(df, output_file="gc_accuracy_comparison.pdf"):
             label=algo,
             color=actual_colors[i % len(actual_colors)],
         )
-    #plt.title("Accuracy Comparison", fontsize=30)
+    # plt.title("Accuracy Comparison", fontsize=30)
     plt.xlabel("Dataset", fontsize=30)
     plt.ylabel("Accuracy", fontsize=30)
     plt.xticks(x_positions, datasets, rotation=30, fontsize=20)
     plt.yticks(fontsize=30)
     plt.ylim(0, 1.0)
     plt.legend(
-        #title="Algorithms",
+        # title="Algorithms",
         loc="upper left",
         bbox_to_anchor=(1, 1),
         fontsize=22,
-        #title_fontsize=25,
+        # title_fontsize=25,
     )
     plt.grid(False)
     plt.tight_layout()
@@ -267,7 +267,9 @@ def generate_train_time_comparison(df, output_file="gc_train_time_comparison.pdf
         time_values = []
         for dataset in datasets:
             dataset_row = algo_data[algo_data["Dataset"] == dataset]
-            if not dataset_row.empty and not pd.isna(dataset_row["Train_Time_ms"].values[0]):
+            if not dataset_row.empty and not pd.isna(
+                dataset_row["Train_Time_ms"].values[0]
+            ):
                 time_values.append(dataset_row["Train_Time_ms"].values[0] / 1000.0)
             else:
                 time_values.append(0)
@@ -278,17 +280,17 @@ def generate_train_time_comparison(df, output_file="gc_train_time_comparison.pdf
             label=algo,
             color=actual_colors[i % len(actual_colors)],
         )
-    #plt.title("Training Time Comparison", fontsize=30)
+    # plt.title("Training Time Comparison", fontsize=30)
     plt.xlabel("Dataset", fontsize=30)
     plt.ylabel("Training Time (s)", fontsize=28)
     plt.xticks(x_positions, datasets, rotation=30, fontsize=20)
     plt.yticks(fontsize=28)
     plt.legend(
-        #title="Algorithms",
+        # title="Algorithms",
         loc="upper left",
         bbox_to_anchor=(1, 1),
         fontsize=22,
-        #title_fontsize=25,
+        # title_fontsize=25,
     )
     plt.grid(False)
     plt.tight_layout()
@@ -395,17 +397,17 @@ def generate_comm_cost_comparison(df, output_file="gc_comm_cost_comparison.pdf")
         current_pos += 1
 
     # Plot settings
-    #plt.title("Communication Cost Comparison", fontsize=30)
+    # plt.title("Communication Cost Comparison", fontsize=30)
     plt.xlabel("Dataset", fontsize=30)
     plt.ylabel("Communication Cost (MB)", fontsize=28)
     plt.xticks(x_positions, datasets, rotation=30, fontsize=20)
     plt.yticks(fontsize=28)
     plt.legend(
-        #title="Legend",
+        # title="Legend",
         loc="upper left",
         bbox_to_anchor=(1, 1),
         fontsize=18,
-        #title_fontsize=25,
+        # title_fontsize=25,
     )
     plt.grid(False)
     plt.tight_layout()

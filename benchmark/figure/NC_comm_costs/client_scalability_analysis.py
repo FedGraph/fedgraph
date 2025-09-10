@@ -31,16 +31,20 @@ def extract_nc_scalability_data(logfile, expected_trainers=None):
         parts = csv_line.strip().split(",")
         if len(parts) >= 12:
             try:
-                num_trainers = expected_trainers if expected_trainers else (
-                    int(trainer_matches[csv_idx])
-                    if csv_idx < len(trainer_matches)
-                    else 10
+                num_trainers = (
+                    expected_trainers
+                    if expected_trainers
+                    else (
+                        int(trainer_matches[csv_idx])
+                        if csv_idx < len(trainer_matches)
+                        else 10
+                    )
                 )
 
                 result = {
                     "Dataset": parts[0],
                     "IID_Beta": float(parts[1]),
-                    "Batch_Size": int(parts[2]) if parts[2] != '-1' else -1,
+                    "Batch_Size": int(parts[2]) if parts[2] != "-1" else -1,
                     "Total_Time": float(parts[3]),
                     "Training_Time": float(parts[4]),
                     "Communication_Time": float(parts[5]),
@@ -173,7 +177,7 @@ def create_scalability_plot(df):
 
 def main():
     df = load_all_nc_logs()
-    
+
     if not df.empty:
         create_scalability_plot(df)
 

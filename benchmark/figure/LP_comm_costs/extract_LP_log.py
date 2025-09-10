@@ -269,7 +269,7 @@ def generate_auc_comparison(df, output_file="lp_auc_comparison.pdf"):
         loc="upper left",
         bbox_to_anchor=(1, 1),
         fontsize=25,
-        #title_fontsize=25,
+        # title_fontsize=25,
     )
 
     # Remove grid lines
@@ -363,7 +363,7 @@ def generate_train_time_comparison(df, output_file="lp_train_time_comparison.pdf
         loc="upper left",
         bbox_to_anchor=(1, 1),
         fontsize=25,
-        #title_fontsize=25,
+        # title_fontsize=25,
     )
 
     # Remove grid lines
@@ -481,7 +481,7 @@ def generate_comm_cost_comparison(df, output_file="lp_comm_cost_comparison.pdf")
         loc="upper left",
         bbox_to_anchor=(1, 1),
         fontsize=18,
-        #title_fontsize=25,
+        # title_fontsize=25,
     )
 
     # Remove grid lines
