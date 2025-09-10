@@ -1,0 +1,29 @@
+
+DS,IID,BS,Time[s],FinalAcc[%],CompTime[s],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
+Running cora with β=10000.0
+Dataset: 2,708 nodes, 10,556 edges
+cora,10000.0,-1,10.2,80.20,10.2,1407.3,315.0,0.051,0.352,92231
+Running cora with β=100.0
+Dataset: 2,708 nodes, 10,556 edges
+cora,100.0,-1,10.4,78.90,10.4,1407.3,315.0,0.052,0.352,92231
+Running cora with β=10.0
+Dataset: 2,708 nodes, 10,556 edges
+cora,10.0,-1,9.8,78.70,9.8,1407.3,315.0,0.049,0.352,92231
+Running citeseer with β=10000.0
+Dataset: 3,327 nodes, 9,104 edges
+citeseer,10000.0,-1,13.8,63.40,13.8,3623.1,315.0,0.069,0.906,237446
+Running citeseer with β=100.0
+Dataset: 3,327 nodes, 9,104 edges
+citeseer,100.0,-1,14.2,61.40,14.2,3623.1,315.0,0.071,0.906,237446
+Running citeseer with β=10.0
+Dataset: 3,327 nodes, 9,104 edges
+citeseer,10.0,-1,15.2,66.00,15.2,3623.1,315.0,0.076,0.906,237446
+Running pubmed with β=10000.0
+Dataset: 19,717 nodes, 88,648 edges
+pubmed,10000.0,-1,9.2,71.90,9.2,492.2,315.0,0.046,0.123,32259
+Running pubmed with β=100.0
+Dataset: 19,717 nodes, 88,648 edges
+pubmed,100.0,-1,11.1,72.10,11.1,492.2,315.0,0.056,0.123,32259
+Running pubmed with β=10.0
+Dataset: 19,717 nodes, 88,648 edges
+pubmed,10.0,-1,10.7,74.80,10.7,492.2,315.0,0.054,0.123,32259

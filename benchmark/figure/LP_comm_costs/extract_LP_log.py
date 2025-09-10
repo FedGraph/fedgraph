@@ -258,18 +258,18 @@ def generate_auc_comparison(df, output_file="lp_auc_comparison.pdf"):
             ],  # Use color from specified palette
         )
 
-    plt.title("AUC Comparison", fontsize=30)
+    # Removed plot title
     plt.xlabel("Dataset (Countries)", fontsize=30)
     plt.ylabel("AUC", fontsize=30)
-    plt.xticks(x_positions, datasets, rotation=45, fontsize=30)
+    plt.xticks(x_positions, datasets, rotation=0, fontsize=30)
     plt.yticks(fontsize=30)
     plt.ylim(0, 1.0)
     plt.legend(
-        title="Algorithms",
+        # title="Algorithms",
         loc="upper left",
         bbox_to_anchor=(1, 1),
         fontsize=25,
-        title_fontsize=25,
+        # title_fontsize=25,
     )
 
     # Remove grid lines
@@ -337,7 +337,8 @@ def generate_train_time_comparison(df, output_file="lp_train_time_comparison.pdf
             if not dataset_row.empty and not pd.isna(
                 dataset_row["TrainTime"].values[0]
             ):
-                train_time_values.append(dataset_row["TrainTime"].values[0])
+                # Convert ms to s
+                train_time_values.append(dataset_row["TrainTime"].values[0] / 1000)
             else:
                 train_time_values.append(0)
 
@@ -352,18 +353,17 @@ def generate_train_time_comparison(df, output_file="lp_train_time_comparison.pdf
             ],  # Use color from specified palette
         )
 
-    # Set chart title and labels
-    plt.title("Train Time Comparison", fontsize=30)
+    # Removed plot title
     plt.xlabel("Dataset (Countries)", fontsize=30)
-    plt.ylabel("Train Time (ms)", fontsize=28)
-    plt.xticks(x_positions, datasets, rotation=45, fontsize=30)
+    plt.ylabel("Train Time (s)", fontsize=28)
+    plt.xticks(x_positions, datasets, rotation=0, fontsize=30)
     plt.yticks(fontsize=28)
     plt.legend(
-        title="Algorithms",
+        # title="Algorithms",
         loc="upper left",
         bbox_to_anchor=(1, 1),
         fontsize=25,
-        title_fontsize=25,
+        # title_fontsize=25,
     )
 
     # Remove grid lines
@@ -391,10 +391,14 @@ def generate_comm_cost_comparison(df, output_file="lp_comm_cost_comparison.pdf")
         subset=["Actual_Total_MB", "Theoretical_Total_MB"], how="all"
     )
 
+    # Convert MB to GB for plotting
+    df_filtered = df_filtered.copy()
+    df_filtered["Theoretical_Total_GB"] = df_filtered["Theoretical_Total_MB"] / 1024
+    df_filtered["Actual_Total_GB"] = df_filtered["Actual_Total_MB"] / 1024
     # Create a grouped DataFrame
     comparison_data = (
         df_filtered.groupby(["Dataset", "Algorithm"])
-        .agg({"Theoretical_Total_MB": "mean", "Actual_Total_MB": "mean"})
+        .agg({"Theoretical_Total_GB": "mean", "Actual_Total_GB": "mean"})
         .reset_index()
     )
 
@@ -425,14 +429,14 @@ def generate_comm_cost_comparison(df, output_file="lp_comm_cost_comparison.pdf")
     for i, algo in enumerate(algorithms):
         algo_data = comparison_data[comparison_data["Algorithm"] == algo]
 
-        # Actual values
+        # Actual values (in GB)
         actual_values = []
         for dataset in datasets:
             dataset_row = algo_data[algo_data["Dataset"] == dataset]
             if not dataset_row.empty and not pd.isna(
-                dataset_row["Actual_Total_MB"].values[0]
+                dataset_row["Actual_Total_GB"].values[0]
             ):
-                actual_values.append(dataset_row["Actual_Total_MB"].values[0])
+                actual_values.append(dataset_row["Actual_Total_GB"].values[0])
             else:
                 actual_values.append(0)
 
@@ -446,14 +450,14 @@ def generate_comm_cost_comparison(df, output_file="lp_comm_cost_comparison.pdf")
         )
         current_pos += 1
 
-        # Theoretical values
+        # Theoretical values (in GB)
         theoretical_values = []
         for dataset in datasets:
             dataset_row = algo_data[algo_data["Dataset"] == dataset]
             if not dataset_row.empty and not pd.isna(
-                dataset_row["Theoretical_Total_MB"].values[0]
+                dataset_row["Theoretical_Total_GB"].values[0]
             ):
-                theoretical_values.append(dataset_row["Theoretical_Total_MB"].values[0])
+                theoretical_values.append(dataset_row["Theoretical_Total_GB"].values[0])
             else:
                 theoretical_values.append(0)
 
@@ -467,18 +471,17 @@ def generate_comm_cost_comparison(df, output_file="lp_comm_cost_comparison.pdf")
         )
         current_pos += 1
 
-    # Set chart title and labels
-    plt.title("Communication Cost Comparison", fontsize=30)
+    # Removed plot title
     plt.xlabel("Dataset (Countries)", fontsize=30)
-    plt.ylabel("Communication Cost (MB)", fontsize=28)
-    plt.xticks(x_positions, datasets, rotation=45, fontsize=30)
+    plt.ylabel("Communication Cost (GB)", fontsize=28)
+    plt.xticks(x_positions, datasets, rotation=0, fontsize=30)
     plt.yticks(fontsize=28)
     plt.legend(
-        title="Algorithms",
+        # title="Algorithms",
         loc="upper left",
         bbox_to_anchor=(1, 1),
-        fontsize=22,
-        title_fontsize=25,
+        fontsize=18,
+        # title_fontsize=25,
     )
 
     # Remove grid lines

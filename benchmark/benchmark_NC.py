@@ -24,12 +24,13 @@ datasets = [
     "pubmed",
     "ogbn-arxiv",
 ]  # You can add more: ["cora", "citeseer", "ogbn-arxiv", "ogbn-products"]
-
+# datasets = ["ogbn-papers100M"]
 # Number of trainers to test
-n_trainers = [10]
+n_trainers = [15]
 
 # Number of hops for neighbor aggregation
-num_hops_list = [0, 1]
+# num_hops_list = [0, 1]
+num_hops_list = [0]
 
 # Distribution types for node partitioning
 distribution_list_ogbn = ["average"]
@@ -37,7 +38,8 @@ distribution_list_other = ["average"]
 # You can expand these: distribution_list_ogbn = ["average", "lognormal", "exponential", "powerlaw"]
 
 # IID Beta values to test (controls how IID the data distribution is)
-iid_betas = [10000.0, 100.0, 10.0]
+# iid_betas = [10000.0, 100.0, 10.0]
+iid_betas = [10.0]
 
 # Number of runs per configuration
 runs_per_config = 1
@@ -45,7 +47,7 @@ runs_per_config = 1
 # Define additional required parameters that might be missing from YAML
 required_params = {
     "fedgraph_task": "NC",
-    "num_cpus_per_trainer": 4,
+    "num_cpus_per_trainer": 3,
     "num_gpus_per_trainer": 1 if torch.cuda.is_available() else 0,
     "use_cluster": True,
     "global_rounds": 200,
@@ -120,6 +122,15 @@ for dataset in datasets:
 
                                 # Run the experiment
                                 run_fedgraph(config)
+                                print(
+                                    f"Experiment {i+1}/{runs_per_config} completed for:"
+                                )
+                                print(
+                                    f"  Dataset: {dataset}, Trainers: {n_trainer}, IID Beta: {iid_beta}"
+                                )
+                                print(
+                                    f"  Method: fedgcn if {num_hops} > 0 else FedAvg, Batch Size: {batch_size}"
+                                )
                             except Exception as e:
                                 print(f"Error running experiment: {e}")
                                 print(f"Configuration: {config}")

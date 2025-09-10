@@ -630,6 +630,7 @@ class GNN_LP(torch.nn.Module):
         # embedding matrices for users and items:
         self.user_emb = torch.nn.Embedding(user_nums, hidden_channels)
         self.item_emb = torch.nn.Embedding(item_nums, hidden_channels)
+        self.hidden_channels = hidden_channels
         # Instantiate homogeneous GNN:
         self.gnn = GNN_base(hidden_channels)
         # Convert GNN model into a heterogeneous variant:

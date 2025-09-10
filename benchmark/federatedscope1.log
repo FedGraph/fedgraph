@@ -1,0 +1,7 @@
+DS,IID,BS,Time[s],FinalAcc[%],CompTime[s],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
+Running cora with β=10000.0
+cora,10000.0,-1,31.0,81.90,31.0,1407.3,388.5,0.155,0.352,92231
+Running cora with β=100.0
+cora,100.0,-1,28.0,81.90,28.0,1407.3,388.5,0.140,0.352,92231
+Running cora with β=10.0
+cora,10.0,-1,27.8,81.90,27.8,1407.3,388.5,0.139,0.352,92231

@@ -9,7 +9,7 @@ import sys
 import time
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import attridict
 import numpy as np
@@ -33,6 +33,21 @@ from fedgraph.utils_lp import (
 )
 from fedgraph.utils_nc import get_1hop_feature_sum, save_all_trainers_data
 
+try:
+    from .differential_privacy import Server_DP, Trainer_General_DP
+
+    DP_AVAILABLE = True
+    print("✓ Differential Privacy support loaded")
+except ImportError:
+    DP_AVAILABLE = False
+    print("⚠️ Differential Privacy not available")
+try:
+    from .low_rank import Server_LowRank, Trainer_General_LowRank
+
+    LOWRANK_AVAILABLE = True
+except ImportError:
+    LOWRANK_AVAILABLE = False
+
 
 def run_fedgraph(args: attridict) -> None:
     """
@@ -50,15 +65,90 @@ def run_fedgraph(args: attridict) -> None:
     data: Any
         Input data for the federated learning task. Format depends on the specific task and
         will be explained in more detail below inside specific functions.
-    """
+    """  # Validate configuration for low-rank compression
+    if hasattr(args, "use_lowrank") and args.use_lowrank:
+        if args.fedgraph_task != "NC":
+            raise ValueError(
+                "Low-rank compression currently only supported for NC tasks"
+            )
+        if args.method != "FedAvg":
+            raise ValueError(
+                "Low-rank compression currently only supported for FedAvg method"
+            )
+        if args.use_encryption:
+            raise ValueError(
+                "Cannot use both encryption and low-rank compression simultaneously"
+            )
+
+    # Load data
     if args.fedgraph_task != "NC" or not args.use_huggingface:
         data = data_loader(args)
     else:
-        # use hugging_face instead of use data_loader
-        print("Using hugging_face for local loading")
         data = None
+
     if args.fedgraph_task == "NC":
-        run_NC(args, data)
+        if hasattr(args, "use_lowrank") and args.use_lowrank:
+            run_NC_lowrank(args, data)
+        else:
+            run_NC(args, data)
+    elif args.fedgraph_task == "GC":
+        run_GC(args, data)
+    elif args.fedgraph_task == "LP":
+        run_LP(args)
+
+
+def run_fedgraph_enhanced(args: attridict) -> None:
+    """
+    Enhanced run function with support for HE, DP, and Low-Rank compression.
+    """
+    # Validate mutually exclusive privacy options
+    privacy_options = [
+        getattr(args, "use_encryption", False),
+        getattr(args, "use_dp", False),
+        getattr(args, "use_lowrank", False),
+    ]
+
+    privacy_count = sum(privacy_options)
+    if privacy_count > 1:
+        privacy_names = []
+        if getattr(args, "use_encryption", False):
+            privacy_names.append("Homomorphic Encryption")
+        if getattr(args, "use_dp", False):
+            privacy_names.append("Differential Privacy")
+        if getattr(args, "use_lowrank", False):
+            privacy_names.append("Low-Rank Compression")
+
+        raise ValueError(
+            f"Cannot use multiple privacy/compression methods simultaneously: {', '.join(privacy_names)}"
+        )
+
+    # Print selected method
+    if getattr(args, "use_encryption", False):
+        print("=== Using Homomorphic Encryption ===")
+    elif getattr(args, "use_dp", False):
+        print("=== Using Differential Privacy ===")
+        print(
+            f"DP parameters: ε={getattr(args, 'dp_epsilon', 1.0)}, δ={getattr(args, 'dp_delta', 1e-5)}"
+        )
+    elif getattr(args, "use_lowrank", False):
+        print("=== Using Low-Rank Compression ===")
+    else:
+        print("=== Using Standard FedGraph ===")
+
+    # Load data
+    if args.fedgraph_task != "NC" or not args.use_huggingface:
+        data = data_loader(args)
+    else:
+        data = None
+
+    # Route to appropriate implementation
+    if args.fedgraph_task == "NC":
+        if getattr(args, "use_dp", False):
+            run_NC_dp(args, data)
+        elif getattr(args, "use_lowrank", False):
+            run_NC_lowrank(args, data)
+        else:
+            run_NC(args, data)  # Original with HE support
     elif args.fedgraph_task == "GC":
         run_GC(args, data)
     elif args.fedgraph_task == "LP":
@@ -161,6 +251,29 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 self.he_context = ts.context_from(context_bytes)
                 print(f"Trainer {self.rank} loaded HE context")
 
+        def get_memory_usage(self):
+            """Get current memory usage and local graph info"""
+            import psutil
+
+            process = psutil.Process()
+            memory_mb = process.memory_info().rss / (1024 * 1024)
+
+            num_nodes = (
+                len(self.local_node_index) if hasattr(self, "local_node_index") else 0
+            )
+            num_edges = (
+                self.adj.shape[1]
+                if hasattr(self, "adj") and len(self.adj.shape) > 1
+                else 0
+            )
+
+            return {
+                "trainer_id": getattr(self, "rank", "unknown"),
+                "memory_mb": memory_mb,
+                "num_nodes": num_nodes,
+                "num_edges": num_edges,
+            }
+
     if args.use_huggingface:
         trainers = [
             Trainer.remote(  # type: ignore
@@ -226,8 +339,12 @@ def run_NC(args: attridict, data: Any = None) -> None:
     # Server class is defined for federated aggregation (e.g., FedAvg)
     # without knowing the local trainer data
 
-    server = Server(features.shape[1], args_hidden, class_num, device, trainers, args)
-
+    if args.use_huggingface:
+        server = Server(feature_shape, args_hidden, class_num, device, trainers, args)
+    else:
+        server = Server(
+            features.shape[1], args_hidden, class_num, device, trainers, args
+        )
     # End initialization time tracking
     server.broadcast_params(-1)
     monitor.init_time_end()
@@ -342,11 +459,79 @@ def run_NC(args: attridict, data: Any = None) -> None:
     # The server start training of all trainers and aggregate the parameters
     # at every global round.
     training_start = time.time()
+
+    # Time tracking variables for pure training and communication
+    total_pure_training_time = 0.0  # forward + gradient descent
+    total_communication_time = 0.0  # parameter aggregation
+
     print("global_rounds", args.global_rounds)
     global_acc_list = []
     for i in range(args.global_rounds):
-        server.train(i)
+        # Pure training phase - forward + gradient descent only
+        pure_training_start = time.time()
 
+        # Execute only training (forward + gradient descent)
+        train_refs = [trainer.train.remote(i) for trainer in server.trainers]
+        ray.get(train_refs)
+
+        pure_training_end = time.time()
+        round_training_time = pure_training_end - pure_training_start
+        total_pure_training_time += round_training_time
+
+        # Communication phase - parameter aggregation and broadcast
+        comm_start = time.time()
+
+        if args.use_encryption:
+            # Encrypted parameter aggregation
+            encrypted_params = [
+                trainer.get_encrypted_params.remote() for trainer in server.trainers
+            ]
+            params_list = ray.get(encrypted_params)
+
+            # Server-side aggregation
+            aggregated_params, metadata, _ = server.aggregate_encrypted_params(
+                params_list
+            )
+
+            # Distribute aggregated parameters
+            decrypt_refs = [
+                trainer.load_encrypted_params.remote((aggregated_params, metadata), i)
+                for trainer in server.trainers
+            ]
+            ray.get(decrypt_refs)
+        else:
+            # Regular parameter aggregation
+            # Get parameters from all trainers
+            params_refs = [trainer.get_params.remote() for trainer in server.trainers]
+            param_results = ray.get(params_refs)
+
+            # Aggregate parameters on server - avoid in-place operations
+            server.zero_params()
+
+            # Move model to CPU for aggregation
+            server.model = server.model.to("cpu")
+
+            # Aggregate parameters safely
+            for param_result in param_results:
+                for p, mp in zip(param_result, server.model.parameters()):
+                    mp.data = mp.data + p.cpu()
+
+            # Move back to device and average
+            server.model = server.model.to(server.device)
+
+            # Average the parameters
+            with torch.no_grad():
+                for p in server.model.parameters():
+                    p.data = p.data / len(server.trainers)
+
+            # Broadcast updated parameters to all trainers
+            server.broadcast_params(i)
+
+        comm_end = time.time()
+        round_comm_time = comm_end - comm_start
+        total_communication_time += round_comm_time
+
+        # Testing phase (not counted in training or communication time)
         results = [trainer.local_test.remote() for trainer in server.trainers]
         results = np.array([ray.get(result) for result in results])
         average_test_accuracy = np.average(
@@ -355,6 +540,9 @@ def run_NC(args: attridict, data: Any = None) -> None:
         global_acc_list.append(average_test_accuracy)
 
         print(f"Round {i+1}: Global Test Accuracy = {average_test_accuracy:.4f}")
+        print(
+            f"Round {i+1}: Training Time = {round_training_time:.2f}s, Communication Time = {round_comm_time:.2f}s"
+        )
 
         model_size_mb = server.get_model_size() / (1024 * 1024)
         monitor.add_train_comm_cost(
@@ -362,7 +550,42 @@ def run_NC(args: attridict, data: Any = None) -> None:
             download_mb=model_size_mb * args.n_trainer,
         )
     monitor.train_time_end()
-    training_time = time.time() - training_start
+    total_time = time.time() - training_start
+
+    # Print time breakdown
+    print(f"\n{'='*80}")
+    print("TIME BREAKDOWN (excluding initialization)")
+    print(f"{'='*80}")
+    print(
+        f"Total Pure Training Time (forward + gradient descent): {total_pure_training_time:.2f} seconds"
+    )
+    print(
+        f"Total Communication Time (parameter aggregation): {total_communication_time:.2f} seconds"
+    )
+    print(f"Total Training + Communication Time: {total_time:.2f} seconds")
+    print(f"Training Time Percentage: {(total_pure_training_time/total_time)*100:.1f}%")
+    print(
+        f"Communication Time Percentage: {(total_communication_time/total_time)*100:.1f}%"
+    )
+    print(
+        f"Average Training Time per Round: {total_pure_training_time/args.global_rounds:.2f} seconds"
+    )
+    print(
+        f"Average Communication Time per Round: {total_communication_time/args.global_rounds:.2f} seconds"
+    )
+    print(f"{'='*80}")
+
+    # Print for plotting use - now shows pure training time
+    print(
+        f"[Pure Training Time] Dataset: {args.dataset}, Batch Size: {args.batch_size}, Trainers: {args.n_trainer}, "
+        f"Hops: {args.num_hops}, IID Beta: {args.iid_beta} => Pure Training Time = {total_pure_training_time:.2f} seconds"
+    )
+
+    print(
+        f"[Communication Time] Dataset: {args.dataset}, Batch Size: {args.batch_size}, Trainers: {args.n_trainer}, "
+        f"Hops: {args.num_hops}, IID Beta: {args.iid_beta} => Communication Time = {total_communication_time:.2f} seconds"
+    )
+
     if args.use_encryption:
         if hasattr(server, "aggregation_stats") and server.aggregation_stats:
             training_upload = sum(
@@ -383,26 +606,29 @@ def run_NC(args: attridict, data: Any = None) -> None:
             download_mb=training_download,
         )
         print("\nTraining Phase Metrics:")
-        print(f"Total Training Time: {training_time:.2f} seconds")
+        print(
+            f"Total Training Time: {total_pure_training_time:.2f} seconds"
+        )  # Use pure training time
         print(f"Training Upload: {training_upload:.2f} MB")
         print(f"Training Download: {training_download:.2f} MB")
         print(f"Total Training Communication Cost: {training_comm_cost:.2f} MB")
 
         # Overall totals
-        total_time = time.time() - start_time
+        total_exec_time = time.time() - start_time
         total_upload = pretrain_upload + training_upload
         total_download = pretrain_download + training_download
         total_comm_cost = total_upload + total_download
 
         print("\nOverall Totals:")
-        print(f"Total Execution Time: {total_time:.2f} seconds")
+        print(f"Total Execution Time: {total_exec_time:.2f} seconds")
         print(f"Total Upload: {total_upload:.2f} MB")
         print(f"Total Download: {total_download:.2f} MB")
         print(f"Total Communication Cost: {total_comm_cost:.2f} MB")
-        print(f"Pre-training Time %: {(pretrain_time/total_time)*100:.1f}%")
-        print(f"Training Time %: {(training_time/total_time)*100:.1f}%")
-        print(f"Pre-training Comm %: {(pretrain_comm_cost/total_comm_cost)*100:.1f}%")
-        print(f"Training Comm %: {(training_comm_cost/total_comm_cost)*100:.1f}%")
+        print(f"Pre-training Time %: {(pretrain_time/total_exec_time)*100:.1f}%")
+        print(f"Training Time %: {(total_pure_training_time/total_exec_time)*100:.1f}%")
+        print(
+            f"Communication Time %: {(total_communication_time/total_exec_time)*100:.1f}%"
+        )
     #######################################################################
     # Summarize Experiment Results
     # ----------------------------
@@ -423,8 +649,576 @@ def run_NC(args: attridict, data: Any = None) -> None:
     )
     print(f"average_final_test_loss, {average_final_test_loss}")
     print(f"Average test accuracy, {average_final_test_accuracy}")
+
+    print("\n" + "=" * 80)
+    print("INDIVIDUAL TRAINER MEMORY USAGE")
+    print("=" * 80)
+
+    memory_stats_refs = [trainer.get_memory_usage.remote() for trainer in trainers]
+    memory_stats = ray.get(memory_stats_refs)
+
+    # Replace the existing memory statistics section with this:
+    print("\n" + "=" * 100)
+    print("TRAINER MEMORY vs LOCAL GRAPH SIZE")
+    print("=" * 100)
+    print(
+        f"{'Trainer':<8} {'Memory(MB)':<12} {'Nodes':<8} {'Edges':<8} {'Memory/Node':<12} {'Memory/Edge':<12}"
+    )
+    print("-" * 100)
+
+    memory_stats_refs = [trainer.get_memory_usage.remote() for trainer in trainers]
+    memory_stats = ray.get(memory_stats_refs)
+
+    total_memory = 0
+    total_nodes = 0
+    total_edges = 0
+    max_memory = 0
+    min_memory = float("inf")
+    max_trainer = 0
+    min_trainer = 0
+
+    for stats in memory_stats:
+        trainer_id = stats["trainer_id"]
+        memory_mb = stats["memory_mb"]
+        num_nodes = stats["num_nodes"]
+        num_edges = stats["num_edges"]
+
+        # Calculate memory per node and edge
+        memory_per_node = memory_mb / num_nodes if num_nodes > 0 else 0
+        memory_per_edge = memory_mb / num_edges if num_edges > 0 else 0
+
+        total_memory += memory_mb
+        total_nodes += num_nodes
+        total_edges += num_edges
+
+        if memory_mb > max_memory:
+            max_memory = memory_mb
+            max_trainer = trainer_id
+        if memory_mb < min_memory:
+            min_memory = memory_mb
+            min_trainer = trainer_id
+
+        print(
+            f"{trainer_id:<8} {memory_mb:<12.1f} {num_nodes:<8} {num_edges:<8} {memory_per_node:<12.3f} {memory_per_edge:<12.3f}"
+        )
+
+    avg_memory = total_memory / len(trainers)
+    avg_nodes = total_nodes / len(trainers)
+    avg_edges = total_edges / len(trainers)
+
+    print("=" * 100)
+    print(f"Total Memory Usage: {total_memory:.1f} MB ({total_memory/1024:.2f} GB)")
+    print(f"Total Nodes: {total_nodes}, Total Edges: {total_edges}")
+    print(f"Average Memory per Trainer: {avg_memory:.1f} MB")
+    print(f"Average Nodes per Trainer: {avg_nodes:.1f}")
+    print(f"Average Edges per Trainer: {avg_edges:.1f}")
+    print(f"Max Memory: {max_memory:.1f} MB (Trainer {max_trainer})")
+    print(f"Min Memory: {min_memory:.1f} MB (Trainer {min_trainer})")
+    print(f"Overall Memory/Node Ratio: {total_memory/total_nodes:.3f} MB/node")
+    print(f"Overall Memory/Edge Ratio: {total_memory/total_edges:.3f} MB/edge")
+    print("=" * 100)
+
     if monitor is not None:
         monitor.print_comm_cost()
+
+    # Calculate required metrics for CSV output
+    total_exec_time = time.time() - start_time
+
+    # Get model size - works in both cluster and local environments
+    model_size_mb = 0.0
+    total_params = 0
+    if hasattr(server, "get_model_size"):
+        model_size_mb = server.get_model_size() / (1024 * 1024)
+    elif len(trainers) > 0:
+        # Fallback: calculate from first trainer's model
+        trainer_info = (
+            ray.get(trainers[0].get_info.remote())
+            if hasattr(trainers[0], "get_info")
+            else {}
+        )
+        if "model_params" in trainer_info:
+            total_params = trainer_info["model_params"]
+            model_size_mb = (total_params * 4) / (1024 * 1024)  # float32 = 4 bytes
+
+    # Get peak memory from existing memory_stats (already collected above)
+    peak_memory_mb = 0.0
+    if memory_stats:
+        peak_memory_mb = max([stats["memory_mb"] for stats in memory_stats])
+
+    # Calculate average round time
+    avg_round_time = (
+        total_pure_training_time / args.global_rounds if args.global_rounds > 0 else 0.0
+    )
+
+    # Get total communication cost from monitor (works in cluster)
+    total_comm_cost_mb = 0.0
+    if monitor:
+        total_comm_cost_mb = (
+            monitor.pretrain_theoretical_comm_MB + monitor.train_theoretical_comm_MB
+        )
+
+    # Print CSV format result - compatible with cluster logging
+    print(f"\n{'='*80}")
+    print("CSV FORMAT RESULT:")
+    print(
+        "DS,IID,BS,TotalTime[s],PureTrainingTime[s],CommTime[s],FinalAcc[%],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams"
+    )
+    print(
+        f"{args.dataset},{args.iid_beta},{args.batch_size},"
+        f"{total_exec_time:.1f},"
+        f"{total_pure_training_time:.1f},"
+        f"{total_communication_time:.1f},"
+        f"{average_final_test_accuracy:.2f},"
+        f"{total_comm_cost_mb:.1f},"
+        f"{peak_memory_mb:.1f},"
+        f"{avg_round_time:.3f},"
+        f"{model_size_mb:.3f},"
+        f"{total_params}"
+    )
+    print("=" * 80)
+
+    print(f"\n{'='*80}")
+    print(f"EXPERIMENT SUMMARY")
+    print(f"{'='*80}")
+    print(f"Dataset: {args.dataset}")
+    print(f"Method: {args.method}")
+    print(f"Trainers: {args.n_trainer}")
+    print(f"IID Beta: {args.iid_beta}")
+    print(f"Batch Size: {args.batch_size}")
+    print(f"Hops: {args.num_hops}")
+    print(f"Total Execution Time: {time.time() - start_time:.2f} seconds")
+    print(f"Pure Training Time: {total_pure_training_time:.2f} seconds")
+    print(f"Communication Time: {total_communication_time:.2f} seconds")
+    print(f"Pretrain Comm Cost: {pretrain_upload + pretrain_download:.2f} MB")
+    print(f"Training Comm Cost: {monitor.train_theoretical_comm_MB:.2f} MB")
+    if args.use_encryption:
+        print(f"Total Comm Cost: {total_comm_cost:.2f} MB")
+    print(f"{'='*80}\n")
+    ray.shutdown()
+
+
+def run_NC_dp(args: attridict, data: Any = None) -> None:
+    """
+    Enhanced NC training with Differential Privacy support for FedGCN pre-training.
+    """
+    monitor = Monitor(use_cluster=args.use_cluster)
+    monitor.init_time_start()
+
+    ray.init()
+    start_time = time.time()
+    torch.manual_seed(42)
+    pretrain_upload: float = 0.0
+    pretrain_download: float = 0.0
+
+    if args.num_hops == 0:
+        print("Changing method to FedAvg")
+        args.method = "FedAvg"
+
+    if not args.use_huggingface:
+        (
+            edge_index,
+            features,
+            labels,
+            idx_train,
+            idx_test,
+            class_num,
+            split_node_indexes,
+            communicate_node_global_indexes,
+            in_com_train_node_local_indexes,
+            in_com_test_node_local_indexes,
+            global_edge_indexes_clients,
+        ) = data
+
+    if args.dataset in ["simulate", "cora", "citeseer", "pubmed", "reddit"]:
+        args_hidden = 16
+    else:
+        args_hidden = 256
+
+    num_cpus_per_trainer = args.num_cpus_per_trainer
+    if args.gpu:
+        device = torch.device("cuda")
+        num_gpus_per_trainer = args.num_gpus_per_trainer
+    else:
+        device = torch.device("cpu")
+        num_gpus_per_trainer = 0
+
+    # Define DP-enhanced trainer class
+    @ray.remote(
+        num_gpus=num_gpus_per_trainer,
+        num_cpus=num_cpus_per_trainer,
+        scheduling_strategy="SPREAD",
+    )
+    class Trainer(Trainer_General_DP):
+        def __init__(self, *args: Any, **kwds: Any):
+            super().__init__(*args, **kwds)
+
+    # Create trainers (same as original)
+    if args.use_huggingface:
+        trainers = [
+            Trainer.remote(
+                rank=i,
+                args_hidden=args_hidden,
+                device=device,
+                args=args,
+            )
+            for i in range(args.n_trainer)
+        ]
+    else:
+        trainers = [
+            Trainer.remote(
+                rank=i,
+                args_hidden=args_hidden,
+                device=device,
+                args=args,
+                local_node_index=split_node_indexes[i],
+                communicate_node_index=communicate_node_global_indexes[i],
+                adj=global_edge_indexes_clients[i],
+                train_labels=labels[communicate_node_global_indexes[i]][
+                    in_com_train_node_local_indexes[i]
+                ],
+                test_labels=labels[communicate_node_global_indexes[i]][
+                    in_com_test_node_local_indexes[i]
+                ],
+                features=features[split_node_indexes[i]],
+                idx_train=in_com_train_node_local_indexes[i],
+                idx_test=in_com_test_node_local_indexes[i],
+            )
+            for i in range(args.n_trainer)
+        ]
+
+    # Get trainer information
+    trainer_information = [
+        ray.get(trainers[i].get_info.remote()) for i in range(len(trainers))
+    ]
+
+    global_node_num = sum([info["features_num"] for info in trainer_information])
+    class_num = max([info["label_num"] for info in trainer_information])
+
+    train_data_weights = [
+        info["len_in_com_train_node_local_indexes"] for info in trainer_information
+    ]
+    test_data_weights = [
+        info["len_in_com_test_node_local_indexes"] for info in trainer_information
+    ]
+    communicate_node_global_indexes = [
+        info["communicate_node_global_index"] for info in trainer_information
+    ]
+
+    ray.get(
+        [
+            trainers[i].init_model.remote(global_node_num, class_num)
+            for i in range(len(trainers))
+        ]
+    )
+
+    # Create DP-enhanced server
+    server = Server_DP(
+        features.shape[1], args_hidden, class_num, device, trainers, args
+    )
+    server.broadcast_params(-1)
+    monitor.init_time_end()
+
+    # DP-enhanced pre-training
+    pretrain_start = time.time()
+    monitor.pretrain_time_start()
+
+    if args.method != "FedAvg":
+        print("Starting DP-enhanced feature aggregation...")
+
+        # Get local feature sums with DP preprocessing
+        local_feature_data = [
+            trainer.get_dp_local_feature_sum.remote() for trainer in server.trainers
+        ]
+
+        results = ray.get(local_feature_data)
+        local_feature_sums = [r[0] for r in results]  # Extract tensors
+        computation_stats = [r[1] for r in results]  # Extract stats
+
+        # Calculate upload sizes
+        upload_sizes = [
+            local_sum.element_size() * local_sum.nelement()
+            for local_sum in local_feature_sums
+        ]
+        pretrain_upload = sum(upload_sizes) / (1024 * 1024)  # MB
+
+        # DP aggregation at server
+        global_feature_sum, dp_stats = server.aggregate_dp_feature_sums(
+            local_feature_sums
+        )
+
+        # Print DP statistics
+        server.print_dp_stats(dp_stats)
+
+        # Distribute back to trainers
+        download_sizes = []
+        for i in range(args.n_trainer):
+            communicate_nodes = (
+                communicate_node_global_indexes[i].clone().detach().to(device)
+            )
+            trainer_aggregation = global_feature_sum[communicate_nodes]
+            download_sizes.append(
+                trainer_aggregation.element_size() * trainer_aggregation.nelement()
+            )
+            server.trainers[i].load_feature_aggregation.remote(trainer_aggregation)
+
+        pretrain_download = sum(download_sizes) / (1024 * 1024)  # MB
+
+        [trainer.relabel_adj.remote() for trainer in server.trainers]
+
+    monitor.pretrain_time_end()
+    monitor.add_pretrain_comm_cost(
+        upload_mb=pretrain_upload,
+        download_mb=pretrain_download,
+    )
+
+    # Regular training phase (same as original)
+    monitor.train_time_start()
+    print("Starting federated training with DP-enhanced pre-training...")
+
+    global_acc_list = []
+    for i in range(args.global_rounds):
+        server.train(i)
+
+        results = [trainer.local_test.remote() for trainer in server.trainers]
+        results = np.array([ray.get(result) for result in results])
+        average_test_accuracy = np.average(
+            [row[1] for row in results], weights=test_data_weights, axis=0
+        )
+        global_acc_list.append(average_test_accuracy)
+
+        print(f"Round {i+1}: Global Test Accuracy = {average_test_accuracy:.4f}")
+
+        model_size_mb = server.get_model_size() / (1024 * 1024)
+        monitor.add_train_comm_cost(
+            upload_mb=model_size_mb * args.n_trainer,
+            download_mb=model_size_mb * args.n_trainer,
+        )
+
+    monitor.train_time_end()
+
+    # Final evaluation
+    results = [trainer.local_test.remote() for trainer in server.trainers]
+    results = np.array([ray.get(result) for result in results])
+
+    average_final_test_loss = np.average(
+        [row[0] for row in results], weights=test_data_weights, axis=0
+    )
+    average_final_test_accuracy = np.average(
+        [row[1] for row in results], weights=test_data_weights, axis=0
+    )
+
+    print(f"Final test loss: {average_final_test_loss:.4f}")
+    print(f"Final test accuracy: {average_final_test_accuracy:.4f}")
+
+    # Print final privacy budget
+    if args.use_dp:
+        server.privacy_accountant.print_privacy_budget()
+
+    if monitor is not None:
+        monitor.print_comm_cost()
+
+    ray.shutdown()
+
+
+def run_NC_lowrank(args: attridict, data: Any = None) -> None:
+    if not LOWRANK_AVAILABLE:
+        raise ImportError(
+            "Low-rank compression modules not available. Please implement the low-rank functionality in fedgraph.low_rank"
+        )
+
+    print("=== Running NC with Low-Rank Compression ===")
+    print(f"Low-rank method: {getattr(args, 'lowrank_method', 'fixed')}")
+    if hasattr(args, "lowrank_method"):
+        if args.lowrank_method == "fixed":
+            print(f"Fixed rank: {getattr(args, 'fixed_rank', 10)}")
+        elif args.lowrank_method == "adaptive":
+            print(
+                f"Target compression ratio: {getattr(args, 'compression_ratio', 2.0)}"
+            )
+        elif args.lowrank_method == "energy":
+            print(f"Energy threshold: {getattr(args, 'energy_threshold', 0.95)}")
+
+    monitor = Monitor(use_cluster=args.use_cluster)
+    monitor.init_time_start()
+
+    ray.init()
+    start_time = time.time()
+    torch.manual_seed(42)
+
+    if args.num_hops == 0:
+        print("Changing method to FedAvg")
+        args.method = "FedAvg"
+
+    if not args.use_huggingface:
+        (
+            edge_index,
+            features,
+            labels,
+            idx_train,
+            idx_test,
+            class_num,
+            split_node_indexes,
+            communicate_node_global_indexes,
+            in_com_train_node_local_indexes,
+            in_com_test_node_local_indexes,
+            global_edge_indexes_clients,
+        ) = data
+
+        if args.saveto_huggingface:
+            save_all_trainers_data(
+                split_node_indexes=split_node_indexes,
+                communicate_node_global_indexes=communicate_node_global_indexes,
+                global_edge_indexes_clients=global_edge_indexes_clients,
+                labels=labels,
+                features=features,
+                in_com_train_node_local_indexes=in_com_train_node_local_indexes,
+                in_com_test_node_local_indexes=in_com_test_node_local_indexes,
+                n_trainer=args.n_trainer,
+                args=args,
+            )
+
+    # Model configuration
+    if args.dataset in ["simulate", "cora", "citeseer", "pubmed", "reddit"]:
+        args_hidden = 16
+    else:
+        args_hidden = 256
+
+    # Device configuration
+    num_cpus_per_trainer = args.num_cpus_per_trainer
+    if args.gpu:
+        device = torch.device("cuda")
+        num_gpus_per_trainer = args.num_gpus_per_trainer
+    else:
+        device = torch.device("cpu")
+        num_gpus_per_trainer = 0
+
+    @ray.remote(
+        num_gpus=num_gpus_per_trainer,
+        num_cpus=num_cpus_per_trainer,
+        scheduling_strategy="SPREAD",
+    )
+    class Trainer(Trainer_General_LowRank):  # Use low-rank trainer instead
+        def __init__(self, *args: Any, **kwds: Any):
+            super().__init__(*args, **kwds)
+
+    # Create trainers
+    if args.use_huggingface:
+        trainers = [
+            Trainer.remote(
+                rank=i,
+                args_hidden=args_hidden,
+                device=device,
+                args=args,
+            )
+            for i in range(args.n_trainer)
+        ]
+    else:
+        trainers = [
+            Trainer.remote(
+                rank=i,
+                args_hidden=args_hidden,
+                device=device,
+                args=args,
+                local_node_index=split_node_indexes[i],
+                communicate_node_index=communicate_node_global_indexes[i],
+                adj=global_edge_indexes_clients[i],
+                train_labels=labels[communicate_node_global_indexes[i]][
+                    in_com_train_node_local_indexes[i]
+                ],
+                test_labels=labels[communicate_node_global_indexes[i]][
+                    in_com_test_node_local_indexes[i]
+                ],
+                features=features[split_node_indexes[i]],
+                idx_train=in_com_train_node_local_indexes[i],
+                idx_test=in_com_test_node_local_indexes[i],
+            )
+            for i in range(args.n_trainer)
+        ]
+
+    # Get trainer information
+    trainer_information = [
+        ray.get(trainers[i].get_info.remote()) for i in range(len(trainers))
+    ]
+
+    global_node_num = sum([info["features_num"] for info in trainer_information])
+    class_num = max([info["label_num"] for info in trainer_information])
+
+    train_data_weights = [
+        info["len_in_com_train_node_local_indexes"] for info in trainer_information
+    ]
+    test_data_weights = [
+        info["len_in_com_test_node_local_indexes"] for info in trainer_information
+    ]
+
+    # Initialize models
+    ray.get(
+        [
+            trainers[i].init_model.remote(global_node_num, class_num)
+            for i in range(len(trainers))
+        ]
+    )
+
+    server = Server_LowRank(
+        features.shape[1], args_hidden, class_num, device, trainers, args
+    )
+    # End initialization
+    server.broadcast_params(-1)
+    monitor.init_time_end()
+
+    monitor.pretrain_time_start()
+
+    monitor.pretrain_time_end()
+
+    monitor.train_time_start()
+    print("Starting federated training with low-rank compression...")
+
+    global_acc_list = []
+    for i in range(args.global_rounds):
+        server.train(i)
+
+        # Evaluation
+        results = [trainer.local_test.remote() for trainer in server.trainers]
+        results = np.array([ray.get(result) for result in results])
+        average_test_accuracy = np.average(
+            [row[1] for row in results], weights=test_data_weights, axis=0
+        )
+        global_acc_list.append(average_test_accuracy)
+
+        print(f"Round {i+1}: Global Test Accuracy = {average_test_accuracy:.4f}")
+
+        # Communication cost tracking (enhanced with compression-aware sizing)
+        model_size_mb = server.get_model_size() / (1024 * 1024)
+        monitor.add_train_comm_cost(
+            upload_mb=model_size_mb * args.n_trainer,
+            download_mb=model_size_mb * args.n_trainer,
+        )
+
+        if (i + 1) % 10 == 0 and hasattr(server, "print_compression_stats"):
+            server.print_compression_stats()
+
+    monitor.train_time_end()
+
+    # Final evaluation
+    results = [trainer.local_test.remote() for trainer in server.trainers]
+    results = np.array([ray.get(result) for result in results])
+
+    average_final_test_loss = np.average(
+        [row[0] for row in results], weights=test_data_weights, axis=0
+    )
+    average_final_test_accuracy = np.average(
+        [row[1] for row in results], weights=test_data_weights, axis=0
+    )
+
+    print(f"Final test loss: {average_final_test_loss:.4f}")
+    print(f"Final test accuracy: {average_final_test_accuracy:.4f}")
+
+    # Print final compression statistics
+    if hasattr(server, "print_compression_stats"):
+        server.print_compression_stats()
+
+    if monitor is not None:
+        monitor.print_comm_cost()
+
     ray.shutdown()
 
 
@@ -614,6 +1408,7 @@ def run_GC(args: attridict, data: Any) -> None:
             algorithm_type="gcfl_plus",
             seq_length=args.seq_length,
             standardize=args.standardize,
+            monitor=monitor,
         ),
         "GCFL+dWs": lambda: run_GCFL_algorithm(
             trainers=trainers,
@@ -625,6 +1420,7 @@ def run_GC(args: attridict, data: Any) -> None:
             algorithm_type="gcfl_plus_dWs",
             seq_length=args.seq_length,
             standardize=args.standardize,
+            monitor=monitor,
         ),
     }
 
@@ -701,7 +1497,7 @@ def run_GC_selftrain(
     if monitor is not None:
         model_size_mb = server.get_model_size() / (1024 * 1024)
         monitor.add_train_comm_cost(
-            upload_mb=model_size_mb * len(trainers),
+            upload_mb=0,  # No parameter upload in self-training
             download_mb=model_size_mb * len(trainers),
         )
         monitor.train_time_end()
@@ -789,7 +1585,7 @@ def run_GC_Fed_algorithm(
             num_clients = len(selected_trainers)
             monitor.add_train_comm_cost(
                 upload_mb=model_size_mb * num_clients,
-                download_mb=model_size_mb * num_clients,
+                download_mb=0,
             )
         ray.internal.free([global_params_id])  # Free the old weight memory
         global_params_id = ray.put(server.W)
@@ -797,8 +1593,18 @@ def run_GC_Fed_algorithm(
             trainer.update_params.remote(global_params_id)
             if algorithm == "FedProx":
                 trainer.cache_weights.remote()
+
+        if monitor is not None:
+            # Download cost: server sends parameters to clients
+            monitor.add_train_comm_cost(
+                upload_mb=0,
+                download_mb=model_size_mb * num_clients,
+            )
+
     if monitor is not None:
         monitor.train_time_end()
+
+    # Test phase
     frame = pd.DataFrame()
     acc_refs = []
     for trainer in trainers:
@@ -874,9 +1680,23 @@ def run_GCFL_algorithm(
     cluster_indices = [np.arange(len(trainers)).astype("int")]
     trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
 
+    # Initialize clustering statistics tracking
+    from typing import Dict, List, Union
+
+    clustering_stats: Dict[str, Any] = {
+        "total_clustering_events": 0,
+        "similarity_computations": 0,
+        "dtw_computations": 0,
+        "model_cache_operations": 0,
+        "rounds_with_clustering": [],
+        "cluster_sizes_per_round": [],
+    }
+
     global_params_id = ray.put(server.W)
     if algorithm_type in ["gcfl_plus", "gcfl_plus_dWs"]:
-        seqs_grads: Any = {ray.get(c.get_id.remote()): [] for c in trainers}
+        seqs_grads: Dict[int, List[Any]] = {
+            ray.get(c.get_id.remote()): [] for c in trainers
+        }
 
         # Perform update_params before communication rounds for GCFL+ and GCFL+ dWs
 
@@ -891,6 +1711,10 @@ def run_GCFL_algorithm(
         if (c_round) % 10 == 0:
             print(f"  > Training round {c_round} finished.")
 
+        round_upload_mb: float = 0.0
+        round_download_mb: float = 0.0
+        round_clustering_occurred = False
+
         if c_round == 1:
             # Perform update_params at the beginning of the first communication round
             # ray.internal.free(
@@ -899,6 +1723,12 @@ def run_GCFL_algorithm(
             global_params_id = ray.put(server.W)
             for trainer in trainers:
                 trainer.update_params.remote(global_params_id)
+            # Initial parameter distribution cost
+            if monitor is not None:
+                model_size_mb = server.get_model_size() / (1024 * 1024)
+                round_download_mb += model_size_mb * len(trainers)
+
+        # Local training phase
         reset_params_refs = []
         participating_trainers = server.random_sample_trainers(trainers, frac=1.0)
         for trainer in participating_trainers:
@@ -906,39 +1736,84 @@ def run_GCFL_algorithm(
             reset_params_ref = trainer.reset_params.remote()
             reset_params_refs.append(reset_params_ref)
         ray.get(reset_params_refs)
+
+        # Add communication cost for reset_params operation (parameter retrieval after training)
+        if monitor is not None:
+            model_size_mb = server.get_model_size() / (1024 * 1024)
+            round_upload_mb += model_size_mb * len(participating_trainers)
+
+        # Gradient/weight change collection phase - get actual data sizes
         for trainer in participating_trainers:
             if algorithm_type == "gcfl_plus":
-                seqs_grads[ray.get(trainer.get_id.remote())].append(
-                    ray.get(trainer.get_conv_grads_norm.remote())
-                )
-            elif algorithm_type == "gcfl_plus_dWs":
-                seqs_grads[ray.get(trainer.get_id.remote())].append(
-                    ray.get(trainer.get_conv_dWs_norm.remote())
-                )
+                grad_norm = ray.get(trainer.get_conv_grads_norm.remote())
+                seqs_grads[ray.get(trainer.get_id.remote())].append(grad_norm)
+                # Gradient norm is typically a scalar (8 bytes for float64)
+                round_upload_mb += 8 / (1024 * 1024)
 
+            elif algorithm_type == "gcfl_plus_dWs":
+                dw_norm = ray.get(trainer.get_conv_dWs_norm.remote())
+                seqs_grads[ray.get(trainer.get_id.remote())].append(dw_norm)
+                # Weight change norm is typically a scalar (8 bytes for float64)
+                round_upload_mb += 8 / (1024 * 1024)
+
+        # Clustering decision phase - communication cost for update norm computations
         cluster_indices_new = []
+        model_size_mb = server.get_model_size() / (1024 * 1024)
+
         for idc in cluster_indices:
             max_norm = server.compute_max_update_norm([trainers[i] for i in idc])
             mean_norm = server.compute_mean_update_norm([trainers[i] for i in idc])
 
+            # Only add clustering-specific communication cost when clustering condition is met
             if mean_norm < EPS_1 and max_norm > EPS_2 and len(idc) > 2 and c_round > 20:
+                # Record that clustering occurred in this round
+                round_clustering_occurred = True
+                clustering_stats["total_clustering_events"] = (
+                    clustering_stats.get("total_clustering_events", 0) + 1
+                )
+
                 # marginal condition for gcfl, gcfl+, gcfl+dws
                 if algorithm_type == "gcfl" or all(
                     len(value) >= seq_length for value in seqs_grads.values()
                 ):
-                    server.cache_model(
-                        idc,
-                        ray.get(trainers[idc[0]].get_total_weight.remote()),
-                        acc_trainers,
+                    # Record model cache operation
+                    clustering_stats["model_cache_operations"] = (
+                        clustering_stats.get("model_cache_operations", 0) + 1
                     )
+
+                    # Cache model - full weight data uses actual model size
+                    full_weight = ray.get(trainers[idc[0]].get_total_weight.remote())
+                    server.cache_model(idc, full_weight, acc_trainers)
+                    round_upload_mb += model_size_mb
+
                     if algorithm_type == "gcfl":
-                        c1, c2 = server.min_cut(
-                            server.compute_pairwise_similarities(trainers)[idc][:, idc],
-                            idc,
+                        # Record similarity computation
+                        clustering_stats["similarity_computations"] = (
+                            clustering_stats.get("similarity_computations", 0) + 1
                         )
+
+                        # Similarity computation - requires gradients from all trainers
+                        similarity_matrix = server.compute_pairwise_similarities(
+                            trainers
+                        )
+                        # Use actual model size for gradient transmission
+                        round_upload_mb += model_size_mb * len(trainers)
+
+                        c1, c2 = server.min_cut(similarity_matrix[idc][:, idc], idc)
                         cluster_indices_new += [c1, c2]
 
                     else:  # gcfl+, gcfl+dws
+                        # Record DTW computation
+                        clustering_stats["dtw_computations"] = (
+                            clustering_stats.get("dtw_computations", 0) + 1
+                        )
+
+                        # Sequence data: seq_length scalars per trainer
+                        seq_data_size_bytes = (
+                            seq_length * len(idc) * 8
+                        )  # 8 bytes per scalar
+                        round_upload_mb += seq_data_size_bytes / (1024 * 1024)
+
                         tmp = [seqs_grads[id][-seq_length:] for id in idc]
                         dtw_distances = server.compute_pairwise_distances(
                             tmp, standardize
@@ -953,18 +1828,35 @@ def run_GCFL_algorithm(
             else:
                 cluster_indices_new += [idc]
 
-        cluster_indices = cluster_indices_new
+        # Record clustering statistics for this round
+        if round_clustering_occurred:
+            if isinstance(clustering_stats["rounds_with_clustering"], list):
+                clustering_stats["rounds_with_clustering"].append(c_round)
+        if isinstance(clustering_stats["cluster_sizes_per_round"], list):
+            clustering_stats["cluster_sizes_per_round"].append(len(cluster_indices_new))
 
+        cluster_indices = cluster_indices_new
         trainer_clusters = [[trainers[i] for i in idcs] for idcs in cluster_indices]
-        server.aggregate_clusterwise(trainer_clusters)
-        if monitor is not None:
+
+        # Cluster-wise aggregation phase - always happens but cost varies based on clustering
+        for cluster in trainer_clusters:
+            cluster_size = len(cluster)
+            # Use actual model size for parameter transmission
             model_size_mb = server.get_model_size() / (1024 * 1024)
-            for cluster in trainer_clusters:
-                cluster_size = len(cluster)
-                monitor.add_train_comm_cost(
-                    upload_mb=model_size_mb * cluster_size,
-                    download_mb=model_size_mb * cluster_size,
-                )
+
+            # Basic aggregation communication (always happens regardless of clustering)
+            # Each trainer uploads weights for aggregation
+            round_upload_mb += model_size_mb * cluster_size  # Weight parameters only
+            # Training sizes are small and always needed
+            round_upload_mb += (4 * cluster_size) / (
+                1024 * 1024
+            )  # Training sizes (int32)
+
+            # After aggregation, updated parameters are sent back to cluster
+            round_download_mb += model_size_mb * cluster_size
+        server.aggregate_clusterwise(trainer_clusters)
+
+        # Local testing phase - add communication cost for parameter retrieval during testing
         acc_trainers = []
         acc_trainers_refs = [trainer.local_test.remote() for trainer in trainers]
 
@@ -974,14 +1866,40 @@ def run_GCFL_algorithm(
             if ready:
                 for t in ready:
                     acc_trainers.append(ray.get(t)[1])
+                    # Test result communication cost is negligible (single float value)
             acc_trainers_refs = left
 
+        # Record communication cost for this round
+        if monitor is not None:
+            monitor.add_train_comm_cost(
+                upload_mb=round_upload_mb,
+                download_mb=round_download_mb,
+            )
+
+    # Print detailed clustering statistics
+    print("\n" + "=" * 50)
+    print("CLUSTERING STATISTICS")
+    print("=" * 50)
+    print(f"Algorithm: {algorithm_type}")
+    print(
+        f"Clustering Events: {clustering_stats['total_clustering_events']}/{communication_rounds}"
+    )
+    print(
+        f"Clustering Frequency: {clustering_stats['total_clustering_events']/communication_rounds:.1%}"
+    )
+    if clustering_stats["rounds_with_clustering"]:
+        print(f"Clustering Rounds: {clustering_stats['rounds_with_clustering']}")
+    print("=" * 50)
+
+    # Final model caching
     for idc in cluster_indices:
         server.cache_model(
             idc, ray.get(trainers[idc[0]].get_total_weight.remote()), acc_trainers
         )
     if monitor is not None:
         monitor.train_time_end()
+
+    # Build results
     results = np.zeros([len(trainers), len(server.model_cache)])
     for i, (idcs, W, accs) in enumerate(server.model_cache):
         results[idcs, i] = np.array(accs)
@@ -1004,7 +1922,7 @@ def run_GCFL_algorithm(
     return frame
 
 
-def run_LP(args: attridict) -> None:
+def run_LP(args: Any) -> None:
     """
     Implements various federated learning methods for link prediction tasks with support
     for online learning and buffer mechanisms. Handles temporal aspects of link prediction
@@ -1348,9 +2266,7 @@ def LP_train_global_round(
         if method in ["STFL", "FedLink", "4D-FED-GNN+"]:
             number_of_users = server.number_of_users
             number_of_items = server.number_of_items
-            embedding_dim = server.trainers[0]._remote_args["kwargs"][
-                "hidden_channels"
-            ]  # safer way
+            embedding_dim = server.hidden_channels
             float_size = 4  # float32
 
             embedding_param_size_bytes = (
