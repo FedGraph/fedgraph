@@ -698,6 +698,8 @@ class Server_LP:
         trainers: list,
         args_cuda: bool = False,
     ) -> None:
+        self.number_of_users = number_of_users
+        self.number_of_items = number_of_items
         self.global_model = GNN_LP(
             number_of_users, number_of_items, meta_data, hidden_channels=64
         )  # create the base model
