@@ -67,7 +67,7 @@ config: Dict[str, Any] = {
 # -------------------
 
 config = attridict(config)
-run_fedgraph(config)
+#run_fedgraph(config)
 
 #######################################################################
 # Specify the Graph Classification configuration
@@ -118,13 +118,15 @@ config = {
 #######################################################################
 # Run fedgraph method
 # -------------------
-import os
-
 config = attridict(config)
-run_fedgraph(config)
+# run_fedgraph(config)
+
+
 #######################################################################
 # Specify the Link Prediction configuration
 # ----------------------------------------------
+import os
+
 BASE_DIR = os.path.dirname(os.path.abspath("."))
 DATASET_PATH = os.path.join(
     BASE_DIR, "data", "LPDataset"

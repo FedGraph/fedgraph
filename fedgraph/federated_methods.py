@@ -2180,9 +2180,7 @@ def LP_train_global_round(
         if method in ["STFL", "FedLink", "4D-FED-GNN+"]:
             number_of_users = server.number_of_users
             number_of_items = server.number_of_items
-            embedding_dim = server.trainers[0]._remote_args["kwargs"][
-                "hidden_channels"
-            ]  # safer way
+            embedding_dim = server.hidden_channels
             float_size = 4  # float32
 
             embedding_param_size_bytes = (

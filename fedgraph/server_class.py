@@ -703,7 +703,7 @@ class Server_LP:
         self.global_model = GNN_LP(
             number_of_users, number_of_items, meta_data, hidden_channels=64
         )  # create the base model
-
+        self.hidden_channels = self.global_model.hidden_channels
         self.global_model = self.global_model.cuda() if args_cuda else self.global_model
         self.clients = trainers
 
