@@ -548,7 +548,7 @@ class Trainer_General:
                 loader = NeighborLoader(
                     data,
                     num_neighbors=[-1] * self.args.num_layers,
-                    batch_size=2048,
+                    batch_size=self.args.batch_size,
                     input_nodes=self.idx_train,
                     shuffle=False,
                     num_workers=0,
