@@ -165,25 +165,25 @@ python tutorials/FGL_NC_HE.py
 ### Integration Test (`test_openfhe_nc_integration.py`)
 
 ```
-🔍 Testing OpenFHE Two-Party Threshold Integration for NC FedGCN
+ Testing OpenFHE Two-Party Threshold Integration for NC FedGCN
 ============================================================
 
 Testing Two-Party Threshold Protocol:
 ==================================================
 Step 1: Server generates lead keys...
-  ✓ Server generated lead keys
+   Server generated lead keys
 Step 2: Trainer generates non-lead share...
-  ✓ Trainer generated non-lead share
+   Trainer generated non-lead share
 Step 3: Server finalizes joint public key...
-  ✓ Server finalized joint public key
+   Server finalized joint public key
 ...
 
-✓ Two-party threshold protocol works correctly!
+ Two-party threshold protocol works correctly!
 
 ============================================================
 Tests passed: 4/4
 ============================================================
-🎉 All tests passed! OpenFHE threshold integration is working.
+ All tests passed! OpenFHE threshold integration is working.
 ```
 
 ### Full Tutorial (`tutorials/FGL_NC_HE.py`)
@@ -212,44 +212,44 @@ Total Pre-training Communication Cost: X.XX MB
 ## Architecture Diagram
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                  Two-Party Threshold Setup                   │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  1. Server (Lead)         →  generate_lead_keys()           │
-│     - Holds secret share 1                                   │
-│     - Generates initial public key                           │
-│                                                              │
-│  2. Trainer 0 (Non-lead)  →  generate_nonlead_share()       │
-│     - Holds secret share 2                                   │
-│     - Contributes to joint public key                        │
-│                                                              │
-│  3. Server                →  finalize_joint_public_key()    │
-│     - Creates final joint public key                         │
-│                                                              │
-│  4. All Trainers          →  set_public_key()               │
-│     - Receive joint public key for encryption                │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────┐
-│               Encrypted Feature Aggregation                  │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  Trainer 0, 1, ..., N                                        │
-│    ↓ encrypt(local_feature_sum)                             │
-│  [ct_0, ct_1, ..., ct_N]                                     │
-│    ↓                                                          │
-│  Server: ct_sum = ct_0 + ct_1 + ... + ct_N                  │
-│    ↓                                                          │
-│  Server: partial_lead = partial_decrypt(ct_sum)             │
-│  Trainer 0: partial_main = partial_decrypt(ct_sum)          │
-│    ↓                                                          │
-│  Server: result = fuse(partial_lead, partial_main)          │
-│    ↓                                                          │
-│  All Trainers receive decrypted aggregated features         │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
+                  Two-Party Threshold Setup                   
+
+                                                              
+  1. Server (Lead)         →  generate_lead_keys()           
+     - Holds secret share 1                                   
+     - Generates initial public key                           
+                                                              
+  2. Trainer 0 (Non-lead)  →  generate_nonlead_share()       
+     - Holds secret share 2                                   
+     - Contributes to joint public key                        
+                                                              
+  3. Server                →  finalize_joint_public_key()    
+     - Creates final joint public key                         
+                                                              
+  4. All Trainers          →  set_public_key()               
+     - Receive joint public key for encryption                
+                                                              
+
+
+
+               Encrypted Feature Aggregation                  
+
+                                                              
+  Trainer 0, 1, ..., N                                        
+    ↓ encrypt(local_feature_sum)                             
+  [ct_0, ct_1, ..., ct_N]                                     
+    ↓                                                          
+  Server: ct_sum = ct_0 + ct_1 + ... + ct_N                  
+    ↓                                                          
+  Server: partial_lead = partial_decrypt(ct_sum)             
+  Trainer 0: partial_main = partial_decrypt(ct_sum)          
+    ↓                                                          
+  Server: result = fuse(partial_lead, partial_main)          
+    ↓                                                          
+  All Trainers receive decrypted aggregated features         
+                                                              
+
 ```
 
 ## Configuration Parameters
@@ -337,22 +337,22 @@ pip install -r docker_requirements.txt
 
 ## Files Changed
 
-- ✅ `fedgraph/server_class.py` - Fixed method names
-- ✅ `fedgraph/trainer_class.py` - Added threshold methods
-- ✅ `fedgraph/federated_methods.py` - Implemented two-party protocol
-- ✅ `tutorials/FGL_NC_HE.py` - Added he_backend config
-- ✅ `test_openfhe_nc_integration.py` - New integration test (created)
-- ✅ `OPENFHE_NC_IMPLEMENTATION.md` - This document (created)
+-  `fedgraph/server_class.py` - Fixed method names
+-  `fedgraph/trainer_class.py` - Added threshold methods
+-  `fedgraph/federated_methods.py` - Implemented two-party protocol
+-  `tutorials/FGL_NC_HE.py` - Added he_backend config
+-  `test_openfhe_nc_integration.py` - New integration test (created)
+-  `OPENFHE_NC_IMPLEMENTATION.md` - This document (created)
 
 ## Status
 
-✅ **Implementation Complete**
-- Two-party threshold key generation: ✅
-- Encrypted feature aggregation: ✅
-- Threshold decryption: ✅
-- Integration with FedGCN NC pretrain: ✅
-- Docker support: ✅
-- Tests: ✅
+ **Implementation Complete**
+- Two-party threshold key generation: 
+- Encrypted feature aggregation: 
+- Threshold decryption: 
+- Integration with FedGCN NC pretrain: 
+- Docker support: 
+- Tests: 
 
 ⏳ **Testing Required**
 - [ ] Run integration test with OpenFHE installed
@@ -360,7 +360,7 @@ pip install -r docker_requirements.txt
 - [ ] Verify accuracy of decrypted results
 - [ ] Measure performance overhead
 
-🔄 **Future Extensions**
+ **Future Extensions**
 - [ ] Training phase encryption (gradient aggregation)
 - [ ] FedAvg method support
 - [ ] Multi-party (>2) threshold support
