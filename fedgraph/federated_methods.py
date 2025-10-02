@@ -1,3 +1,4 @@
+
 import argparse
 import copy
 import datetime
@@ -32,6 +33,7 @@ from fedgraph.utils_lp import (
     to_next_day,
 )
 from fedgraph.utils_nc import get_1hop_feature_sum, save_all_trainers_data
+from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS
 
 
 def run_fedgraph(args: attridict) -> None:
@@ -153,13 +155,20 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 if hasattr(args_obj, "use_encryption")
                 else args_obj.get("use_encryption", False)
             )
+            self.he_backend = getattr(args_obj, "he_backend", "tenseal")
 
             if self.use_encryption:
-                file_path = str(files("fedgraph").joinpath("he_context.pkl"))
-                with open(file_path, "rb") as f:
-                    context_bytes = pickle.load(f)
-                self.he_context = ts.context_from(context_bytes)
-                print(f"Trainer {self.rank} loaded HE context")
+                if self.he_backend == "tenseal":
+                    file_path = str(files("fedgraph").joinpath("he_context.pkl"))
+                    with open(file_path, "rb") as f:
+                        context_bytes = pickle.load(f)
+                    self.he_context = ts.context_from(context_bytes)
+                    print(f"Trainer {self.rank} loaded TenSEAL context")
+                elif self.he_backend == "openfhe":
+                    # OpenFHE is coordinated by the server; trainer side enc is not yet implemented
+                    print(f"Trainer {self.rank} configured for OpenFHE threshold HE")
+                else:
+                    raise ValueError(f"Unknown he_backend: {self.he_backend}")
 
     if args.use_huggingface:
         trainers = [
@@ -244,29 +253,104 @@ def run_NC(args: attridict, data: Any = None) -> None:
         if args.use_encryption:
             print("Starting encrypted feature aggregation...")
 
-            encrypted_data = [
-                trainer.get_encrypted_local_feature_sum.remote()
-                for trainer in server.trainers
-            ]
+            if getattr(args, "he_backend", "tenseal") == "tenseal":
+                encrypted_data = [
+                    trainer.get_encrypted_local_feature_sum.remote()
+                    for trainer in server.trainers
+                ]
 
-            results = ray.get(encrypted_data)
-            encrypted_sums = [(r[0], r[1]) for r in results]  # (encrypted_sum, shape)
-            encryption_times = [r[2] for r in results]
+                results = ray.get(encrypted_data)
+                encrypted_sums = [(r[0], r[1]) for r in results]  # (encrypted_sum, shape)
+                encryption_times = [r[2] for r in results]
 
-            enc_sizes = [len(r[0]) for r in results]  # size of encrypted data
+                enc_sizes = [len(r[0]) for r in results]  # size of encrypted data
 
-            # aggregate at server
-            (
-                aggregated_result,
-                aggregation_time,
-            ) = server.aggregate_encrypted_feature_sums(encrypted_sums)
-            agg_size = len(aggregated_result[0])
+                # aggregate at server
+                (
+                    aggregated_result,
+                    aggregation_time,
+                ) = server.aggregate_encrypted_feature_sums(encrypted_sums)
+                agg_size = len(aggregated_result[0])
 
-            load_feature_refs = [
-                trainer.load_encrypted_feature_aggregation.remote(aggregated_result)
-                for trainer in server.trainers
-            ]
-            decryption_times = ray.get(load_feature_refs)
+                load_feature_refs = [
+                    trainer.load_encrypted_feature_aggregation.remote(aggregated_result)
+                    for trainer in server.trainers
+                ]
+                decryption_times = ray.get(load_feature_refs)
+            elif getattr(args, "he_backend", "tenseal") == "openfhe":
+                print("Starting OpenFHE threshold encrypted feature aggregation...")
+                
+                # Two-party key generation protocol
+                # 1. Server is the lead party - generates initial key pair
+                print("Step 1: Server generates lead keys...")
+                server.openfhe_cc = OpenFHEThresholdCKKS(security_level=128, ring_dim=16384)
+                kp1 = server.openfhe_cc.generate_lead_keys()
+                
+                # 2. Designated trainer (trainer 0) is the non-lead party
+                print("Step 2: Designated trainer generates non-lead share...")
+                designated_trainer = server.trainers[0]
+                
+                # Initialize OpenFHE on designated trainer with same CryptoContext
+                setup_designated_trainer_ref = designated_trainer.setup_openfhe_nonlead.remote(
+                    server.openfhe_cc.cc, kp1.publicKey
+                )
+                kp2_public = ray.get(setup_designated_trainer_ref)
+                
+                # 3. Server finalizes the joint public key
+                print("Step 3: Server finalizes joint public key...")
+                joint_pk = server.openfhe_cc.finalize_joint_public_key(kp2_public)
+                
+                # 4. Distribute joint public key to all trainers
+                print("Step 4: Distributing joint public key to all trainers...")
+                for trainer in server.trainers:
+                    # All trainers get the joint public key for encryption
+                    # But only designated trainer already has its secret share
+                    ray.get(trainer.set_openfhe_public_key.remote(
+                        server.openfhe_cc.cc, joint_pk, trainer == designated_trainer
+                    ))
+                
+                print("Two-party threshold key generation complete!")
+                
+                # Now proceed with encrypted feature aggregation
+                encrypted_data = [
+                    trainer.get_encrypted_local_feature_sum.remote()
+                    for trainer in server.trainers
+                ]
+                
+                results = ray.get(encrypted_data)
+                encrypted_sums = [(r[0], r[1]) for r in results]  # (encrypted_sum, shape)
+                encryption_times = [r[2] for r in results]
+                
+                enc_sizes = [len(str(r[0])) for r in results]  # size of encrypted data
+                
+                # Server aggregates encrypted feature sums using OpenFHE threshold
+                (
+                    aggregated_result,
+                    aggregation_time,
+                ) = server.aggregate_encrypted_feature_sums(encrypted_sums)
+                
+                agg_size = len(str(aggregated_result[0]))
+                
+                # Load aggregated features back to trainers
+                load_feature_refs = [
+                    trainer.load_encrypted_feature_aggregation.remote(aggregated_result)
+                    for trainer in server.trainers
+                ]
+                decryption_times = ray.get(load_feature_refs)
+                
+                pretrain_time = time.time() - pretrain_start
+                pretrain_upload = sum(enc_sizes) / (1024 * 1024)  # MB
+                pretrain_download = agg_size * len(server.trainers) / (1024 * 1024)  # MB
+                pretrain_comm_cost = pretrain_upload + pretrain_download
+                
+                # Print performance metrics
+                print("\nPre-training Phase Metrics (OpenFHE Threshold):")
+                print(f"Total Pre-training Time: {pretrain_time:.2f} seconds")
+                print(f"Pre-training Upload: {pretrain_upload:.2f} MB")
+                print(f"Pre-training Download: {pretrain_download:.2f} MB")
+                print(f"Total Pre-training Communication Cost: {pretrain_comm_cost:.2f} MB")
+            else:
+                raise ValueError(f"Unknown he_backend: {getattr(args, 'he_backend', None)}")
             pretrain_time = time.time() - pretrain_start
             pretrain_upload = sum(enc_sizes) / (1024 * 1024)  # MB
             pretrain_download = agg_size * len(server.trainers) / (1024 * 1024)  # MB

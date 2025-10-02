@@ -27,6 +27,7 @@ from fedgraph.gnn_models import (
     GCN_arxiv,
     SAGE_products,
 )
+from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS
 from fedgraph.train_func import test, train
 from fedgraph.utils_lp import (
     check_data_files_existance,
@@ -408,6 +409,36 @@ class Trainer_General:
         return torch.from_numpy(decrypted_array).float().reshape(shape)
 
     def get_encrypted_local_feature_sum(self):
+        # Check HE backend and route accordingly
+        if hasattr(self, 'he_backend') and self.he_backend == "openfhe":
+            return self._get_openfhe_encrypted_local_feature_sum()
+        else:
+            return self._get_tenseal_encrypted_local_feature_sum()
+
+    def _get_openfhe_encrypted_local_feature_sum(self):
+        """OpenFHE encryption of local feature sum"""
+        # Same feature sum computation as original
+        new_feature_for_trainer = torch.zeros(
+            self.global_node_num, self.features.shape[1]
+        ).to(self.device)
+        new_feature_for_trainer[self.local_node_index] = self.features
+        feature_sum = get_1hop_feature_sum(
+            new_feature_for_trainer, self.adj, self.device
+        )
+
+        # Encrypt with OpenFHE using the shared context
+        encryption_start = time.time()
+        if hasattr(self, 'openfhe_cc'):
+            # Convert to list and encrypt
+            feature_list = feature_sum.flatten().tolist()
+            encrypted = self.openfhe_cc.encrypt(feature_list)
+            encryption_time = time.time() - encryption_start
+            return encrypted, feature_sum.shape, encryption_time
+        else:
+            raise RuntimeError("OpenFHE context not available on trainer")
+
+    def _get_tenseal_encrypted_local_feature_sum(self):
+        """TenSEAL encryption of local feature sum (existing implementation)"""
         # Same feature sum computation as original
         new_feature_for_trainer = torch.zeros(
             self.global_node_num, self.features.shape[1]
@@ -425,18 +456,69 @@ class Trainer_General:
 
         return encrypted, feature_sum.shape, encryption_time
 
+    def setup_openfhe_nonlead(self, crypto_context, lead_public_key):
+        """Setup OpenFHE as non-lead party in two-party threshold scheme"""
+        # Import here to avoid circular dependencies
+        from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS
+        
+        # Initialize with shared CryptoContext
+        self.openfhe_cc = OpenFHEThresholdCKKS(security_level=128, ring_dim=16384, cc=crypto_context)
+        
+        # Generate non-lead share from lead's public key
+        kp2 = self.openfhe_cc.generate_nonlead_share(lead_public_key)
+        
+        print(f"Trainer {self.rank}: Generated non-lead key share")
+        return kp2.publicKey
+    
+    def set_openfhe_public_key(self, crypto_context, joint_public_key, is_designated_trainer):
+        """Set the joint public key for encryption"""
+        from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS
+        
+        # If not already initialized (for non-designated trainers)
+        if not hasattr(self, 'openfhe_cc'):
+            self.openfhe_cc = OpenFHEThresholdCKKS(security_level=128, ring_dim=16384, cc=crypto_context)
+        
+        # Set the joint public key
+        self.openfhe_cc.set_public_key(joint_public_key)
+        
+        # Store he_backend for routing in get_encrypted_local_feature_sum
+        self.he_backend = "openfhe"
+        
+        role = "designated trainer (has secret share)" if is_designated_trainer else "regular trainer (encryption only)"
+        print(f"Trainer {self.rank}: Set joint public key ({role})")
+        return True
+    
+    def openfhe_partial_decrypt_main(self, ciphertext):
+        """Perform partial decryption main for OpenFHE threshold scheme"""
+        # This trainer (rank 0) holds the second secret share
+        if not hasattr(self, 'openfhe_cc'):
+            raise RuntimeError("OpenFHE context not initialized on trainer")
+        
+        # Perform partial decryption (this is the non-lead party)
+        partial_main = self.openfhe_cc.partial_decrypt(ciphertext)
+        return partial_main
+
     def load_encrypted_feature_aggregation(self, encrypted_data):
         encrypted_sum, shape = encrypted_data
 
-        decryption_start = time.time()
-        decrypted = ts.ckks_vector_from(self.he_context, encrypted_sum).decrypt()
+        # Check if this is OpenFHE decrypted data (already a tensor) or TenSEAL encrypted data
+        if isinstance(encrypted_sum, torch.Tensor):
+            # OpenFHE path: data is already decrypted tensor
+            decryption_start = time.time()
+            self.feature_aggregation = encrypted_sum[self.communicate_node_index]
+            decryption_time = time.time() - decryption_start
+            return decryption_time
+        else:
+            # TenSEAL path: need to decrypt
+            decryption_start = time.time()
+            decrypted = ts.ckks_vector_from(self.he_context, encrypted_sum).decrypt()
 
-        # reshape and store
-        self.feature_aggregation = torch.tensor(decrypted).reshape(shape)[
-            self.communicate_node_index
-        ]
+            # reshape and store
+            self.feature_aggregation = torch.tensor(decrypted).reshape(shape)[
+                self.communicate_node_index
+            ]
 
-        return time.time() - decryption_start
+            return time.time() - decryption_start
 
     def get_encrypted_params(self):
         """Get encrypted parameters with proper scaling"""

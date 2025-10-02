@@ -9,6 +9,7 @@ import networkx as nx
 import numpy as np
 import ray
 import tenseal as ts
+from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS
 import torch
 from dtaidistance import dtw
 
@@ -112,12 +113,21 @@ class Server:
         self.num_of_trainers = len(trainers)
         self.use_encryption = args.use_encryption
         if args.use_encryption:
-            file_path = str(files("fedgraph").joinpath("he_context.pkl"))
-            with open(file_path, "rb") as f:
-                context_bytes = pickle.load(f)
-            self.he_context = ts.context_from(context_bytes)
-            self.aggregation_stats = []
-            print("Loaded HE context with secret key.")
+            self.he_backend = getattr(args, "he_backend", "tenseal")
+            if self.he_backend == "tenseal":
+                file_path = str(files("fedgraph").joinpath("he_context.pkl"))
+                with open(file_path, "rb") as f:
+                    context_bytes = pickle.load(f)
+                self.he_context = ts.context_from(context_bytes)
+                self.aggregation_stats = []
+                print("Loaded TenSEAL HE context with secret key.")
+            elif self.he_backend == "openfhe":
+                # Initialize OpenFHE threshold context
+                self.openfhe_cc = OpenFHEThresholdCKKS()
+                self.aggregation_stats = []
+                print("Initialized OpenFHE threshold context")
+            else:
+                raise ValueError(f"Unknown he_backend: {self.he_backend}")
 
         self.device = device
         # self.broadcast_params(-1)
@@ -153,6 +163,55 @@ class Server:
         return processed_params, metadata
 
     def aggregate_encrypted_feature_sums(self, encrypted_sums):
+        if hasattr(self, 'he_backend') and self.he_backend == "openfhe":
+            return self._aggregate_openfhe_feature_sums(encrypted_sums)
+        else:
+            return self._aggregate_tenseal_feature_sums(encrypted_sums)
+
+    def _aggregate_openfhe_feature_sums(self, encrypted_sums):
+        """OpenFHE threshold aggregation: server does partial decrypt lead, 
+        designated trainer does partial decrypt main, server fuses"""
+        aggregation_start = time.time()
+        
+        # Server homomorphically adds all encrypted feature sums
+        first_sum = encrypted_sums[0][0]  # first ciphertext
+        shape = encrypted_sums[0][1]
+        
+        for enc_sum, _ in encrypted_sums[1:]:
+            first_sum = self.openfhe_cc.add_ciphertexts(first_sum, enc_sum)
+        
+        # Server does partial decrypt (lead party)
+        partial_lead = self.openfhe_cc.partial_decrypt(first_sum)
+        
+        # Request designated trainer (trainer 0) to do partial decrypt (main party)
+        designated_trainer = self.trainers[0]
+        partial_main = ray.get(
+            designated_trainer.openfhe_partial_decrypt_main.remote(first_sum)
+        )
+        
+        # Server fuses the partial decryptions
+        fused_result = self.openfhe_cc.fuse_partial_decryptions(partial_lead, partial_main)
+        
+        # Convert fused plaintext to tensor data
+        # The fused_result is a list of floats
+        try:
+            # fuse_partial_decryptions returns a list of floats
+            if isinstance(fused_result, list):
+                decrypted_tensor = torch.tensor(fused_result, dtype=torch.float32)
+            else:
+                decrypted_tensor = torch.tensor(fused_result, dtype=torch.float32)
+            
+            # Reshape to original shape - only use the actual data length
+            total_elements = shape[0] * shape[1]
+            decrypted_tensor = decrypted_tensor[:total_elements].reshape(shape)
+            
+        except Exception as e:
+            print(f"Error during threshold decryption: {e}")
+            raise RuntimeError(f"Failed to decrypt and reshape feature sums: {e}")
+        
+        return (decrypted_tensor, shape), time.time() - aggregation_start
+
+    def _aggregate_tenseal_feature_sums(self, encrypted_sums):
         aggregation_start = time.time()
 
         first_sum = ts.ckks_vector_from(self.he_context, encrypted_sums[0][0])
