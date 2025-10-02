@@ -4,7 +4,7 @@
 # This script starts an interactive job and sets up the environment
 
 # Replace with your account name
-ACCOUNT="bcjw-delta-cpu"
+ACCOUNT="YOUR_ACCOUNT"
 
 echo "Starting interactive session on Delta..."
 echo "This will request:"

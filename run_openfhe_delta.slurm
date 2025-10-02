@@ -4,15 +4,15 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --partition=cpu
-#SBATCH --account=bcjw-delta-cpu    # Using CPU account
-#SBATCH --job-name=openfhe_nc
+#SBATCH --account=YOUR_ACCOUNT    # Replace with your Delta account name
+#SBATCH --job-name=agentic
 #SBATCH --time=02:00:00      # 2 hours should be enough
 #SBATCH --constraint="scratch"
-#SBATCH -e openfhe-%j.err
-#SBATCH -o openfhe-%j.out
+#SBATCH -e agentic-%j.err
+#SBATCH -o agentic-%j.out
 
-# FedGraph OpenFHE NC - Slurm Batch Script for Delta
-# This script runs the OpenFHE two-party threshold HE implementation
+# Agentic System - Slurm Batch Script for Delta
+# Federated graph learning experiments
 
 echo "Job started at $(date)"
 echo "Running on host: $(hostname)"
@@ -37,9 +37,18 @@ source $HOME/openfhe_env/bin/activate
 if [ ! -f "$HOME/openfhe_env/.installed" ]; then
     echo "Installing dependencies..."
     pip install --upgrade pip
+    
+    # Install PyTorch first
     pip install torch --index-url https://download.pytorch.org/whl/cpu
+    
+    # Install torch-geometric and its dependencies
     pip install torch-geometric
+    pip install torch-scatter torch-sparse torch-cluster torch-spline-conv -f https://data.pyg.org/whl/torch-2.0.0+cpu.html
+    
+    # Install OpenFHE
     pip install openfhe==1.2.3.0.24.4
+    
+    # Install other dependencies
     pip install ray[default] attridict ogb pyyaml networkx scipy scikit-learn
     
     # Clone and install fedgraph
