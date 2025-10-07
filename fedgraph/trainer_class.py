@@ -186,6 +186,9 @@ class Trainer_General:
         # self.class_num = class_num
         self.args = args
         self.model = None
+        self.optimizer = None
+        self.global_node_num = None
+        self.class_num = None
         self.feature_aggregation = None
         if self.args.method == "FedAvg":
             # print("Loading feature as the feature aggregation for fedavg method")
@@ -276,6 +279,9 @@ class Trainer_General:
             The current global epoch number.
         """
         # load global parameter from global server
+        if self.model is None:
+            return
+            
         self.model.to("cpu")
         for (
             p,
@@ -314,9 +320,14 @@ class Trainer_General:
         normalized_sum : torch.Tensor
             The normalized sum of features of 1-hop neighbors for each node
         """
+        # Use global_node_num if available, otherwise infer from communicate_node_index
+        global_node_num = getattr(self, 'global_node_num', None)
+        if global_node_num is None:
+            global_node_num = self.communicate_node_index.max().item() + 1
+            
         # Create a large matrix with known local node features
         new_feature_for_trainer = torch.zeros(
-            self.global_node_num, self.features.shape[1]
+            global_node_num, self.features.shape[1]
         ).to(self.device)
         new_feature_for_trainer[self.local_node_index] = self.features
 
@@ -324,7 +335,7 @@ class Trainer_General:
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
             new_feature_for_trainer, self.adj, self.device
         )
-        if self.args.use_encryption:
+        if hasattr(self.args, 'use_encryption') and self.args.use_encryption:
             print(
                 f"Trainer {self.rank} - Original feature sum (first 10 and last 10 elements): "
                 f"{one_hop_neighbor_feature_sum.flatten()[:10].tolist()} ... {one_hop_neighbor_feature_sum.flatten()[-10:].tolist()}"
@@ -522,6 +533,7 @@ class Trainer_General:
             )
 
         self.feature_aggregation = self.feature_aggregation.to(self.device)
+        data = None
         if hasattr(self.args, "batch_size") and self.args.batch_size > 0:
             # batch preparation
             train_mask = torch.zeros(
@@ -541,6 +553,8 @@ class Trainer_General:
                 train_mask=train_mask,
                 y=node_labels,
             )
+        loss_train = 0.0
+        acc_train = 0.0
         for iteration in range(self.local_step):
             self.model.train()
             if hasattr(self.args, "batch_size") and self.args.batch_size > 0:
@@ -621,6 +635,9 @@ class Trainer_General:
         (list) : list
             A list containing the test loss and accuracy [local_test_loss, local_test_acc].
         """
+        if self.model is None or self.feature_aggregation is None:
+            return [0.0, 0.0]
+            
         local_test_loss, local_test_acc = test(
             self.model,
             self.feature_aggregation,
@@ -628,6 +645,8 @@ class Trainer_General:
             self.test_labels,
             self.idx_test,
         )
+        self.test_losses.append(local_test_loss)
+        self.test_accs.append(local_test_acc)
         return [local_test_loss, local_test_acc]
 
     def get_params(self) -> tuple:
@@ -639,8 +658,11 @@ class Trainer_General:
         (tuple) : tuple
             A tuple containing the current parameters of the model.
         """
-        self.optimizer.zero_grad(set_to_none=True)
-        return tuple(self.model.parameters())
+        if self.optimizer is not None:
+            self.optimizer.zero_grad(set_to_none=True)
+        if self.model is not None:
+            return tuple(self.model.parameters())
+        return ()
 
     def get_all_loss_accuray(self) -> list:
         """
