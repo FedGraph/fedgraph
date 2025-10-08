@@ -67,7 +67,7 @@ config: Dict[str, Any] = {
 # -------------------
 
 config = attridict(config)
-# run_fedgraph(config)
+run_fedgraph(config)
 
 #######################################################################
 # Specify the Graph Classification configuration
@@ -119,7 +119,7 @@ config = {
 # Run fedgraph method
 # -------------------
 config = attridict(config)
-# run_fedgraph(config)
+run_fedgraph(config)
 
 
 #######################################################################
@@ -163,5 +163,5 @@ config = {
 # Run fedgraph method
 # -------------------
 
-# config = attridict(config)
-# run_fedgraph(config)
+config = attridict(config)
+run_fedgraph(config)

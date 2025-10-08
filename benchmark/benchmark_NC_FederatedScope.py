@@ -23,17 +23,16 @@ from torch_geometric.nn import GCNConv
 
 from fedgraph.utils_nc import label_dirichlet_partition
 
-# DATASETS = ['cora', 'citeseer', 'pubmed']
-DATASETS = ["pubmed"]
+DATASETS = ["cora"]
 
-IID_BETAS = [10000.0, 100.0, 10.0]
-CLIENT_NUM = 10
-TOTAL_ROUNDS = 200
-LOCAL_STEPS = 1
-LEARNING_RATE = 0.1
-HIDDEN_DIM = 64
+IID_BETAS = [100.0]
+CLIENT_NUM = 5
+TOTAL_ROUNDS = 100
+LOCAL_STEPS = 3
+LEARNING_RATE = 0.5
+HIDDEN_DIM = 16
 DROPOUT_RATE = 0.5
-CPUS_PER_TRAINER = 0.6
+CPUS_PER_TRAINER = 1
 STANDALONE_PROCESSES = 1
 
 PLANETOID_NAMES = {"cora": "Cora", "citeseer": "CiteSeer", "pubmed": "PubMed"}
@@ -68,32 +67,48 @@ def make_data_loader(name):
         ds = Planetoid(root="data/", name=PLANETOID_NAMES[name])
         full = ds[0]
         num_classes = int(full.y.max().item()) + 1
-        # Dirichlet partition across all nodes
+        
+        # 与data_process.py完全一致：在全部节点上做Dirichlet分割
         split_idxs = label_dirichlet_partition(
-            full.y,
-            full.num_nodes,
+            full.y,  # 使用全部节点，不只是训练节点
+            len(full.y),  # 全部节点数
             num_classes,
             config.federate.client_num,
             config.iid_beta,
             config.distribution_type,
         )
+        
         parts = []
         for idxs in split_idxs:
-            mask = torch.zeros(full.num_nodes, dtype=torch.bool)
-            mask[idxs] = True
+            client_nodes = torch.tensor(idxs)
+            
+            # 为每个客户端创建mask，但保持原有的train/val/test划分逻辑
+            train_mask = torch.zeros(full.num_nodes, dtype=torch.bool)
+            val_mask = torch.zeros(full.num_nodes, dtype=torch.bool)
+            test_mask = torch.zeros(full.num_nodes, dtype=torch.bool)
+            
+            # 在客户端节点中，保持原有数据集的train/val/test划分
+            for node in client_nodes:
+                if full.train_mask[node]:
+                    train_mask[node] = True
+                elif full.val_mask[node]:
+                    val_mask[node] = True
+                elif full.test_mask[node]:
+                    test_mask[node] = True
+            
             parts.append(
                 Data(
                     x=full.x,
                     edge_index=full.edge_index,
                     y=full.y,
-                    train_mask=mask,
-                    val_mask=mask,
-                    test_mask=mask,
+                    train_mask=train_mask,  # 保持原有train划分
+                    val_mask=val_mask,      # 保持原有val划分
+                    test_mask=test_mask,    # 保持原有test划分
                 )
             )
+        
         data_dict = {
-            i
-            + 1: {
+            i + 1: {
                 "data": parts[i],
                 "train": [parts[i]],
                 "val": [parts[i]],
@@ -124,66 +139,6 @@ builder, mkey = make_model_builder("cora", 7)
 register_model(mkey, builder)
 
 
-def run_fedavg_manual(ds, beta, rounds, clients):
-    device = torch.device("cpu")
-    ds_obj = Planetoid(root="data/", name=PLANETOID_NAMES[ds])
-    data = ds_obj[0].to(device)
-    in_channels = data.x.size(1)
-    num_classes = int(data.y.max().item()) + 1
-    train_idx = data.train_mask.nonzero(as_tuple=False).view(-1)
-    # Dirichlet partition over all nodes
-    split_idxs = label_dirichlet_partition(
-        data.y, data.num_nodes, num_classes, clients, beta, "average"
-    )
-    client_idxs = []
-    train_set = set(train_idx.tolist())
-    for idxs in split_idxs:
-        ti = [i for i in idxs if i in train_set]
-        client_idxs.append(torch.tensor(ti, dtype=torch.long))
-    global_model = TwoLayerGCN(in_channels, num_classes).to(device)
-    global_params = [p.data.clone() for p in global_model.parameters()]
-    t0 = time.time()
-    for _ in range(rounds):
-        local_params = []
-        for cid in range(clients):
-            m = TwoLayerGCN(in_channels, num_classes).to(device)
-            for p, gp in zip(m.parameters(), global_params):
-                p.data.copy_(gp)
-            opt = torch.optim.SGD(m.parameters(), lr=LEARNING_RATE)
-            m.train()
-            opt.zero_grad()
-            out = m(data)
-            loss = F.cross_entropy(out[client_idxs[cid]], data.y[client_idxs[cid]])
-            loss.backward()
-            opt.step()
-            local_params.append([p.data.clone() for p in m.parameters()])
-        with torch.no_grad():
-            for gp in global_params:
-                gp.zero_()
-            for lp in local_params:
-                for gp, p in zip(global_params, lp):
-                    gp.add_(p)
-            for gp in global_params:
-                gp.div_(clients)
-    dur = time.time() - t0
-    for p, gp in zip(global_model.parameters(), global_params):
-        p.data.copy_(gp)
-    global_model.eval()
-    with torch.no_grad():
-        preds = global_model(data).argmax(dim=1)
-        correct = (
-            (
-                preds[data.test_mask.nonzero(as_tuple=False).view(-1)]
-                == data.y[data.test_mask.nonzero(as_tuple=False).view(-1)]
-            )
-            .sum()
-            .item()
-        )
-        acc = correct / data.test_mask.sum().item()
-    total_params = sum(p.numel() for p in global_model.parameters())
-    model_size_mb = total_params * 4 / 1024**2
-    return acc, model_size_mb, total_params, dur
-
 
 def run_fedscope_experiment(ds, beta):
     cfg = global_cfg.clone()
@@ -194,8 +149,8 @@ def run_fedscope_experiment(ds, beta):
     cfg.federate.mode = "standalone"
     cfg.federate.client_num = CLIENT_NUM
     cfg.federate.total_round_num = TOTAL_ROUNDS
-    cfg.federate.make_global_eval = True
-    cfg.federate.process_num = STANDALONE_PROCESSES
+    cfg.federate.make_global_eval = False
+    cfg.federate.process_num = CLIENT_NUM  
     cfg.federate.num_cpus_per_trainer = CPUS_PER_TRAINER
     cfg.data.root = "data/"
     cfg.data.type = ds
@@ -214,6 +169,7 @@ def run_fedscope_experiment(ds, beta):
     cfg.train.local_update_steps = LOCAL_STEPS
     cfg.train.optimizer.lr = LEARNING_RATE
     cfg.train.optimizer.weight_decay = 0.0
+    cfg.train.optimizer.type = "SGD"
     cfg.eval.freq = 1
     cfg.eval.metrics = ["acc"]
     cfg.freeze()
@@ -224,11 +180,21 @@ def run_fedscope_experiment(ds, beta):
     res = runner.run()
     dur = time.time() - t0
     mem = peak_memory_mb()
-    acc = res.get("server_global_eval", res).get("test_acc", res.get("acc", 0.0))
+    
+    # 获取FederatedScope结果
+    
+    # 从FederatedScope的结果中获取准确率
+    # 使用加权平均以与FedGraph保持一致
+    acc = res.get("client_summarized_weighted_avg", {}).get("test_acc", 0.0) if res else 0.0
+    
     acc_pct = acc * 100 if acc <= 1.0 else acc
-    model = runner.server.model
-    tot_params = sum(p.numel() for p in model.parameters())
-    msz = tot_params * 4 / 1024**2
+    model = runner.server.model if runner.server else None
+    if model is not None:
+        tot_params = sum(p.numel() for p in model.parameters())
+        msz = tot_params * 4 / 1024**2
+    else:
+        tot_params = 0
+        msz = 0.0
     comm = calculate_communication_cost(msz, TOTAL_ROUNDS, CLIENT_NUM)
     return {
         "accuracy": acc_pct,
@@ -244,26 +210,6 @@ def run_fedscope_experiment(ds, beta):
     }
 
 
-def run_manual_experiment(ds, beta):
-    if ds == "citeseer":
-        nodes, edges = 3327, 9104
-    else:
-        nodes, edges = 19717, 88648
-    acc, msz, tp, dur = run_fedavg_manual(ds, beta, TOTAL_ROUNDS, CLIENT_NUM)
-    mem = peak_memory_mb()
-    comm = calculate_communication_cost(msz, TOTAL_ROUNDS, CLIENT_NUM)
-    return {
-        "accuracy": acc * 100,
-        "total_time": dur,
-        "computation_time": dur,
-        "communication_cost_mb": comm,
-        "peak_memory_mb": mem,
-        "avg_time_per_round": dur / TOTAL_ROUNDS,
-        "model_size_mb": msz,
-        "total_params": tp,
-        "nodes": nodes,
-        "edges": edges,
-    }
 
 
 def main():
@@ -280,8 +226,6 @@ def main():
                 print(f"Running {ds} with β={beta}")
                 if ds == "cora":
                     metrics = run_fedscope_experiment(ds, beta)
-                else:
-                    metrics = run_manual_experiment(ds, beta)
                 print(
                     f"Dataset: {metrics['nodes']:,} nodes, {metrics['edges']:,} edges"
                 )

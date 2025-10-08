@@ -1,0 +1,375 @@
+aggregator:
+  BFT_args: {}
+  byzantine_node_num: 0
+  inside_weight: 1.0
+  num_agg_groups: 1
+  num_agg_topk: []
+  outside_weight: 0.0
+  robust_rule: fedavg
+asyn:
+  use: false
+attack:
+  alpha_TV: 0.001
+  alpha_prop_loss: 0
+  attack_method: ''
+  attacker_id: -1
+  classifier_PIA: randomforest
+  edge_num: 100
+  edge_path: edge_data/
+  freq: 10
+  info_diff_type: l2
+  inject_round: 0
+  insert_round: 100000
+  label_type: dirty
+  max_ite: 400
+  mean:
+  - 0.9637
+  mia_is_simulate_in: false
+  mia_simulate_in_round: 20
+  pgd_eps: 2
+  pgd_lr: 0.1
+  pgd_poisoning: false
+  poison_ratio: 0.5
+  reconstruct_lr: 0.01
+  reconstruct_optim: Adam
+  scale_para: 1.0
+  scale_poisoning: false
+  self_epoch: 6
+  self_lr: 0.05
+  self_opt: false
+  setting: fix
+  std:
+  - 0.1592
+  target_label_ind: -1
+  trigger_path: trigger/
+  trigger_type: edge
+backend: torch
+cfg_file: ''
+check_completeness: false
+criterion:
+  type: CrossEntropyLoss
+data:
+  args: []
+  batch_size: 64
+  cSBM_phi:
+  - 0.5
+  - 0.5
+  - 0.5
+  cache_dir: ''
+  consistent_label_distribution: true
+  drop_last: false
+  file_path: ''
+  hetero_data_name: []
+  hetero_synth_batch_size: 32
+  hetero_synth_feat_dim: 128
+  hetero_synth_prim_weight: 0.5
+  is_debug: false
+  loader: ''
+  max_query_len: 128
+  max_seq_len: 384
+  max_tgt_len: 128
+  num_contrast: 0
+  num_of_client_for_data: []
+  num_steps: 30
+  num_workers: 0
+  pre_transform: []
+  quadratic:
+    dim: 1
+    max_curv: 12.5
+    min_curv: 0.02
+  root: data/
+  save_data: false
+  server_holds_all: false
+  shuffle: true
+  sizes:
+  - 10
+  - 5
+  splits:
+  - 0.8
+  - 0.1
+  - 0.1
+  splitter: dirichlet
+  splitter_args: []
+  subsample: 1.0
+  target_transform: []
+  test_pre_transform: []
+  test_target_transform: []
+  test_transform: []
+  transform: []
+  trunc_stride: 128
+  type: cora
+  val_pre_transform: []
+  val_target_transform: []
+  val_transform: []
+  walk_length: 2
+dataloader:
+  batch_size: 1
+  drop_last: false
+  num_steps: 30
+  num_workers: 0
+  pin_memory: false
+  shuffle: true
+  sizes:
+  - 10
+  - 5
+  theta: -1
+  type: pyg
+  walk_length: 2
+device: -1
+distribute:
+  use: false
+distribution_type: average
+early_stop:
+  delta: 0.0
+  improve_indicator_mode: best
+  patience: 5
+eval:
+  best_res_update_round_wise_key: val_loss
+  count_flops: true
+  freq: 1
+  metrics:
+  - acc
+  monitoring: []
+  report:
+  - weighted_avg
+  - avg
+  - fairness
+  - raw
+  split:
+  - test
+  - val
+expname: ''
+expname_tag: ''
+feat_engr:
+  num_bins: 5
+  scenario: hfl
+  secure:
+    dp: {}
+    encrypt:
+      type: dummy
+    key_size: 3072
+    type: encrypt
+  selec_threshold: 0.05
+  selec_woe_binning: quantile
+  type: ''
+federate:
+  atc_load_from: ''
+  atc_vanilla: false
+  client_num: 5
+  data_weighted_aggr: false
+  ignore_weight: false
+  join_in_info: []
+  make_global_eval: false
+  master_addr: 127.0.0.1
+  master_port: 29500
+  merge_test_data: false
+  merge_val_data: false
+  method: FedAvg
+  mode: standalone
+  num_cpus_per_trainer: 1
+  online_aggr: false
+  process_num: 0
+  resource_info_file: ''
+  restore_from: ''
+  sample_client_num: 5
+  sample_client_rate: -1.0
+  sampler: uniform
+  save_to: ''
+  share_local_model: false
+  total_round_num: 100
+  unseen_clients_rate: 0.0
+  use_diff: false
+  use_ss: false
+fedopt:
+  use: false
+fedprox:
+  use: false
+fedsageplus:
+  a: 1.0
+  b: 1.0
+  c: 1.0
+  fedgen_epoch: 200
+  gen_hidden: 128
+  hide_portion: 0.5
+  loc_epoch: 1
+  num_pred: 5
+fedswa:
+  use: false
+finetune:
+  batch_or_epoch: epoch
+  before_eval: false
+  epoch_linear: 10
+  freeze_param: ''
+  local_param: []
+  local_update_steps: 1
+  lr_linear: 0.005
+  optimizer:
+    lr: 0.1
+    type: SGD
+  scheduler:
+    type: ''
+    warmup_ratio: 0.0
+  simple_tuning: false
+  weight_decay: 0.0
+flitplus:
+  factor_ema: 0.8
+  lambdavat: 0.5
+  tmpFed: 0.5
+  weightReg: 1.0
+gcflplus:
+  EPS_1: 0.05
+  EPS_2: 0.1
+  seq_length: 5
+  standardize: false
+grad:
+  grad_accum_count: 1
+  grad_clip: -1.0
+hpo:
+  fedex:
+    cutoff: 0.0
+    diff: false
+    eta0: -1.0
+    flatten_ss: true
+    gamma: 0.0
+    pi_lr: 0.01
+    psn: false
+    sched: auto
+    ss: ''
+    use: false
+  fts:
+    M: 100
+    M_target: 200
+    allow_load_existing_info: true
+    diff: false
+    fed_bo_max_iter: 50
+    g_var: 1.0e-06
+    gp_opt_schedule: 1
+    local_bo_epochs: 50
+    local_bo_max_iter: 50
+    ls: 1.0
+    obs_noise: 1.0e-06
+    ss: ''
+    target_clients: []
+    use: false
+    v_kernel: 1.0
+    var: 0.1
+  init_cand_num: 16
+  larger_better: false
+  metric: client_summarized_weighted_avg.val_loss
+  num_workers: 0
+  pbt:
+    max_stage: 5
+    perf_threshold: 0.1
+  pfedhpo:
+    discrete: false
+    ss: ''
+    target_fl_total_round: 1000
+    train_anchor: false
+    train_fl: false
+    use: false
+  scheduler: rs
+  sha:
+    budgets: []
+    elim_rate: 3
+    iter: 0
+  ss: ''
+  table:
+    eps: 0.1
+    idx: 0
+    num: 27
+  trial_index: 0
+  working_folder: hpo
+iid_beta: 100.0
+model:
+  contrast_temp: 1.0
+  contrast_topk: 100
+  downstream_tasks: []
+  dropout: 0.5
+  embed_size: 8
+  gamma: 0
+  graph_pooling: mean
+  hidden: 16
+  in_channels: 0
+  input_shape: []
+  label_smoothing: 0.1
+  lambda_: 0.1
+  layer: 2
+  length_penalty: 2.0
+  max_answer_len: 30
+  max_length: 200
+  max_tree_depth: 3
+  min_length: 1
+  model_num_per_trainer: 1
+  model_type: google/bert_uncased_L-2_H-128_A-2
+  n_best_size: 20
+  no_repeat_ngram_size: 3
+  null_score_diff_threshold: 0.0
+  num_beams: 5
+  num_item: 0
+  num_labels: 1
+  num_of_trees: 10
+  num_user: 0
+  out_channels: 7
+  pretrain_tasks: []
+  stage: ''
+  task: node
+  type: gnn_cora
+  use_bias: true
+  use_contrastive_loss: false
+nbafl:
+  use: false
+outdir: exp
+personalization:
+  K: 5
+  beta: 1.0
+  epoch_feature: 1
+  epoch_linear: 2
+  local_param: []
+  local_update_steps: 3
+  lr: 0.5
+  lr_feature: 0.1
+  lr_linear: 0.1
+  regular_weight: 0.1
+  share_non_trainable_para: false
+  weight_decay: 0.0
+print_decimal_digits: 6
+quantization:
+  method: none
+  nbits: 8
+regularizer:
+  mu: 0.0
+  type: ''
+seed: 42
+sgdmf:
+  use: false
+train:
+  batch_or_epoch: batch
+  data_para_dids: []
+  local_update_steps: 3
+  optimizer:
+    lr: 0.5
+    type: SGD
+    weight_decay: 0.0
+  scheduler:
+    type: ''
+    warmup_ratio: 0.0
+trainer:
+  disp_freq: 50
+  local_entropy:
+    alpha: 0.75
+    eps: 0.0001
+    gamma: 0.03
+    inc_factor: 1.0
+  sam:
+    adaptive: false
+    eta: 0.0
+    rho: 1.0
+  type: nodefullbatch_trainer
+  val_freq: 100000000
+use_gpu: false
+verbose: 1
+vertical:
+  use: false
+wandb:
+  use: false
+
