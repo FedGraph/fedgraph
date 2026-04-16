@@ -24,6 +24,7 @@ from fedgraph.gnn_models import GIN
 from fedgraph.monitor_class import Monitor
 from fedgraph.server_class import Server, Server_GC, Server_LP
 from fedgraph.train_func import gc_avg_accuracy
+from fedgraph.low_rank import Server_LowRank, Trainer_General_LowRank
 from fedgraph.trainer_class import Trainer_GC, Trainer_General, Trainer_LP
 from fedgraph.utils_gc import setup_server, setup_trainers
 from fedgraph.utils_lp import (
@@ -53,6 +54,9 @@ def run_fedgraph(args: attridict) -> None:
         Input data for the federated learning task. Format depends on the specific task and
         will be explained in more detail below inside specific functions.
     """
+    random.seed(42)
+    np.random.seed(42)
+    torch.manual_seed(42)
     if args.fedgraph_task != "NC" or not args.use_huggingface:
         data = data_loader(args)
     else:
@@ -88,6 +92,8 @@ def run_NC(args: attridict, data: Any = None) -> None:
 
     ray.init()
     start_time = time.time()
+    random.seed(42)
+    np.random.seed(42)
     torch.manual_seed(42)
     pretrain_upload: float = 0.0
     pretrain_download: float = 0.0
@@ -146,7 +152,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
         num_cpus=num_cpus_per_trainer,
         scheduling_strategy="SPREAD",
     )
-    class Trainer(Trainer_General):
+    class Trainer(Trainer_General_LowRank):
         def __init__(self, *args: Any, **kwds: Any):
             super().__init__(*args, **kwds)
             args_obj = kwds.get("args", {})
@@ -235,7 +241,8 @@ def run_NC(args: attridict, data: Any = None) -> None:
     # Server class is defined for federated aggregation (e.g., FedAvg)
     # without knowing the local trainer data
 
-    server = Server(features.shape[1], args_hidden, class_num, device, trainers, args)
+    ServerClass = Server_LowRank if getattr(args, "use_lowrank", False) else Server
+    server = ServerClass(features.shape[1], args_hidden, class_num, device, trainers, args)
 
     # End initialization time tracking
     server.broadcast_params(-1)
@@ -279,73 +286,208 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 decryption_times = ray.get(load_feature_refs)
             elif getattr(args, "he_backend", "tenseal") == "openfhe":
                 print("Starting OpenFHE threshold encrypted feature aggregation...")
-                
-                # Two-party key generation protocol
-                # 1. Server is the lead party - generates initial key pair
+                import openfhe
+                import os, tempfile
+
+                # Shared directory for OpenFHE serialized objects
+                he_dir = tempfile.mkdtemp(prefix="openfhe_")
+
+                # --- Two-party key generation protocol ---
+                # 1. Server (lead party) generates initial key pair
                 print("Step 1: Server generates lead keys...")
                 server.openfhe_cc = OpenFHEThresholdCKKS(security_level=128, ring_dim=16384)
                 kp1 = server.openfhe_cc.generate_lead_keys()
-                
+
+                # Serialize context and lead public key to shared files
+                cc_path = os.path.join(he_dir, "cc.bin")
+                pk1_path = os.path.join(he_dir, "pk_lead.bin")
+                openfhe.SerializeToFile(cc_path, server.openfhe_cc.cc, openfhe.BINARY)
+                openfhe.SerializeToFile(pk1_path, kp1.publicKey, openfhe.BINARY)
+
                 # 2. Designated trainer (trainer 0) is the non-lead party
                 print("Step 2: Designated trainer generates non-lead share...")
                 designated_trainer = server.trainers[0]
-                
-                # Initialize OpenFHE on designated trainer with same CryptoContext
-                setup_designated_trainer_ref = designated_trainer.setup_openfhe_nonlead.remote(
-                    server.openfhe_cc.cc, kp1.publicKey
-                )
-                kp2_public = ray.get(setup_designated_trainer_ref)
-                
-                # 3. Server finalizes the joint public key
-                print("Step 3: Server finalizes joint public key...")
-                joint_pk = server.openfhe_cc.finalize_joint_public_key(kp2_public)
-                
-                # 4. Distribute joint public key to all trainers
+
+                # Trainer reads serialized context + lead PK from files, generates its share
+                pk2_path = os.path.join(he_dir, "pk_nonlead.bin")
+                ray.get(designated_trainer.setup_openfhe_nonlead.remote(
+                    cc_path, pk1_path, pk2_path
+                ))
+
+                # 3. Server reads the non-lead public key (= joint PK) and uses it
+                print("Step 3: Server reads joint public key...")
+                joint_pk, _ = openfhe.DeserializePublicKey(pk2_path, openfhe.BINARY)
+                server.openfhe_cc.set_public_key(joint_pk)
+
+                # 4. All other trainers get context + joint PK for encryption only
                 print("Step 4: Distributing joint public key to all trainers...")
+                setup_refs = []
                 for trainer in server.trainers:
-                    # All trainers get the joint public key for encryption
-                    # But only designated trainer already has its secret share
-                    ray.get(trainer.set_openfhe_public_key.remote(
-                        server.openfhe_cc.cc, joint_pk, trainer == designated_trainer
-                    ))
-                
+                    if trainer is not designated_trainer:
+                        setup_refs.append(
+                            trainer.set_openfhe_public_key.remote(cc_path, pk2_path)
+                        )
+                if setup_refs:
+                    ray.get(setup_refs)
+
                 print("Two-party threshold key generation complete!")
-                
-                # Now proceed with encrypted feature aggregation
-                encrypted_data = [
-                    trainer.get_encrypted_local_feature_sum.remote()
-                    for trainer in server.trainers
-                ]
-                
-                results = ray.get(encrypted_data)
-                encrypted_sums = [(r[0], r[1]) for r in results]  # (encrypted_sum, shape)
-                encryption_times = [r[2] for r in results]
-                
-                enc_sizes = [len(str(r[0])) for r in results]  # size of encrypted data
-                
-                # Server aggregates encrypted feature sums using OpenFHE threshold
-                (
-                    aggregated_result,
-                    aggregation_time,
-                ) = server.aggregate_encrypted_feature_sums(encrypted_sums)
-                
-                agg_size = len(str(aggregated_result[0]))
-                
-                # Load aggregated features back to trainers
+
+                # --- Encrypted feature aggregation ---
+                # Each trainer encrypts locally and writes ciphertext to a file
+                ct_paths = []
+                encrypt_refs = []
+                for i, trainer in enumerate(server.trainers):
+                    ct_path = os.path.join(he_dir, f"ct_{i}.bin")
+                    ct_paths.append(ct_path)
+                    encrypt_refs.append(
+                        trainer.get_encrypted_local_feature_sum.remote(ct_path)
+                    )
+
+                results = ray.get(encrypt_refs)
+                shapes = [r[0] for r in results]
+                encryption_times = [r[1] for r in results]
+
+                import json
+
+                # Read chunk metadata from first trainer
+                meta_path = os.path.join(he_dir, "ct_0_meta.json")
+                with open(meta_path) as f:
+                    meta = json.load(f)
+                num_chunks = meta["num_chunks"]
+                total_elements = meta["total_elements"]
+                use_lowrank = meta.get("lowrank", False)
+
+                enc_sizes = []
+                for p in ct_paths:
+                    base, ext = os.path.splitext(p)
+                    size = sum(
+                        os.path.getsize(f"{base}_chunk{c}{ext}")
+                        for c in range(num_chunks)
+                    )
+                    enc_sizes.append(size)
+
+                aggregation_start = time.time()
+                total_agg_size = sum(enc_sizes)
+
+                if use_lowrank:
+                    # Low-rank mode: decrypt each trainer separately, decompress, then add
+                    from fedgraph.low_rank.compression_utils import svd_decompress
+                    u_shape = meta["U_shape"]
+                    s_len = meta["S_len"]
+                    v_shape = meta["V_shape"]
+                    original_shape = tuple(meta["original_shape"])
+                    u_size = u_shape[0] * u_shape[1]
+                    v_size = v_shape[0] * v_shape[1]
+
+                    print(f"Decrypting {len(ct_paths)} trainers x {num_chunks} chunks (low-rank, rank={meta['rank']})...")
+                    decrypted_tensor = torch.zeros(original_shape, dtype=torch.float32)
+
+                    for trainer_idx in range(len(ct_paths)):
+                        # Server partial decrypt all chunks for this trainer
+                        base, ext = os.path.splitext(ct_paths[trainer_idx])
+                        partial_leads = []
+                        for chunk_idx in range(num_chunks):
+                            chunk_path = f"{base}_chunk{chunk_idx}{ext}"
+                            ct, ok = openfhe.DeserializeCiphertext(chunk_path, openfhe.BINARY)
+                            if not ok:
+                                raise RuntimeError(f"Failed to deserialize {chunk_path}")
+                            partial_leads.append(server.openfhe_cc.partial_decrypt(ct))
+                            # Write ct for designated trainer
+                            agg_path = os.path.join(he_dir, f"agg_ct_{chunk_idx}.bin")
+                            openfhe.SerializeToFile(agg_path, ct, openfhe.BINARY)
+
+                        # Batch partial decrypt on designated trainer
+                        ray.get(designated_trainer.openfhe_partial_decrypt_main_batch.remote(
+                            he_dir, num_chunks
+                        ))
+
+                        # Fuse and collect values
+                        trainer_values = []
+                        for chunk_idx in range(num_chunks):
+                            partial_main_path = os.path.join(he_dir, f"partial_main_{chunk_idx}.bin")
+                            partial_main_ct, ok = openfhe.DeserializeCiphertext(
+                                partial_main_path, openfhe.BINARY
+                            )
+                            if not ok:
+                                raise RuntimeError("Failed to deserialize partial_main")
+                            fused = server.openfhe_cc.cc.MultipartyDecryptFusion(
+                                [partial_leads[chunk_idx], partial_main_ct]
+                            )
+                            trainer_values.extend(fused.GetRealPackedValue())
+
+                        # Decompress SVD and accumulate
+                        vals = trainer_values[:total_elements]
+                        U = torch.tensor(vals[:u_size], dtype=torch.float32).reshape(u_shape)
+                        S = torch.tensor(vals[u_size:u_size + s_len], dtype=torch.float32)
+                        V = torch.tensor(vals[u_size + s_len:u_size + s_len + v_size], dtype=torch.float32).reshape(v_shape)
+                        decrypted_tensor += svd_decompress(U, S, V)
+
+                    shape = original_shape
+                    print(f"Low-rank decompressed and aggregated: rank={meta['rank']}, shape={shape}")
+                else:
+                    # Standard mode: aggregate ciphertexts homomorphically, then decrypt
+                    print(f"Aggregating {num_chunks} chunks across {len(ct_paths)} trainers...")
+                    partial_leads = []
+                    for chunk_idx in range(num_chunks):
+                        agg_ct = None
+                        for i in range(len(ct_paths)):
+                            base, ext = os.path.splitext(ct_paths[i])
+                            chunk_path = f"{base}_chunk{chunk_idx}{ext}"
+                            ct, ok = openfhe.DeserializeCiphertext(chunk_path, openfhe.BINARY)
+                            if not ok:
+                                raise RuntimeError(f"Failed to deserialize {chunk_path}")
+                            agg_ct = ct if agg_ct is None else server.openfhe_cc.add_ciphertexts(agg_ct, ct)
+                        partial_leads.append(server.openfhe_cc.partial_decrypt(agg_ct))
+                        agg_ct_path = os.path.join(he_dir, f"agg_ct_{chunk_idx}.bin")
+                        openfhe.SerializeToFile(agg_ct_path, agg_ct, openfhe.BINARY)
+
+                    print(f"Batch partial decryption on designated trainer...")
+                    ray.get(designated_trainer.openfhe_partial_decrypt_main_batch.remote(
+                        he_dir, num_chunks
+                    ))
+
+                    all_fused_values = []
+                    for chunk_idx in range(num_chunks):
+                        partial_main_path = os.path.join(he_dir, f"partial_main_{chunk_idx}.bin")
+                        partial_main_ct, ok = openfhe.DeserializeCiphertext(
+                            partial_main_path, openfhe.BINARY
+                        )
+                        if not ok:
+                            raise RuntimeError(f"Failed to deserialize partial_main chunk {chunk_idx}")
+                        fused = server.openfhe_cc.cc.MultipartyDecryptFusion(
+                            [partial_leads[chunk_idx], partial_main_ct]
+                        )
+                        all_fused_values.extend(fused.GetRealPackedValue())
+
+                    shape = shapes[0]
+                    decrypted_tensor = torch.tensor(
+                        all_fused_values[:total_elements], dtype=torch.float32
+                    ).reshape(shape)
+
+                aggregation_time = time.time() - aggregation_start
+                agg_size = total_agg_size
+                aggregated_result = (decrypted_tensor, shape)
+
+                # Load decrypted features to all trainers
                 load_feature_refs = [
                     trainer.load_encrypted_feature_aggregation.remote(aggregated_result)
                     for trainer in server.trainers
                 ]
                 decryption_times = ray.get(load_feature_refs)
-                
+
+                # Cleanup temp files
+                import shutil
+                shutil.rmtree(he_dir, ignore_errors=True)
+
                 pretrain_time = time.time() - pretrain_start
                 pretrain_upload = sum(enc_sizes) / (1024 * 1024)  # MB
                 pretrain_download = agg_size * len(server.trainers) / (1024 * 1024)  # MB
                 pretrain_comm_cost = pretrain_upload + pretrain_download
-                
+
                 # Print performance metrics
                 print("\nPre-training Phase Metrics (OpenFHE Threshold):")
                 print(f"Total Pre-training Time: {pretrain_time:.2f} seconds")
+                print(f"Aggregation Time: {aggregation_time:.2f} seconds")
                 print(f"Pre-training Upload: {pretrain_upload:.2f} MB")
                 print(f"Pre-training Download: {pretrain_download:.2f} MB")
                 print(f"Total Pre-training Communication Cost: {pretrain_comm_cost:.2f} MB")

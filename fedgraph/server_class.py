@@ -83,17 +83,19 @@ class Server:
                     NumLayers=self.args.num_layers,
                 ).to(device)
         else:  # 0-hop FedAvg methods
-            if "ogbn" in self.args.dataset:
-                print("Running GCN_arxiv")
-                self.model = GCN_arxiv(
+            gnn_model = getattr(self.args, "gnn_model", "auto")
+            if gnn_model == "graphsage" or self.args.dataset == "ogbn-products":
+                print("Running SAGE_products")
+                self.model = SAGE_products(
                     nfeat=feature_dim,
                     nhid=args_hidden,
                     nclass=class_num,
                     dropout=0.5,
                     NumLayers=self.args.num_layers,
                 ).to(device)
-            elif self.args.dataset == "ogbn-products":
-                self.model = SAGE_products(
+            elif "ogbn" in self.args.dataset:
+                print("Running GCN_arxiv")
+                self.model = GCN_arxiv(
                     nfeat=feature_dim,
                     nhid=args_hidden,
                     nclass=class_num,
@@ -163,53 +165,10 @@ class Server:
         return processed_params, metadata
 
     def aggregate_encrypted_feature_sums(self, encrypted_sums):
-        if hasattr(self, 'he_backend') and self.he_backend == "openfhe":
-            return self._aggregate_openfhe_feature_sums(encrypted_sums)
-        else:
-            return self._aggregate_tenseal_feature_sums(encrypted_sums)
-
-    def _aggregate_openfhe_feature_sums(self, encrypted_sums):
-        """OpenFHE threshold aggregation: server does partial decrypt lead, 
-        designated trainer does partial decrypt main, server fuses"""
-        aggregation_start = time.time()
-        
-        # Server homomorphically adds all encrypted feature sums
-        first_sum = encrypted_sums[0][0]  # first ciphertext
-        shape = encrypted_sums[0][1]
-        
-        for enc_sum, _ in encrypted_sums[1:]:
-            first_sum = self.openfhe_cc.add_ciphertexts(first_sum, enc_sum)
-        
-        # Server does partial decrypt (lead party)
-        partial_lead = self.openfhe_cc.partial_decrypt(first_sum)
-        
-        # Request designated trainer (trainer 0) to do partial decrypt (main party)
-        designated_trainer = self.trainers[0]
-        partial_main = ray.get(
-            designated_trainer.openfhe_partial_decrypt_main.remote(first_sum)
-        )
-        
-        # Server fuses the partial decryptions
-        fused_result = self.openfhe_cc.fuse_partial_decryptions(partial_lead, partial_main)
-        
-        # Convert fused plaintext to tensor data
-        # The fused_result is a list of floats
-        try:
-            # fuse_partial_decryptions returns a list of floats
-            if isinstance(fused_result, list):
-                decrypted_tensor = torch.tensor(fused_result, dtype=torch.float32)
-            else:
-                decrypted_tensor = torch.tensor(fused_result, dtype=torch.float32)
-            
-            # Reshape to original shape - only use the actual data length
-            total_elements = shape[0] * shape[1]
-            decrypted_tensor = decrypted_tensor[:total_elements].reshape(shape)
-            
-        except Exception as e:
-            print(f"Error during threshold decryption: {e}")
-            raise RuntimeError(f"Failed to decrypt and reshape feature sums: {e}")
-        
-        return (decrypted_tensor, shape), time.time() - aggregation_start
+        """TenSEAL-only entry point.
+        The OpenFHE threshold flow runs in federated_methods.run_NC using the
+        file-based serialization protocol, not this method."""
+        return self._aggregate_tenseal_feature_sums(encrypted_sums)
 
     def _aggregate_tenseal_feature_sums(self, encrypted_sums):
         aggregation_start = time.time()
@@ -282,7 +241,7 @@ class Server:
             The current global epoch number during the federated learning process.
         """
 
-        if self.use_encryption:
+        if self.use_encryption and getattr(self, 'he_backend', 'tenseal') == 'tenseal':
             if not hasattr(self, "aggregation_stats"):
                 self.aggregation_stats = []
 

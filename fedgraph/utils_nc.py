@@ -374,6 +374,7 @@ def get_1hop_feature_sum(
     edge_index: torch.Tensor,
     device: str,
     include_self: bool = True,
+    norm_type: str = "sym",
 ) -> torch.Tensor:
     """
     Computes the sum of features of 1-hop neighbors for each node in a graph. The function
@@ -408,10 +409,41 @@ def get_1hop_feature_sum(
     # encryption
     # encrypted_node_features = [ts.ckks_vector(context, node_features[i].tolist()) for i in range(num_nodes)]
     if include_self:
-        # print("using spare matrix method")
+        # Build adjacency with self-loops and configurable normalization.
+        # norm_type: "sym" (default, GCN-standard D^{-1/2} A D^{-1/2}),
+        #            "row" (mean aggregation D^{-1} A, each row sums to 1),
+        #            "none" (raw binary sum, no normalization).
+        # 1. Add self-loops
+        self_loop = torch.arange(num_nodes, device=device)
+        self_loop_edge = torch.stack([self_loop, self_loop], dim=0)
+        edge_with_self = torch.cat([edge_index.to(device), self_loop_edge], dim=1)
+
+        src, dst = edge_with_self[0], edge_with_self[1]
+
+        if norm_type == "none":
+            # Raw binary adjacency (no normalization)
+            edge_weight = torch.ones(edge_with_self.shape[1], device=device)
+        else:
+            # Compute degree
+            deg = torch.zeros(num_nodes, device=device)
+            deg.scatter_add_(0, src, torch.ones(edge_with_self.shape[1], device=device))
+
+            if norm_type == "sym":
+                # Symmetric normalization: D^{-1/2} A D^{-1/2}
+                deg_inv_sqrt = deg.pow(-0.5)
+                deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
+                edge_weight = deg_inv_sqrt[src] * deg_inv_sqrt[dst]
+            elif norm_type == "row":
+                # Row normalization (mean aggregation): D^{-1} A
+                deg_inv = deg.pow(-1)
+                deg_inv[deg_inv == float('inf')] = 0
+                edge_weight = deg_inv[src]
+            else:
+                raise ValueError(f"Unknown norm_type: {norm_type}. Use 'sym', 'row', or 'none'.")
+
         adjacency_matrix = torch.sparse_coo_tensor(
-            edge_index,
-            torch.ones_like(source_nodes, dtype=torch.float32),
+            edge_with_self,
+            edge_weight,
             (num_nodes, num_nodes),
         ).to(device)
         summed_features = torch.sparse.mm(adjacency_matrix.float(), node_features)

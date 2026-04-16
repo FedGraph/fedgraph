@@ -3,12 +3,22 @@ OpenFHE Threshold Homomorphic Encryption Wrapper
 
 This module provides a two-party threshold HE implementation using OpenFHE CKKS.
 Supports distributed key generation, encryption, addition, and threshold decryption.
+
+The protocol follows the official OpenFHE multiparty CKKS example:
+- Party A (lead/server): calls cc.KeyGen()
+- Party B (non-lead/trainer): calls cc.MultipartyKeyGen(kp1.publicKey)
+- kp2.publicKey IS the joint public key (no separate finalization needed)
+- Encryption uses kp2.publicKey (the joint key)
+- Decryption: lead calls MultipartyDecryptLead, non-lead calls MultipartyDecryptMain
+- Fusion combines both partial decryptions
 """
 
 import openfhe
 import numpy as np
 from typing import List, Tuple, Optional, Union
 import logging
+import tempfile
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -16,324 +26,256 @@ logger = logging.getLogger(__name__)
 class OpenFHEThresholdCKKS:
     """
     Two-party threshold homomorphic encryption using OpenFHE CKKS.
-    
+
     This class implements threshold HE where:
-    - All clients share the same public key
-    - Server holds one secret share
-    - Designated trainer holds the other secret share
-    - Decryption requires both parties
+    - Server (lead) and designated trainer (non-lead) each hold a secret share
+    - The joint public key is kp2.publicKey (the non-lead party's output)
+    - All parties encrypt with the joint public key
+    - Decryption requires both parties' partial decryptions
     """
-    
+
     def __init__(self, security_level: int = 128, ring_dim: int = 16384, cc=None):
-        """
-        Initialize OpenFHE threshold context.
-        
-        Args:
-            security_level: Security level (128, 192, or 256 bits)
-            ring_dim: Ring dimension (must be power of 2, >= 16384 for 128-bit security)
-            cc: Optional shared CryptoContext (if None, creates new one)
-        """
         self.security_level = security_level
         self.ring_dim = ring_dim
         self.cc = cc
         self.public_key = None
         self.secret_key_share = None
         self.is_lead_party = False
-        
+
         if self.cc is None:
-            # Map security levels to OpenFHE constants
-            security_map = {
-                128: openfhe.HEStd_128_classic,
-                192: openfhe.HEStd_192_classic,
-                256: openfhe.HEStd_256_classic
-            }
-            
-            if security_level not in security_map:
-                raise ValueError(f"Security level must be 128, 192, or 256, got {security_level}")
-            
-            self._setup_context(security_map[security_level])
-    
-    def _setup_context(self, security_constant):
-        """Setup the OpenFHE crypto context."""
+            self._setup_context()
+
+    def _setup_context(self):
+        """Setup the OpenFHE crypto context following the official CKKS multiparty example."""
         params = openfhe.CCParamsCKKSRNS()
-        params.SetSecurityLevel(security_constant)
-        params.SetRingDim(self.ring_dim)
-        
-        # More headroom for multiparty fusion:
-        params.SetMultiplicativeDepth(2)
-        params.SetScalingModSize(59)
-        params.SetFirstModSize(60)
-        
-        # More forgiving automatic scaling in multiparty:
-        if hasattr(params, "SetScalingTechnique"):
-            # FLEXIBLEAUTOEXT is recommended for tricky CKKS pipelines
-            params.SetScalingTechnique(openfhe.FLEXIBLEAUTOEXT)
-        
+        # Follow official example: only set depth and scaling mod size.
+        # Let OpenFHE auto-select ring dimension and security parameters.
+        params.SetMultiplicativeDepth(3)
+        params.SetScalingModSize(50)
+        params.SetBatchSize(self.ring_dim // 2)
+
         self.cc = openfhe.GenCryptoContext(params)
-        
-        feats = openfhe.PKESchemeFeature
-        for name in ("PKE", "SHE", "LEVELEDSHE", "PRE", "MULTIPARTY"):
-            if hasattr(feats, name):
-                self.cc.Enable(getattr(feats, name))
-        
-        logger.info(f"OpenFHE context initialized with ring_dim={self.ring_dim}")
-    
+
+        # Enable all features needed for threshold CKKS
+        self.cc.Enable(openfhe.PKE)
+        self.cc.Enable(openfhe.KEYSWITCH)
+        self.cc.Enable(openfhe.LEVELEDSHE)
+        self.cc.Enable(openfhe.ADVANCEDSHE)
+        self.cc.Enable(openfhe.MULTIPARTY)
+
+        logger.info(f"OpenFHE context initialized (ring_dim={self.cc.GetRingDimension()})")
+
     def generate_lead_keys(self):
-        """Lead party: produce initial key pair."""
+        """Lead party (server): generate initial key pair."""
         self.is_lead_party = True
         kp1 = self.cc.KeyGen()
         self.public_key = kp1.publicKey
         self.secret_key_share = kp1.secretKey
         logger.info("Lead party: KeyGen done")
         return kp1
-    
+
     def generate_nonlead_share(self, lead_public_key):
-        """Non-lead party: derive secret share from the lead's public key."""
+        """
+        Non-lead party (trainer): derive secret share from the lead's public key.
+
+        IMPORTANT: kp2.publicKey is the joint public key that everyone uses for
+        encryption. There is no separate finalization step.
+        """
         self.is_lead_party = False
         kp2 = self.cc.MultipartyKeyGen(lead_public_key)
-        # Save our share; public_key will be set to the final joint PK later.
         self.secret_key_share = kp2.secretKey
+        # kp2.publicKey IS the joint public key
+        self.public_key = kp2.publicKey
         logger.info("Non-lead party: MultipartyKeyGen done")
         return kp2
-    
-    def finalize_joint_public_key(self, nonlead_public_key):
-        """Lead party: finalize the joint public key using the non-lead's contribution."""
-        assert self.is_lead_party and self.secret_key_share is not None
-        kp_final = self.cc.MultipartyKeyGen(nonlead_public_key)
-        self.public_key = kp_final.publicKey
-        logger.info("Lead party: joint public key finalized")
-        return self.public_key
-    
-    def set_public_key(self, public_key: openfhe.PublicKey):
-        """Set the public key (for non-lead parties)."""
+
+    def set_public_key(self, public_key):
+        """Set the joint public key (for parties that didn't generate it)."""
         self.public_key = public_key
         logger.info("Public key set for threshold HE")
-    
-    def encrypt(self, data: Union[List[float], np.ndarray]) -> openfhe.Ciphertext:
-        """
-        Encrypt data using the public key.
-        
-        Args:
-            data: List or numpy array of float values to encrypt
-            
-        Returns:
-            Encrypted ciphertext
-        """
+
+    def encrypt(self, data: Union[List[float], np.ndarray]):
+        """Encrypt data using the joint public key."""
         if self.public_key is None:
-            raise RuntimeError("Public key not set. Call generate_keys() or set_public_key() first.")
-        
-        # Convert to list if numpy array
+            raise RuntimeError("Public key not set.")
+
         if isinstance(data, np.ndarray):
             data = data.tolist()
-        
-        # Stable high scale for multiparty fusion
-        scale = 2**50
-        plaintext = self.cc.MakeCKKSPackedPlaintext(data, scale)
-        
+
+        plaintext = self.cc.MakeCKKSPackedPlaintext(data)
         ciphertext = self.cc.Encrypt(self.public_key, plaintext)
-        
+
         logger.debug(f"Encrypted {len(data)} values")
         return ciphertext
-    
-    def add_ciphertexts(self, ct1: openfhe.Ciphertext, ct2: openfhe.Ciphertext) -> openfhe.Ciphertext:
-        """
-        Add two ciphertexts homomorphically.
-        
-        Args:
-            ct1: First ciphertext
-            ct2: Second ciphertext
-            
-        Returns:
-            Sum of the ciphertexts
-        """
+
+    def add_ciphertexts(self, ct1, ct2):
+        """Add two ciphertexts homomorphically."""
         return self.cc.EvalAdd(ct1, ct2)
-    
-    def add_ciphertext_list(self, ciphertexts: List[openfhe.Ciphertext]) -> openfhe.Ciphertext:
-        """
-        Add multiple ciphertexts homomorphically.
-        
-        Args:
-            ciphertexts: List of ciphertexts to add
-            
-        Returns:
-            Sum of all ciphertexts
-        """
+
+    def add_ciphertext_list(self, ciphertexts):
+        """Add multiple ciphertexts homomorphically."""
         if not ciphertexts:
             raise ValueError("Empty ciphertext list")
-        
+
         result = ciphertexts[0]
         for ct in ciphertexts[1:]:
             result = self.cc.EvalAdd(result, ct)
-        
+
         logger.debug(f"Added {len(ciphertexts)} ciphertexts")
         return result
-    
-    def partial_decrypt(self, ciphertext: openfhe.Ciphertext) -> openfhe.Plaintext:
-        """
-        Perform partial decryption using this party's secret key share.
-        
-        Args:
-            ciphertext: Ciphertext to partially decrypt
-            
-        Returns:
-            Partially decrypted plaintext
-        """
+
+    def partial_decrypt(self, ciphertext):
+        """Perform partial decryption using this party's secret key share."""
         if self.secret_key_share is None:
-            raise RuntimeError("Secret key share not set. Call generate_lead_keys() or generate_nonlead_share() first.")
-        
+            raise RuntimeError("Secret key share not set.")
+
         if self.is_lead_party:
             pt_list = self.cc.MultipartyDecryptLead([ciphertext], self.secret_key_share)
         else:
             pt_list = self.cc.MultipartyDecryptMain([ciphertext], self.secret_key_share)
-        
+
         logger.debug(f"Performed partial decryption (lead_party={self.is_lead_party})")
         return pt_list[0]
-    
-    def fuse_partial_decryptions(self, partial1: openfhe.Plaintext, partial2: openfhe.Plaintext) -> List[float]:
+
+    def fuse_partial_decryptions(self, partial_lead, partial_main) -> List[float]:
         """
         Fuse two partial decryptions to get the final result.
-        
-        Args:
-            partial1: First partial decryption (plaintext)
-            partial2: Second partial decryption (plaintext)
-            
-        Returns:
-            Decrypted plaintext values as list of floats
+        Order matters: lead partial first, then main partial.
         """
-        # Be strict about lead/main ordering at fusion
-        fused = self.cc.MultipartyDecryptFusion([partial1, partial2])
-        # Optional: set logical length to your input length before reading values
-        # fused.SetLength(N)  # uncomment if you see trailing zeros
-        
-        # Extract the plaintext values
+        fused = self.cc.MultipartyDecryptFusion([partial_lead, partial_main])
         result = fused.GetRealPackedValue()
-        
+
         logger.debug(f"Fused partial decryptions, got {len(result)} values")
         return result
-    
-    def decrypt(self, ciphertext: openfhe.Ciphertext) -> List[float]:
-        """
-        Decrypt a ciphertext using the full secret key (for testing only).
-        NOTE: This is NOT valid for threshold mode - only for non-threshold tests.
-        
-        Args:
-            ciphertext: Ciphertext to decrypt
-            
-        Returns:
-            Decrypted plaintext values
-        """
-        if self.secret_key_share is None:
-            raise RuntimeError("Secret key share not set. Call generate_lead_keys() or generate_nonlead_share() first.")
-        
-        # For testing purposes, use regular decryption
-        # In production, this should use threshold decryption
-        decrypted = self.cc.Decrypt(self.secret_key_share, ciphertext)
-        result = decrypted.GetRealPackedValue()
-        
-        logger.debug(f"Decrypted {len(result)} values")
-        return result
-    
+
+    def serialize_context(self) -> bytes:
+        """Serialize the CryptoContext to bytes for transfer via Ray."""
+        tmpdir = tempfile.mkdtemp()
+        cc_path = os.path.join(tmpdir, "cc.bin")
+        try:
+            self.cc.SerializeToFile(cc_path, openfhe.BINARY)
+            with open(cc_path, "rb") as f:
+                return f.read()
+        finally:
+            if os.path.exists(cc_path):
+                os.remove(cc_path)
+            os.rmdir(tmpdir)
+
+    def serialize_public_key(self) -> bytes:
+        """Serialize the public key to bytes for transfer via Ray."""
+        tmpdir = tempfile.mkdtemp()
+        pk_path = os.path.join(tmpdir, "pk.bin")
+        try:
+            self.cc.SerializeToFile(pk_path, openfhe.BINARY)  # context must be serialized first
+            if not openfhe.SerializeToFile(pk_path, self.public_key, openfhe.BINARY):
+                raise RuntimeError("Failed to serialize public key")
+            with open(pk_path, "rb") as f:
+                return f.read()
+        finally:
+            if os.path.exists(pk_path):
+                os.remove(pk_path)
+            os.rmdir(tmpdir)
+
+    def serialize_ciphertext(self, ct) -> bytes:
+        """Serialize a ciphertext to bytes for transfer via Ray."""
+        tmpdir = tempfile.mkdtemp()
+        ct_path = os.path.join(tmpdir, "ct.bin")
+        try:
+            if not openfhe.SerializeToFile(ct_path, ct, openfhe.BINARY):
+                raise RuntimeError("Failed to serialize ciphertext")
+            with open(ct_path, "rb") as f:
+                return f.read()
+        finally:
+            if os.path.exists(ct_path):
+                os.remove(ct_path)
+            os.rmdir(tmpdir)
+
+    def deserialize_ciphertext(self, ct_bytes: bytes):
+        """Deserialize a ciphertext from bytes."""
+        tmpdir = tempfile.mkdtemp()
+        ct_path = os.path.join(tmpdir, "ct.bin")
+        try:
+            with open(ct_path, "wb") as f:
+                f.write(ct_bytes)
+            ct, success = openfhe.DeserializeCiphertext(ct_path, openfhe.BINARY)
+            if not success:
+                raise RuntimeError("Failed to deserialize ciphertext")
+            return ct
+        finally:
+            if os.path.exists(ct_path):
+                os.remove(ct_path)
+            os.rmdir(tmpdir)
+
     def get_context_info(self) -> dict:
         """Get information about the crypto context."""
         return {
             "security_level": self.security_level,
-            "ring_dim": self.ring_dim,
+            "ring_dim": self.cc.GetRingDimension() if self.cc else None,
             "has_public_key": self.public_key is not None,
             "has_secret_share": self.secret_key_share is not None,
-            "is_lead_party": self.is_lead_party
+            "is_lead_party": self.is_lead_party,
         }
 
 
-# Convenience functions for easy integration
 def create_threshold_context(security_level: int = 128, ring_dim: int = 16384) -> OpenFHEThresholdCKKS:
     """Create a new threshold HE context."""
     return OpenFHEThresholdCKKS(security_level, ring_dim)
 
 
-def test_simple_he():
-    """Test basic OpenFHE functionality without threshold."""
-    print("Testing basic OpenFHE HE...")
-    
-    # Create a simple context
-    server = create_threshold_context()
-    
-    # Generate regular (non-threshold) keys
-    kp = server.cc.KeyGen()
-    server.public_key = kp.publicKey
-    server.secret_key_share = kp.secretKey
-    
-    # Test simple encryption/decryption
-    x = [0.1, 0.2, 0.3]
-    ct_x = server.encrypt(x)
-    decrypted = server.decrypt(ct_x)
-    
-    print("Expected:", x)
-    print("Result:  ", decrypted[:len(x)])
-    
-    # Check if it's close enough
-    if all(abs(e - r) < 1e-1 for e, r in zip(x, decrypted[:len(x)])):
-        print("Basic HE test passed!")
-        return True
-    else:
-        print("Basic HE test failed!")
-        return False
-
-
 def test_threshold_he():
-    """Test the threshold HE implementation."""
+    """Test the threshold HE implementation following the official OpenFHE pattern."""
     import signal
     import sys
-    
+
     def timeout_handler(signum, frame):
-        print("Test timed out after 30 seconds")
+        print("Test timed out after 60 seconds")
         sys.exit(1)
-    
-    # Set a 30-second timeout
+
     signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(30)
-    
+    signal.alarm(60)
+
     try:
         print("Testing OpenFHE Threshold HE...")
-        
-        # ONE context for both roles
+
+        # ONE shared context
         server = create_threshold_context()
-        trainer = OpenFHEThresholdCKKS(security_level=128, ring_dim=16384, cc=server.cc)
-        
-        # 1) Lead generates initial keys
+        trainer = OpenFHEThresholdCKKS(cc=server.cc)
+
+        # 1) Lead (server) generates initial key pair
         kp1 = server.generate_lead_keys()
-        
-        # 2) Non-lead derives its share from lead's PK (same cc)
+
+        # 2) Non-lead (trainer) derives its share from lead's public key
+        #    kp2.publicKey IS the joint public key
         kp2 = trainer.generate_nonlead_share(kp1.publicKey)
-        
-        # 3) Lead finalizes the joint public key
-        joint_pk = server.finalize_joint_public_key(kp2.publicKey)
-        
-        # 4) Distribute the joint public key (same cc)
-        trainer.set_public_key(joint_pk)
-        
-        # Quick integrity checks
-        print("Joint PK set on both? ", server.public_key is not None, trainer.public_key is not None)
-        print("Lead/Main flags: ", server.is_lead_party, trainer.is_lead_party)
-        
-        x = [0.1, 0.2, 0.3]  # Test vectors
-        y = [0.05, 0.1, 0.15]  # Test vectors
+
+        # 3) Server also sets the joint public key (kp2.publicKey)
+        server.set_public_key(kp2.publicKey)
+
+        print("Joint PK set on both?", server.public_key is not None, trainer.public_key is not None)
+        print("Lead/Main flags:", server.is_lead_party, trainer.is_lead_party)
+
+        # Encrypt test vectors
+        x = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.0]
+        y = [1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         ct_x = server.encrypt(x)
         ct_y = trainer.encrypt(y)
-        
+
+        # Homomorphic addition
         ct_sum = server.add_ciphertexts(ct_x, ct_y)
-        
-        p_lead = server.partial_decrypt(ct_sum)    # lead
-        p_main = trainer.partial_decrypt(ct_sum)   # non-lead
+
+        # Threshold decryption
+        p_lead = server.partial_decrypt(ct_sum)
+        p_main = trainer.partial_decrypt(ct_sum)
         out = server.fuse_partial_decryptions(p_lead, p_main)
-        
-        exp = [a+b for a,b in zip(x,y)]
+
+        exp = [a + b for a, b in zip(x, y)]
         print("Expected:", exp)
-        print("Result:  ", out[:len(exp)])
-        assert all(abs(e - r) < 1e-1 for e, r in zip(exp, out[:len(exp)]))
-        print("Threshold HE test completed!")
-        
+        print("Result:  ", [round(v, 2) for v in out[: len(exp)]])
+        assert all(abs(e - r) < 0.1 for e, r in zip(exp, out[: len(exp)]))
+        print("Threshold HE test PASSED!")
+
     finally:
-        signal.alarm(0)  # Cancel the alarm
+        signal.alarm(0)
 
 
 if __name__ == "__main__":

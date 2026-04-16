@@ -197,3 +197,11 @@ docs/tutorials/
 runs/
 tutorials/dataset
 tutorials/figure_*
+
+# Local experiment / planning artifacts (not for upstream)
+.Rhistory
+.claude/
+paper_sections_v2.tex
+run_experiments.py
+run_experiments_rownorm.py
+experiment_results/
