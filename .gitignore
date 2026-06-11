@@ -202,6 +202,14 @@ tutorials/figure_*
 .Rhistory
 .claude/
 paper_sections_v2.tex
+paper_section_4_2.tex
+paper_section_6_3.tex
+paper_appendix_rank_table.tex
 run_experiments.py
+run_experiments_big.py
+run_experiments_arxiv_seeds.py
+run_experiments_products_seeds.py
 run_experiments_rownorm.py
+distributed_setup.sh
+backup_ec2/
 experiment_results/

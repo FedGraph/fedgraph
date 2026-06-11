@@ -348,6 +348,31 @@ def NC_load_data(dataset_str: str) -> tuple:
         else:
             adj = data.adj_t
 
+        # Optional node subsampling. Set FEDGRAPH_SUBSAMPLE_NODES env var
+        # to limit dataset size — useful for ogbn-products which is too
+        # large for HE simulation (2.4M nodes).
+        sub_n = int(os.environ.get("FEDGRAPH_SUBSAMPLE_NODES", "0"))
+        if sub_n > 0 and features.shape[0] > sub_n:
+            print(f"[subsample] Reducing {dataset_str} from {features.shape[0]} to {sub_n} nodes")
+            keep = torch.arange(sub_n)
+            keep_set = set(keep.tolist())
+            features = features[keep]
+            labels = labels[keep]
+            # Filter adj to only edges within kept nodes
+            row, col, val = adj.coo()
+            edge_mask = (row < sub_n) & (col < sub_n)
+            adj = torch_sparse.SparseTensor(
+                row=row[edge_mask], col=col[edge_mask],
+                value=val[edge_mask] if val is not None else None,
+                sparse_sizes=(sub_n, sub_n),
+            )
+            # Filter index splits
+            idx_train = idx_train[idx_train < sub_n]
+            idx_val = idx_val[idx_val < sub_n]
+            idx_test = idx_test[idx_test < sub_n]
+            print(f"[subsample] kept {features.shape[0]} nodes, {edge_mask.sum().item()} edges, "
+                  f"{len(idx_train)} train, {len(idx_test)} test")
+
     elif dataset_str == "reddit":
         from dgl.data import RedditDataset
 

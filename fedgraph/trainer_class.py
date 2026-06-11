@@ -28,7 +28,15 @@ from fedgraph.gnn_models import (
     GCN_arxiv,
     SAGE_products,
 )
-from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS
+# Threshold-HE backend is optional. We delay-import OpenFHE bindings here so the
+# rest of fedgraph stays importable on systems without the OpenFHE wheel.
+try:
+    from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS  # noqa: F401
+    _OPENFHE_AVAILABLE = True
+except ImportError:  # pragma: no cover - exercised only when openfhe is missing
+    OpenFHEThresholdCKKS = None  # type: ignore[assignment]
+    _OPENFHE_AVAILABLE = False
+
 from fedgraph.train_func import test, train
 from fedgraph.utils_lp import (
     check_data_files_existance,
@@ -139,7 +147,10 @@ class Trainer_General:
         idx_test: torch.Tensor = None,
     ):
         # from gnn_models import GCN_Graph_Classification
-        torch.manual_seed(rank)
+        # Per-trainer seed = global_seed * 1000 + rank  (lets us vary across runs
+        # while keeping different trainers distinct within a run).
+        _global_seed = int(getattr(args, "seed", 42))
+        torch.manual_seed(_global_seed * 1000 + rank)
         if (
             local_node_index is None
             or communicate_node_index is None
@@ -327,7 +338,7 @@ class Trainer_General:
         # Sum of features of all 1-hop nodes for each node
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
             new_feature_for_trainer, self.adj, self.device,
-            norm_type=getattr(self.args, "norm_type", "sym")
+            norm_type=getattr(self.args, "norm_type", "none")
         )
         if self.args.use_encryption:
             print(
@@ -354,7 +365,7 @@ class Trainer_General:
         new_feature_for_trainer[self.local_node_index] = self.features
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
             new_feature_for_trainer, self.adj, self.device,
-            norm_type=getattr(self.args, "norm_type", "sym")
+            norm_type=getattr(self.args, "norm_type", "none")
         )
         computation_time = time.time() - computation_start
 
@@ -385,7 +396,7 @@ class Trainer_General:
             The aggregated features to be loaded.
         """
         # load_start = time.time()
-        self.feature_aggregation = feature_aggregation.float()
+        self.feature_aggregation = feature_aggregation.float().to(self.device)
         # load_time = time.time() - load_start
         # data_size = (
         #     self.feature_aggregation.element_size()
@@ -433,7 +444,7 @@ class Trainer_General:
         new_feature_for_trainer[self.local_node_index] = self.features
         feature_sum = get_1hop_feature_sum(
             new_feature_for_trainer, self.adj, self.device,
-            norm_type=getattr(self.args, "norm_type", "sym")
+            norm_type=getattr(self.args, "norm_type", "none")
         )
 
         if not hasattr(self, 'openfhe_cc'):
@@ -476,7 +487,7 @@ class Trainer_General:
         new_feature_for_trainer[self.local_node_index] = self.features
         feature_sum = get_1hop_feature_sum(
             new_feature_for_trainer, self.adj, self.device,
-            norm_type=getattr(self.args, "norm_type", "sym")
+            norm_type=getattr(self.args, "norm_type", "none")
         )
 
         if not hasattr(self, 'openfhe_cc'):
@@ -534,7 +545,7 @@ class Trainer_General:
         new_feature_for_trainer[self.local_node_index] = self.features
         feature_sum = get_1hop_feature_sum(
             new_feature_for_trainer, self.adj, self.device,
-            norm_type=getattr(self.args, "norm_type", "sym")
+            norm_type=getattr(self.args, "norm_type", "none")
         )
 
         # Encrypt the feature sum
@@ -637,8 +648,10 @@ class Trainer_General:
 
         # Check if this is OpenFHE decrypted data (already a tensor) or TenSEAL encrypted data
         if isinstance(encrypted_sum, torch.Tensor):
-            # OpenFHE path: data is already decrypted tensor
+            # OpenFHE path: data is already decrypted tensor (on CPU from server).
+            # Move to trainer's device for indexing and downstream training.
             decryption_start = time.time()
+            encrypted_sum = encrypted_sum.to(self.device)
             self.feature_aggregation = encrypted_sum[self.communicate_node_index]
             decryption_time = time.time() - decryption_start
             return decryption_time
@@ -837,12 +850,15 @@ class Trainer_General:
         (list) : list
             A list containing the test loss and accuracy [local_test_loss, local_test_acc].
         """
+        # Ensure everything is on the trainer's device (model may have been
+        # moved to CPU during aggregation).
+        self.model = self.model.to(self.device)
+        feats = self.feature_aggregation.to(self.device)
+        adj = self.adj.to(self.device)
+        test_labels = self.test_labels.to(self.device)
+        idx_test = self.idx_test.to(self.device)
         local_test_loss, local_test_acc = test(
-            self.model,
-            self.feature_aggregation,
-            self.adj,
-            self.test_labels,
-            self.idx_test,
+            self.model, feats, adj, test_labels, idx_test,
         )
         return [local_test_loss, local_test_acc]
 

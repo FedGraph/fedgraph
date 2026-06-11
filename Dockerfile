@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
     git \
-    && rm -rf /var/lib/apt-lists/*
+    && rm -rf /var/lib/apt/lists/*
 
 # Install PyTorch first (use available version)
 RUN pip install torch --index-url https://download.pytorch.org/whl/cpu

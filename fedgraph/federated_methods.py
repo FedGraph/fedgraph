@@ -34,7 +34,13 @@ from fedgraph.utils_lp import (
     to_next_day,
 )
 from fedgraph.utils_nc import get_1hop_feature_sum, save_all_trainers_data
-from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS
+
+# Optional threshold-HE backend.  We delay-import so users who never set
+# ``he_backend="openfhe"`` do not need the OpenFHE wheel installed.
+try:
+    from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS  # noqa: F401
+except ImportError:  # pragma: no cover
+    OpenFHEThresholdCKKS = None  # type: ignore[assignment]
 
 
 def run_fedgraph(args: attridict) -> None:
@@ -54,9 +60,15 @@ def run_fedgraph(args: attridict) -> None:
         Input data for the federated learning task. Format depends on the specific task and
         will be explained in more detail below inside specific functions.
     """
-    random.seed(42)
-    np.random.seed(42)
-    torch.manual_seed(42)
+    # Seed for reproducibility. Pass `seed` in the config to vary across runs
+    # (for mean/std reporting); the same seed makes plaintext and encrypted
+    # runs produce identical data partitions and model init.
+    _seed = int(getattr(args, "seed", 42))
+    random.seed(_seed)
+    np.random.seed(_seed)
+    torch.manual_seed(_seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(_seed)
     if args.fedgraph_task != "NC" or not args.use_huggingface:
         data = data_loader(args)
     else:
@@ -90,11 +102,20 @@ def run_NC(args: attridict, data: Any = None) -> None:
     monitor = Monitor(use_cluster=args.use_cluster)
     monitor.init_time_start()
 
-    ray.init()
+    # Initialize Ray.  ``ray_init_kwargs`` in the config lets callers override
+    # the defaults (e.g. for distributed clusters or container environments
+    # with limited /dev/shm).  When unset we fall back to Ray's defaults, which
+    # is the right behaviour for small / single-machine runs.
+    _ray_kwargs = dict(getattr(args, "ray_init_kwargs", {}) or {})
+    _ray_kwargs.setdefault("ignore_reinit_error", True)
+    ray.init(**_ray_kwargs)
     start_time = time.time()
-    random.seed(42)
-    np.random.seed(42)
-    torch.manual_seed(42)
+    _seed = int(getattr(args, "seed", 42))
+    random.seed(_seed)
+    np.random.seed(_seed)
+    torch.manual_seed(_seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(_seed)
     pretrain_upload: float = 0.0
     pretrain_download: float = 0.0
     if args.num_hops == 0:
@@ -511,16 +532,17 @@ def run_NC(args: attridict, data: Any = None) -> None:
             local_neighbor_feature_sums = [
                 trainer.get_local_feature_sum.remote() for trainer in server.trainers
             ]
-            # Record uploaded data sizes
+            # Record uploaded data sizes. Run server-side aggregation on CPU
+            # since Ray actors may return tensors from different devices.
             upload_sizes = []
-            global_feature_sum = torch.zeros_like(features)
+            global_feature_sum = torch.zeros_like(features).cpu()
             while True:
                 ready, left = ray.wait(
                     local_neighbor_feature_sums, num_returns=1, timeout=None
                 )
                 if ready:
                     for t in ready:
-                        local_sum = ray.get(t)
+                        local_sum = ray.get(t).cpu()
                         global_feature_sum += local_sum
                         # Calculate size of uploaded data
                         upload_sizes.append(
@@ -539,11 +561,11 @@ def run_NC(args: attridict, data: Any = None) -> None:
             #     global_feature_sum
             #     != get_1hop_feature_sum(features, edge_index, device)
             # ).sum() == 0
-            # Calculate and record download sizes
+            # Calculate and record download sizes (done on CPU to match global_feature_sum)
             download_sizes = []
             for i in range(args.n_trainer):
                 communicate_nodes = (
-                    communicate_node_global_indexes[i].clone().detach().to(device)
+                    communicate_node_global_indexes[i].clone().detach().cpu()
                 )
                 trainer_aggregation = global_feature_sum[communicate_nodes]
                 # Calculate download size for each trainer

@@ -9,8 +9,13 @@ import networkx as nx
 import numpy as np
 import ray
 import tenseal as ts
-from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS
 import torch
+
+# Optional threshold-HE backend (OpenFHE wheel may not be installed on plain users).
+try:
+    from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS  # noqa: F401
+except ImportError:  # pragma: no cover
+    OpenFHEThresholdCKKS = None  # type: ignore[assignment]
 from dtaidistance import dtw
 
 from fedgraph.gnn_models import (

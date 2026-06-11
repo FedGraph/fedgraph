@@ -374,12 +374,11 @@ def get_1hop_feature_sum(
     edge_index: torch.Tensor,
     device: str,
     include_self: bool = True,
-    norm_type: str = "sym",
+    norm_type: str = "none",
 ) -> torch.Tensor:
     """
     Computes the sum of features of 1-hop neighbors for each node in a graph. The function
     can be used to iterate over each node, identifying its neighbors based on the `edge_index`.
-
 
     Parameters
     ----------
@@ -392,6 +391,12 @@ def get_1hop_feature_sum(
     include_self : bool, optional (default=True)
         A flag to include the node's own features in the sum. If True, the features of the node itself
         are included in the summation. If False, only the features of the neighboring nodes are summed.
+    norm_type : str, optional (default="none")
+        Adjacency normalization applied before aggregation. ``"none"`` reproduces the
+        original FedGCN behaviour and is kept as the default for backward compatibility
+        with previously published baselines. ``"sym"`` is the GCN-standard
+        $\\hat{A} = \\tilde{D}^{-1/2}(A+I)\\tilde{D}^{-1/2}$ used in FedGCN-v2.
+        ``"row"`` is the row-stochastic $\\tilde{D}^{-1}(A+I)$ variant (mean aggregation).
 
     Returns
     -------
