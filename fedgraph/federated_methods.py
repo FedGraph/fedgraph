@@ -49,6 +49,66 @@ except ImportError:
     LOWRANK_AVAILABLE = False
 
 
+def _resolve_nc_class_num(
+    use_huggingface: bool,
+    trainer_information: list,
+    loaded_class_num: Optional[int] = None,
+) -> int:
+    if not use_huggingface:
+        if loaded_class_num is None:
+            raise ValueError("class_num is required when NC data is loaded centrally")
+        return int(loaded_class_num)
+
+    metadata_values = {
+        int(info["class_num"])
+        for info in trainer_information
+        if info.get("class_num") is not None
+    }
+    if len(metadata_values) > 1:
+        raise ValueError("Hugging Face trainers report inconsistent class_num values")
+    if metadata_values:
+        return metadata_values.pop()
+
+    label_nums = [
+        int(info["label_num"])
+        for info in trainer_information
+        if info.get("label_num") is not None
+    ]
+    if not label_nums:
+        raise ValueError(
+            "Cannot infer class_num from Hugging Face trainer data because all "
+            "train and test label tensors are empty"
+        )
+    return max(label_nums)
+
+
+def _resolve_nc_global_node_num(
+    use_huggingface: bool,
+    trainer_information: list,
+    loaded_global_node_num: Optional[int] = None,
+) -> int:
+    if not use_huggingface:
+        if loaded_global_node_num is None:
+            raise ValueError(
+                "global_node_num is required when NC data is loaded centrally"
+            )
+        return int(loaded_global_node_num)
+
+    metadata_values = {
+        int(info["global_node_num"])
+        for info in trainer_information
+        if info.get("global_node_num") is not None
+    }
+    if len(metadata_values) > 1:
+        raise ValueError(
+            "Hugging Face trainers report inconsistent global_node_num values"
+        )
+    if metadata_values:
+        return metadata_values.pop()
+
+    return sum(int(info["features_num"]) for info in trainer_information)
+
+
 def run_fedgraph(args: attridict) -> None:
     """
     Run the training process for the specified task.
@@ -206,6 +266,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 in_com_train_node_local_indexes=in_com_train_node_local_indexes,
                 in_com_test_node_local_indexes=in_com_test_node_local_indexes,
                 n_trainer=args.n_trainer,
+                class_num=class_num,
                 args=args,
             )
 
@@ -289,8 +350,6 @@ def run_NC(args: attridict, data: Any = None) -> None:
             Trainer.remote(  # type: ignore
                 rank=i,
                 args_hidden=args_hidden,
-                # global_node_num=len(features),
-                # class_num=class_num,
                 device=device,
                 args=args,
                 local_node_index=split_node_indexes[i],
@@ -305,6 +364,8 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 features=features[split_node_indexes[i]],
                 idx_train=in_com_train_node_local_indexes[i],
                 idx_test=in_com_test_node_local_indexes[i],
+                global_node_num=len(features),
+                class_num=class_num,
             )
             for i in range(args.n_trainer)
         ]
@@ -314,8 +375,16 @@ def run_NC(args: attridict, data: Any = None) -> None:
     ]
 
     # Extract necessary details from trainer information
-    global_node_num = sum([info["features_num"] for info in trainer_information])
-    class_num = max([info["label_num"] for info in trainer_information])
+    global_node_num = _resolve_nc_global_node_num(
+        args.use_huggingface,
+        trainer_information,
+        None if args.use_huggingface else len(features),
+    )
+    class_num = _resolve_nc_class_num(
+        args.use_huggingface,
+        trainer_information,
+        None if args.use_huggingface else class_num,
+    )
     feature_shape = trainer_information[0]["feature_shape"]
 
     train_data_weights = [
@@ -882,6 +951,8 @@ def run_NC_dp(args: attridict, data: Any = None) -> None:
                 features=features[split_node_indexes[i]],
                 idx_train=in_com_train_node_local_indexes[i],
                 idx_test=in_com_test_node_local_indexes[i],
+                global_node_num=len(features),
+                class_num=class_num,
             )
             for i in range(args.n_trainer)
         ]
@@ -891,8 +962,16 @@ def run_NC_dp(args: attridict, data: Any = None) -> None:
         ray.get(trainers[i].get_info.remote()) for i in range(len(trainers))
     ]
 
-    global_node_num = sum([info["features_num"] for info in trainer_information])
-    class_num = max([info["label_num"] for info in trainer_information])
+    global_node_num = _resolve_nc_global_node_num(
+        args.use_huggingface,
+        trainer_information,
+        None if args.use_huggingface else len(features),
+    )
+    class_num = _resolve_nc_class_num(
+        args.use_huggingface,
+        trainer_information,
+        None if args.use_huggingface else class_num,
+    )
 
     train_data_weights = [
         info["len_in_com_train_node_local_indexes"] for info in trainer_information
@@ -1074,6 +1153,7 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
                 in_com_train_node_local_indexes=in_com_train_node_local_indexes,
                 in_com_test_node_local_indexes=in_com_test_node_local_indexes,
                 n_trainer=args.n_trainer,
+                class_num=class_num,
                 args=args,
             )
 
@@ -1131,6 +1211,8 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
                 features=features[split_node_indexes[i]],
                 idx_train=in_com_train_node_local_indexes[i],
                 idx_test=in_com_test_node_local_indexes[i],
+                global_node_num=len(features),
+                class_num=class_num,
             )
             for i in range(args.n_trainer)
         ]
@@ -1140,8 +1222,16 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
         ray.get(trainers[i].get_info.remote()) for i in range(len(trainers))
     ]
 
-    global_node_num = sum([info["features_num"] for info in trainer_information])
-    class_num = max([info["label_num"] for info in trainer_information])
+    global_node_num = _resolve_nc_global_node_num(
+        args.use_huggingface,
+        trainer_information,
+        None if args.use_huggingface else len(features),
+    )
+    class_num = _resolve_nc_class_num(
+        args.use_huggingface,
+        trainer_information,
+        None if args.use_huggingface else class_num,
+    )
 
     train_data_weights = [
         info["len_in_com_train_node_local_indexes"] for info in trainer_information

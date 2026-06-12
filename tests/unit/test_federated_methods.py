@@ -5,12 +5,79 @@ from unittest.mock import Mock, patch, MagicMock
 import attridict
 
 from fedgraph.federated_methods import (
+    _resolve_nc_class_num,
+    _resolve_nc_global_node_num,
     run_fedgraph,
     run_fedgraph_enhanced,
     run_NC,
     run_GC,
     run_LP
 )
+
+
+class TestResolveNCClassNum:
+    def test_uses_authoritative_loaded_class_num(self):
+        trainer_information = [{"label_num": 2}, {"label_num": None}]
+
+        assert _resolve_nc_class_num(False, trainer_information, 7) == 7
+
+    def test_infers_huggingface_class_num_from_nonempty_trainers(self):
+        trainer_information = [
+            {"label_num": None},
+            {"label_num": 3},
+            {"label_num": 5},
+        ]
+
+        assert _resolve_nc_class_num(True, trainer_information) == 5
+
+    def test_uses_huggingface_class_num_metadata(self):
+        trainer_information = [
+            {"class_num": 7, "label_num": 2},
+            {"class_num": 7, "label_num": 5},
+        ]
+
+        assert _resolve_nc_class_num(True, trainer_information) == 7
+
+    def test_rejects_inconsistent_huggingface_class_num_metadata(self):
+        trainer_information = [{"class_num": 3}, {"class_num": 4}]
+
+        with pytest.raises(ValueError, match="inconsistent class_num"):
+            _resolve_nc_class_num(True, trainer_information)
+
+    def test_rejects_huggingface_data_without_labels(self):
+        trainer_information = [{"label_num": None}, {"label_num": None}]
+
+        with pytest.raises(ValueError, match="all train and test label tensors are empty"):
+            _resolve_nc_class_num(True, trainer_information)
+
+
+class TestResolveNCGlobalNodeNum:
+    def test_uses_authoritative_loaded_node_count(self):
+        trainer_information = [{"features_num": 40}, {"features_num": 50}]
+
+        assert _resolve_nc_global_node_num(False, trainer_information, 100) == 100
+
+    def test_infers_huggingface_node_count_from_owned_features(self):
+        trainer_information = [{"features_num": 40}, {"features_num": 60}]
+
+        assert _resolve_nc_global_node_num(True, trainer_information) == 100
+
+    def test_uses_huggingface_global_node_num_metadata(self):
+        trainer_information = [
+            {"global_node_num": 100, "features_num": 40},
+            {"global_node_num": 100, "features_num": 50},
+        ]
+
+        assert _resolve_nc_global_node_num(True, trainer_information) == 100
+
+    def test_rejects_inconsistent_huggingface_global_node_num_metadata(self):
+        trainer_information = [
+            {"global_node_num": 100},
+            {"global_node_num": 101},
+        ]
+
+        with pytest.raises(ValueError, match="inconsistent global_node_num"):
+            _resolve_nc_global_node_num(True, trainer_information)
 
 
 class TestRunFedgraph:

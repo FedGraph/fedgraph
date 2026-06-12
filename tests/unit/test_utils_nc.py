@@ -14,7 +14,9 @@ from fedgraph.utils_nc import (
     community_partition_non_iid,
     get_in_comm_indexes,
     get_1hop_feature_sum,
-    increment_dir
+    increment_dir,
+    save_all_trainers_data,
+    save_trainer_data_to_hugging_face,
 )
 
 
@@ -78,7 +80,7 @@ class TestUtilsNCBasicFunctions:
         result = intersect1d(t1, t2)
         
         assert torch.equal(result.sort().values, torch.tensor([1, 2, 3]))
-    
+
     def test_setdiff1d_basic(self):
         """Test setdiff1d function with basic tensors."""
         t1 = torch.tensor([1, 2, 3, 4])
@@ -107,6 +109,70 @@ class TestUtilsNCBasicFunctions:
         
         expected = torch.tensor([1, 2, 3, 4])
         assert torch.equal(result.sort().values, expected.sort().values)
+
+
+class TestSaveTrainerDataToHuggingFace:
+    @patch("fedgraph.utils_nc.get_token")
+    @patch("fedgraph.utils_nc.HfApi")
+    def test_uploads_global_metadata(self, mock_hf_api, mock_get_token):
+        api = mock_hf_api.return_value
+        mock_get_token.return_value = "token"
+        args = Mock(
+            dataset="cora",
+            n_trainer=2,
+            num_hops=1,
+            iid_beta=0.5,
+        )
+
+        save_trainer_data_to_hugging_face(
+            trainer_id=0,
+            local_node_index=torch.tensor([0, 1]),
+            communicate_node_global_index=torch.tensor([0, 1, 2]),
+            global_edge_index_client=torch.tensor([[0, 1], [1, 2]]),
+            train_labels=torch.tensor([0]),
+            test_labels=torch.tensor([1]),
+            features=torch.randn(2, 4),
+            in_com_train_node_local_indexes=torch.tensor([0]),
+            in_com_test_node_local_indexes=torch.tensor([1]),
+            global_node_num=3,
+            class_num=2,
+            args=args,
+        )
+
+        uploaded_files = {
+            call.kwargs["path_in_repo"] for call in api.upload_file.call_args_list
+        }
+        assert "global_node_num.pt" in uploaded_files
+        assert "class_num.pt" in uploaded_files
+
+    @patch("fedgraph.utils_nc.save_trainer_data_to_hugging_face")
+    def test_bulk_save_passes_consistent_global_metadata(self, mock_save_trainer):
+        features = torch.randn(4, 3)
+        labels = torch.tensor([0, 1, 2, 1])
+
+        save_all_trainers_data(
+            split_node_indexes=[torch.tensor([0, 1]), torch.tensor([2, 3])],
+            communicate_node_global_indexes=[
+                torch.tensor([0, 1]),
+                torch.tensor([2, 3]),
+            ],
+            global_edge_indexes_clients=[
+                torch.tensor([[0], [1]]),
+                torch.tensor([[2], [3]]),
+            ],
+            labels=labels,
+            features=features,
+            in_com_train_node_local_indexes=[torch.tensor([0]), torch.tensor([0])],
+            in_com_test_node_local_indexes=[torch.tensor([1]), torch.tensor([1])],
+            n_trainer=2,
+            class_num=3,
+            args=Mock(),
+        )
+
+        assert mock_save_trainer.call_count == 2
+        for call in mock_save_trainer.call_args_list:
+            assert call.kwargs["global_node_num"] == 4
+            assert call.kwargs["class_num"] == 3
 
 
 class TestLabelDirichletPartition:

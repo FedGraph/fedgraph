@@ -10,8 +10,7 @@ import numpy as np
 import scipy.sparse as sp
 import torch
 import torch_geometric
-
-# from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
+from huggingface_hub import HfApi, get_token
 
 
 def normalize(mx: sp.csc_matrix) -> sp.csr_matrix:
@@ -467,10 +466,12 @@ def save_trainer_data_to_hugging_face(
     features,
     in_com_train_node_local_indexes,
     in_com_test_node_local_indexes,
+    global_node_num,
+    class_num,
     args,
 ):
     repo_name = f"FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{args.num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}"
-    user = HfFolder.get_token()
+    user = get_token()
 
     api = HfApi()
     try:
@@ -501,6 +502,8 @@ def save_trainer_data_to_hugging_face(
     save_tensor_to_hf(features, "features.pt")
     save_tensor_to_hf(in_com_train_node_local_indexes, "idx_train.pt")
     save_tensor_to_hf(in_com_test_node_local_indexes, "idx_test.pt")
+    save_tensor_to_hf(torch.tensor(global_node_num), "global_node_num.pt")
+    save_tensor_to_hf(torch.tensor(class_num), "class_num.pt")
 
     print(f"Uploaded data for trainer {trainer_id}")
 
@@ -514,8 +517,10 @@ def save_all_trainers_data(
     in_com_train_node_local_indexes,
     in_com_test_node_local_indexes,
     n_trainer,
+    class_num,
     args,
 ):
+    global_node_num = len(features)
     for i in range(n_trainer):
         save_trainer_data_to_hugging_face(
             trainer_id=i,
@@ -531,5 +536,7 @@ def save_all_trainers_data(
             features=features[split_node_indexes[i]],
             in_com_train_node_local_indexes=in_com_train_node_local_indexes[i],
             in_com_test_node_local_indexes=in_com_test_node_local_indexes[i],
+            global_node_num=global_node_num,
+            class_num=class_num,
             args=args,
         )
