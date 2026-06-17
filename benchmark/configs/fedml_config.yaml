@@ -1,0 +1,38 @@
+common_args:
+  training_type: "simulation"
+  random_seed: 0
+
+data_args:
+  dataset: "cora"
+  data_cache_dir: "../data"
+
+model_args:
+  model: "fedgcn"
+  num_layers: 2
+  hidden: 64
+
+train_args:
+  federated_optimizer: "FedAvg"
+  client_num_in_total: 10
+  client_num_per_round: 10
+  comm_round: 200
+  epochs: 1
+  batch_size: -1
+  client_optimizer: "sgd"
+  learning_rate: 0.1
+  partition_method: "homo"
+  partition_alpha: 10000.0
+
+validation_args:
+  frequency_of_the_test: 1
+
+device_args:
+  using_gpu: false
+  gpu_id: 0
+
+comm_args:
+  backend: "sp"
+
+tracking_args:
+  log_file_dir: "../log"
+  enable_wandb: false

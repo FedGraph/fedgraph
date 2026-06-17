@@ -35,10 +35,11 @@ datasets = [
 ]
 
 # Algorithms to benchmark
-algorithms = ["SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs"]
+# algorithms = ["SelfTrain", "FedAvg", "FedProx", "GCFL", "GCFL+", "GCFL+dWs"]
+algorithms = ["FedAvg", "GCFL", "GCFL+", "GCFL+dWs"]
 
 # Number of trainers to test
-trainer_numbers = [3]
+trainer_numbers = [10]
 
 # Number of runs per configuration
 runs_per_config = 1

@@ -1,0 +1,30 @@
+FedML not available, using manual implementation
+
+DS,IID,BS,Time[s],FinalAcc[%],CompTime[s],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
+Running cora with β=10000.0
+Dataset: 2,708 nodes, 10,556 edges
+cora,10000.0,-1,18.0,76.30,18.0,1407.3,310.1,0.090,0.352,92231
+Running cora with β=100.0
+Dataset: 2,708 nodes, 10,556 edges
+cora,100.0,-1,15.6,75.40,15.6,1407.3,310.1,0.078,0.352,92231
+Running cora with β=10.0
+Dataset: 2,708 nodes, 10,556 edges
+cora,10.0,-1,16.8,70.50,16.8,1407.3,310.1,0.084,0.352,92231
+Running citeseer with β=10000.0
+Dataset: 3,327 nodes, 9,104 edges
+citeseer,10000.0,-1,33.1,69.10,33.1,3623.1,310.1,0.166,0.906,237446
+Running citeseer with β=100.0
+Dataset: 3,327 nodes, 9,104 edges
+citeseer,100.0,-1,37.9,64.10,37.9,3623.1,310.1,0.189,0.906,237446
+Running citeseer with β=10.0
+Dataset: 3,327 nodes, 9,104 edges
+citeseer,10.0,-1,41.1,58.90,41.1,3623.1,310.1,0.205,0.906,237446
+Running pubmed with β=10000.0
+Dataset: 19,717 nodes, 88,648 edges
+pubmed,10000.0,-1,79.2,41.70,79.2,492.2,310.1,0.396,0.123,32259
+Running pubmed with β=100.0
+Dataset: 19,717 nodes, 88,648 edges
+pubmed,100.0,-1,73.2,42.80,73.2,492.2,310.1,0.366,0.123,32259
+Running pubmed with β=10.0
+Dataset: 19,717 nodes, 88,648 edges
+pubmed,10.0,-1,72.9,20.50,72.9,492.2,310.1,0.364,0.123,32259

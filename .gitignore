@@ -59,7 +59,7 @@ cover/
 *.pot
 
 # Django stuff:
-*.log
+#*.log
 *.csv
 local_settings.py
 db.sqlite3

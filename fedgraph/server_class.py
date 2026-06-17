@@ -245,8 +245,10 @@ class Server:
         current_global_epoch : int
             The current global epoch number during the federated learning process.
         """
-
-        if self.use_encryption and getattr(self, 'he_backend', 'tenseal') == 'tenseal':
+        # Restrict the encrypted parameter aggregation path to the TenSEAL
+        # backend.  The OpenFHE threshold flow uses the file-based protocol
+        # in federated_methods.run_NC and must not enter this branch.
+        if self.use_encryption and getattr(self, "he_backend", "tenseal") == "tenseal":
             if not hasattr(self, "aggregation_stats"):
                 self.aggregation_stats = []
 
@@ -722,10 +724,12 @@ class Server_LP:
         trainers: list,
         args_cuda: bool = False,
     ) -> None:
+        self.number_of_users = number_of_users
+        self.number_of_items = number_of_items
         self.global_model = GNN_LP(
             number_of_users, number_of_items, meta_data, hidden_channels=64
         )  # create the base model
-
+        self.hidden_channels = self.global_model.hidden_channels
         self.global_model = self.global_model.cuda() if args_cuda else self.global_model
         self.clients = trainers
 
