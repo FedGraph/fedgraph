@@ -158,11 +158,13 @@ class TestFedGraphNCWorkflow:
         
         # Test parameter broadcast
         mock_model.state_dict.return_value = {'weight': torch.randn(64, 50)}
-        server.broadcast_params(current_global_epoch=1)
+        mock_model.parameters.return_value = [torch.randn(64, 50)]
+        with patch("fedgraph.server_class.ray.get"):
+            server.broadcast_params(current_global_epoch=1)
         
         # Verify all trainers received updates
         for trainer in trainers:
-            trainer.update_params.assert_called()
+            trainer.update_params.remote.assert_called()
 
 
 @pytest.mark.integration  
@@ -483,8 +485,9 @@ class TestComponentInteraction:
                 trainer.update_params = Mock()
                 mock_server_model.state_dict.return_value = {'weight': torch.randn(32, 20)}
                 
-                server.broadcast_params(current_global_epoch=1)
-                trainer.update_params.assert_called()
+                with patch("fedgraph.server_class.ray.get"):
+                    server.broadcast_params(current_global_epoch=1)
+                trainer.update_params.remote.assert_called()
     
     def test_monitor_integration(self):
         """Test monitoring system integration."""

@@ -536,68 +536,10 @@ def run_NC(args: attridict, data: Any = None) -> None:
     print("global_rounds", args.global_rounds)
     global_acc_list = []
     for i in range(args.global_rounds):
-        # Pure training phase - forward + gradient descent only
-        pure_training_start = time.time()
-
-        # Execute only training (forward + gradient descent)
-        train_refs = [trainer.train.remote(i) for trainer in server.trainers]
-        ray.get(train_refs)
-
-        pure_training_end = time.time()
-        round_training_time = pure_training_end - pure_training_start
+        round_stats = server.train(i)
+        round_training_time = round_stats["training_time"]
+        round_comm_time = round_stats["communication_time"]
         total_pure_training_time += round_training_time
-
-        # Communication phase - parameter aggregation and broadcast
-        comm_start = time.time()
-
-        if args.use_encryption:
-            # Encrypted parameter aggregation
-            encrypted_params = [
-                trainer.get_encrypted_params.remote() for trainer in server.trainers
-            ]
-            params_list = ray.get(encrypted_params)
-
-            # Server-side aggregation
-            aggregated_params, metadata, _ = server.aggregate_encrypted_params(
-                params_list
-            )
-
-            # Distribute aggregated parameters
-            decrypt_refs = [
-                trainer.load_encrypted_params.remote((aggregated_params, metadata), i)
-                for trainer in server.trainers
-            ]
-            ray.get(decrypt_refs)
-        else:
-            # Regular parameter aggregation
-            # Get parameters from all trainers
-            params_refs = [trainer.get_params.remote() for trainer in server.trainers]
-            param_results = ray.get(params_refs)
-
-            # Aggregate parameters on server - avoid in-place operations
-            server.zero_params()
-
-            # Move model to CPU for aggregation
-            server.model = server.model.to("cpu")
-
-            # Aggregate parameters safely
-            for param_result in param_results:
-                for p, mp in zip(param_result, server.model.parameters()):
-                    mp.data = mp.data + p.cpu()
-
-            # Move back to device and average
-            server.model = server.model.to(server.device)
-
-            # Average the parameters
-            with torch.no_grad():
-                for p in server.model.parameters():
-                    p.data = p.data / len(server.trainers)
-
-            # Broadcast updated parameters to all trainers
-            server.broadcast_params(i)
-
-        comm_end = time.time()
-        round_comm_time = comm_end - comm_start
         total_communication_time += round_comm_time
 
         # Testing phase (not counted in training or communication time)
@@ -613,10 +555,9 @@ def run_NC(args: attridict, data: Any = None) -> None:
             f"Round {i+1}: Training Time = {round_training_time:.2f}s, Communication Time = {round_comm_time:.2f}s"
         )
 
-        model_size_mb = server.get_model_size() / (1024 * 1024)
         monitor.add_train_comm_cost(
-            upload_mb=model_size_mb * args.n_trainer,
-            download_mb=model_size_mb * args.n_trainer,
+            upload_mb=round_stats["upload_size"] / (1024 * 1024),
+            download_mb=round_stats["download_size"] / (1024 * 1024),
         )
     monitor.train_time_end()
     total_time = time.time() - training_start
@@ -670,10 +611,6 @@ def run_NC(args: attridict, data: Any = None) -> None:
         else:
             training_upload = training_download = 0
         training_comm_cost = training_upload + training_download
-        monitor.add_train_comm_cost(
-            upload_mb=training_upload,
-            download_mb=training_download,
-        )
         print("\nTraining Phase Metrics:")
         print(
             f"Total Training Time: {total_pure_training_time:.2f} seconds"
