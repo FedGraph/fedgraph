@@ -650,10 +650,7 @@ class Trainer_General:
             self.train_losses.append(loss_train)
             self.train_accs.append(acc_train)
             # print(f"acc_train: {acc_train}")
-            loss_test, acc_test = self.local_test()
-            self.test_losses.append(loss_test)
-            self.test_accs.append(acc_test)
-            # print(f"current round: {current_global_round}, acc_test: {acc_test}")
+            self.local_test()
 
     def local_test(self) -> list:
         """

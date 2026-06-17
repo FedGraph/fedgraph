@@ -392,8 +392,9 @@ class TestTrainerGeneral:
         assert isinstance(params, tuple)
         mock_model.state_dict.assert_called_once()
     
+    @patch('fedgraph.trainer_class.test')
     @patch('fedgraph.trainer_class.train')
-    def test_train_method(self, mock_train_func):
+    def test_train_method(self, mock_train_func, mock_test_func):
         """Test train method."""
         trainer = Trainer_General(
             rank=self.rank,
@@ -420,12 +421,16 @@ class TestTrainerGeneral:
         self.args.batch_size = 0  # Ensure no batching for this test
         
         mock_train_func.return_value = (0.5, 0.85)  # loss, accuracy
+        mock_test_func.return_value = (0.3, 0.9)  # loss, accuracy
         
         trainer.train(current_global_round=1)
         
-        mock_train_func.assert_called()
-        assert len(trainer.train_losses) > 0
-        assert len(trainer.train_accs) > 0
+        assert mock_train_func.call_count == trainer.local_step
+        assert mock_test_func.call_count == trainer.local_step
+        assert len(trainer.train_losses) == trainer.local_step
+        assert len(trainer.train_accs) == trainer.local_step
+        assert len(trainer.test_losses) == trainer.local_step
+        assert len(trainer.test_accs) == trainer.local_step
     
     @patch('fedgraph.trainer_class.test')
     def test_local_test(self, mock_test_func):
