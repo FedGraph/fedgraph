@@ -80,21 +80,40 @@ class TestRunFedgraph:
         with pytest.raises(ValueError, match="Low-rank compression currently only supported for NC tasks"):
             run_fedgraph(self.args)
     
-    def test_run_fedgraph_lowrank_validation_fedavg_only(self):
-        """Test that low-rank compression only works with FedAvg method."""
+    @patch('fedgraph.federated_methods.data_loader')
+    @patch('fedgraph.federated_methods.run_NC_lowrank')
+    def test_run_fedgraph_lowrank_works_with_non_fedavg_method(
+        self, mock_run_nc_lowrank, mock_data_loader,
+    ):
+        """Low-rank compression is no longer restricted to FedAvg.
+
+        FedGCN-v2 combines low-rank pretraining with FedGCN, so the prior
+        "method == FedAvg" restriction has been removed. The call
+        should dispatch normally without raising.
+        """
         self.args.use_lowrank = True
+        self.args.use_encryption = False
         self.args.method = "FedProx"
-        
-        with pytest.raises(ValueError, match="Low-rank compression currently only supported for FedAvg method"):
-            run_fedgraph(self.args)
+        mock_data_loader.return_value = MagicMock()
+
+        run_fedgraph(self.args)
+        mock_run_nc_lowrank.assert_called_once()
     
-    def test_run_fedgraph_lowrank_encryption_conflict(self):
-        """Test that low-rank and encryption cannot be used together."""
+    @patch('fedgraph.federated_methods.data_loader')
+    @patch('fedgraph.federated_methods.run_NC')
+    def test_run_fedgraph_lowrank_with_openfhe_dispatches_to_run_nc(
+        self, mock_run_nc, mock_data_loader,
+    ):
+        """Combining low-rank with the OpenFHE threshold backend is the
+        FedGCN-v2 path. It dispatches to run_NC (which carries the
+        encrypted-SVD pretraining logic) instead of raising."""
         self.args.use_lowrank = True
         self.args.use_encryption = True
-        
-        with pytest.raises(ValueError, match="Cannot use both encryption and low-rank compression simultaneously"):
-            run_fedgraph(self.args)
+        self.args.he_backend = "openfhe"
+        mock_data_loader.return_value = MagicMock()
+
+        run_fedgraph(self.args)
+        mock_run_nc.assert_called_once()
     
     @patch('fedgraph.federated_methods.data_loader')
     @patch('fedgraph.federated_methods.run_NC')

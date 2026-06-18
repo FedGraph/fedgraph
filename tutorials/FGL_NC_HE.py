@@ -42,6 +42,7 @@ config = {
     "logdir": "./runs",
     # Security and Privacy
     "use_encryption": True,  # Whether to use Homomorphic Encryption for secure aggregation
+    "he_backend": "openfhe",  # Use OpenFHE for threshold HE (alternatives: "tenseal")
     # Dataset Handling Options
     "use_huggingface": False,  # Load dataset directly from Hugging Face Hub
     "saveto_huggingface": False,  # Save partitioned dataset to Hugging Face Hub

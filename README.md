@@ -35,9 +35,45 @@ Whether you are a federated learning researcher or a first-time user of federate
 - **Large-scale real-world FedGraph Training**: We focus on the need for FedGraph applications in challenging real-world scenarios with privacy preservation, and support learning on large-scale graphs across multiple clients.
 
 ## Installation
-```python
+
+The base install covers plaintext and TenSEAL-encrypted FedGraph:
+
+```bash
 pip install fedgraph
 ```
+
+### Optional: threshold homomorphic encryption (FedGCN-v2)
+
+The two-party threshold CKKS path uses OpenFHE.  OpenFHE Python wheels are only
+published for Linux/manylinux at the time of writing.
+
+```bash
+# Linux (incl. WSL2)
+pip install "fedgraph[openfhe]"
+```
+
+On macOS or Windows, either (a) build OpenFHE from source as described in the
+[OpenFHE-Python docs](https://github.com/openfheorg/openfhe-python), or (b) use
+the supplied Dockerfile, which already pins `openfhe==1.2.3.0.24.4`:
+
+```bash
+docker build -t fedgraph .
+docker run --rm -it fedgraph
+```
+
+If OpenFHE is not installed, FedGraph still works for the plaintext and
+TenSEAL paths -- the OpenFHE backend is only loaded when
+`he_backend="openfhe"` is set.
+
+### Adjacency normalization for the pretraining round (backward compatible)
+
+`fedgraph.utils_nc.get_1hop_feature_sum` accepts a `norm_type` argument that
+controls how the pretraining feature aggregation is normalized.  The default,
+`"none"`, reproduces the original FedGCN behaviour and is kept for backward
+compatibility with previously published baselines.  FedGCN-v2 experiments set
+`args.norm_type = "sym"` (the GCN-standard symmetric normalization); the
+row-stochastic variant `"row"` is also available.  See the FedGCN-v2 paper for
+details.
 
 ## Quick Start
 ```python

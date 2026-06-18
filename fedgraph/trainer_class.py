@@ -1,4 +1,5 @@
 import logging
+import os
 import random
 import time
 from io import BytesIO
@@ -27,6 +28,15 @@ from fedgraph.gnn_models import (
     GCN_arxiv,
     SAGE_products,
 )
+# Threshold-HE backend is optional. We delay-import OpenFHE bindings here so the
+# rest of fedgraph stays importable on systems without the OpenFHE wheel.
+try:
+    from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS  # noqa: F401
+    _OPENFHE_AVAILABLE = True
+except ImportError:  # pragma: no cover - exercised only when openfhe is missing
+    OpenFHEThresholdCKKS = None  # type: ignore[assignment]
+    _OPENFHE_AVAILABLE = False
+
 from fedgraph.train_func import test, train
 from fedgraph.utils_lp import (
     check_data_files_existance,
@@ -137,7 +147,17 @@ class Trainer_General:
         idx_test: torch.Tensor = None,
     ):
         # from gnn_models import GCN_Graph_Classification
-        torch.manual_seed(rank)
+        # Per-trainer seed = global_seed * 1000 + rank  (lets us vary across runs
+        # while keeping different trainers distinct within a run).
+        # Per-trainer seed = global_seed * 1000 + rank.  ``args`` may be a
+        # Mock in unit tests where ``args.seed`` is not a real int, so guard
+        # the conversion and fall back to the original ``manual_seed(rank)``.
+        _seed_attr = getattr(args, "seed", 42)
+        try:
+            _global_seed = int(_seed_attr)
+            torch.manual_seed(_global_seed * 1000 + rank)
+        except (TypeError, ValueError):
+            torch.manual_seed(rank)
         if (
             local_node_index is None
             or communicate_node_index is None
@@ -237,17 +257,19 @@ class Trainer_General:
                     NumLayers=self.args.num_layers,
                 ).to(self.device)
         else:
-            if "ogbn" in self.args.dataset:  # all ogbn large datasets
-                print("Running GCN_arxiv")
-                self.model = GCN_arxiv(
+            gnn_model = getattr(self.args, "gnn_model", "auto")
+            if gnn_model == "graphsage" or self.args.dataset == "ogbn-products":
+                print("Running SAGE_products")
+                self.model = SAGE_products(
                     nfeat=self.features.shape[1],
                     nhid=self.args_hidden,
                     nclass=class_num,
                     dropout=0.5,
                     NumLayers=self.args.num_layers,
                 ).to(self.device)
-            elif self.args.dataset == "ogbn-products":  # ogbn not coming here
-                self.model = SAGE_products(
+            elif "ogbn" in self.args.dataset:  # ogbn large datasets default to GCN_arxiv
+                print("Running GCN_arxiv")
+                self.model = GCN_arxiv(
                     nfeat=self.features.shape[1],
                     nhid=self.args_hidden,
                     nclass=class_num,
@@ -333,7 +355,8 @@ class Trainer_General:
 
         # Sum of features of all 1-hop nodes for each node
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
-            new_feature_for_trainer, self.adj, self.device
+            new_feature_for_trainer, self.adj, self.device,
+            norm_type=getattr(self.args, "norm_type", "none")
         )
         if hasattr(self.args, 'use_encryption') and self.args.use_encryption:
             print(
@@ -359,7 +382,8 @@ class Trainer_General:
         ).to(self.device)
         new_feature_for_trainer[self.local_node_index] = self.features
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
-            new_feature_for_trainer, self.adj, self.device
+            new_feature_for_trainer, self.adj, self.device,
+            norm_type=getattr(self.args, "norm_type", "none")
         )
         computation_time = time.time() - computation_start
 
@@ -390,7 +414,7 @@ class Trainer_General:
             The aggregated features to be loaded.
         """
         # load_start = time.time()
-        self.feature_aggregation = feature_aggregation.float()
+        self.feature_aggregation = feature_aggregation.float().to(self.device)
         # load_time = time.time() - load_start
         # data_size = (
         #     self.feature_aggregation.element_size()
@@ -418,14 +442,128 @@ class Trainer_General:
         decrypted_array = np.array(decrypted_rows)
         return torch.from_numpy(decrypted_array).float().reshape(shape)
 
-    def get_encrypted_local_feature_sum(self):
+    def get_encrypted_local_feature_sum(self, ct_output_path=None):
+        # Check HE backend and route accordingly
+        if hasattr(self, 'he_backend') and self.he_backend == "openfhe":
+            if getattr(self, 'use_lowrank', False):
+                return self._get_openfhe_lowrank_encrypted_feature_sum(ct_output_path)
+            return self._get_openfhe_encrypted_local_feature_sum(ct_output_path)
+        else:
+            return self._get_tenseal_encrypted_local_feature_sum()
+
+    def _get_openfhe_encrypted_local_feature_sum(self, ct_output_path=None):
+        """OpenFHE encryption of local feature sum, chunked and serialized to files."""
+        import openfhe
+        import json
+
+        new_feature_for_trainer = torch.zeros(
+            self.global_node_num, self.features.shape[1]
+        ).to(self.device)
+        new_feature_for_trainer[self.local_node_index] = self.features
+        feature_sum = get_1hop_feature_sum(
+            new_feature_for_trainer, self.adj, self.device,
+            norm_type=getattr(self.args, "norm_type", "none")
+        )
+
+        if not hasattr(self, 'openfhe_cc'):
+            raise RuntimeError("OpenFHE context not available on trainer")
+
+        encryption_start = time.time()
+        feature_list = feature_sum.flatten().tolist()
+
+        # CKKS can only encrypt ring_dim/2 values per ciphertext
+        slot_count = self.openfhe_cc.cc.GetRingDimension() // 2
+        num_chunks = (len(feature_list) + slot_count - 1) // slot_count
+
+        # Encrypt each chunk and serialize to numbered files
+        if ct_output_path:
+            base, ext = os.path.splitext(ct_output_path)
+            for i in range(num_chunks):
+                chunk = feature_list[i * slot_count : (i + 1) * slot_count]
+                ct = self.openfhe_cc.encrypt(chunk)
+                chunk_path = f"{base}_chunk{i}{ext}"
+                openfhe.SerializeToFile(chunk_path, ct, openfhe.BINARY)
+
+            # Write metadata
+            meta_path = f"{base}_meta.json"
+            with open(meta_path, "w") as f:
+                json.dump({"num_chunks": num_chunks, "slot_count": slot_count,
+                           "total_elements": len(feature_list)}, f)
+
+        encryption_time = time.time() - encryption_start
+        return feature_sum.shape, encryption_time
+
+    def _get_openfhe_lowrank_encrypted_feature_sum(self, ct_output_path=None):
+        """Low-rank compress feature sum, then encrypt with OpenFHE threshold HE."""
+        import openfhe
+        import json
+        from fedgraph.low_rank.compression_utils import svd_compress
+
+        new_feature_for_trainer = torch.zeros(
+            self.global_node_num, self.features.shape[1]
+        ).to(self.device)
+        new_feature_for_trainer[self.local_node_index] = self.features
+        feature_sum = get_1hop_feature_sum(
+            new_feature_for_trainer, self.adj, self.device,
+            norm_type=getattr(self.args, "norm_type", "none")
+        )
+
+        if not hasattr(self, 'openfhe_cc'):
+            raise RuntimeError("OpenFHE context not available on trainer")
+
+        encryption_start = time.time()
+
+        # SVD compress: feature_sum (N x F) -> U (N x rank), S (rank,), V (F x rank)
+        rank = getattr(self.args, "fixed_rank", 50)
+        rank = min(rank, min(feature_sum.shape))
+        U, S, V = svd_compress(feature_sum.cpu(), rank)
+
+        # Flatten U, S, V into one list for encryption
+        # Layout: [U_flat | S_flat | V_flat]
+        u_flat = U.flatten().tolist()
+        s_flat = S.flatten().tolist()
+        v_flat = V.flatten().tolist()
+        all_values = u_flat + s_flat + v_flat
+
+        # Encrypt in chunks
+        slot_count = self.openfhe_cc.cc.GetRingDimension() // 2
+        num_chunks = (len(all_values) + slot_count - 1) // slot_count
+
+        if ct_output_path:
+            base, ext = os.path.splitext(ct_output_path)
+            for i in range(num_chunks):
+                chunk = all_values[i * slot_count : (i + 1) * slot_count]
+                ct = self.openfhe_cc.encrypt(chunk)
+                openfhe.SerializeToFile(f"{base}_chunk{i}{ext}", ct, openfhe.BINARY)
+
+            # Write metadata including SVD shape info for reconstruction
+            meta_path = f"{base}_meta.json"
+            with open(meta_path, "w") as f:
+                json.dump({
+                    "num_chunks": num_chunks,
+                    "slot_count": slot_count,
+                    "total_elements": len(all_values),
+                    "lowrank": True,
+                    "rank": rank,
+                    "U_shape": list(U.shape),
+                    "S_len": len(s_flat),
+                    "V_shape": list(V.shape),
+                    "original_shape": list(feature_sum.shape),
+                }, f)
+
+        encryption_time = time.time() - encryption_start
+        return feature_sum.shape, encryption_time
+
+    def _get_tenseal_encrypted_local_feature_sum(self):
+        """TenSEAL encryption of local feature sum (existing implementation)"""
         # Same feature sum computation as original
         new_feature_for_trainer = torch.zeros(
             self.global_node_num, self.features.shape[1]
         ).to(self.device)
         new_feature_for_trainer[self.local_node_index] = self.features
         feature_sum = get_1hop_feature_sum(
-            new_feature_for_trainer, self.adj, self.device
+            new_feature_for_trainer, self.adj, self.device,
+            norm_type=getattr(self.args, "norm_type", "none")
         )
 
         # Encrypt the feature sum
@@ -436,18 +574,116 @@ class Trainer_General:
 
         return encrypted, feature_sum.shape, encryption_time
 
+    def setup_openfhe_nonlead(self, cc_path, lead_pk_path, output_pk_path):
+        """Setup OpenFHE as non-lead party using file-based serialization."""
+        import openfhe
+        from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS
+
+        # Deserialize context from file
+        cc, ok = openfhe.DeserializeCryptoContext(cc_path, openfhe.BINARY)
+        if not ok:
+            raise RuntimeError("Failed to deserialize CryptoContext")
+
+        # Enable features on deserialized context
+        cc.Enable(openfhe.PKE)
+        cc.Enable(openfhe.KEYSWITCH)
+        cc.Enable(openfhe.LEVELEDSHE)
+        cc.Enable(openfhe.ADVANCEDSHE)
+        cc.Enable(openfhe.MULTIPARTY)
+
+        # Deserialize lead public key
+        lead_pk, ok = openfhe.DeserializePublicKey(lead_pk_path, openfhe.BINARY)
+        if not ok:
+            raise RuntimeError("Failed to deserialize lead public key")
+
+        # Initialize wrapper with deserialized context
+        self.openfhe_cc = OpenFHEThresholdCKKS(cc=cc)
+
+        # Generate non-lead share
+        kp2 = self.openfhe_cc.generate_nonlead_share(lead_pk)
+
+        # Serialize the joint public key (kp2.publicKey) to file
+        openfhe.SerializeToFile(output_pk_path, kp2.publicKey, openfhe.BINARY)
+
+        self.he_backend = "openfhe"
+        self.use_lowrank = getattr(self.args, "use_lowrank", False)
+        print(f"Trainer {self.rank}: Generated non-lead key share (designated)")
+        return True
+
+    def set_openfhe_public_key(self, cc_path, joint_pk_path):
+        """Set the joint public key for encryption-only trainers using file-based serialization."""
+        import openfhe
+        from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS
+
+        # Deserialize context
+        cc, ok = openfhe.DeserializeCryptoContext(cc_path, openfhe.BINARY)
+        if not ok:
+            raise RuntimeError("Failed to deserialize CryptoContext")
+
+        cc.Enable(openfhe.PKE)
+        cc.Enable(openfhe.KEYSWITCH)
+        cc.Enable(openfhe.LEVELEDSHE)
+        cc.Enable(openfhe.ADVANCEDSHE)
+        cc.Enable(openfhe.MULTIPARTY)
+
+        # Deserialize joint public key
+        joint_pk, ok = openfhe.DeserializePublicKey(joint_pk_path, openfhe.BINARY)
+        if not ok:
+            raise RuntimeError("Failed to deserialize joint public key")
+
+        self.openfhe_cc = OpenFHEThresholdCKKS(cc=cc)
+        self.openfhe_cc.set_public_key(joint_pk)
+        self.he_backend = "openfhe"
+        self.use_lowrank = getattr(self.args, "use_lowrank", False)
+        print(f"Trainer {self.rank}: Set joint public key (encryption only)")
+        return True
+
+    def openfhe_partial_decrypt_main_batch(self, he_dir, num_chunks):
+        """Batch partial decryption of all chunks at once."""
+        import openfhe
+
+        if not hasattr(self, 'openfhe_cc'):
+            raise RuntimeError("OpenFHE context not initialized on trainer")
+
+        for chunk_idx in range(num_chunks):
+            agg_ct_path = os.path.join(he_dir, f"agg_ct_{chunk_idx}.bin")
+            partial_path = os.path.join(he_dir, f"partial_main_{chunk_idx}.bin")
+
+            agg_ct, ok = openfhe.DeserializeCiphertext(agg_ct_path, openfhe.BINARY)
+            if not ok:
+                raise RuntimeError(f"Failed to deserialize chunk {chunk_idx}")
+
+            partial_list = self.openfhe_cc.cc.MultipartyDecryptMain(
+                [agg_ct], self.openfhe_cc.secret_key_share
+            )
+            openfhe.SerializeToFile(partial_path, partial_list[0], openfhe.BINARY)
+
+        print(f"Trainer {self.rank}: Batch partial decryption done ({num_chunks} chunks)")
+        return True
+
     def load_encrypted_feature_aggregation(self, encrypted_data):
         encrypted_sum, shape = encrypted_data
 
-        decryption_start = time.time()
-        decrypted = ts.ckks_vector_from(self.he_context, encrypted_sum).decrypt()
+        # Check if this is OpenFHE decrypted data (already a tensor) or TenSEAL encrypted data
+        if isinstance(encrypted_sum, torch.Tensor):
+            # OpenFHE path: data is already decrypted tensor (on CPU from server).
+            # Move to trainer's device for indexing and downstream training.
+            decryption_start = time.time()
+            encrypted_sum = encrypted_sum.to(self.device)
+            self.feature_aggregation = encrypted_sum[self.communicate_node_index]
+            decryption_time = time.time() - decryption_start
+            return decryption_time
+        else:
+            # TenSEAL path: need to decrypt
+            decryption_start = time.time()
+            decrypted = ts.ckks_vector_from(self.he_context, encrypted_sum).decrypt()
 
-        # reshape and store
-        self.feature_aggregation = torch.tensor(decrypted).reshape(shape)[
-            self.communicate_node_index
-        ]
+            # reshape and store
+            self.feature_aggregation = torch.tensor(decrypted).reshape(shape)[
+                self.communicate_node_index
+            ]
 
-        return time.time() - decryption_start
+            return time.time() - decryption_start
 
     def get_encrypted_params(self):
         """Get encrypted parameters with proper scaling"""
@@ -637,13 +873,16 @@ class Trainer_General:
         """
         if self.model is None or self.feature_aggregation is None:
             return [0.0, 0.0]
-            
+
+        # Ensure everything is on the trainer's device (model may have been
+        # moved to CPU during aggregation).
+        self.model = self.model.to(self.device)
+        feats = self.feature_aggregation.to(self.device)
+        adj = self.adj.to(self.device)
+        test_labels = self.test_labels.to(self.device)
+        idx_test = self.idx_test.to(self.device)
         local_test_loss, local_test_acc = test(
-            self.model,
-            self.feature_aggregation,
-            self.adj,
-            self.test_labels,
-            self.idx_test,
+            self.model, feats, adj, test_labels, idx_test,
         )
         self.test_losses.append(local_test_loss)
         self.test_accs.append(local_test_acc)
