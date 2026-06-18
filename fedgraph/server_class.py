@@ -120,21 +120,22 @@ class Server:
         self.num_of_trainers = len(trainers)
         self.use_encryption = args.use_encryption
         if args.use_encryption:
+            # ``he_backend`` is opt-in; anything that is not the OpenFHE
+            # threshold backend falls back to TenSEAL, which is the original
+            # FedGraph behaviour.
             self.he_backend = getattr(args, "he_backend", "tenseal")
-            if self.he_backend == "tenseal":
+            if self.he_backend == "openfhe":
+                self.openfhe_cc = OpenFHEThresholdCKKS()
+                self.aggregation_stats = []
+                print("Initialized OpenFHE threshold context")
+            else:
+                self.he_backend = "tenseal"
                 file_path = str(files("fedgraph").joinpath("he_context.pkl"))
                 with open(file_path, "rb") as f:
                     context_bytes = pickle.load(f)
                 self.he_context = ts.context_from(context_bytes)
                 self.aggregation_stats = []
                 print("Loaded TenSEAL HE context with secret key.")
-            elif self.he_backend == "openfhe":
-                # Initialize OpenFHE threshold context
-                self.openfhe_cc = OpenFHEThresholdCKKS()
-                self.aggregation_stats = []
-                print("Initialized OpenFHE threshold context")
-            else:
-                raise ValueError(f"Unknown he_backend: {self.he_backend}")
 
         self.device = device
         # self.broadcast_params(-1)

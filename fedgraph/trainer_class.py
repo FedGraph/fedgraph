@@ -149,8 +149,15 @@ class Trainer_General:
         # from gnn_models import GCN_Graph_Classification
         # Per-trainer seed = global_seed * 1000 + rank  (lets us vary across runs
         # while keeping different trainers distinct within a run).
-        _global_seed = int(getattr(args, "seed", 42))
-        torch.manual_seed(_global_seed * 1000 + rank)
+        # Per-trainer seed = global_seed * 1000 + rank.  ``args`` may be a
+        # Mock in unit tests where ``args.seed`` is not a real int, so guard
+        # the conversion and fall back to the original ``manual_seed(rank)``.
+        _seed_attr = getattr(args, "seed", 42)
+        try:
+            _global_seed = int(_seed_attr)
+            torch.manual_seed(_global_seed * 1000 + rank)
+        except (TypeError, ValueError):
+            torch.manual_seed(rank)
         if (
             local_node_index is None
             or communicate_node_index is None

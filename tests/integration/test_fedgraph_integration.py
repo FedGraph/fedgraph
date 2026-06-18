@@ -401,21 +401,16 @@ class TestFedGraphEndToEnd:
         from fedgraph.federated_methods import run_fedgraph
         import attridict
         
-        # Test conflicting low-rank and encryption settings
+        # FedGCN-v2 explicitly supports the low-rank + encryption combination
+        # (encrypted SVD-compressed pretraining), so the configuration
+        # validation now only enforces that low-rank is restricted to NC
+        # tasks. Combining low-rank with a non-FedAvg method or with
+        # encryption is no longer treated as a conflict.
         args = attridict.AttriDict()
-        args.fedgraph_task = "NC"
+        args.fedgraph_task = "GC"
         args.use_lowrank = True
-        args.use_encryption = True
-        args.method = "FedAvg"
-        
-        with pytest.raises(ValueError, match="Cannot use both encryption and low-rank"):
-            run_fedgraph(args)
-        
-        # Test low-rank with wrong method
-        args.use_encryption = False
-        args.method = "FedProx"
-        
-        with pytest.raises(ValueError, match="Low-rank compression currently only supported for FedAvg"):
+
+        with pytest.raises(ValueError, match="Low-rank compression currently only supported for NC tasks"):
             run_fedgraph(args)
         
         # Test low-rank with wrong task

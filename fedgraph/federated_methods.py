@@ -80,7 +80,10 @@ def run_fedgraph(args: attridict) -> None:
     # Seed for reproducibility. Pass `seed` in the config to vary across runs
     # (for mean/std reporting); the same seed makes plaintext and encrypted
     # runs produce identical data partitions and model init.
-    _seed = int(getattr(args, "seed", 42))
+    try:
+        _seed = int(getattr(args, "seed", 42))
+    except (TypeError, ValueError):
+        _seed = 42
     random.seed(_seed)
     np.random.seed(_seed)
     torch.manual_seed(_seed)
@@ -101,7 +104,15 @@ def run_fedgraph(args: attridict) -> None:
         data = None
 
     if args.fedgraph_task == "NC":
-        if hasattr(args, "use_lowrank") and args.use_lowrank:
+        # ``run_NC`` natively supports the FedGCN-v2 OpenFHE + low-rank path
+        # (encrypted SVD-compressed pretraining feature aggregation).
+        # ``run_NC_lowrank`` is the plaintext low-rank FedAvg prototype.
+        _openfhe_lowrank = (
+            getattr(args, "use_lowrank", False)
+            and getattr(args, "use_encryption", False)
+            and getattr(args, "he_backend", "tenseal") == "openfhe"
+        )
+        if getattr(args, "use_lowrank", False) and not _openfhe_lowrank:
             run_NC_lowrank(args, data)
         else:
             run_NC(args, data)
@@ -196,7 +207,10 @@ def run_NC(args: attridict, data: Any = None) -> None:
     _ray_kwargs.setdefault("ignore_reinit_error", True)
     ray.init(**_ray_kwargs)
     start_time = time.time()
-    _seed = int(getattr(args, "seed", 42))
+    try:
+        _seed = int(getattr(args, "seed", 42))
+    except (TypeError, ValueError):
+        _seed = 42
     random.seed(_seed)
     np.random.seed(_seed)
     torch.manual_seed(_seed)
@@ -727,7 +741,11 @@ def run_NC(args: attridict, data: Any = None) -> None:
         # Communication phase - parameter aggregation and broadcast
         comm_start = time.time()
 
-        if args.use_encryption:
+        # Per-round encrypted parameter aggregation is implemented only for
+        # the TenSEAL backend.  The OpenFHE threshold flow encrypts the
+        # one-shot pretraining feature aggregation (see ``run_NC`` above);
+        # per-round model updates fall back to plaintext FedAvg.
+        if args.use_encryption and getattr(args, "he_backend", "tenseal") == "tenseal":
             # Encrypted parameter aggregation
             encrypted_params = [
                 trainer.get_encrypted_params.remote() for trainer in server.trainers
