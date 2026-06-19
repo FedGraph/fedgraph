@@ -140,7 +140,7 @@ class TestFedGraphNCWorkflow:
         
         # Create server
         args = Mock()
-        args.num_hops = 1
+        args.num_hops = 2
         args.dataset = "cora"
         args.num_layers = 2
         
@@ -478,7 +478,7 @@ class TestComponentInteraction:
                     class_num=3,
                     device=torch.device('cpu'),
                     trainers=[trainer],
-                    args=Mock(num_hops=1, dataset="test", num_layers=2)
+                    args=Mock(num_hops=2, dataset="test", num_layers=2)
                 )
                 
                 # Test parameter flow

@@ -91,6 +91,7 @@ class TestRunFedgraph:
         self.args.method = "FedAvg"
         self.args.use_encryption = False
         self.args.use_huggingface = False
+        self.args.num_hops = 2
     
     @patch('fedgraph.federated_methods.data_loader')
     @patch('fedgraph.federated_methods.run_NC')
@@ -162,6 +163,16 @@ class TestRunFedgraph:
         
         with pytest.raises(ValueError, match="Cannot use both encryption and low-rank compression simultaneously"):
             run_fedgraph(self.args)
+
+    @patch('fedgraph.federated_methods.data_loader')
+    def test_run_fedgraph_rejects_unsupported_nc_num_hops(self, mock_data_loader):
+        """Test that ambiguous 1-hop NC mode is rejected before data loading."""
+        self.args.num_hops = 1
+
+        with pytest.raises(ValueError, match="num_hops=1 is not supported"):
+            run_fedgraph(self.args)
+
+        mock_data_loader.assert_not_called()
     
     @patch('fedgraph.federated_methods.data_loader')
     @patch('fedgraph.federated_methods.run_NC')

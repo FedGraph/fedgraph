@@ -372,43 +372,6 @@ class Trainer_General:
 
         return one_hop_neighbor_feature_sum
 
-    def get_local_feature_sum_og(self) -> torch.Tensor:
-        """
-        Computes the sum of features of all 1-hop neighbors for each node, used for plain text version.
-
-        Returns
-        -------
-        one_hop_neighbor_feature_sum : torch.Tensor
-            The sum of features of 1-hop neighbors for each node
-        """
-
-        computation_start = time.time()
-        new_feature_for_trainer = torch.zeros(
-            self.global_node_num, self.features.shape[1]
-        ).to(self.device)
-        new_feature_for_trainer[self.local_node_index] = self.features
-        one_hop_neighbor_feature_sum = get_1hop_feature_sum(
-            new_feature_for_trainer, self.adj, self.device
-        )
-        computation_time = time.time() - computation_start
-
-        data_size = (
-            one_hop_neighbor_feature_sum.element_size()
-            * one_hop_neighbor_feature_sum.nelement()
-        )
-
-        print(f"Trainer {self.rank} - Computation time: {computation_time:.4f} seconds")
-        print(f"Trainer {self.rank} - Data size: {data_size / 1024:.2f} KB")
-        print(f"Trainer {self.rank} - Feature sum statistics:")
-        print(f"Shape: {one_hop_neighbor_feature_sum.shape}")
-        print(f"Mean: {one_hop_neighbor_feature_sum.mean().item():.6f}")
-        print(f"Std: {one_hop_neighbor_feature_sum.std().item():.6f}")
-        print(f"Min: {one_hop_neighbor_feature_sum.min().item():.6f}")
-        print(f"Max: {one_hop_neighbor_feature_sum.max().item():.6f}")
-        print(f"Non-zeros: {(one_hop_neighbor_feature_sum != 0).sum().item()}")
-
-        return one_hop_neighbor_feature_sum, computation_time, data_size
-
     def load_feature_aggregation(self, feature_aggregation: torch.Tensor) -> None:
         """
         Loads the aggregated features into the trainer. Used for plain text version

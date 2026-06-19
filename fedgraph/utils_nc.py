@@ -298,6 +298,14 @@ def get_in_comm_indexes(
     edge_indexes_clients : list
         A list of tensors representing the edges between nodes within each client's subgraph.
     """
+    if L_hop not in (0, 2):
+        raise ValueError(
+            "FedGraph NC currently only supports num_hops=0 for FedAvg and "
+            "num_hops=2 for FedGCN-style training. num_hops=1 is not "
+            "supported because the current implementation is equivalent to "
+            "the 2-hop path."
+        )
+
     communicate_node_indexes = []
     in_com_train_node_indexes = []
     edge_indexes_clients = []
@@ -315,7 +323,7 @@ def get_in_comm_indexes(
             )
             del _
             del __
-        elif L_hop == 1 or L_hop == 2:
+        elif L_hop == 2:
             (
                 communicate_node_index,
                 current_edge_index,
@@ -414,6 +422,7 @@ def get_1hop_feature_sum(
             (num_nodes, num_nodes),
         ).to(device)
         summed_features = torch.sparse.mm(adjacency_matrix.float(), node_features)
+        # Self features are included only if edge_index already contains self-loops.
     else:
         for node in range(num_nodes):
             neighbor_indices = torch.where(

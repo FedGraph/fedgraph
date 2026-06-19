@@ -142,6 +142,32 @@ class Server:
 
         return (first_sum.serialize(), shape), time.time() - aggregation_start
 
+    def mask_encrypted_feature_sum(self, encrypted_feature_sum, node_indexes):
+        encrypted_sum, shape = encrypted_feature_sum
+        if len(shape) != 2:
+            raise ValueError("encrypted feature sum shape must be two-dimensional")
+
+        num_nodes = int(shape[0])
+        feature_dim = int(shape[1])
+        if torch.is_tensor(node_indexes):
+            selected_nodes = node_indexes.detach().to("cpu").long().flatten()
+        else:
+            selected_nodes = torch.as_tensor(node_indexes, dtype=torch.long).flatten()
+
+        if selected_nodes.numel() > 0:
+            if (
+                selected_nodes.min().item() < 0
+                or selected_nodes.max().item() >= num_nodes
+            ):
+                raise ValueError("node_indexes contains values outside feature sum shape")
+
+        mask = torch.zeros((num_nodes, feature_dim), dtype=torch.float64)
+        mask[selected_nodes] = 1.0
+
+        masked_sum = ts.ckks_vector_from(self.he_context, encrypted_sum)
+        masked_sum *= mask.flatten().tolist()
+        return masked_sum.serialize(), shape
+
     def aggregate_encrypted_params(self, encrypted_params_list):
         aggregation_start = time.time()
 

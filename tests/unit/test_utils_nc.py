@@ -120,7 +120,7 @@ class TestSaveTrainerDataToHuggingFace:
         args = Mock(
             dataset="cora",
             n_trainer=2,
-            num_hops=1,
+            num_hops=2,
             iid_beta=0.5,
         )
 
@@ -296,7 +296,7 @@ class TestGetInCommIndexes:
         ]
         
         n_trainers = 3
-        num_hops = 1
+        num_hops = 2
         idx_train = torch.tensor([0, 2, 4])
         idx_test = torch.tensor([1, 3])
         
@@ -309,13 +309,30 @@ class TestGetInCommIndexes:
         (communicate_node_global_indexes, in_com_train_node_local_indexes,
          in_com_test_node_local_indexes, global_edge_indexes_clients) = result
         
-        assert isinstance(communicate_node_global_indexes, dict)
-        assert isinstance(in_com_train_node_local_indexes, dict)
-        assert isinstance(in_com_test_node_local_indexes, dict)
-        assert isinstance(global_edge_indexes_clients, dict)
+        assert isinstance(communicate_node_global_indexes, list)
+        assert isinstance(in_com_train_node_local_indexes, list)
+        assert isinstance(in_com_test_node_local_indexes, list)
+        assert isinstance(global_edge_indexes_clients, list)
         
         assert len(communicate_node_global_indexes) == n_trainers
         assert len(global_edge_indexes_clients) == n_trainers
+
+    def test_get_in_comm_indexes_rejects_unsupported_one_hop(self):
+        """Test that the old ambiguous 1-hop NC mode is rejected."""
+        edge_index = torch.tensor([[0, 1], [1, 2]])
+        split_node_indexes = [torch.tensor([0, 1])]
+        idx_train = torch.tensor([0])
+        idx_test = torch.tensor([1])
+
+        with pytest.raises(ValueError, match="num_hops=1 is not supported"):
+            get_in_comm_indexes(
+                edge_index,
+                split_node_indexes,
+                1,
+                1,
+                idx_train,
+                idx_test,
+            )
 
 
 class TestGet1hopFeatureSum:
@@ -452,7 +469,7 @@ class TestUtilsNCIntegration:
             ])
         
         n_trainers = 3
-        num_hops = 1
+        num_hops = 2
         idx_train = torch.arange(0, 7)
         idx_test = torch.arange(7, 10)
         

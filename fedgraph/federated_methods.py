@@ -109,6 +109,19 @@ def _resolve_nc_global_node_num(
     return sum(int(info["features_num"]) for info in trainer_information)
 
 
+def _validate_nc_num_hops(args: Any) -> None:
+    if not hasattr(args, "num_hops"):
+        return
+
+    if args.num_hops not in (0, 2):
+        raise ValueError(
+            "FedGraph NC currently only supports num_hops=0 for FedAvg and "
+            "num_hops=2 for FedGCN-style training. num_hops=1 is not "
+            "supported because the current implementation is equivalent to "
+            "the 2-hop path."
+        )
+
+
 def run_fedgraph(args: attridict) -> None:
     """
     Run the training process for the specified task.
@@ -139,6 +152,9 @@ def run_fedgraph(args: attridict) -> None:
             raise ValueError(
                 "Cannot use both encryption and low-rank compression simultaneously"
             )
+
+    if args.fedgraph_task == "NC":
+        _validate_nc_num_hops(args)
 
     # Load data
     if args.fedgraph_task != "NC" or not args.use_huggingface:
@@ -195,6 +211,9 @@ def run_fedgraph_enhanced(args: attridict) -> None:
     else:
         print("=== Using Standard FedGraph ===")
 
+    if args.fedgraph_task == "NC":
+        _validate_nc_num_hops(args)
+
     # Load data
     if args.fedgraph_task != "NC" or not args.use_huggingface:
         data = data_loader(args)
@@ -231,6 +250,8 @@ def run_NC(args: attridict, data: Any = None) -> None:
         Configuration arguments
     data: tuple
     """
+    _validate_nc_num_hops(args)
+
     monitor = Monitor(use_cluster=args.use_cluster)
     monitor.init_time_start()
 
@@ -446,16 +467,26 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 aggregated_result,
                 aggregation_time,
             ) = server.aggregate_encrypted_feature_sums(encrypted_sums)
-            agg_size = len(aggregated_result[0])
 
-            load_feature_refs = [
-                trainer.load_encrypted_feature_aggregation.remote(aggregated_result)
-                for trainer in server.trainers
-            ]
+            load_feature_refs = []
+            download_sizes = []
+            for i in range(args.n_trainer):
+                communicate_nodes = (
+                    communicate_node_global_indexes[i].clone().detach().to(device)
+                )
+                trainer_aggregation = server.mask_encrypted_feature_sum(
+                    aggregated_result, communicate_nodes
+                )
+                download_sizes.append(len(trainer_aggregation[0]))
+                load_feature_refs.append(
+                    server.trainers[i].load_encrypted_feature_aggregation.remote(
+                        trainer_aggregation
+                    )
+                )
             decryption_times = ray.get(load_feature_refs)
             pretrain_time = time.time() - pretrain_start
             pretrain_upload = sum(enc_sizes) / (1024 * 1024)  # MB
-            pretrain_download = agg_size * len(server.trainers) / (1024 * 1024)  # MB
+            pretrain_download = sum(download_sizes) / (1024 * 1024)  # MB
             pretrain_comm_cost = pretrain_upload + pretrain_download
 
             # print performance metrics
@@ -807,6 +838,8 @@ def run_NC_dp(args: attridict, data: Any = None) -> None:
     """
     Enhanced NC training with Differential Privacy support for FedGCN pre-training.
     """
+    _validate_nc_num_hops(args)
+
     monitor = Monitor(use_cluster=args.use_cluster)
     monitor.init_time_start()
 
@@ -1041,6 +1074,8 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
         raise ImportError(
             "Low-rank compression modules not available. Please implement the low-rank functionality in fedgraph.low_rank"
         )
+
+    _validate_nc_num_hops(args)
 
     print("=== Running NC with Low-Rank Compression ===")
     print(f"Low-rank method: {getattr(args, 'lowrank_method', 'fixed')}")

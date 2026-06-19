@@ -33,14 +33,14 @@ class TestServer:
         
         # Mock args
         self.args = Mock()
-        self.args.num_hops = 1
+        self.args.num_hops = 2
         self.args.dataset = "cora"
         self.args.num_layers = 2
         self.args.method = "FedAvg"
     
     @patch('fedgraph.server_class.AggreGCN')
     def test_server_init_with_hops(self, mock_aggre_gcn):
-        """Test Server initialization with num_hops >= 1."""
+        """Test Server initialization with FedGCN-style num_hops."""
         mock_model = Mock()
         mock_aggre_gcn.return_value = mock_model
         mock_model.to.return_value = mock_model
@@ -308,6 +308,41 @@ class TestServer:
         assert metadata == [{"shape": torch.Size([1]), "scale": 1000.0}]
         assert aggregation_time == 3.0
 
+    def test_mask_encrypted_feature_sum_keeps_only_selected_rows(self):
+        """Test encrypted feature sums are masked before trainer download."""
+        server = Server.__new__(Server)
+        server.he_context = object()
+
+        class FakeCKKSVector:
+            def __init__(self, values):
+                self.values = [float(value) for value in values]
+
+            def __imul__(self, mask):
+                self.values = [
+                    value * float(mask_value)
+                    for value, mask_value in zip(self.values, mask)
+                ]
+                return self
+
+            def serialize(self):
+                return self.values
+
+        encrypted_feature_sum = (
+            [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            torch.Size([3, 2]),
+        )
+
+        with patch(
+            "fedgraph.server_class.ts.ckks_vector_from",
+            side_effect=lambda _context, payload: FakeCKKSVector(payload),
+        ):
+            masked_sum, shape = server.mask_encrypted_feature_sum(
+                encrypted_feature_sum, torch.tensor([0, 2])
+            )
+
+        assert masked_sum == [1.0, 2.0, 0.0, 0.0, 5.0, 6.0]
+        assert shape == torch.Size([3, 2])
+
     def test_aggregate_encrypted_params_rejects_mismatched_shapes(self):
         """Test encrypted averaging fails clearly for incompatible layers."""
         server = Server.__new__(Server)
@@ -564,7 +599,7 @@ class TestServerIntegration:
         device = torch.device('cpu')
         
         args = Mock()
-        args.num_hops = 1
+        args.num_hops = 2
         args.dataset = "cora"
         args.num_layers = 2
         args.method = "FedAvg"
