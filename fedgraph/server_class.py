@@ -10,6 +10,12 @@ import numpy as np
 import ray
 import tenseal as ts
 import torch
+
+# Optional threshold-HE backend (OpenFHE wheel may not be installed on plain users).
+try:
+    from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS  # noqa: F401
+except ImportError:  # pragma: no cover
+    OpenFHEThresholdCKKS = None  # type: ignore[assignment]
 from dtaidistance import dtw
 
 from fedgraph.gnn_models import (
@@ -82,17 +88,19 @@ class Server:
                     NumLayers=self.args.num_layers,
                 ).to(device)
         else:  # 0-hop FedAvg methods
-            if "ogbn" in self.args.dataset:
-                print("Running GCN_arxiv")
-                self.model = GCN_arxiv(
+            gnn_model = getattr(self.args, "gnn_model", "auto")
+            if gnn_model == "graphsage" or self.args.dataset == "ogbn-products":
+                print("Running SAGE_products")
+                self.model = SAGE_products(
                     nfeat=feature_dim,
                     nhid=args_hidden,
                     nclass=class_num,
                     dropout=0.5,
                     NumLayers=self.args.num_layers,
                 ).to(device)
-            elif self.args.dataset == "ogbn-products":
-                self.model = SAGE_products(
+            elif "ogbn" in self.args.dataset:
+                print("Running GCN_arxiv")
+                self.model = GCN_arxiv(
                     nfeat=feature_dim,
                     nhid=args_hidden,
                     nclass=class_num,
@@ -112,12 +120,22 @@ class Server:
         self.num_of_trainers = len(trainers)
         self.use_encryption = args.use_encryption
         if args.use_encryption:
-            file_path = str(files("fedgraph").joinpath("he_context.pkl"))
-            with open(file_path, "rb") as f:
-                context_bytes = pickle.load(f)
-            self.he_context = ts.context_from(context_bytes)
-            self.aggregation_stats = []
-            print("Loaded HE context with secret key.")
+            # ``he_backend`` is opt-in; anything that is not the OpenFHE
+            # threshold backend falls back to TenSEAL, which is the original
+            # FedGraph behaviour.
+            self.he_backend = getattr(args, "he_backend", "tenseal")
+            if self.he_backend == "openfhe":
+                self.openfhe_cc = OpenFHEThresholdCKKS()
+                self.aggregation_stats = []
+                print("Initialized OpenFHE threshold context")
+            else:
+                self.he_backend = "tenseal"
+                file_path = str(files("fedgraph").joinpath("he_context.pkl"))
+                with open(file_path, "rb") as f:
+                    context_bytes = pickle.load(f)
+                self.he_context = ts.context_from(context_bytes)
+                self.aggregation_stats = []
+                print("Loaded TenSEAL HE context with secret key.")
 
         self.device = device
         # self.broadcast_params(-1)
@@ -131,6 +149,12 @@ class Server:
             p.zero_()
 
     def aggregate_encrypted_feature_sums(self, encrypted_sums):
+        """TenSEAL-only entry point.
+        The OpenFHE threshold flow runs in federated_methods.run_NC using the
+        file-based serialization protocol, not this method."""
+        return self._aggregate_tenseal_feature_sums(encrypted_sums)
+
+    def _aggregate_tenseal_feature_sums(self, encrypted_sums):
         aggregation_start = time.time()
 
         first_sum = ts.ckks_vector_from(self.he_context, encrypted_sums[0][0])
@@ -269,8 +293,10 @@ class Server:
             Per-round training time, communication time, and transfer sizes.
         """
         training_start = time.time()
-
-        if self.use_encryption:
+        # Restrict the encrypted parameter aggregation path to the TenSEAL
+        # backend.  The OpenFHE threshold flow uses the file-based protocol
+        # in federated_methods.run_NC and must not enter this branch.
+        if self.use_encryption and getattr(self, "he_backend", "tenseal") == "tenseal":
             if not hasattr(self, "aggregation_stats"):
                 self.aggregation_stats = []
 

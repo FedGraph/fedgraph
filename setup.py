@@ -53,7 +53,15 @@ setup(
         "huggingface_hub",
         "ogb",
     ],
-    extras_require={"dev": ["build", "mypy", "pre-commit", "pytest"]},
+    extras_require={
+        "dev": ["build", "mypy", "pre-commit", "pytest"],
+        # Optional threshold-HE backend used by FedGCN-v2. Install with
+        #     pip install "fedgraph[openfhe]"
+        # OpenFHE Python wheels are only published for Linux/manylinux at the
+        # time of writing; on macOS/Windows you can build from source or use
+        # the supplied Dockerfile.
+        "openfhe": ["openfhe==1.2.3.0.24.4"],
+    },
     include_package_data=True,
     package_data={
         "fedgraph": ["he_context.pkl"],
