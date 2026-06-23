@@ -388,4 +388,3 @@ sbatch array_experiment.slurm
 - `README_OPENFHE.md` - Implementation details
 - `OPENFHE_NC_IMPLEMENTATION.md` - Technical documentation
 - Delta docs: https://docs.ncsa.illinois.edu/systems/delta/
-

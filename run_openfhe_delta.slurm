@@ -37,20 +37,20 @@ source $HOME/openfhe_env/bin/activate
 if [ ! -f "$HOME/openfhe_env/.installed" ]; then
     echo "Installing dependencies..."
     pip install --upgrade pip
-    
+
     # Install PyTorch first
     pip install torch --index-url https://download.pytorch.org/whl/cpu
-    
+
     # Install torch-geometric and its dependencies
     pip install torch-geometric
     pip install torch-scatter torch-sparse torch-cluster torch-spline-conv -f https://data.pyg.org/whl/torch-2.0.0+cpu.html
-    
+
     # Install OpenFHE
     pip install openfhe==1.2.3.0.24.4
-    
+
     # Install other dependencies
     pip install ray[default] attridict ogb pyyaml networkx scipy scikit-learn
-    
+
     # Clone and install fedgraph
     cd $HOME
     if [ ! -d "$HOME/fedgraph" ]; then
@@ -58,7 +58,7 @@ if [ ! -f "$HOME/openfhe_env/.installed" ]; then
     fi
     cd $HOME/fedgraph
     pip install --no-deps .
-    
+
     touch $HOME/openfhe_env/.installed
     echo "Dependencies installed successfully"
 fi
@@ -75,4 +75,3 @@ python FGL_NC_HE.py
 
 echo ""
 echo "Job finished at $(date)"
-

@@ -33,14 +33,14 @@ class TestServer:
         
         # Mock args
         self.args = Mock()
-        self.args.num_hops = 1
+        self.args.num_hops = 2
         self.args.dataset = "cora"
         self.args.num_layers = 2
         self.args.method = "FedAvg"
     
     @patch('fedgraph.server_class.AggreGCN')
     def test_server_init_with_hops(self, mock_aggre_gcn):
-        """Test Server initialization with num_hops >= 1."""
+        """Test Server initialization with FedGCN-style num_hops."""
         mock_model = Mock()
         mock_aggre_gcn.return_value = mock_model
         mock_model.to.return_value = mock_model
@@ -155,11 +155,216 @@ class TestServer:
             for trainer in server.trainers:
                 trainer.update_params = Mock()
             
-            server.broadcast_params(current_global_epoch=1)
+            with patch("fedgraph.server_class.ray.get") as mock_ray_get:
+                server.broadcast_params(current_global_epoch=1)
             
             # Verify that all trainers received parameter updates
             for trainer in server.trainers:
-                trainer.update_params.assert_called_once()
+                trainer.update_params.remote.assert_called_once()
+            mock_ray_get.assert_called_once()
+
+    def test_train_runs_complete_plaintext_round(self):
+        """Test local training, subset aggregation, and broadcast as one round."""
+        server = Server.__new__(Server)
+        server.model = torch.nn.Linear(1, 1, bias=False)
+        server.device = torch.device("cpu")
+        server.use_encryption = False
+        server.num_of_trainers = 3
+
+        trainers = []
+        param_refs = {}
+        parameter_values = [1.0, 100.0, 5.0]
+        for index, value in enumerate(parameter_values):
+            trainer = Mock()
+            trainer.train.remote.return_value = f"train-{index}"
+            trainer.get_params.remote.return_value = f"params-{index}"
+            trainer.update_params.remote.return_value = f"update-{index}"
+            param_refs[f"params-{index}"] = (torch.tensor([[value]]),)
+            trainers.append(trainer)
+        server.trainers = trainers
+
+        def resolve(refs):
+            if isinstance(refs, list):
+                return [resolve(ref) for ref in refs]
+            return param_refs.get(refs, True)
+
+        def wait_for_one(refs, **_kwargs):
+            return refs[:1], refs[1:]
+
+        with patch("fedgraph.server_class.random.sample", return_value=[0, 2]), patch(
+            "fedgraph.server_class.ray.get", side_effect=resolve
+        ), patch(
+            "fedgraph.server_class.ray.wait", side_effect=wait_for_one
+        ), patch(
+            "fedgraph.server_class.time.time", side_effect=[10.0, 12.0, 12.0, 15.0]
+        ):
+            round_stats = server.train(4, sample_ratio=0.75)
+
+        assert server.model.weight.item() == pytest.approx(3.0)
+        assert round_stats == {
+            "training_time": 2.0,
+            "communication_time": 3.0,
+            "upload_size": 8,
+            "download_size": 12,
+            "num_trainers": 2,
+        }
+        trainers[0].train.remote.assert_called_once_with(4)
+        trainers[1].train.remote.assert_not_called()
+        trainers[2].train.remote.assert_called_once_with(4)
+        for trainer in trainers:
+            trainer.update_params.remote.assert_called_once()
+
+    def test_train_runs_complete_encrypted_round(self):
+        """Test encrypted training returns actual communication statistics."""
+        server = Server.__new__(Server)
+        server.model = torch.nn.Linear(1, 1, bias=False)
+        server.device = torch.device("cpu")
+        server.use_encryption = True
+        server.num_of_trainers = 2
+        server.aggregation_stats = []
+
+        trainers = []
+        encrypted_refs = {}
+        decryption_refs = {}
+        metadata = [{"shape": torch.Size([1, 1]), "scale": 100.0}]
+        for index, payload in enumerate([b"one", b"two"]):
+            trainer = Mock()
+            trainer.train.remote.return_value = f"train-{index}"
+            trainer.get_encrypted_params.remote.return_value = f"encrypted-{index}"
+            trainer.load_encrypted_params.remote.return_value = f"decrypted-{index}"
+            encrypted_refs[f"encrypted-{index}"] = ([payload], metadata)
+            decryption_refs[f"decrypted-{index}"] = 0.1
+            trainers.append(trainer)
+        server.trainers = trainers
+        server.aggregate_encrypted_params = Mock(
+            return_value=([b"avg"], metadata, 0.25)
+        )
+
+        def resolve(refs):
+            if isinstance(refs, list):
+                return [resolve(ref) for ref in refs]
+            if refs in encrypted_refs:
+                return encrypted_refs[refs]
+            return decryption_refs.get(refs, True)
+
+        def wait_for_one(refs, **_kwargs):
+            return refs[:1], refs[1:]
+
+        with patch(
+            "fedgraph.server_class.ray.get", side_effect=resolve
+        ), patch(
+            "fedgraph.server_class.ray.wait", side_effect=wait_for_one
+        ), patch(
+            "fedgraph.server_class.time.time",
+            side_effect=[10.0, 12.0, 12.0, 12.5, 13.0, 15.0],
+        ):
+            round_stats = server.train(4)
+
+        assert round_stats["training_time"] == 2.0
+        assert round_stats["communication_time"] == 3.0
+        assert round_stats["encryption_time"] == 0.5
+        assert round_stats["upload_size"] == 6
+        assert round_stats["download_size"] == 6
+        assert round_stats["num_trainers"] == 2
+        assert server.aggregation_stats == [round_stats]
+        for trainer in trainers:
+            trainer.train.remote.assert_called_once_with(4)
+            trainer.load_encrypted_params.remote.assert_called_once()
+
+    def test_aggregate_encrypted_params_rescales_to_common_layer_scale(self):
+        """Test encrypted params are rescaled before cross-trainer averaging."""
+        server = Server.__new__(Server)
+        server.he_context = object()
+
+        class FakeCKKSVector:
+            def __init__(self, value):
+                self.value = float(value)
+
+            def __iadd__(self, other):
+                self.value += other.value
+                return self
+
+            def __imul__(self, scalar):
+                self.value *= scalar
+                return self
+
+            def serialize(self):
+                return self.value
+
+        encrypted_params_list = [
+            ([200.0], [{"shape": torch.Size([1]), "scale": 100.0}]),
+            ([4000.0], [{"shape": torch.Size([1]), "scale": 1000.0}]),
+        ]
+
+        with patch(
+            "fedgraph.server_class.ts.ckks_vector_from",
+            side_effect=lambda _context, payload: FakeCKKSVector(payload),
+        ), patch("fedgraph.server_class.time.time", side_effect=[10.0, 13.0]):
+            aggregated_params, metadata, aggregation_time = (
+                server.aggregate_encrypted_params(encrypted_params_list)
+            )
+
+        assert aggregated_params == [pytest.approx(3000.0)]
+        assert metadata == [{"shape": torch.Size([1]), "scale": 1000.0}]
+        assert aggregation_time == 3.0
+
+    def test_mask_encrypted_feature_sum_keeps_only_selected_rows(self):
+        """Test encrypted feature sums are masked before trainer download."""
+        server = Server.__new__(Server)
+        server.he_context = object()
+
+        class FakeCKKSVector:
+            def __init__(self, values):
+                self.values = [float(value) for value in values]
+
+            def __imul__(self, mask):
+                self.values = [
+                    value * float(mask_value)
+                    for value, mask_value in zip(self.values, mask)
+                ]
+                return self
+
+            def serialize(self):
+                return self.values
+
+        encrypted_feature_sum = (
+            [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            torch.Size([3, 2]),
+        )
+
+        with patch(
+            "fedgraph.server_class.ts.ckks_vector_from",
+            side_effect=lambda _context, payload: FakeCKKSVector(payload),
+        ):
+            masked_sum, shape = server.mask_encrypted_feature_sum(
+                encrypted_feature_sum, torch.tensor([0, 2])
+            )
+
+        assert masked_sum == [1.0, 2.0, 0.0, 0.0, 5.0, 6.0]
+        assert shape == torch.Size([3, 2])
+
+    def test_aggregate_encrypted_params_rejects_mismatched_shapes(self):
+        """Test encrypted averaging fails clearly for incompatible layers."""
+        server = Server.__new__(Server)
+
+        encrypted_params_list = [
+            ([1.0], [{"shape": torch.Size([1]), "scale": 100.0}]),
+            ([2.0], [{"shape": torch.Size([2]), "scale": 100.0}]),
+        ]
+
+        with pytest.raises(ValueError, match="shapes must match"):
+            server.aggregate_encrypted_params(encrypted_params_list)
+
+    def test_aggregate_encrypted_params_rejects_invalid_scale(self):
+        """Test encrypted averaging requires positive per-layer scales."""
+        server = Server.__new__(Server)
+
+        encrypted_params_list = [
+            ([1.0], [{"shape": torch.Size([1]), "scale": 0.0}]),
+        ]
+
+        with pytest.raises(ValueError, match="scale must be positive"):
+            server.aggregate_encrypted_params(encrypted_params_list)
     
     def test_get_model_size(self):
         """Test get_model_size method."""
@@ -187,32 +392,6 @@ class TestServer:
             assert isinstance(model_size, float)
             assert model_size > 0
     
-    def test_prepare_params_for_encryption(self):
-        """Test prepare_params_for_encryption method."""
-        with patch('fedgraph.server_class.AggreGCN') as mock_gcn:
-            mock_model = Mock()
-            mock_gcn.return_value = mock_model
-            mock_model.to.return_value = mock_model
-            
-            server = Server(
-                feature_dim=self.feature_dim,
-                args_hidden=self.args_hidden,
-                class_num=self.class_num,
-                device=self.device,
-                trainers=self.mock_trainers,
-                args=self.args
-            )
-            
-            params = (torch.randn(10, 5), torch.randn(10))
-            
-            result = server.prepare_params_for_encryption(params)
-            
-            assert isinstance(result, list)
-            assert len(result) == len(params)
-            for item in result:
-                assert isinstance(item, list)  # Flattened and converted to list
-
-
 class TestServerGC:
     """Test Server_GC class for graph classification."""
     
@@ -420,7 +599,7 @@ class TestServerIntegration:
         device = torch.device('cpu')
         
         args = Mock()
-        args.num_hops = 1
+        args.num_hops = 2
         args.dataset = "cora"
         args.num_layers = 2
         args.method = "FedAvg"
@@ -433,6 +612,10 @@ class TestServerIntegration:
             'layer1.weight': torch.randn(32, 50),
             'layer1.bias': torch.randn(32)
         }
+        mock_model.parameters.return_value = [
+            torch.randn(32, 50),
+            torch.randn(32),
+        ]
         
         # Create mock trainers
         trainers = []
@@ -457,11 +640,12 @@ class TestServerIntegration:
         )
         
         # Test parameter broadcast
-        server.broadcast_params(current_global_epoch=1)
+        with patch("fedgraph.server_class.ray.get"):
+            server.broadcast_params(current_global_epoch=1)
         
         # Verify all trainers received updates
         for trainer in trainers:
-            trainer.update_params.assert_called_once()
+            trainer.update_params.remote.assert_called_once()
         
         # Test model size computation
         model_size = server.get_model_size()

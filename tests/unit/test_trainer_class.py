@@ -3,6 +3,7 @@ import torch
 import numpy as np
 from unittest.mock import Mock, patch, MagicMock
 import ray
+from huggingface_hub.errors import EntryNotFoundError
 
 from fedgraph.trainer_class import (
     Trainer_General,
@@ -34,7 +35,9 @@ class TestLoadTrainerDataFromHuggingFace:
             torch.randn(20),   # test_labels
             torch.randn(100, 10),  # features
             torch.randn(80),   # in_com_train_node_local_indexes
-            torch.randn(20)    # in_com_test_node_local_indexes
+            torch.randn(20),   # in_com_test_node_local_indexes
+            torch.tensor(100),  # global_node_num
+            torch.tensor(3),  # class_num
         ]
         mock_torch_load.side_effect = mock_tensors
         
@@ -46,17 +49,42 @@ class TestLoadTrainerDataFromHuggingFace:
         
         result = load_trainer_data_from_hugging_face(trainer_id=0, args=args)
         
-        assert len(result) == 8
+        assert len(result) == 10
         assert all(isinstance(tensor, torch.Tensor) for tensor in result)
         
         # Verify calls
-        assert mock_hf_download.call_count == 8
+        assert mock_hf_download.call_count == 10
         expected_repo = "FedGraph/fedgraph_cora_5trainer_2hop_iid_beta_0.5_trainer_id_0"
         mock_hf_download.assert_any_call(
             repo_id=expected_repo,
             repo_type="dataset",
             filename="local_node_index.pt"
         )
+
+    @patch('fedgraph.trainer_class.hf_hub_download')
+    @patch('builtins.open')
+    @patch('torch.load')
+    def test_load_existing_repo_without_global_metadata(
+        self, mock_torch_load, mock_open, mock_hf_download
+    ):
+        mock_file = Mock()
+        mock_file.read.return_value = b"test_tensor_data"
+        mock_open.return_value.__enter__.return_value = mock_file
+        mock_torch_load.side_effect = [torch.tensor([i]) for i in range(8)]
+
+        def download_side_effect(*, filename, **kwargs):
+            if filename in {"global_node_num.pt", "class_num.pt"}:
+                raise EntryNotFoundError("missing optional metadata")
+            return "/tmp/test_file.pt"
+
+        mock_hf_download.side_effect = download_side_effect
+        args = Mock(dataset="cora", n_trainer=5, num_hops=2, iid_beta=0.5)
+
+        with pytest.warns(UserWarning, match="falling back to inference"):
+            result = load_trainer_data_from_hugging_face(trainer_id=0, args=args)
+
+        assert len(result) == 10
+        assert result[-2:] == (None, None)
 
 
 class TestTrainerGeneral:
@@ -102,13 +130,17 @@ class TestTrainerGeneral:
             test_labels=self.test_labels,
             features=self.features,
             idx_train=self.idx_train,
-            idx_test=self.idx_test
+            idx_test=self.idx_test,
+            global_node_num=100,
+            class_num=3,
         )
         
         assert trainer.rank == self.rank
         assert trainer.device == self.device
         assert trainer.args_hidden == self.args_hidden
         assert trainer.local_step == self.args.local_step
+        assert trainer.global_node_num == 100
+        assert trainer.class_num == 3
         assert torch.equal(trainer.local_node_index, self.local_node_index.to(self.device))
         assert trainer.feature_aggregation is not None  # Should be set for FedAvg
         mock_load_data.assert_not_called()
@@ -124,7 +156,9 @@ class TestTrainerGeneral:
             self.test_labels,
             self.features,
             self.idx_train,
-            self.idx_test
+            self.idx_test,
+            torch.tensor(100),
+            torch.tensor(3),
         )
         
         trainer = Trainer_General(
@@ -135,6 +169,8 @@ class TestTrainerGeneral:
         )
         
         assert trainer.rank == self.rank
+        assert trainer.global_node_num == 100
+        assert trainer.class_num == 3
         mock_load_data.assert_called_once_with(self.rank, self.args)
     
     def test_get_info(self):
@@ -161,6 +197,38 @@ class TestTrainerGeneral:
         assert info["features_num"] == len(self.features)
         expected_label_num = max(self.train_labels.max().item(), self.test_labels.max().item()) + 1
         assert info["label_num"] == expected_label_num
+
+    @pytest.mark.parametrize(
+        ("train_labels", "test_labels", "expected_label_num"),
+        [
+            (torch.tensor([], dtype=torch.long), torch.tensor([0, 2]), 3),
+            (torch.tensor([0, 1]), torch.tensor([], dtype=torch.long), 2),
+            (
+                torch.tensor([], dtype=torch.long),
+                torch.tensor([], dtype=torch.long),
+                None,
+            ),
+        ],
+    )
+    def test_get_info_handles_empty_labels(
+        self, train_labels, test_labels, expected_label_num
+    ):
+        trainer = Trainer_General(
+            rank=self.rank,
+            args_hidden=self.args_hidden,
+            device=self.device,
+            args=self.args,
+            local_node_index=self.local_node_index,
+            communicate_node_index=self.communicate_node_index,
+            adj=self.adj,
+            train_labels=train_labels,
+            test_labels=test_labels,
+            features=self.features,
+            idx_train=torch.arange(len(train_labels)),
+            idx_test=torch.arange(len(test_labels)),
+        )
+
+        assert trainer.get_info()["label_num"] == expected_label_num
     
     @patch('fedgraph.trainer_class.GCN')
     @patch('fedgraph.trainer_class.GCN_arxiv')
@@ -224,6 +292,7 @@ class TestTrainerGeneral:
     
     def test_get_local_feature_sum(self):
         """Test get_local_feature_sum method."""
+        local_features = self.features[self.local_node_index]
         trainer = Trainer_General(
             rank=self.rank,
             args_hidden=self.args_hidden,
@@ -234,11 +303,12 @@ class TestTrainerGeneral:
             adj=self.adj,
             train_labels=self.train_labels,
             test_labels=self.test_labels,
-            features=self.features,
+            features=local_features,
             idx_train=self.idx_train,
             idx_test=self.idx_test
         )
-        
+        trainer.global_node_num = len(self.features)
+
         # Mock the get_1hop_feature_sum function
         with patch('fedgraph.trainer_class.get_1hop_feature_sum') as mock_get_1hop:
             mock_get_1hop.return_value = torch.randn(100, 50)
@@ -247,6 +317,30 @@ class TestTrainerGeneral:
             
             assert isinstance(result, torch.Tensor)
             mock_get_1hop.assert_called_once()
+            feature_matrix = mock_get_1hop.call_args.args[0]
+            assert feature_matrix.shape == (
+                trainer.global_node_num,
+                local_features.shape[1],
+            )
+
+    def test_get_local_feature_sum_requires_global_node_num(self):
+        trainer = Trainer_General(
+            rank=self.rank,
+            args_hidden=self.args_hidden,
+            device=self.device,
+            args=self.args,
+            local_node_index=self.local_node_index,
+            communicate_node_index=self.communicate_node_index,
+            adj=self.adj,
+            train_labels=self.train_labels,
+            test_labels=self.test_labels,
+            features=self.features[self.local_node_index],
+            idx_train=self.idx_train,
+            idx_test=self.idx_test,
+        )
+
+        with pytest.raises(RuntimeError, match="metadata must be initialized"):
+            trainer.get_local_feature_sum()
     
     def test_load_feature_aggregation(self):
         """Test load_feature_aggregation method."""
@@ -298,8 +392,9 @@ class TestTrainerGeneral:
         assert isinstance(params, tuple)
         mock_model.state_dict.assert_called_once()
     
+    @patch('fedgraph.trainer_class.test')
     @patch('fedgraph.trainer_class.train')
-    def test_train_method(self, mock_train_func):
+    def test_train_method(self, mock_train_func, mock_test_func):
         """Test train method."""
         trainer = Trainer_General(
             rank=self.rank,
@@ -326,12 +421,16 @@ class TestTrainerGeneral:
         self.args.batch_size = 0  # Ensure no batching for this test
         
         mock_train_func.return_value = (0.5, 0.85)  # loss, accuracy
+        mock_test_func.return_value = (0.3, 0.9)  # loss, accuracy
         
         trainer.train(current_global_round=1)
         
-        mock_train_func.assert_called()
-        assert len(trainer.train_losses) > 0
-        assert len(trainer.train_accs) > 0
+        assert mock_train_func.call_count == trainer.local_step
+        assert mock_test_func.call_count == trainer.local_step
+        assert len(trainer.train_losses) == trainer.local_step
+        assert len(trainer.train_accs) == trainer.local_step
+        assert len(trainer.test_losses) == trainer.local_step
+        assert len(trainer.test_accs) == trainer.local_step
     
     @patch('fedgraph.trainer_class.test')
     def test_local_test(self, mock_test_func):

@@ -2,6 +2,7 @@ import logging
 import os
 import random
 import time
+import warnings
 from io import BytesIO
 from typing import Any, Dict, List, Union
 
@@ -14,6 +15,7 @@ import torch
 import torch.nn.functional as F
 import torch_geometric
 from huggingface_hub import hf_hub_download
+from huggingface_hub.errors import EntryNotFoundError
 from torch_geometric.data import Data
 from torch_geometric.loader import NeighborLoader
 from torchmetrics.functional.retrieval import retrieval_auroc
@@ -50,10 +52,15 @@ from fedgraph.utils_nc import get_1hop_feature_sum
 def load_trainer_data_from_hugging_face(trainer_id, args):
     repo_name = f"FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{args.num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}"
 
-    def download_and_load_tensor(file_name):
-        file_path = hf_hub_download(
-            repo_id=repo_name, repo_type="dataset", filename=file_name
-        )
+    def download_and_load_tensor(file_name, optional=False):
+        try:
+            file_path = hf_hub_download(
+                repo_id=repo_name, repo_type="dataset", filename=file_name
+            )
+        except EntryNotFoundError:
+            if optional:
+                return None
+            raise
         with open(file_path, "rb") as f:
             buffer = BytesIO(f.read())
             tensor = torch.load(buffer, weights_only=False)
@@ -71,6 +78,14 @@ def load_trainer_data_from_hugging_face(trainer_id, args):
     features = download_and_load_tensor("features.pt")
     in_com_train_node_local_indexes = download_and_load_tensor("idx_train.pt")
     in_com_test_node_local_indexes = download_and_load_tensor("idx_test.pt")
+    global_node_num = download_and_load_tensor("global_node_num.pt", optional=True)
+    class_num = download_and_load_tensor("class_num.pt", optional=True)
+    if global_node_num is None or class_num is None:
+        warnings.warn(
+            "Hugging Face trainer data does not contain global metadata; "
+            "falling back to inference for compatibility with existing repositories.",
+            UserWarning,
+        )
     return (
         local_node_index,
         communicate_node_global_index,
@@ -80,6 +95,8 @@ def load_trainer_data_from_hugging_face(trainer_id, args):
         features,
         in_com_train_node_local_indexes,
         in_com_test_node_local_indexes,
+        global_node_num,
+        class_num,
     )
 
 
@@ -145,6 +162,8 @@ class Trainer_General:
         features: torch.Tensor = None,
         idx_train: torch.Tensor = None,
         idx_test: torch.Tensor = None,
+        global_node_num: int = None,
+        class_num: int = None,
     ):
         # from gnn_models import GCN_Graph_Classification
         # Per-trainer seed = global_seed * 1000 + rank  (lets us vary across runs
@@ -177,6 +196,8 @@ class Trainer_General:
                 features,
                 idx_train,
                 idx_test,
+                global_node_num,
+                class_num,
             ) = load_trainer_data_from_hugging_face(rank, args)
         self.rank = rank  # rank = trainer ID
 
@@ -207,22 +228,30 @@ class Trainer_General:
         self.args = args
         self.model = None
         self.optimizer = None
-        self.global_node_num = None
-        self.class_num = None
+        self.global_node_num = (
+            int(global_node_num.item())
+            if isinstance(global_node_num, torch.Tensor)
+            else global_node_num
+        )
+        self.class_num = (
+            int(class_num.item()) if isinstance(class_num, torch.Tensor) else class_num
+        )
         self.feature_aggregation = None
         if self.args.method == "FedAvg":
             # print("Loading feature as the feature aggregation for fedavg method")
             self.feature_aggregation = self.features
 
     def get_info(self):
-        # assert self.train_labels.numel() > 0, "train_labels is empty"
-        # assert self.test_labels.numel() > 0, "test_labels is empty"
+        label_nums = [
+            int(labels.max().item()) + 1
+            for labels in (self.train_labels, self.test_labels)
+            if labels.numel() > 0
+        ]
         return {
             "features_num": len(self.features),
-            "label_num": max(
-                self.train_labels.max().item(), self.test_labels.max().item()
-            )
-            + 1,
+            "label_num": max(label_nums, default=None),
+            "global_node_num": self.global_node_num,
+            "class_num": self.class_num,
             "feature_shape": self.features.shape[1],
             "len_in_com_train_node_local_indexes": len(self.idx_train),
             "len_in_com_test_node_local_indexes": len(self.idx_test),
@@ -342,14 +371,14 @@ class Trainer_General:
         normalized_sum : torch.Tensor
             The normalized sum of features of 1-hop neighbors for each node
         """
-        # Use global_node_num if available, otherwise infer from communicate_node_index
-        global_node_num = getattr(self, 'global_node_num', None)
-        if global_node_num is None:
-            global_node_num = self.communicate_node_index.max().item() + 1
-            
+        if self.global_node_num is None:
+            raise RuntimeError(
+                "Trainer model metadata must be initialized before feature aggregation"
+            )
+
         # Create a large matrix with known local node features
         new_feature_for_trainer = torch.zeros(
-            global_node_num, self.features.shape[1]
+            self.global_node_num, self.features.shape[1]
         ).to(self.device)
         new_feature_for_trainer[self.local_node_index] = self.features
 
@@ -857,10 +886,7 @@ class Trainer_General:
             self.train_losses.append(loss_train)
             self.train_accs.append(acc_train)
             # print(f"acc_train: {acc_train}")
-            loss_test, acc_test = self.local_test()
-            self.test_losses.append(loss_test)
-            self.test_accs.append(acc_test)
-            # print(f"current round: {current_global_round}, acc_test: {acc_test}")
+            self.local_test()
 
     def local_test(self) -> list:
         """

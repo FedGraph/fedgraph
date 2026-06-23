@@ -54,7 +54,7 @@ if [ ! -f "$HOME/openfhe_env/.installed" ]; then
     pip install -q torch-geometric
     pip install -q openfhe==1.2.3.0.24.4
     pip install -q ray[default] attridict ogb pyyaml networkx scipy scikit-learn
-    
+
     # Clone repo
     cd $HOME
     if [ ! -d "$HOME/fedgraph" ]; then
@@ -62,7 +62,7 @@ if [ ! -f "$HOME/openfhe_env/.installed" ]; then
     fi
     cd $HOME/fedgraph
     pip install -q --no-deps .
-    
+
     touch $HOME/openfhe_env/.installed
     echo "Dependencies installed!"
 fi
@@ -83,4 +83,3 @@ echo ""
 bash
 
 EOF
-

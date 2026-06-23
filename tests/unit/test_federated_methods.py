@@ -5,12 +5,79 @@ from unittest.mock import Mock, patch, MagicMock
 import attridict
 
 from fedgraph.federated_methods import (
+    _resolve_nc_class_num,
+    _resolve_nc_global_node_num,
     run_fedgraph,
     run_fedgraph_enhanced,
     run_NC,
     run_GC,
     run_LP
 )
+
+
+class TestResolveNCClassNum:
+    def test_uses_authoritative_loaded_class_num(self):
+        trainer_information = [{"label_num": 2}, {"label_num": None}]
+
+        assert _resolve_nc_class_num(False, trainer_information, 7) == 7
+
+    def test_infers_huggingface_class_num_from_nonempty_trainers(self):
+        trainer_information = [
+            {"label_num": None},
+            {"label_num": 3},
+            {"label_num": 5},
+        ]
+
+        assert _resolve_nc_class_num(True, trainer_information) == 5
+
+    def test_uses_huggingface_class_num_metadata(self):
+        trainer_information = [
+            {"class_num": 7, "label_num": 2},
+            {"class_num": 7, "label_num": 5},
+        ]
+
+        assert _resolve_nc_class_num(True, trainer_information) == 7
+
+    def test_rejects_inconsistent_huggingface_class_num_metadata(self):
+        trainer_information = [{"class_num": 3}, {"class_num": 4}]
+
+        with pytest.raises(ValueError, match="inconsistent class_num"):
+            _resolve_nc_class_num(True, trainer_information)
+
+    def test_rejects_huggingface_data_without_labels(self):
+        trainer_information = [{"label_num": None}, {"label_num": None}]
+
+        with pytest.raises(ValueError, match="all train and test label tensors are empty"):
+            _resolve_nc_class_num(True, trainer_information)
+
+
+class TestResolveNCGlobalNodeNum:
+    def test_uses_authoritative_loaded_node_count(self):
+        trainer_information = [{"features_num": 40}, {"features_num": 50}]
+
+        assert _resolve_nc_global_node_num(False, trainer_information, 100) == 100
+
+    def test_infers_huggingface_node_count_from_owned_features(self):
+        trainer_information = [{"features_num": 40}, {"features_num": 60}]
+
+        assert _resolve_nc_global_node_num(True, trainer_information) == 100
+
+    def test_uses_huggingface_global_node_num_metadata(self):
+        trainer_information = [
+            {"global_node_num": 100, "features_num": 40},
+            {"global_node_num": 100, "features_num": 50},
+        ]
+
+        assert _resolve_nc_global_node_num(True, trainer_information) == 100
+
+    def test_rejects_inconsistent_huggingface_global_node_num_metadata(self):
+        trainer_information = [
+            {"global_node_num": 100},
+            {"global_node_num": 101},
+        ]
+
+        with pytest.raises(ValueError, match="inconsistent global_node_num"):
+            _resolve_nc_global_node_num(True, trainer_information)
 
 
 class TestRunFedgraph:
@@ -24,6 +91,7 @@ class TestRunFedgraph:
         self.args.method = "FedAvg"
         self.args.use_encryption = False
         self.args.use_huggingface = False
+        self.args.num_hops = 2
     
     @patch('fedgraph.federated_methods.data_loader')
     @patch('fedgraph.federated_methods.run_NC')
@@ -114,6 +182,16 @@ class TestRunFedgraph:
 
         run_fedgraph(self.args)
         mock_run_nc.assert_called_once()
+
+    @patch('fedgraph.federated_methods.data_loader')
+    def test_run_fedgraph_rejects_unsupported_nc_num_hops(self, mock_data_loader):
+        """Test that ambiguous 1-hop NC mode is rejected before data loading."""
+        self.args.num_hops = 1
+
+        with pytest.raises(ValueError, match="num_hops=1 is not supported"):
+            run_fedgraph(self.args)
+
+        mock_data_loader.assert_not_called()
     
     @patch('fedgraph.federated_methods.data_loader')
     @patch('fedgraph.federated_methods.run_NC')

@@ -213,42 +213,42 @@ Total Pre-training Communication Cost: X.XX MB
 
 ```
 
-                  Two-Party Threshold Setup                   
-
-                                                              
-  1. Server (Lead)         →  generate_lead_keys()           
-     - Holds secret share 1                                   
-     - Generates initial public key                           
-                                                              
-  2. Trainer 0 (Non-lead)  →  generate_nonlead_share()       
-     - Holds secret share 2                                   
-     - Contributes to joint public key                        
-                                                              
-  3. Server                →  finalize_joint_public_key()    
-     - Creates final joint public key                         
-                                                              
-  4. All Trainers          →  set_public_key()               
-     - Receive joint public key for encryption                
-                                                              
+                  Two-Party Threshold Setup
 
 
+  1. Server (Lead)         →  generate_lead_keys()
+     - Holds secret share 1
+     - Generates initial public key
 
-               Encrypted Feature Aggregation                  
+  2. Trainer 0 (Non-lead)  →  generate_nonlead_share()
+     - Holds secret share 2
+     - Contributes to joint public key
 
-                                                              
-  Trainer 0, 1, ..., N                                        
-    ↓ encrypt(local_feature_sum)                             
-  [ct_0, ct_1, ..., ct_N]                                     
-    ↓                                                          
-  Server: ct_sum = ct_0 + ct_1 + ... + ct_N                  
-    ↓                                                          
-  Server: partial_lead = partial_decrypt(ct_sum)             
-  Trainer 0: partial_main = partial_decrypt(ct_sum)          
-    ↓                                                          
-  Server: result = fuse(partial_lead, partial_main)          
-    ↓                                                          
-  All Trainers receive decrypted aggregated features         
-                                                              
+  3. Server                →  finalize_joint_public_key()
+     - Creates final joint public key
+
+  4. All Trainers          →  set_public_key()
+     - Receive joint public key for encryption
+
+
+
+
+               Encrypted Feature Aggregation
+
+
+  Trainer 0, 1, ..., N
+    ↓ encrypt(local_feature_sum)
+  [ct_0, ct_1, ..., ct_N]
+    ↓
+  Server: ct_sum = ct_0 + ct_1 + ... + ct_N
+    ↓
+  Server: partial_lead = partial_decrypt(ct_sum)
+  Trainer 0: partial_main = partial_decrypt(ct_sum)
+    ↓
+  Server: result = fuse(partial_lead, partial_main)
+    ↓
+  All Trainers receive decrypted aggregated features
+
 
 ```
 
@@ -267,7 +267,7 @@ config = {
 }
 ```
 
-**Important**: 
+**Important**:
 - Requires `n_trainer >= 2` (one for server's counterpart)
 - Only works with `method="FedGCN"` (FedAvg support coming soon)
 - Pretrain phase only (training phase encryption TBD)
@@ -347,12 +347,12 @@ pip install -r docker_requirements.txt
 ## Status
 
  **Implementation Complete**
-- Two-party threshold key generation: 
-- Encrypted feature aggregation: 
-- Threshold decryption: 
-- Integration with FedGCN NC pretrain: 
-- Docker support: 
-- Tests: 
+- Two-party threshold key generation:
+- Encrypted feature aggregation:
+- Threshold decryption:
+- Integration with FedGCN NC pretrain:
+- Docker support:
+- Tests:
 
 ⏳ **Testing Required**
 - [ ] Run integration test with OpenFHE installed
@@ -364,4 +364,3 @@ pip install -r docker_requirements.txt
 - [ ] Training phase encryption (gradient aggregation)
 - [ ] FedAvg method support
 - [ ] Multi-party (>2) threshold support
-

@@ -10,8 +10,7 @@ import numpy as np
 import scipy.sparse as sp
 import torch
 import torch_geometric
-
-# from huggingface_hub import HfApi, HfFolder, hf_hub_download, upload_file
+from huggingface_hub import HfApi, get_token
 
 
 def normalize(mx: sp.csc_matrix) -> sp.csr_matrix:
@@ -299,6 +298,14 @@ def get_in_comm_indexes(
     edge_indexes_clients : list
         A list of tensors representing the edges between nodes within each client's subgraph.
     """
+    if L_hop not in (0, 2):
+        raise ValueError(
+            "FedGraph NC currently only supports num_hops=0 for FedAvg and "
+            "num_hops=2 for FedGCN-style training. num_hops=1 is not "
+            "supported because the current implementation is equivalent to "
+            "the 2-hop path."
+        )
+
     communicate_node_indexes = []
     in_com_train_node_indexes = []
     edge_indexes_clients = []
@@ -316,7 +323,7 @@ def get_in_comm_indexes(
             )
             del _
             del __
-        elif L_hop == 1 or L_hop == 2:
+        elif L_hop == 2:
             (
                 communicate_node_index,
                 current_edge_index,
@@ -452,6 +459,7 @@ def get_1hop_feature_sum(
             (num_nodes, num_nodes),
         ).to(device)
         summed_features = torch.sparse.mm(adjacency_matrix.float(), node_features)
+        # Self features are included only if edge_index already contains self-loops.
     else:
         for node in range(num_nodes):
             neighbor_indices = torch.where(
@@ -504,10 +512,12 @@ def save_trainer_data_to_hugging_face(
     features,
     in_com_train_node_local_indexes,
     in_com_test_node_local_indexes,
+    global_node_num,
+    class_num,
     args,
 ):
     repo_name = f"FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{args.num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}"
-    user = HfFolder.get_token()
+    user = get_token()
 
     api = HfApi()
     try:
@@ -538,6 +548,8 @@ def save_trainer_data_to_hugging_face(
     save_tensor_to_hf(features, "features.pt")
     save_tensor_to_hf(in_com_train_node_local_indexes, "idx_train.pt")
     save_tensor_to_hf(in_com_test_node_local_indexes, "idx_test.pt")
+    save_tensor_to_hf(torch.tensor(global_node_num), "global_node_num.pt")
+    save_tensor_to_hf(torch.tensor(class_num), "class_num.pt")
 
     print(f"Uploaded data for trainer {trainer_id}")
 
@@ -551,8 +563,10 @@ def save_all_trainers_data(
     in_com_train_node_local_indexes,
     in_com_test_node_local_indexes,
     n_trainer,
+    class_num,
     args,
 ):
+    global_node_num = len(features)
     for i in range(n_trainer):
         save_trainer_data_to_hugging_face(
             trainer_id=i,
@@ -568,5 +582,7 @@ def save_all_trainers_data(
             features=features[split_node_indexes[i]],
             in_com_train_node_local_indexes=in_com_train_node_local_indexes[i],
             in_com_test_node_local_indexes=in_com_test_node_local_indexes[i],
+            global_node_num=global_node_num,
+            class_num=class_num,
             args=args,
         )

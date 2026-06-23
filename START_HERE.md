@@ -270,4 +270,3 @@ cat openfhe-JOBID.out | grep "Test Acc"
 **Need help?** See `DELTA_HPC_SETUP.md` for detailed documentation.
 
 **Ready to push to GitHub?** Let me know and I'll help you commit and push all these files to the `gcn_v2` branch.
-

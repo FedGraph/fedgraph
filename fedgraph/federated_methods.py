@@ -60,6 +60,79 @@ except ImportError:
     LOWRANK_AVAILABLE = False
 
 
+def _resolve_nc_class_num(
+    use_huggingface: bool,
+    trainer_information: list,
+    loaded_class_num: Optional[int] = None,
+) -> int:
+    if not use_huggingface:
+        if loaded_class_num is None:
+            raise ValueError("class_num is required when NC data is loaded centrally")
+        return int(loaded_class_num)
+
+    metadata_values = {
+        int(info["class_num"])
+        for info in trainer_information
+        if info.get("class_num") is not None
+    }
+    if len(metadata_values) > 1:
+        raise ValueError("Hugging Face trainers report inconsistent class_num values")
+    if metadata_values:
+        return metadata_values.pop()
+
+    label_nums = [
+        int(info["label_num"])
+        for info in trainer_information
+        if info.get("label_num") is not None
+    ]
+    if not label_nums:
+        raise ValueError(
+            "Cannot infer class_num from Hugging Face trainer data because all "
+            "train and test label tensors are empty"
+        )
+    return max(label_nums)
+
+
+def _resolve_nc_global_node_num(
+    use_huggingface: bool,
+    trainer_information: list,
+    loaded_global_node_num: Optional[int] = None,
+) -> int:
+    if not use_huggingface:
+        if loaded_global_node_num is None:
+            raise ValueError(
+                "global_node_num is required when NC data is loaded centrally"
+            )
+        return int(loaded_global_node_num)
+
+    metadata_values = {
+        int(info["global_node_num"])
+        for info in trainer_information
+        if info.get("global_node_num") is not None
+    }
+    if len(metadata_values) > 1:
+        raise ValueError(
+            "Hugging Face trainers report inconsistent global_node_num values"
+        )
+    if metadata_values:
+        return metadata_values.pop()
+
+    return sum(int(info["features_num"]) for info in trainer_information)
+
+
+def _validate_nc_num_hops(args: Any) -> None:
+    if not hasattr(args, "num_hops"):
+        return
+
+    if args.num_hops not in (0, 2):
+        raise ValueError(
+            "FedGraph NC currently only supports num_hops=0 for FedAvg and "
+            "num_hops=2 for FedGCN-style training. num_hops=1 is not "
+            "supported because the current implementation is equivalent to "
+            "the 2-hop path."
+        )
+
+
 def run_fedgraph(args: attridict) -> None:
     """
     Run the training process for the specified task.
@@ -98,6 +171,11 @@ def run_fedgraph(args: attridict) -> None:
         raise ValueError(
             "Low-rank compression currently only supported for NC tasks"
         )
+
+    if args.fedgraph_task == "NC":
+        _validate_nc_num_hops(args)
+
+    # Load data
     if args.fedgraph_task != "NC" or not args.use_huggingface:
         data = data_loader(args)
     else:
@@ -160,6 +238,9 @@ def run_fedgraph_enhanced(args: attridict) -> None:
     else:
         print("=== Using Standard FedGraph ===")
 
+    if args.fedgraph_task == "NC":
+        _validate_nc_num_hops(args)
+
     # Load data
     if args.fedgraph_task != "NC" or not args.use_huggingface:
         data = data_loader(args)
@@ -196,6 +277,8 @@ def run_NC(args: attridict, data: Any = None) -> None:
         Configuration arguments
     data: tuple
     """
+    _validate_nc_num_hops(args)
+
     monitor = Monitor(use_cluster=args.use_cluster)
     monitor.init_time_start()
 
@@ -245,6 +328,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 in_com_train_node_local_indexes=in_com_train_node_local_indexes,
                 in_com_test_node_local_indexes=in_com_test_node_local_indexes,
                 n_trainer=args.n_trainer,
+                class_num=class_num,
                 args=args,
             )
 
@@ -335,8 +419,6 @@ def run_NC(args: attridict, data: Any = None) -> None:
             Trainer.remote(  # type: ignore
                 rank=i,
                 args_hidden=args_hidden,
-                # global_node_num=len(features),
-                # class_num=class_num,
                 device=device,
                 args=args,
                 local_node_index=split_node_indexes[i],
@@ -351,6 +433,8 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 features=features[split_node_indexes[i]],
                 idx_train=in_com_train_node_local_indexes[i],
                 idx_test=in_com_test_node_local_indexes[i],
+                global_node_num=len(features),
+                class_num=class_num,
             )
             for i in range(args.n_trainer)
         ]
@@ -360,8 +444,16 @@ def run_NC(args: attridict, data: Any = None) -> None:
     ]
 
     # Extract necessary details from trainer information
-    global_node_num = sum([info["features_num"] for info in trainer_information])
-    class_num = max([info["label_num"] for info in trainer_information])
+    global_node_num = _resolve_nc_global_node_num(
+        args.use_huggingface,
+        trainer_information,
+        None if args.use_huggingface else len(features),
+    )
+    class_num = _resolve_nc_class_num(
+        args.use_huggingface,
+        trainer_information,
+        None if args.use_huggingface else class_num,
+    )
     feature_shape = trainer_information[0]["feature_shape"]
 
     train_data_weights = [
@@ -427,12 +519,22 @@ def run_NC(args: attridict, data: Any = None) -> None:
                     aggregated_result,
                     aggregation_time,
                 ) = server.aggregate_encrypted_feature_sums(encrypted_sums)
-                agg_size = len(aggregated_result[0])
 
-                load_feature_refs = [
-                    trainer.load_encrypted_feature_aggregation.remote(aggregated_result)
-                    for trainer in server.trainers
-                ]
+                load_feature_refs = []
+                download_sizes = []
+                for i in range(args.n_trainer):
+                    communicate_nodes = (
+                        communicate_node_global_indexes[i].clone().detach().to(device)
+                    )
+                    trainer_aggregation = server.mask_encrypted_feature_sum(
+                        aggregated_result, communicate_nodes
+                    )
+                    download_sizes.append(len(trainer_aggregation[0]))
+                    load_feature_refs.append(
+                        server.trainers[i].load_encrypted_feature_aggregation.remote(
+                            trainer_aggregation
+                        )
+                    )
                 decryption_times = ray.get(load_feature_refs)
             elif getattr(args, "he_backend", "tenseal") == "openfhe":
                 print("Starting OpenFHE threshold encrypted feature aggregation...")
@@ -645,7 +747,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 raise ValueError(f"Unknown he_backend: {getattr(args, 'he_backend', None)}")
             pretrain_time = time.time() - pretrain_start
             pretrain_upload = sum(enc_sizes) / (1024 * 1024)  # MB
-            pretrain_download = agg_size * len(server.trainers) / (1024 * 1024)  # MB
+            pretrain_download = sum(download_sizes) / (1024 * 1024)  # MB
             pretrain_comm_cost = pretrain_upload + pretrain_download
 
             # print performance metrics
@@ -727,15 +829,9 @@ def run_NC(args: attridict, data: Any = None) -> None:
     print("global_rounds", args.global_rounds)
     global_acc_list = []
     for i in range(args.global_rounds):
-        # Pure training phase - forward + gradient descent only
-        pure_training_start = time.time()
-
-        # Execute only training (forward + gradient descent)
-        train_refs = [trainer.train.remote(i) for trainer in server.trainers]
-        ray.get(train_refs)
-
-        pure_training_end = time.time()
-        round_training_time = pure_training_end - pure_training_start
+        round_stats = server.train(i)
+        round_training_time = round_stats["training_time"]
+        round_comm_time = round_stats["communication_time"]
         total_pure_training_time += round_training_time
 
         # Communication phase - parameter aggregation and broadcast
@@ -808,10 +904,9 @@ def run_NC(args: attridict, data: Any = None) -> None:
             f"Round {i+1}: Training Time = {round_training_time:.2f}s, Communication Time = {round_comm_time:.2f}s"
         )
 
-        model_size_mb = server.get_model_size() / (1024 * 1024)
         monitor.add_train_comm_cost(
-            upload_mb=model_size_mb * args.n_trainer,
-            download_mb=model_size_mb * args.n_trainer,
+            upload_mb=round_stats["upload_size"] / (1024 * 1024),
+            download_mb=round_stats["download_size"] / (1024 * 1024),
         )
     monitor.train_time_end()
     total_time = time.time() - training_start
@@ -865,10 +960,6 @@ def run_NC(args: attridict, data: Any = None) -> None:
         else:
             training_upload = training_download = 0
         training_comm_cost = training_upload + training_download
-        monitor.add_train_comm_cost(
-            upload_mb=training_upload,
-            download_mb=training_download,
-        )
         print("\nTraining Phase Metrics:")
         print(
             f"Total Training Time: {total_pure_training_time:.2f} seconds"
@@ -1065,6 +1156,8 @@ def run_NC_dp(args: attridict, data: Any = None) -> None:
     """
     Enhanced NC training with Differential Privacy support for FedGCN pre-training.
     """
+    _validate_nc_num_hops(args)
+
     monitor = Monitor(use_cluster=args.use_cluster)
     monitor.init_time_start()
 
@@ -1146,6 +1239,8 @@ def run_NC_dp(args: attridict, data: Any = None) -> None:
                 features=features[split_node_indexes[i]],
                 idx_train=in_com_train_node_local_indexes[i],
                 idx_test=in_com_test_node_local_indexes[i],
+                global_node_num=len(features),
+                class_num=class_num,
             )
             for i in range(args.n_trainer)
         ]
@@ -1155,8 +1250,16 @@ def run_NC_dp(args: attridict, data: Any = None) -> None:
         ray.get(trainers[i].get_info.remote()) for i in range(len(trainers))
     ]
 
-    global_node_num = sum([info["features_num"] for info in trainer_information])
-    class_num = max([info["label_num"] for info in trainer_information])
+    global_node_num = _resolve_nc_global_node_num(
+        args.use_huggingface,
+        trainer_information,
+        None if args.use_huggingface else len(features),
+    )
+    class_num = _resolve_nc_class_num(
+        args.use_huggingface,
+        trainer_information,
+        None if args.use_huggingface else class_num,
+    )
 
     train_data_weights = [
         info["len_in_com_train_node_local_indexes"] for info in trainer_information
@@ -1290,6 +1393,8 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
             "Low-rank compression modules not available. Please implement the low-rank functionality in fedgraph.low_rank"
         )
 
+    _validate_nc_num_hops(args)
+
     print("=== Running NC with Low-Rank Compression ===")
     print(f"Low-rank method: {getattr(args, 'lowrank_method', 'fixed')}")
     if hasattr(args, "lowrank_method"):
@@ -1338,6 +1443,7 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
                 in_com_train_node_local_indexes=in_com_train_node_local_indexes,
                 in_com_test_node_local_indexes=in_com_test_node_local_indexes,
                 n_trainer=args.n_trainer,
+                class_num=class_num,
                 args=args,
             )
 
@@ -1395,6 +1501,8 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
                 features=features[split_node_indexes[i]],
                 idx_train=in_com_train_node_local_indexes[i],
                 idx_test=in_com_test_node_local_indexes[i],
+                global_node_num=len(features),
+                class_num=class_num,
             )
             for i in range(args.n_trainer)
         ]
@@ -1404,8 +1512,16 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
         ray.get(trainers[i].get_info.remote()) for i in range(len(trainers))
     ]
 
-    global_node_num = sum([info["features_num"] for info in trainer_information])
-    class_num = max([info["label_num"] for info in trainer_information])
+    global_node_num = _resolve_nc_global_node_num(
+        args.use_huggingface,
+        trainer_information,
+        None if args.use_huggingface else len(features),
+    )
+    class_num = _resolve_nc_class_num(
+        args.use_huggingface,
+        trainer_information,
+        None if args.use_huggingface else class_num,
+    )
 
     train_data_weights = [
         info["len_in_com_train_node_local_indexes"] for info in trainer_information

@@ -126,7 +126,7 @@ config = {
     "method": "FedGCN",
     "use_encryption": True,
     "he_backend": "openfhe",
-    
+
     # Customize these:
     "dataset": "citeseer",      # Options: cora, citeseer, pubmed
     "num_trainers": 5,           # Number of federated clients
@@ -180,4 +180,3 @@ Remove Docker image (to free space):
 ```bash
 docker rmi fedgraph-openfhe
 ```
-

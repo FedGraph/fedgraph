@@ -148,28 +148,6 @@ class Server:
         for p in self.model.parameters():
             p.zero_()
 
-    def prepare_params_for_encryption(self, params):
-        processed_params = []
-        metadata = []
-
-        for param in params:
-            param_min = param.min()
-            param_max = param.max()
-            param_range = param_max - param_min
-
-            # handle division by 0
-            if param_range == 0:
-                normalized = param - param_min
-            else:
-                normalized = (param - param_min) / param_range
-
-            scaled = normalized * 1000
-
-            processed_params.append(scaled)
-            metadata.append({"min": param_min, "range": param_range})
-
-        return processed_params, metadata
-
     def aggregate_encrypted_feature_sums(self, encrypted_sums):
         """TenSEAL-only entry point.
         The OpenFHE threshold flow runs in federated_methods.run_NC using the
@@ -188,46 +166,111 @@ class Server:
 
         return (first_sum.serialize(), shape), time.time() - aggregation_start
 
+    def mask_encrypted_feature_sum(self, encrypted_feature_sum, node_indexes):
+        encrypted_sum, shape = encrypted_feature_sum
+        if len(shape) != 2:
+            raise ValueError("encrypted feature sum shape must be two-dimensional")
+
+        num_nodes = int(shape[0])
+        feature_dim = int(shape[1])
+        if torch.is_tensor(node_indexes):
+            selected_nodes = node_indexes.detach().to("cpu").long().flatten()
+        else:
+            selected_nodes = torch.as_tensor(node_indexes, dtype=torch.long).flatten()
+
+        if selected_nodes.numel() > 0:
+            if (
+                selected_nodes.min().item() < 0
+                or selected_nodes.max().item() >= num_nodes
+            ):
+                raise ValueError("node_indexes contains values outside feature sum shape")
+
+        mask = torch.zeros((num_nodes, feature_dim), dtype=torch.float64)
+        mask[selected_nodes] = 1.0
+
+        masked_sum = ts.ckks_vector_from(self.he_context, encrypted_sum)
+        masked_sum *= mask.flatten().tolist()
+        return masked_sum.serialize(), shape
+
     def aggregate_encrypted_params(self, encrypted_params_list):
         aggregation_start = time.time()
 
-        first_params, metadata = encrypted_params_list[0]
-        n_layers = len(first_params)
+        if not encrypted_params_list:
+            raise ValueError("encrypted_params_list must not be empty")
 
-        # each layer
+        first_params, _ = encrypted_params_list[0]
+        n_layers = len(first_params)
+        if n_layers == 0:
+            raise ValueError("encrypted parameter payload must contain at least one layer")
+
+        layer_shapes = []
+        layer_scale_values = [[] for _ in range(n_layers)]
+        validated_params = []
+
+        for trainer_idx, (trainer_params, trainer_metadata) in enumerate(
+            encrypted_params_list
+        ):
+            if len(trainer_params) != n_layers:
+                raise ValueError("all trainers must provide the same number of layers")
+            if len(trainer_metadata) != n_layers:
+                raise ValueError("metadata length must match encrypted parameter layers")
+
+            validated_metadata = []
+            for layer_idx, metadata in enumerate(trainer_metadata):
+                shape = metadata.get("shape")
+                if shape is None:
+                    raise ValueError("encrypted parameter metadata must include shape")
+                normalized_shape = tuple(shape)
+
+                try:
+                    scale = float(metadata["scale"])
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise ValueError(
+                        "encrypted parameter metadata must include numeric scale"
+                    ) from exc
+                if not np.isfinite(scale) or scale <= 0:
+                    raise ValueError("encrypted parameter scale must be positive")
+
+                if trainer_idx == 0:
+                    layer_shapes.append(shape)
+                elif normalized_shape != tuple(layer_shapes[layer_idx]):
+                    raise ValueError(
+                        "encrypted parameter shapes must match across trainers"
+                    )
+
+                layer_scale_values[layer_idx].append(scale)
+                validated_metadata.append({"shape": shape, "scale": scale})
+
+            validated_params.append((trainer_params, validated_metadata))
+
+        aggregation_metadata = [
+            {"shape": layer_shapes[layer_idx], "scale": max(layer_scale_values[layer_idx])}
+            for layer_idx in range(n_layers)
+        ]
+
         aggregated_params = []
         for layer_idx in range(n_layers):
-            agg_layer = ts.ckks_vector_from(
-                self.he_context, encrypted_params_list[0][0][layer_idx]
-            )
+            common_scale = aggregation_metadata[layer_idx]["scale"]
+            agg_layer = None
 
-            for trainer_params, _ in encrypted_params_list[1:]:
+            for trainer_params, trainer_metadata in validated_params:
+                trainer_scale = trainer_metadata[layer_idx]["scale"]
                 next_layer = ts.ckks_vector_from(
                     self.he_context, trainer_params[layer_idx]
                 )
-                agg_layer += next_layer
+                next_layer *= common_scale / trainer_scale
+
+                if agg_layer is None:
+                    agg_layer = next_layer
+                else:
+                    agg_layer += next_layer
 
             # average
-            agg_layer *= 1.0 / self.num_of_trainers
+            agg_layer *= 1.0 / len(validated_params)
             aggregated_params.append(agg_layer.serialize())
 
         aggregation_time = time.time() - aggregation_start
-        return aggregated_params, metadata, aggregation_time
-
-    def get_encrypted_params(self):
-        params = [p.data.cpu().detach() for p in self.model.parameters()]
-
-        # normalize and scale
-        processed_params, metadata = self.prepare_params_for_encryption(params)
-
-        encrypted_params = []
-        for param in processed_params:
-            param_list = param.flatten().tolist()
-
-            encrypted = ts.ckks_vector(self.he_context, param_list).serialize()
-            encrypted_params.append(encrypted)
-
-        return encrypted_params, metadata
+        return aggregated_params, aggregation_metadata, aggregation_time
 
     @torch.no_grad()
     def train(
@@ -235,17 +278,21 @@ class Server:
         current_global_epoch: int,
         sampling_type: str = "random",
         sample_ratio: float = 1,
-    ) -> None:
+    ) -> dict:
         """
-        Training round which performs aggregating parameters from sampled trainers (by index),
-        updating the central model, and then broadcasting the updated parameters
-        back to all trainers.
+        Run one federated training round and return timing and communication statistics.
 
         Parameters
         ----------
         current_global_epoch : int
             The current global epoch number during the federated learning process.
+
+        Returns
+        -------
+        dict
+            Per-round training time, communication time, and transfer sizes.
         """
+        training_start = time.time()
         # Restrict the encrypted parameter aggregation path to the TenSEAL
         # backend.  The OpenFHE threshold flow uses the file-based protocol
         # in federated_methods.run_NC and must not enter this branch.
@@ -257,6 +304,9 @@ class Server:
                 trainer.train.remote(current_global_epoch) for trainer in self.trainers
             ]
             ray.get(train_refs)
+            training_time = time.time() - training_start
+
+            communication_start = time.time()
             encryption_start = time.time()
             print("Starting encrypted parameter aggregation...")
             encrypted_params = [
@@ -265,7 +315,6 @@ class Server:
 
             # Wait for all trainers and collect parameters
             params_list = []
-            encryption_times = []
             enc_sizes = []
             while encrypted_params:
                 ready, encrypted_params = ray.wait(encrypted_params)
@@ -285,7 +334,6 @@ class Server:
             agg_size = sum(len(p) for p in aggregated_params)
 
             # Distribute back to trainers
-            decryption_start = time.time()
             decrypt_refs = [
                 trainer.load_encrypted_params.remote(
                     (aggregated_params, metadata), current_global_epoch
@@ -293,24 +341,33 @@ class Server:
                 for trainer in self.trainers
             ]
             decryption_times = ray.get(decrypt_refs)
+            communication_time = time.time() - communication_start
             round_metrics = {
+                "training_time": training_time,
+                "communication_time": communication_time,
                 "encryption_time": encryption_time,
                 "decryption_times": decryption_times,
                 "aggregation_time": agg_time,
                 "upload_size": sum(enc_sizes),
                 "download_size": agg_size * len(self.trainers),
+                "num_trainers": len(self.trainers),
             }
             self.aggregation_stats.append(round_metrics)
+            return round_metrics
         else:  # normal training logic
             # print(
             #     f"Training round: {current_global_epoch}, sampling rate: {sample_ratio}"
             # )
 
             assert 0 < sample_ratio <= 1, "Sample ratio must be between 0 and 1"
+            if sampling_type not in {"random", "uniform"}:
+                raise ValueError("sampling_type must be either 'random' or 'uniform'")
 
             num_samples = int(self.num_of_trainers * sample_ratio)
 
-            if sampling_type == "random":
+            if sample_ratio == 1:
+                selected_trainers_indices = list(range(self.num_of_trainers))
+            elif sampling_type == "random":
                 selected_trainers_indices = random.sample(
                     range(self.num_of_trainers), num_samples
                 )
@@ -325,11 +382,14 @@ class Server:
                     for i in range(num_samples)
                 ]
 
-            else:
-                raise ValueError("sampling_type must be either 'random' or 'uniform'")
-
-            for trainer_idx in selected_trainers_indices:
+            train_refs = [
                 self.trainers[trainer_idx].train.remote(current_global_epoch)
+                for trainer_idx in selected_trainers_indices
+            ]
+            ray.get(train_refs)
+            training_time = time.time() - training_start
+
+            communication_start = time.time()
 
             params = [
                 self.trainers[trainer_idx].get_params.remote()
@@ -355,6 +415,15 @@ class Server:
                 p /= num_samples
 
             self.broadcast_params(current_global_epoch)
+            communication_time = time.time() - communication_start
+            model_size = self.get_model_size()
+            return {
+                "training_time": training_time,
+                "communication_time": communication_time,
+                "upload_size": model_size * num_samples,
+                "download_size": model_size * self.num_of_trainers,
+                "num_trainers": num_samples,
+            }
 
     def broadcast_params(self, current_global_epoch: int) -> None:
         """
@@ -365,10 +434,13 @@ class Server:
         current_global_epoch : int
             The current global epoch number during the federated learning process.
         """
-        for trainer in self.trainers:
+        update_refs = [
             trainer.update_params.remote(
                 tuple(self.model.parameters()), current_global_epoch
-            )  # run in submit order
+            )
+            for trainer in self.trainers
+        ]
+        ray.get(update_refs)
 
     def get_model_size(self) -> float:
         """Return total model parameter size in bytes (assumes float32)."""

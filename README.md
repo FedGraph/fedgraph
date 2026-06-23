@@ -96,7 +96,7 @@ config = {
     "batch_size": -1,  # -1 indicates full batch training
     # Model Structure
     "num_layers": 2,
-    "num_hops": 1,  # Number of n-hop neighbors for client communication
+    "num_hops": 2,  # Supported NC communication modes: 0 for FedAvg, 2 for FedGCN
     # Resource and Hardware Settings
     "gpu": False,
     "num_cpus_per_trainer": 1,

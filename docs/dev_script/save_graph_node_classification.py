@@ -224,7 +224,7 @@ parser.add_argument("-d", "--dataset", default="ogbn-arxiv", type=str)
 parser.add_argument("-n", "--n_trainer", default=5, type=int)
 parser.add_argument("-g", "--gpu", action="store_true")  # if -g, use gpu
 parser.add_argument("-iid_b", "--iid_beta", default=10000, type=float)
-parser.add_argument("-nhop", "--num_hops", default=1, type=int)
+parser.add_argument("-nhop", "--num_hops", default=2, type=int)
 
 args = parser.parse_args()
 

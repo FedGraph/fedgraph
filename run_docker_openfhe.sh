@@ -24,4 +24,4 @@ docker run -it --rm \
     fedgraph-openfhe \
     /bin/bash
 
-echo "👋 Container stopped." 
+echo "👋 Container stopped."
