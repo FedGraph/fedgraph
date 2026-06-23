@@ -22,8 +22,8 @@ def test_basic_ckks():
     print("✅ Context created")
 
     # Enable basic features
-    cc.Enable(openfhe.PKESchemeFeature.PKE)
-    cc.Enable(openfhe.PKESchemeFeature.SHE)
+    cc.Enable(openfhe.PKE)
+    cc.Enable(openfhe.LEVELEDSHE)
     print("✅ Features enabled")
 
     # Generate keys

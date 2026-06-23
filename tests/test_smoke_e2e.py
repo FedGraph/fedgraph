@@ -50,7 +50,7 @@ def _base_cora_config(**overrides):
         "n_trainer": 2,
         "batch_size": -1,
         "num_layers": 2,
-        "num_hops": 1,
+        "num_hops": 2,
         "gpu": False,
         "num_cpus_per_trainer": 1,
         "num_gpus_per_trainer": 0,
