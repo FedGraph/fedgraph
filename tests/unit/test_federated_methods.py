@@ -7,6 +7,8 @@ import attridict
 from fedgraph.federated_methods import (
     _resolve_nc_class_num,
     _resolve_nc_global_node_num,
+    _unpack_nc_data,
+    _weighted_nc_metric,
     run_fedgraph,
     run_fedgraph_enhanced,
     run_NC,
@@ -78,6 +80,59 @@ class TestResolveNCGlobalNodeNum:
 
         with pytest.raises(ValueError, match="inconsistent global_node_num"):
             _resolve_nc_global_node_num(True, trainer_information)
+
+
+class TestNCMetricHelpers:
+    def test_unpack_nc_data_with_validation_fields(self):
+        data = (
+            torch.randn(2, 4),
+            torch.randn(10, 5),
+            torch.arange(10),
+            torch.arange(0, 6),
+            torch.arange(6, 8),
+            torch.arange(8, 10),
+            3,
+            [torch.arange(0, 5), torch.arange(5, 10)],
+            {0: torch.arange(0, 5), 1: torch.arange(5, 10)},
+            {0: torch.arange(0, 3), 1: torch.arange(0, 3)},
+            {0: torch.arange(3, 4), 1: torch.arange(3, 4)},
+            {0: torch.arange(4, 5), 1: torch.arange(4, 5)},
+            {0: torch.randn(2, 4), 1: torch.randn(2, 4)},
+        )
+
+        nc_data = _unpack_nc_data(data)
+
+        assert torch.equal(nc_data["idx_val"], data[4])
+        assert nc_data["in_com_val_node_local_indexes"] == data[10]
+
+    def test_unpack_nc_data_legacy_tuple_creates_empty_validation_fields(self):
+        data = (
+            torch.randn(2, 4),
+            torch.randn(10, 5),
+            torch.arange(10),
+            torch.arange(0, 6),
+            torch.arange(8, 10),
+            3,
+            [torch.arange(0, 5), torch.arange(5, 10)],
+            {0: torch.arange(0, 5), 1: torch.arange(5, 10)},
+            {0: torch.arange(0, 3), 1: torch.arange(0, 3)},
+            {0: torch.arange(4, 5), 1: torch.arange(4, 5)},
+            {0: torch.randn(2, 4), 1: torch.randn(2, 4)},
+        )
+
+        nc_data = _unpack_nc_data(data)
+
+        assert nc_data["idx_val"].numel() == 0
+        assert all(
+            val_indexes.numel() == 0
+            for val_indexes in nc_data["in_com_val_node_local_indexes"].values()
+        )
+
+    def test_weighted_nc_metric_handles_empty_validation_weights(self):
+        results = np.array([[1.0, 0.5], [2.0, 0.75]])
+
+        assert _weighted_nc_metric(results, [0, 0], 1) == 0.0
+        assert _weighted_nc_metric(results, [1, 3], 1) == pytest.approx(0.6875)
 
 
 class TestRunFedgraph:
@@ -234,6 +289,7 @@ class TestRunNC:
         self.args.dataset = "cora"
         self.args.seed = 42
         self.args.use_ray = True
+        self.args.use_cluster = False
         self.args.he = False
         self.args.dp = False
         
@@ -287,8 +343,8 @@ class TestRunNC:
                 mock_monitor.assert_called_once()
     
     @patch('fedgraph.federated_methods.ray')
-    def test_run_nc_without_ray(self, mock_ray):
-        """Test run_NC without Ray distributed computing."""
+    def test_run_nc_initializes_ray_for_execution(self, mock_ray):
+        """Test run_NC initializes Ray for the current actor-based workflow."""
         self.args.use_ray = False
         mock_ray.init = Mock()
         
@@ -309,7 +365,7 @@ class TestRunNC:
                 # Expected to fail due to complex flow, but verify no Ray init
                 pass
             
-            mock_ray.init.assert_not_called()
+            mock_ray.init.assert_called()
 
 
 class TestRunGC:
