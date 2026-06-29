@@ -132,6 +132,78 @@ def _validate_nc_num_hops(args: Any) -> None:
         )
 
 
+def _unpack_nc_data(data: tuple) -> dict:
+    """Return named NC data fields, supporting legacy tuples without val data."""
+    if len(data) == 13:
+        (
+            edge_index,
+            features,
+            labels,
+            idx_train,
+            idx_val,
+            idx_test,
+            class_num,
+            split_node_indexes,
+            communicate_node_global_indexes,
+            in_com_train_node_local_indexes,
+            in_com_val_node_local_indexes,
+            in_com_test_node_local_indexes,
+            global_edge_indexes_clients,
+        ) = data
+    elif len(data) == 11:
+        (
+            edge_index,
+            features,
+            labels,
+            idx_train,
+            idx_test,
+            class_num,
+            split_node_indexes,
+            communicate_node_global_indexes,
+            in_com_train_node_local_indexes,
+            in_com_test_node_local_indexes,
+            global_edge_indexes_clients,
+        ) = data
+        idx_val = torch.empty(0, dtype=idx_train.dtype)
+        if isinstance(in_com_train_node_local_indexes, dict):
+            in_com_val_node_local_indexes = {
+                key: torch.empty(0, dtype=idx_train.dtype)
+                for key in in_com_train_node_local_indexes
+            }
+        else:
+            in_com_val_node_local_indexes = [
+                torch.empty(0, dtype=idx_train.dtype)
+                for _ in in_com_train_node_local_indexes
+            ]
+    else:
+        raise ValueError(
+            "Unexpected NC data tuple format; expected 11 legacy fields or "
+            "13 fields with validation data."
+        )
+
+    return {
+        "edge_index": edge_index,
+        "features": features,
+        "labels": labels,
+        "idx_train": idx_train,
+        "idx_val": idx_val,
+        "idx_test": idx_test,
+        "class_num": class_num,
+        "split_node_indexes": split_node_indexes,
+        "communicate_node_global_indexes": communicate_node_global_indexes,
+        "in_com_train_node_local_indexes": in_com_train_node_local_indexes,
+        "in_com_val_node_local_indexes": in_com_val_node_local_indexes,
+        "in_com_test_node_local_indexes": in_com_test_node_local_indexes,
+        "global_edge_indexes_clients": global_edge_indexes_clients,
+    }
+
+
+def _weighted_nc_metric(results: np.ndarray, weights: list, metric_index: int) -> float:
+    if not weights or sum(weights) == 0:
+        return 0.0
+    return float(np.average([row[metric_index] for row in results], weights=weights))
+
+
 def run_fedgraph(args: attridict) -> None:
     """
     Run the training process for the specified task.
@@ -302,19 +374,22 @@ def run_NC(args: attridict, data: Any = None) -> None:
         print("Changing method to FedAvg")
         args.method = "FedAvg"
     if not args.use_huggingface:
-        (
-            edge_index,
-            features,
-            labels,
-            idx_train,
-            idx_test,
-            class_num,
-            split_node_indexes,
-            communicate_node_global_indexes,
-            in_com_train_node_local_indexes,
-            in_com_test_node_local_indexes,
-            global_edge_indexes_clients,
-        ) = data
+        nc_data = _unpack_nc_data(data)
+        edge_index = nc_data["edge_index"]
+        features = nc_data["features"]
+        labels = nc_data["labels"]
+        idx_train = nc_data["idx_train"]
+        idx_val = nc_data["idx_val"]
+        idx_test = nc_data["idx_test"]
+        class_num = nc_data["class_num"]
+        split_node_indexes = nc_data["split_node_indexes"]
+        communicate_node_global_indexes = nc_data["communicate_node_global_indexes"]
+        in_com_train_node_local_indexes = nc_data[
+            "in_com_train_node_local_indexes"
+        ]
+        in_com_val_node_local_indexes = nc_data["in_com_val_node_local_indexes"]
+        in_com_test_node_local_indexes = nc_data["in_com_test_node_local_indexes"]
+        global_edge_indexes_clients = nc_data["global_edge_indexes_clients"]
         if args.saveto_huggingface:
             save_all_trainers_data(
                 split_node_indexes=split_node_indexes,
@@ -323,6 +398,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 labels=labels,
                 features=features,
                 in_com_train_node_local_indexes=in_com_train_node_local_indexes,
+                in_com_val_node_local_indexes=in_com_val_node_local_indexes,
                 in_com_test_node_local_indexes=in_com_test_node_local_indexes,
                 n_trainer=args.n_trainer,
                 class_num=class_num,
@@ -424,11 +500,15 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 train_labels=labels[communicate_node_global_indexes[i]][
                     in_com_train_node_local_indexes[i]
                 ],
+                val_labels=labels[communicate_node_global_indexes[i]][
+                    in_com_val_node_local_indexes[i]
+                ],
                 test_labels=labels[communicate_node_global_indexes[i]][
                     in_com_test_node_local_indexes[i]
                 ],
                 features=features[split_node_indexes[i]],
                 idx_train=in_com_train_node_local_indexes[i],
+                idx_val=in_com_val_node_local_indexes[i],
                 idx_test=in_com_test_node_local_indexes[i],
                 global_node_num=len(features),
                 class_num=class_num,
@@ -455,6 +535,9 @@ def run_NC(args: attridict, data: Any = None) -> None:
 
     train_data_weights = [
         info["len_in_com_train_node_local_indexes"] for info in trainer_information
+    ]
+    val_data_weights = [
+        info["len_in_com_val_node_local_indexes"] for info in trainer_information
     ]
     test_data_weights = [
         info["len_in_com_test_node_local_indexes"] for info in trainer_information
@@ -937,15 +1020,16 @@ def run_NC(args: attridict, data: Any = None) -> None:
         round_comm_time = comm_end - comm_start
         total_communication_time += round_comm_time
 
-        # Testing phase (not counted in training or communication time)
-        results = [trainer.local_test.remote() for trainer in server.trainers]
+        # Validation phase (not counted in pure training or communication time).
+        # Test metrics are intentionally reserved for final evaluation.
+        results = [trainer.local_val.remote() for trainer in server.trainers]
         results = np.array([ray.get(result) for result in results])
-        average_test_accuracy = np.average(
-            [row[1] for row in results], weights=test_data_weights, axis=0
-        )
-        global_acc_list.append(average_test_accuracy)
+        average_val_loss = _weighted_nc_metric(results, val_data_weights, 0)
+        average_val_accuracy = _weighted_nc_metric(results, val_data_weights, 1)
+        global_acc_list.append(average_val_accuracy)
 
-        print(f"Round {i+1}: Global Test Accuracy = {average_test_accuracy:.4f}")
+        print(f"Round {i+1}: Global Val Loss = {average_val_loss:.4f}")
+        print(f"Round {i+1}: Global Val Accuracy = {average_val_accuracy:.4f}")
         print(
             f"Round {i+1}: Training Time = {round_training_time:.2f}s, Communication Time = {round_comm_time:.2f}s"
         )
@@ -1218,19 +1302,22 @@ def run_NC_dp(args: attridict, data: Any = None) -> None:
         args.method = "FedAvg"
 
     if not args.use_huggingface:
-        (
-            edge_index,
-            features,
-            labels,
-            idx_train,
-            idx_test,
-            class_num,
-            split_node_indexes,
-            communicate_node_global_indexes,
-            in_com_train_node_local_indexes,
-            in_com_test_node_local_indexes,
-            global_edge_indexes_clients,
-        ) = data
+        nc_data = _unpack_nc_data(data)
+        edge_index = nc_data["edge_index"]
+        features = nc_data["features"]
+        labels = nc_data["labels"]
+        idx_train = nc_data["idx_train"]
+        idx_val = nc_data["idx_val"]
+        idx_test = nc_data["idx_test"]
+        class_num = nc_data["class_num"]
+        split_node_indexes = nc_data["split_node_indexes"]
+        communicate_node_global_indexes = nc_data["communicate_node_global_indexes"]
+        in_com_train_node_local_indexes = nc_data[
+            "in_com_train_node_local_indexes"
+        ]
+        in_com_val_node_local_indexes = nc_data["in_com_val_node_local_indexes"]
+        in_com_test_node_local_indexes = nc_data["in_com_test_node_local_indexes"]
+        global_edge_indexes_clients = nc_data["global_edge_indexes_clients"]
 
     if args.dataset in ["simulate", "cora", "citeseer", "pubmed", "reddit"]:
         args_hidden = 16
@@ -1279,11 +1366,15 @@ def run_NC_dp(args: attridict, data: Any = None) -> None:
                 train_labels=labels[communicate_node_global_indexes[i]][
                     in_com_train_node_local_indexes[i]
                 ],
+                val_labels=labels[communicate_node_global_indexes[i]][
+                    in_com_val_node_local_indexes[i]
+                ],
                 test_labels=labels[communicate_node_global_indexes[i]][
                     in_com_test_node_local_indexes[i]
                 ],
                 features=features[split_node_indexes[i]],
                 idx_train=in_com_train_node_local_indexes[i],
+                idx_val=in_com_val_node_local_indexes[i],
                 idx_test=in_com_test_node_local_indexes[i],
                 global_node_num=len(features),
                 class_num=class_num,
@@ -1309,6 +1400,9 @@ def run_NC_dp(args: attridict, data: Any = None) -> None:
 
     train_data_weights = [
         info["len_in_com_train_node_local_indexes"] for info in trainer_information
+    ]
+    val_data_weights = [
+        info["len_in_com_val_node_local_indexes"] for info in trainer_information
     ]
     test_data_weights = [
         info["len_in_com_test_node_local_indexes"] for info in trainer_information
@@ -1392,14 +1486,14 @@ def run_NC_dp(args: attridict, data: Any = None) -> None:
     for i in range(args.global_rounds):
         server.train(i)
 
-        results = [trainer.local_test.remote() for trainer in server.trainers]
+        results = [trainer.local_val.remote() for trainer in server.trainers]
         results = np.array([ray.get(result) for result in results])
-        average_test_accuracy = np.average(
-            [row[1] for row in results], weights=test_data_weights, axis=0
-        )
-        global_acc_list.append(average_test_accuracy)
+        average_val_loss = _weighted_nc_metric(results, val_data_weights, 0)
+        average_val_accuracy = _weighted_nc_metric(results, val_data_weights, 1)
+        global_acc_list.append(average_val_accuracy)
 
-        print(f"Round {i+1}: Global Test Accuracy = {average_test_accuracy:.4f}")
+        print(f"Round {i+1}: Global Val Loss = {average_val_loss:.4f}")
+        print(f"Round {i+1}: Global Val Accuracy = {average_val_accuracy:.4f}")
 
         model_size_mb = server.get_model_size() / (1024 * 1024)
         monitor.add_train_comm_cost(
@@ -1465,19 +1559,22 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
         args.method = "FedAvg"
 
     if not args.use_huggingface:
-        (
-            edge_index,
-            features,
-            labels,
-            idx_train,
-            idx_test,
-            class_num,
-            split_node_indexes,
-            communicate_node_global_indexes,
-            in_com_train_node_local_indexes,
-            in_com_test_node_local_indexes,
-            global_edge_indexes_clients,
-        ) = data
+        nc_data = _unpack_nc_data(data)
+        edge_index = nc_data["edge_index"]
+        features = nc_data["features"]
+        labels = nc_data["labels"]
+        idx_train = nc_data["idx_train"]
+        idx_val = nc_data["idx_val"]
+        idx_test = nc_data["idx_test"]
+        class_num = nc_data["class_num"]
+        split_node_indexes = nc_data["split_node_indexes"]
+        communicate_node_global_indexes = nc_data["communicate_node_global_indexes"]
+        in_com_train_node_local_indexes = nc_data[
+            "in_com_train_node_local_indexes"
+        ]
+        in_com_val_node_local_indexes = nc_data["in_com_val_node_local_indexes"]
+        in_com_test_node_local_indexes = nc_data["in_com_test_node_local_indexes"]
+        global_edge_indexes_clients = nc_data["global_edge_indexes_clients"]
 
         if args.saveto_huggingface:
             save_all_trainers_data(
@@ -1487,6 +1584,7 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
                 labels=labels,
                 features=features,
                 in_com_train_node_local_indexes=in_com_train_node_local_indexes,
+                in_com_val_node_local_indexes=in_com_val_node_local_indexes,
                 in_com_test_node_local_indexes=in_com_test_node_local_indexes,
                 n_trainer=args.n_trainer,
                 class_num=class_num,
@@ -1541,11 +1639,15 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
                 train_labels=labels[communicate_node_global_indexes[i]][
                     in_com_train_node_local_indexes[i]
                 ],
+                val_labels=labels[communicate_node_global_indexes[i]][
+                    in_com_val_node_local_indexes[i]
+                ],
                 test_labels=labels[communicate_node_global_indexes[i]][
                     in_com_test_node_local_indexes[i]
                 ],
                 features=features[split_node_indexes[i]],
                 idx_train=in_com_train_node_local_indexes[i],
+                idx_val=in_com_val_node_local_indexes[i],
                 idx_test=in_com_test_node_local_indexes[i],
                 global_node_num=len(features),
                 class_num=class_num,
@@ -1571,6 +1673,9 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
 
     train_data_weights = [
         info["len_in_com_train_node_local_indexes"] for info in trainer_information
+    ]
+    val_data_weights = [
+        info["len_in_com_val_node_local_indexes"] for info in trainer_information
     ]
     test_data_weights = [
         info["len_in_com_test_node_local_indexes"] for info in trainer_information
@@ -1602,15 +1707,15 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
     for i in range(args.global_rounds):
         server.train(i)
 
-        # Evaluation
-        results = [trainer.local_test.remote() for trainer in server.trainers]
+        # Validation evaluation. Test metrics are reserved for final reporting.
+        results = [trainer.local_val.remote() for trainer in server.trainers]
         results = np.array([ray.get(result) for result in results])
-        average_test_accuracy = np.average(
-            [row[1] for row in results], weights=test_data_weights, axis=0
-        )
-        global_acc_list.append(average_test_accuracy)
+        average_val_loss = _weighted_nc_metric(results, val_data_weights, 0)
+        average_val_accuracy = _weighted_nc_metric(results, val_data_weights, 1)
+        global_acc_list.append(average_val_accuracy)
 
-        print(f"Round {i+1}: Global Test Accuracy = {average_test_accuracy:.4f}")
+        print(f"Round {i+1}: Global Val Loss = {average_val_loss:.4f}")
+        print(f"Round {i+1}: Global Val Accuracy = {average_val_accuracy:.4f}")
 
         # Communication cost tracking (enhanced with compression-aware sizing)
         model_size_mb = server.get_model_size() / (1024 * 1024)

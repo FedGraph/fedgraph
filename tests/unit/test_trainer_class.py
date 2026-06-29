@@ -35,9 +35,11 @@ class TestLoadTrainerDataFromHuggingFace:
             torch.randn(50),  # communicate_node_global_index
             torch.randn(2, 200),  # global_edge_index_client
             torch.randn(80),  # train_labels
+            torch.randn(10),  # val_labels
             torch.randn(20),  # test_labels
             torch.randn(100, 10),  # features
             torch.randn(80),  # in_com_train_node_local_indexes
+            torch.randn(10),  # in_com_val_node_local_indexes
             torch.randn(20),  # in_com_test_node_local_indexes
             torch.tensor(100),  # global_node_num
             torch.tensor(3),  # class_num
@@ -52,11 +54,11 @@ class TestLoadTrainerDataFromHuggingFace:
 
         result = load_trainer_data_from_hugging_face(trainer_id=0, args=args)
 
-        assert len(result) == 10
+        assert len(result) == 12
         assert all(isinstance(tensor, torch.Tensor) for tensor in result)
 
         # Verify calls
-        assert mock_hf_download.call_count == 10
+        assert mock_hf_download.call_count == 12
         expected_repo = "FedGraph/fedgraph_cora_5trainer_2hop_iid_beta_0.5_trainer_id_0"
         mock_hf_download.assert_any_call(
             repo_id=expected_repo, repo_type="dataset", filename="local_node_index.pt"
@@ -71,7 +73,7 @@ class TestLoadTrainerDataFromHuggingFace:
         mock_file = Mock()
         mock_file.read.return_value = b"test_tensor_data"
         mock_open.return_value.__enter__.return_value = mock_file
-        mock_torch_load.side_effect = [torch.tensor([i]) for i in range(8)]
+        mock_torch_load.side_effect = [torch.tensor([i]) for i in range(10)]
 
         def download_side_effect(*, filename, **kwargs):
             if filename in {"global_node_num.pt", "class_num.pt"}:
@@ -84,7 +86,7 @@ class TestLoadTrainerDataFromHuggingFace:
         with pytest.warns(UserWarning, match="falling back to inference"):
             result = load_trainer_data_from_hugging_face(trainer_id=0, args=args)
 
-        assert len(result) == 10
+        assert len(result) == 12
         assert result[-2:] == (None, None)
 
 
@@ -434,11 +436,11 @@ class TestTrainerGeneral:
         trainer.train(current_global_round=1)
 
         assert mock_train_func.call_count == trainer.local_step
-        assert mock_test_func.call_count == trainer.local_step
+        assert mock_test_func.call_count == 0
         assert len(trainer.train_losses) == trainer.local_step
         assert len(trainer.train_accs) == trainer.local_step
-        assert len(trainer.test_losses) == trainer.local_step
-        assert len(trainer.test_accs) == trainer.local_step
+        assert len(trainer.test_losses) == 0
+        assert len(trainer.test_accs) == 0
 
     @patch("fedgraph.trainer_class.test")
     def test_local_test(self, mock_test_func):
