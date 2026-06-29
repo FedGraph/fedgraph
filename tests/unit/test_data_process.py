@@ -333,22 +333,35 @@ class TestDataLoaderNC:
         mock_get_indexes.return_value = (
             {i: torch.arange(i*10, (i+1)*10) for i in range(3)},  # communicate_node_global_indexes
             {i: torch.arange(0, 5) for i in range(3)},            # in_com_train_node_local_indexes
+            {i: torch.arange(8, 9) for i in range(3)},            # in_com_val_node_local_indexes
             {i: torch.arange(5, 8) for i in range(3)},            # in_com_test_node_local_indexes
             {i: torch.stack([torch.arange(0, 10), torch.arange(1, 11)]) for i in range(3)}  # global_edge_indexes_clients
         )
         
         result = data_loader_NC(args)
         
-        assert len(result) == 11
-        (edge_index, returned_features, returned_labels, returned_idx_train, 
-         returned_idx_test, class_num, split_node_indexes, 
-         communicate_node_global_indexes, in_com_train_node_local_indexes,
-         in_com_test_node_local_indexes, global_edge_indexes_clients) = result
+        assert len(result) == 13
+        (
+            edge_index,
+            returned_features,
+            returned_labels,
+            returned_idx_train,
+            returned_idx_val,
+            returned_idx_test,
+            class_num,
+            split_node_indexes,
+            communicate_node_global_indexes,
+            in_com_train_node_local_indexes,
+            in_com_val_node_local_indexes,
+            in_com_test_node_local_indexes,
+            global_edge_indexes_clients,
+        ) = result
         
         # Verify results
         assert torch.equal(returned_features, features)
         assert torch.equal(returned_labels, labels)
         assert torch.equal(returned_idx_train, idx_train)
+        assert torch.equal(returned_idx_val, idx_val)
         assert torch.equal(returned_idx_test, idx_test)
         assert class_num == num_classes
         assert len(split_node_indexes) == args.n_trainer
@@ -435,7 +448,7 @@ class TestDataProcessIntegration:
             
             mock_load.return_value = (features, adj, labels, idx_train, idx_val, idx_test)
             mock_partition.return_value = [list(range(0, 50)), list(range(50, 100))]
-            mock_indexes.return_value = ({}, {}, {}, {})
+            mock_indexes.return_value = ({}, {}, {}, {}, {})
             
             # Create args
             args = Mock()
@@ -451,7 +464,7 @@ class TestDataProcessIntegration:
             result = data_loader(args)
             
             assert result is not None
-            assert len(result) == 11
+            assert len(result) == 13
             mock_load.assert_called_once()
             mock_partition.assert_called_once()
             mock_indexes.assert_called_once()

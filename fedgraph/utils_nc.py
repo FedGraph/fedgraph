@@ -264,6 +264,7 @@ def get_in_comm_indexes(
     L_hop: int,
     idx_train: torch.Tensor,
     idx_test: torch.Tensor,
+    idx_val: torch.Tensor = None,
 ) -> tuple:
     """
     Extract and preprocess data indices and edge information. It determines the nodes that each client
@@ -293,6 +294,9 @@ def get_in_comm_indexes(
         A list of node indices for each client, representing nodes involved in communication.
     in_com_train_node_indexes : list
         A list of tensors, where each tensor contains the indices of training data points available to each client.
+    in_com_val_node_indexes : list
+        A list of tensors, where each tensor contains the indices of validation
+        data points available to each client.
     in_com_test_node_indexes : list
         A list of tensors, where each tensor contains the indices of test data points available to each client.
     edge_indexes_clients : list
@@ -308,6 +312,7 @@ def get_in_comm_indexes(
 
     communicate_node_indexes = []
     in_com_train_node_indexes = []
+    in_com_val_node_indexes = []
     edge_indexes_clients = []
 
     for i in range(num_clients):
@@ -362,11 +367,25 @@ def get_in_comm_indexes(
             torch.searchsorted(communicate_node_indexes[i], inter).clone()
         )  # local id in block matrix
 
+        if idx_val is not None:
+            inter = intersect1d(split_node_indexes[i], idx_val)
+            in_com_val_node_indexes.append(
+                torch.searchsorted(communicate_node_indexes[i], inter).clone()
+            )
+
     in_com_test_node_indexes = []
     for i in range(num_clients):
         inter = intersect1d(split_node_indexes[i], idx_test)
         in_com_test_node_indexes.append(
             torch.searchsorted(communicate_node_indexes[i], inter).clone()
+        )
+    if idx_val is not None:
+        return (
+            communicate_node_indexes,
+            in_com_train_node_indexes,
+            in_com_val_node_indexes,
+            in_com_test_node_indexes,
+            edge_indexes_clients,
         )
     return (
         communicate_node_indexes,
@@ -508,9 +527,11 @@ def save_trainer_data_to_hugging_face(
     communicate_node_global_index,
     global_edge_index_client,
     train_labels,
+    val_labels,
     test_labels,
     features,
     in_com_train_node_local_indexes,
+    in_com_val_node_local_indexes,
     in_com_test_node_local_indexes,
     global_node_num,
     class_num,
@@ -544,9 +565,11 @@ def save_trainer_data_to_hugging_face(
     save_tensor_to_hf(communicate_node_global_index, "communicate_node_index.pt")
     save_tensor_to_hf(global_edge_index_client, "adj.pt")
     save_tensor_to_hf(train_labels, "train_labels.pt")
+    save_tensor_to_hf(val_labels, "val_labels.pt")
     save_tensor_to_hf(test_labels, "test_labels.pt")
     save_tensor_to_hf(features, "features.pt")
     save_tensor_to_hf(in_com_train_node_local_indexes, "idx_train.pt")
+    save_tensor_to_hf(in_com_val_node_local_indexes, "idx_val.pt")
     save_tensor_to_hf(in_com_test_node_local_indexes, "idx_test.pt")
     save_tensor_to_hf(torch.tensor(global_node_num), "global_node_num.pt")
     save_tensor_to_hf(torch.tensor(class_num), "class_num.pt")
@@ -561,6 +584,7 @@ def save_all_trainers_data(
     labels,
     features,
     in_com_train_node_local_indexes,
+    in_com_val_node_local_indexes,
     in_com_test_node_local_indexes,
     n_trainer,
     class_num,
@@ -576,11 +600,15 @@ def save_all_trainers_data(
             train_labels=labels[communicate_node_global_indexes[i]][
                 in_com_train_node_local_indexes[i]
             ],
+            val_labels=labels[communicate_node_global_indexes[i]][
+                in_com_val_node_local_indexes[i]
+            ],
             test_labels=labels[communicate_node_global_indexes[i]][
                 in_com_test_node_local_indexes[i]
             ],
             features=features[split_node_indexes[i]],
             in_com_train_node_local_indexes=in_com_train_node_local_indexes[i],
+            in_com_val_node_local_indexes=in_com_val_node_local_indexes[i],
             in_com_test_node_local_indexes=in_com_test_node_local_indexes[i],
             global_node_num=global_node_num,
             class_num=class_num,

@@ -101,6 +101,7 @@ def data_loader_NC(args: attridict) -> tuple:
         (
             communicate_node_global_indexes,
             in_com_train_node_local_indexes,
+            in_com_val_node_local_indexes,
             in_com_test_node_local_indexes,
             global_edge_indexes_clients,
         ) = get_in_comm_indexes(
@@ -110,17 +111,20 @@ def data_loader_NC(args: attridict) -> tuple:
             args.num_hops,
             idx_train,
             idx_test,
+            idx_val=idx_val,
         )
     return (
         edge_index,
         features,
         labels,
         idx_train,
+        idx_val,
         idx_test,
         class_num,
         split_node_indexes,
         communicate_node_global_indexes,
         in_com_train_node_local_indexes,
+        in_com_val_node_local_indexes,
         in_com_test_node_local_indexes,
         global_edge_indexes_clients,
     )
