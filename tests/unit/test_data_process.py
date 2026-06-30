@@ -320,7 +320,14 @@ class TestDataLoaderNC:
         idx_val = torch.arange(70, 85)
         idx_test = torch.arange(85, 100)
         
-        mock_load_data.return_value = (features, adj, labels, idx_train, idx_val, idx_test)
+        mock_load_data.return_value = (
+            features,
+            adj,
+            labels,
+            idx_train,  # train indexes
+            idx_val,    # validation indexes
+            idx_test,   # test indexes
+        )
         
         # Mock partition results
         mock_partition.return_value = [

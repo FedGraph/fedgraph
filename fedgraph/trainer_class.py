@@ -205,35 +205,15 @@ class Trainer_General:
                 communicate_node_index,
                 adj,
                 train_labels,
-                *loaded_tail,
+                val_labels,
+                test_labels,
+                features,
+                idx_train,
+                idx_val,
+                idx_test,
+                global_node_num,
+                class_num,
             ) = load_trainer_data_from_hugging_face(rank, args)
-            if len(loaded_tail) == 6:
-                (
-                    test_labels,
-                    features,
-                    idx_train,
-                    idx_test,
-                    global_node_num,
-                    class_num,
-                ) = loaded_tail
-                val_labels = torch.empty(0, dtype=train_labels.dtype)
-                idx_val = torch.empty(0, dtype=idx_train.dtype)
-            elif len(loaded_tail) == 8:
-                (
-                    val_labels,
-                    test_labels,
-                    features,
-                    idx_train,
-                    idx_val,
-                    idx_test,
-                    global_node_num,
-                    class_num,
-                ) = loaded_tail
-            else:
-                raise ValueError(
-                    "Unexpected Hugging Face trainer data format; expected "
-                    "10 legacy tensors or 12 tensors with validation data."
-                )
         if val_labels is None:
             val_labels = torch.empty(0, dtype=train_labels.dtype)
         if idx_val is None:

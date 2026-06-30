@@ -293,7 +293,7 @@ class TestRunNC:
         self.args.he = False
         self.args.dp = False
         
-        # Mock data
+        # Mock legacy 11-field NC data without validation indexes.
         self.mock_data = (
             torch.randn(2, 100),  # edge_index
             torch.randn(100, 50), # features
