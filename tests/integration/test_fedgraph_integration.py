@@ -61,14 +61,16 @@ class TestFedGraphNCWorkflow:
         )
         mock_load_data.return_value = (
             self.features, mock_adj, self.labels,
-            self.idx_train, self.idx_val, self.idx_test
+            self.idx_train,  # train indexes
+            self.idx_val,    # validation indexes
+            self.idx_test,   # test indexes
         )
         mock_partition.return_value = [split.tolist() for split in self.split_node_indexes]
         mock_get_indexes.return_value = (
             {i: torch.arange(i*20, (i+1)*20) for i in range(self.num_trainers)},
-            {i: torch.arange(0, 10) for i in range(self.num_trainers)},
-            {i: torch.arange(15, 18) for i in range(self.num_trainers)},
-            {i: torch.arange(10, 15) for i in range(self.num_trainers)},
+            {i: torch.arange(0, 10) for i in range(self.num_trainers)},   # train local indexes
+            {i: torch.arange(15, 18) for i in range(self.num_trainers)},  # validation local indexes
+            {i: torch.arange(10, 15) for i in range(self.num_trainers)},  # test local indexes
             {i: self.edge_index for i in range(self.num_trainers)}
         )
         
