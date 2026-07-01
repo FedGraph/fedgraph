@@ -435,6 +435,57 @@ class TestTrainerGeneral:
         assert len(trainer.train_accs) == trainer.local_step
         assert len(trainer.test_losses) == 0
         assert len(trainer.test_accs) == 0
+
+    @patch('fedgraph.trainer_class.NeighborLoader')
+    @patch('fedgraph.trainer_class.train')
+    def test_train_method_mini_batch_one_update_per_local_step(
+        self, mock_train_func, mock_neighbor_loader
+    ):
+        """Mini-batch NC training should use one seed batch per local step."""
+        trainer = Trainer_General(
+            rank=self.rank,
+            args_hidden=self.args_hidden,
+            device=self.device,
+            args=self.args,
+            local_node_index=self.local_node_index,
+            communicate_node_index=self.communicate_node_index,
+            adj=self.adj,
+            train_labels=self.train_labels,
+            test_labels=self.test_labels,
+            features=self.features,
+            idx_train=self.idx_train,
+            idx_test=self.idx_test
+        )
+
+        trainer.model = Mock()
+        trainer.optimizer = Mock()
+        trainer.class_num = 7
+        self.args.batch_size = 2
+
+        batch = Mock()
+        batch.batch_size = self.args.batch_size
+        batch.x = torch.randn(5, self.features.shape[1])
+        batch.edge_index = torch.tensor([[0, 1, 2], [1, 2, 3]])
+        batch.y = torch.tensor([0, 1, 2, -1, -1])
+        mock_neighbor_loader.return_value = [batch]
+        mock_train_func.return_value = (0.5, 0.85)
+
+        trainer.train(current_global_round=1)
+
+        assert mock_neighbor_loader.call_count == trainer.local_step
+        assert mock_train_func.call_count == trainer.local_step
+        assert len(trainer.train_losses) == trainer.local_step
+        assert len(trainer.train_accs) == trainer.local_step
+
+        for call in mock_neighbor_loader.call_args_list:
+            assert call.kwargs["batch_size"] == self.args.batch_size
+            assert call.kwargs["shuffle"] is True
+            assert torch.equal(call.kwargs["input_nodes"], trainer.idx_train)
+
+        expected_seed_index = torch.arange(self.args.batch_size)
+        for call in mock_train_func.call_args_list:
+            assert torch.equal(call.args[5], batch.y[: self.args.batch_size])
+            assert torch.equal(call.args[6].cpu(), expected_seed_index)
     
     @patch('fedgraph.trainer_class.test')
     def test_local_test(self, mock_test_func):
