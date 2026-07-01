@@ -823,7 +823,8 @@ class Trainer_General:
 
         self.feature_aggregation = self.feature_aggregation.to(self.device)
         data = None
-        if hasattr(self.args, "batch_size") and self.args.batch_size > 0:
+        use_mini_batch = hasattr(self.args, "batch_size") and self.args.batch_size > 0
+        if use_mini_batch:
             # batch preparation
             train_mask = torch.zeros(
                 self.feature_aggregation.size(0), dtype=torch.bool
@@ -846,40 +847,43 @@ class Trainer_General:
         acc_train = 0.0
         for iteration in range(self.local_step):
             self.model.train()
-            if hasattr(self.args, "batch_size") and self.args.batch_size > 0:
+            if use_mini_batch:
                 # print(f"Training with batch size {self.args.batch_size}")
                 loader = NeighborLoader(
                     data,
                     num_neighbors=[-1] * self.args.num_layers,
                     batch_size=self.args.batch_size,
                     input_nodes=self.idx_train,
-                    shuffle=False,
+                    shuffle=True,
                     num_workers=0,
                 )
-                batch_iter = iter(loader)
-                batch = next(batch_iter, None)
-                while batch is not None:
+                batch = next(iter(loader), None)
+                if batch is None:
+                    loss_train, acc_train = 0.0, 0.0
+                else:
                     batch_feature_aggregation = batch.x
                     batch_adj_matrix = batch.edge_index
+                    seed_node_count = int(batch.batch_size)
+                    seed_node_index = torch.arange(
+                        seed_node_count, device=batch_feature_aggregation.device
+                    )
+                    seed_labels = batch.y[:seed_node_count].to(
+                        batch_feature_aggregation.device
+                    )
 
-                    # print(f"Batch Feature Aggregation (Node Features): {batch_feature_aggregation.size()}")
-                    # print(f"Batch Adjacency Matrix (Edge Index): {batch_adj_matrix}")
-                    # print(f"Training Labels (Filtered by train_mask): {batch.y[batch.train_mask]}")
-                    # print(f"Train Mask: {batch.train_mask}")
+                    # NeighborLoader puts the sampled seed nodes first. Use
+                    # only those nodes for supervised loss; remaining nodes
+                    # provide GCN message-passing context.
                     loss_train, acc_train = train(
                         iteration,
                         self.model,
                         self.optimizer,
                         batch_feature_aggregation,
                         batch_adj_matrix,
-                        batch.y[batch.train_mask],
-                        batch.train_mask,
+                        seed_labels,
+                        seed_node_index,
                     )
                     # print(f"acc_train: {acc_train}")
-
-                    self.train_losses.append(loss_train)
-                    self.train_accs.append(acc_train)
-                    batch = next(batch_iter, None)
             else:
                 # print("Training with full batch")
                 # print(f"feature_aggregation size: {self.feature_aggregation.size()}")
