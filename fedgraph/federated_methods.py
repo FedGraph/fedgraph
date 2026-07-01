@@ -384,9 +384,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
         class_num = nc_data["class_num"]
         split_node_indexes = nc_data["split_node_indexes"]
         communicate_node_global_indexes = nc_data["communicate_node_global_indexes"]
-        in_com_train_node_local_indexes = nc_data[
-            "in_com_train_node_local_indexes"
-        ]
+        in_com_train_node_local_indexes = nc_data["in_com_train_node_local_indexes"]
         in_com_val_node_local_indexes = nc_data["in_com_val_node_local_indexes"]
         in_com_test_node_local_indexes = nc_data["in_com_test_node_local_indexes"]
         global_edge_indexes_clients = nc_data["global_edge_indexes_clients"]
@@ -1312,9 +1310,7 @@ def run_NC_dp(args: attridict, data: Any = None) -> None:
         class_num = nc_data["class_num"]
         split_node_indexes = nc_data["split_node_indexes"]
         communicate_node_global_indexes = nc_data["communicate_node_global_indexes"]
-        in_com_train_node_local_indexes = nc_data[
-            "in_com_train_node_local_indexes"
-        ]
+        in_com_train_node_local_indexes = nc_data["in_com_train_node_local_indexes"]
         in_com_val_node_local_indexes = nc_data["in_com_val_node_local_indexes"]
         in_com_test_node_local_indexes = nc_data["in_com_test_node_local_indexes"]
         global_edge_indexes_clients = nc_data["global_edge_indexes_clients"]
@@ -1569,9 +1565,7 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
         class_num = nc_data["class_num"]
         split_node_indexes = nc_data["split_node_indexes"]
         communicate_node_global_indexes = nc_data["communicate_node_global_indexes"]
-        in_com_train_node_local_indexes = nc_data[
-            "in_com_train_node_local_indexes"
-        ]
+        in_com_train_node_local_indexes = nc_data["in_com_train_node_local_indexes"]
         in_com_val_node_local_indexes = nc_data["in_com_val_node_local_indexes"]
         in_com_test_node_local_indexes = nc_data["in_com_test_node_local_indexes"]
         global_edge_indexes_clients = nc_data["global_edge_indexes_clients"]
