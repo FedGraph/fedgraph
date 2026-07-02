@@ -3,7 +3,7 @@
 
 This script is intentionally a benchmark runner, not an integration test. It
 keeps long convergence jobs out of CI while saving per-run logs, per-round
-accuracy curves, and a compact summary CSV for later analysis.
+validation curves, and a compact summary CSV for later analysis.
 """
 
 import argparse
@@ -27,19 +27,23 @@ from typing import Iterable, List, Optional
 import numpy as np
 
 # FedGraph's NC runner currently reports experiment metrics through stdout.
-# These patterns convert those logs into structured CSV/JSON outputs.
-ROUND_ACCURACY_RE = re.compile(
-    r"Round\s+(\d+):\s+Global Test Accuracy\s*=\s*([0-9.eE+-]+)"
+# These patterns convert those logs into structured CSV/JSON outputs. Current
+# runs report per-round validation metrics and final-only test metrics.
+ROUND_VALIDATION_LOSS_RE = re.compile(
+    r"Round\s+(\d+):\s+Global Val Loss\s*=\s*([0-9.eE+-]+)"
+)
+ROUND_VALIDATION_ACCURACY_RE = re.compile(
+    r"Round\s+(\d+):\s+Global Val Accuracy\s*=\s*([0-9.eE+-]+)"
 )
 ROUND_TIMING_RE = re.compile(
     r"Round\s+(\d+):\s+Training Time\s*=\s*([0-9.eE+-]+)s,\s+"
     r"Communication Time\s*=\s*([0-9.eE+-]+)s"
 )
-FINAL_ACCURACY_RES = [
+FINAL_TEST_ACCURACY_RES = [
     re.compile(r"Average test accuracy,\s*([0-9.eE+-]+)"),
     re.compile(r"Final test accuracy:\s*([0-9.eE+-]+)"),
 ]
-FINAL_LOSS_RES = [
+FINAL_TEST_LOSS_RES = [
     re.compile(r"average_final_test_loss,\s*([0-9.eE+-]+)"),
     re.compile(r"Final test loss:\s*([0-9.eE+-]+)"),
 ]
@@ -281,7 +285,7 @@ def write_run_plan(output_dir: Path, configs: List[ExperimentConfig], args) -> N
             "run_plan": str(plan_path),
             "summary": str(output_dir / "summary.csv"),
             "summary_jsonl": str(output_dir / "summary.jsonl"),
-            "accuracy_curves": str(output_dir / "accuracy_curves.csv"),
+            "validation_curves": str(output_dir / "validation_curves.csv"),
             "round_metrics": str(output_dir / "round_metrics.csv"),
             "runs_dir": str(output_dir / "runs"),
         },
@@ -338,112 +342,109 @@ def parse_run_log(log_path: Path):
     # Each FedGraph run gets its own stdout log; parsing here avoids changing
     # the core training API just for this benchmark.
     text = log_path.read_text(encoding="utf-8", errors="replace")
-    round_accuracy = [
-        {"round": int(round_id), "accuracy": float(accuracy)}
-        for round_id, accuracy in ROUND_ACCURACY_RE.findall(text)
-    ]
+    val_acc_by_round = {
+        int(round_id): float(accuracy)
+        for round_id, accuracy in ROUND_VALIDATION_ACCURACY_RE.findall(text)
+    }
+    val_loss_by_round = {
+        int(round_id): float(loss)
+        for round_id, loss in ROUND_VALIDATION_LOSS_RE.findall(text)
+    }
     round_timing = {
         int(round_id): {
-            "training_time_sec": float(training_time),
-            "communication_time_sec": float(communication_time),
+            "train_time_sec": float(training_time),
+            "comm_time_sec": float(communication_time),
         }
         for round_id, training_time, communication_time in ROUND_TIMING_RE.findall(text)
     }
     cumulative_time = 0.0
     round_metrics = []
-    for item in round_accuracy:
-        round_id = item["round"]
+    for round_id in sorted(
+        set(round_timing) | set(val_acc_by_round) | set(val_loss_by_round)
+    ):
         timing = round_timing.get(round_id, {})
-        round_time = timing.get("training_time_sec", 0.0) + timing.get(
-            "communication_time_sec", 0.0
+        round_time = timing.get("train_time_sec", 0.0) + timing.get(
+            "comm_time_sec", 0.0
         )
         cumulative_time += round_time
         round_metrics.append(
             {
-                **item,
+                "round": round_id,
+                "val_acc": val_acc_by_round.get(round_id),
+                "val_loss": val_loss_by_round.get(round_id),
+                "train_comm_time_sec": round_time,
+                "cum_train_comm_time_sec": cumulative_time,
                 **timing,
-                "cumulative_training_communication_time_sec": cumulative_time,
             }
         )
 
     return {
-        "round_accuracy": round_accuracy,
         "round_metrics": round_metrics,
-        "final_accuracy": parse_metric(FINAL_ACCURACY_RES, text),
-        "final_loss": parse_metric(FINAL_LOSS_RES, text),
-        "pure_training_time_sec": parse_metric([PURE_TRAINING_TIME_RE], text),
-        "communication_time_sec": parse_metric([COMMUNICATION_TIME_RE], text),
-        "training_communication_time_sec": parse_metric([TRAIN_COMM_TIME_RE], text),
+        "test_acc_final": parse_metric(FINAL_TEST_ACCURACY_RES, text),
+        "test_loss_final": parse_metric(FINAL_TEST_LOSS_RES, text),
+        "total_pure_train_time_sec": parse_metric([PURE_TRAINING_TIME_RE], text),
+        "total_comm_time_sec": parse_metric([COMMUNICATION_TIME_RE], text),
+        "total_train_comm_time_sec": parse_metric([TRAIN_COMM_TIME_RE], text),
     }
 
 
-# When did accuracy first touch the near-best region?
-def first_round_within_best(
-    round_accuracy: List[dict], tolerance: float
-) -> Optional[int]:
-    # Approximate convergence signal: first round that is within tolerance of
-    # the best accuracy observed in this run.
-    if not round_accuracy:
-        return None
-    best_accuracy = max(item["accuracy"] for item in round_accuracy)
-    for item in round_accuracy:
-        if item["accuracy"] >= best_accuracy - tolerance:
-            return item["round"]
-    return None
+def finite_round_values(round_metrics: List[dict], key: str) -> List[dict]:
+    return [item for item in round_metrics if item.get(key) is not None]
 
 
-# When did accuracy first become locally flat?
+def best_round(
+    round_metrics: List[dict], key: str, mode: str
+) -> tuple[Optional[float], Optional[int]]:
+    values = finite_round_values(round_metrics, key)
+    if not values:
+        return None, None
+    selector = min if mode == "min" else max
+    best = selector(values, key=lambda item: item[key])
+    return best[key], best["round"]
+
+
 def plateau_round(
-    round_accuracy: List[dict], window: int, tolerance: float
+    round_metrics: List[dict], key: str, window: int, tolerance: float
 ) -> Optional[int]:
-    # Secondary convergence signal: first window where accuracy changes by no
-    # more than tolerance. This is intentionally simple and easy to audit.
-    if window <= 1 or len(round_accuracy) < window:
+    values = finite_round_values(round_metrics, key)
+    if window <= 1 or len(values) < window:
         return None
-    values = [item["accuracy"] for item in round_accuracy]
-    rounds = [item["round"] for item in round_accuracy]
     for end_idx in range(window - 1, len(values)):
         recent = values[end_idx - window + 1 : end_idx + 1]
-        if max(recent) - min(recent) <= tolerance:
-            return rounds[end_idx]
+        recent_values = [item[key] for item in recent]
+        if max(recent_values) - min(recent_values) <= tolerance:
+            return recent[-1]["round"]
     return None
 
 
-# When did accuracy enter and remain in the near-best region?
-def sustained_convergence_round(
-    round_accuracy: List[dict], tolerance: float
-) -> Optional[int]:
-    """Return the first round after which accuracy stays near the run's best."""
-    if not round_accuracy:
-        return None
-    threshold = max(item["accuracy"] for item in round_accuracy) - tolerance
-    suffix_minimum = float("inf")
-    first_round = None
-    for item in reversed(round_accuracy):
-        suffix_minimum = min(suffix_minimum, item["accuracy"])
-        if suffix_minimum >= threshold:
-            first_round = item["round"]
-        else:
-            break
-    return first_round
-
-
-def end_window_stats(round_accuracy: List[dict], window: int, tolerance: float) -> dict:
-    """Summarize whether the final accuracy window is practically flat."""
-    if window <= 1 or len(round_accuracy) < window:
+def end_window_stats(
+    round_metrics: List[dict], key: str, window: int, tolerance: float
+) -> dict:
+    values = finite_round_values(round_metrics, key)
+    if window <= 1 or len(values) < window:
         return {
-            "end_window_gain": None,
-            "end_window_range": None,
-            "converged_at_end": False,
+            f"{key}_end_gain": None,
+            f"{key}_end_range": None,
+            f"{key}_flat_at_end": False,
         }
-    values = [item["accuracy"] for item in round_accuracy[-window:]]
-    gain = values[-1] - values[0]
-    value_range = max(values) - min(values)
+    end_values = [item[key] for item in values[-window:]]
+    value_range = max(end_values) - min(end_values)
     return {
-        "end_window_gain": gain,
-        "end_window_range": value_range,
-        "converged_at_end": value_range <= tolerance,
+        f"{key}_end_gain": end_values[-1] - end_values[0],
+        f"{key}_end_range": value_range,
+        f"{key}_flat_at_end": value_range <= tolerance,
     }
+
+
+def round_metric_value(
+    round_metrics: List[dict], round_id: Optional[int], key: str
+) -> Optional[float]:
+    if round_id is None:
+        return None
+    for item in round_metrics:
+        if item["round"] == round_id:
+            return item.get(key)
+    return None
 
 
 def write_csv_row(path: Path, fieldnames: List[str], row: dict) -> None:
@@ -456,7 +457,7 @@ def write_csv_row(path: Path, fieldnames: List[str], row: dict) -> None:
         writer.writerow(row)
 
 
-def write_curve_rows(path: Path, rows: List[dict]) -> None:
+def write_validation_curve_rows(path: Path, rows: List[dict]) -> None:
     fieldnames = [
         "experiment_name",
         "run_id",
@@ -466,7 +467,8 @@ def write_curve_rows(path: Path, rows: List[dict]) -> None:
         "seed",
         "iid_beta",
         "round",
-        "accuracy",
+        "val_acc",
+        "val_loss",
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
     write_header = not path.exists() or path.stat().st_size == 0
@@ -487,11 +489,13 @@ def write_round_metric_rows(path: Path, rows: List[dict]) -> None:
         "seed",
         "iid_beta",
         "round",
-        "accuracy",
-        "local_steps_per_trainer",
-        "training_time_sec",
-        "communication_time_sec",
-        "cumulative_training_communication_time_sec",
+        "val_acc",
+        "val_loss",
+        "local_steps",
+        "train_time_sec",
+        "comm_time_sec",
+        "train_comm_time_sec",
+        "cum_train_comm_time_sec",
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
     write_header = not path.exists() or path.stat().st_size == 0
@@ -507,7 +511,8 @@ def run_experiment(
     experiment_name: str,
     output_dir: Path,
     convergence_window: int,
-    convergence_tolerance: float,
+    val_loss_tolerance: float,
+    val_acc_tolerance: float,
 ) -> dict:
     run_id = make_run_id(config)
     run_dir = output_dir / "runs" / run_id
@@ -564,23 +569,27 @@ def run_experiment(
     end_timestamp = dt.datetime.now(dt.timezone.utc).isoformat()
     duration_sec = time.time() - start_time
     parsed = parse_run_log(log_path)
-    round_accuracy = parsed["round_accuracy"]
     round_metrics = parsed["round_metrics"]
 
-    final_accuracy = parsed["final_accuracy"]
-    if final_accuracy is None and round_accuracy:
-        final_accuracy = round_accuracy[-1]["accuracy"]
-
-    best_round = None
-    best_accuracy = None
-    if round_accuracy:
-        best = max(round_accuracy, key=lambda item: item["accuracy"])
-        best_round = best["round"]
-        best_accuracy = best["accuracy"]
-
-    end_stats = end_window_stats(
-        round_accuracy, convergence_window, convergence_tolerance
+    final_round = round_metrics[-1]["round"] if round_metrics else None
+    val_acc_final = round_metric_value(round_metrics, final_round, "val_acc")
+    val_loss_final = round_metric_value(round_metrics, final_round, "val_loss")
+    val_acc_best, val_acc_best_round = best_round(round_metrics, "val_acc", "max")
+    val_loss_best, val_loss_best_round = best_round(round_metrics, "val_loss", "min")
+    val_loss_plateau_round = plateau_round(
+        round_metrics, "val_loss", convergence_window, val_loss_tolerance
     )
+    val_acc_plateau_round = plateau_round(
+        round_metrics, "val_acc", convergence_window, val_acc_tolerance
+    )
+    val_convergence_round = val_loss_plateau_round
+    val_loss_end_stats = end_window_stats(
+        round_metrics, "val_loss", convergence_window, val_loss_tolerance
+    )
+    val_acc_end_stats = end_window_stats(
+        round_metrics, "val_acc", convergence_window, val_acc_tolerance
+    )
+
     summary = {
         "experiment_name": experiment_name,
         "run_id": run_id,
@@ -601,30 +610,42 @@ def run_experiment(
         "start_time_utc": start_timestamp,
         "end_time_utc": end_timestamp,
         "duration_sec": round(duration_sec, 3),
-        "rounds_recorded": len(round_accuracy),
-        "final_accuracy": final_accuracy,
-        "best_accuracy": best_accuracy,
-        "best_round": best_round,
-        "round_to_best_within_tolerance": first_round_within_best(
-            round_accuracy, convergence_tolerance
+        "rounds_recorded": len(round_metrics),
+        "test_acc_final": parsed["test_acc_final"],
+        "test_loss_final": parsed["test_loss_final"],
+        "val_acc_final": val_acc_final,
+        "val_loss_final": val_loss_final,
+        "val_acc_best": val_acc_best,
+        "val_acc_best_round": val_acc_best_round,
+        "val_loss_best": val_loss_best,
+        "val_loss_best_round": val_loss_best_round,
+        "val_loss_plateau_round": val_loss_plateau_round,
+        "val_acc_plateau_round": val_acc_plateau_round,
+        "val_convergence_round": val_convergence_round,
+        "val_convergence_local_steps": (
+            val_convergence_round * config.local_step
+            if val_convergence_round is not None
+            else None
         ),
-        "first_plateau_round": plateau_round(
-            round_accuracy, convergence_window, convergence_tolerance
+        "val_convergence_time_sec": round_metric_value(
+            round_metrics,
+            val_convergence_round,
+            "cum_train_comm_time_sec",
         ),
-        "sustained_convergence_round": sustained_convergence_round(
-            round_accuracy, convergence_tolerance
-        ),
-        **end_stats,
-        "final_loss": parsed["final_loss"],
-        "pure_training_time_sec": parsed["pure_training_time_sec"],
-        "communication_time_sec": parsed["communication_time_sec"],
-        "training_communication_time_sec": parsed["training_communication_time_sec"],
+        "convergence_window": convergence_window,
+        "val_loss_tolerance": val_loss_tolerance,
+        "val_acc_tolerance": val_acc_tolerance,
+        **val_loss_end_stats,
+        **val_acc_end_stats,
+        "total_pure_train_time_sec": parsed["total_pure_train_time_sec"],
+        "total_comm_time_sec": parsed["total_comm_time_sec"],
+        "total_train_comm_time_sec": parsed["total_train_comm_time_sec"],
         "log_path": str(log_path),
         "config_path": str(config_path),
         "error": error,
     }
 
-    curve_rows = [
+    validation_curve_rows = [
         {
             "experiment_name": experiment_name,
             "run_id": run_id,
@@ -634,9 +655,11 @@ def run_experiment(
             "seed": config.seed,
             "iid_beta": config.iid_beta,
             "round": item["round"],
-            "accuracy": item["accuracy"],
+            "val_acc": item.get("val_acc"),
+            "val_loss": item.get("val_loss"),
         }
         for item in round_metrics
+        if item.get("val_acc") is not None or item.get("val_loss") is not None
     ]
     round_metric_rows = [
         {
@@ -648,19 +671,19 @@ def run_experiment(
             "seed": config.seed,
             "iid_beta": config.iid_beta,
             "round": item["round"],
-            "accuracy": item["accuracy"],
-            "local_steps_per_trainer": item["round"] * config.local_step,
-            "training_time_sec": item.get("training_time_sec"),
-            "communication_time_sec": item.get("communication_time_sec"),
-            "cumulative_training_communication_time_sec": item.get(
-                "cumulative_training_communication_time_sec"
-            ),
+            "val_acc": item.get("val_acc"),
+            "val_loss": item.get("val_loss"),
+            "local_steps": item["round"] * config.local_step,
+            "train_time_sec": item.get("train_time_sec"),
+            "comm_time_sec": item.get("comm_time_sec"),
+            "train_comm_time_sec": item.get("train_comm_time_sec"),
+            "cum_train_comm_time_sec": item.get("cum_train_comm_time_sec"),
         }
         for item in round_metrics
     ]
-    # Store the full curve separately from the summary so plotting does not
-    # require reparsing long stdout logs.
-    write_curve_rows(output_dir / "accuracy_curves.csv", curve_rows)
+    write_validation_curve_rows(
+        output_dir / "validation_curves.csv", validation_curve_rows
+    )
     write_round_metric_rows(output_dir / "round_metrics.csv", round_metric_rows)
 
     summary_fields = [
@@ -684,19 +707,31 @@ def run_experiment(
         "end_time_utc",
         "duration_sec",
         "rounds_recorded",
-        "final_accuracy",
-        "best_accuracy",
-        "best_round",
-        "round_to_best_within_tolerance",
-        "first_plateau_round",
-        "sustained_convergence_round",
-        "end_window_gain",
-        "end_window_range",
-        "converged_at_end",
-        "final_loss",
-        "pure_training_time_sec",
-        "communication_time_sec",
-        "training_communication_time_sec",
+        "test_acc_final",
+        "test_loss_final",
+        "val_acc_final",
+        "val_loss_final",
+        "val_acc_best",
+        "val_acc_best_round",
+        "val_loss_best",
+        "val_loss_best_round",
+        "val_loss_plateau_round",
+        "val_acc_plateau_round",
+        "val_convergence_round",
+        "val_convergence_local_steps",
+        "val_convergence_time_sec",
+        "convergence_window",
+        "val_loss_tolerance",
+        "val_acc_tolerance",
+        "val_loss_end_gain",
+        "val_loss_end_range",
+        "val_loss_flat_at_end",
+        "val_acc_end_gain",
+        "val_acc_end_range",
+        "val_acc_flat_at_end",
+        "total_pure_train_time_sec",
+        "total_comm_time_sec",
+        "total_train_comm_time_sec",
         "log_path",
         "config_path",
         "error",
@@ -800,7 +835,17 @@ def parse_args():
     )
     parser.add_argument("--allow-existing-output-dir", action="store_true")
     parser.add_argument("--convergence-window", type=int, default=10)
-    parser.add_argument("--convergence-tolerance", type=float, default=0.0025)
+    parser.add_argument("--val-loss-tolerance", type=float, default=0.01)
+    parser.add_argument("--val-acc-tolerance", type=float, default=0.0025)
+    parser.add_argument(
+        "--convergence-tolerance",
+        type=float,
+        default=None,
+        help=(
+            "Compatibility alias for --val-acc-tolerance. Validation loss "
+            "uses --val-loss-tolerance."
+        ),
+    )
     parser.add_argument("--max-runs", type=int, default=None)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--continue-on-error", action="store_true")
@@ -810,6 +855,8 @@ def parse_args():
 
 def main() -> int:
     args = parse_args()
+    if args.convergence_tolerance is not None:
+        args.val_acc_tolerance = args.convergence_tolerance
     output_dir = resolve_output_dir(args)
     configs = build_configs(args)
     ensure_output_dir_available(output_dir, args.allow_existing_output_dir)
@@ -839,12 +886,13 @@ def main() -> int:
             experiment_name=args.experiment_name,
             output_dir=output_dir,
             convergence_window=args.convergence_window,
-            convergence_tolerance=args.convergence_tolerance,
+            val_loss_tolerance=args.val_loss_tolerance,
+            val_acc_tolerance=args.val_acc_tolerance,
         )
         print(
             f"Finished {summary['run_id']} with status={summary['status']}, "
-            f"final_accuracy={summary['final_accuracy']}, "
-            f"best_accuracy={summary['best_accuracy']}"
+            f"test_acc_final={summary['test_acc_final']}, "
+            f"val_convergence_round={summary['val_convergence_round']}"
         )
         if summary["status"] != "completed" and not args.continue_on_error:
             return 1
@@ -853,7 +901,7 @@ def main() -> int:
     print(f"Manifest: {output_dir / 'manifest.json'}")
     print(f"Run plan CSV: {output_dir / 'run_plan.csv'}")
     print(f"Summary CSV: {output_dir / 'summary.csv'}")
-    print(f"Accuracy curves CSV: {output_dir / 'accuracy_curves.csv'}")
+    print(f"Validation curves CSV: {output_dir / 'validation_curves.csv'}")
     print(
         "Plot command: "
         f"python benchmark/plot_NC_batch_size_convergence.py {output_dir}"
