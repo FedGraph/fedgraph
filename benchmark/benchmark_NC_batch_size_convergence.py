@@ -56,6 +56,15 @@ COMMUNICATION_TIME_RE = re.compile(
 TRAIN_COMM_TIME_RE = re.compile(
     r"Total Training \+ Communication Time:\s*([0-9.eE+-]+)\s*seconds"
 )
+CHECKPOINT_TEST_RE = re.compile(
+    r"NC_CHECKPOINT_TEST,\s+reason=([^,]+),\s+round=(\d+),\s+"
+    r"val_loss=([^,]+),\s+val_acc=([^,]+),\s+"
+    r"train_comm_time_sec=([^,]+),\s+test_loss=([^,]+),\s+test_acc=([^\s,]+)"
+)
+ELASTIC_STOP_RE = re.compile(
+    r"NC_ELASTIC_STOP,\s+reason=([^,]+),\s+round=(\d+),\s+"
+    r"target_rounds=(\d+),\s+max_rounds=(\d+)"
+)
 
 
 @dataclass(frozen=True)
@@ -76,6 +85,13 @@ class ExperimentConfig:
     num_cpus_per_trainer: int
     num_gpus_per_trainer: float
     use_ogb_load_patch: bool
+    elastic_training: bool
+    max_rounds: Optional[int]
+    val_loss_patience: int
+    val_loss_min_delta: float
+    target_val_accs: List[float]
+    target_val_losses: List[float]
+    target_train_comm_times_sec: List[float]
 
 
 class Tee:
@@ -287,6 +303,7 @@ def write_run_plan(output_dir: Path, configs: List[ExperimentConfig], args) -> N
             "summary_jsonl": str(output_dir / "summary.jsonl"),
             "validation_curves": str(output_dir / "validation_curves.csv"),
             "round_metrics": str(output_dir / "round_metrics.csv"),
+            "checkpoint_metrics": str(output_dir / "checkpoint_metrics.csv"),
             "runs_dir": str(output_dir / "runs"),
         },
         "configs": [asdict(config) for config in configs],
@@ -297,7 +314,12 @@ def write_run_plan(output_dir: Path, configs: List[ExperimentConfig], args) -> N
     )
 
 
-def to_fedgraph_args(config: ExperimentConfig, logdir: Path):
+def to_fedgraph_args(
+    config: ExperimentConfig,
+    logdir: Path,
+    convergence_window: int,
+    val_loss_tolerance: float,
+):
     # Import lazily so --help and --dry-run work in lightweight environments
     # where training dependencies have not been installed yet.
     import attridict
@@ -326,6 +348,15 @@ def to_fedgraph_args(config: ExperimentConfig, logdir: Path):
             "use_cluster": False,
             "use_lowrank": False,
             "use_dp": False,
+            "elastic_training": config.elastic_training,
+            "max_rounds": config.max_rounds or config.global_rounds,
+            "val_loss_patience": config.val_loss_patience,
+            "val_loss_min_delta": config.val_loss_min_delta,
+            "val_loss_plateau_window": convergence_window,
+            "val_loss_plateau_tolerance": val_loss_tolerance,
+            "target_val_accs": config.target_val_accs,
+            "target_val_losses": config.target_val_losses,
+            "target_train_comm_times_sec": config.target_train_comm_times_sec,
         }
     )
 
@@ -336,6 +367,13 @@ def parse_metric(regexes: Iterable[re.Pattern], text: str) -> Optional[float]:
         if matches:
             return float(matches[-1])
     return None
+
+
+def parse_optional_log_float(raw: str) -> Optional[float]:
+    value = raw.strip()
+    if value in {"", "None", "none", "null"}:
+        return None
+    return float(value)
 
 
 def parse_run_log(log_path: Path):
@@ -378,8 +416,41 @@ def parse_run_log(log_path: Path):
             }
         )
 
+    checkpoint_metrics = [
+        {
+            "checkpoint_reason": reason,
+            "checkpoint_round": int(round_id),
+            "checkpoint_val_loss": parse_optional_log_float(val_loss),
+            "checkpoint_val_acc": parse_optional_log_float(val_acc),
+            "checkpoint_train_comm_time_sec": parse_optional_log_float(train_comm_time),
+            "checkpoint_test_loss": parse_optional_log_float(test_loss),
+            "checkpoint_test_acc": parse_optional_log_float(test_acc),
+        }
+        for (
+            reason,
+            round_id,
+            val_loss,
+            val_acc,
+            train_comm_time,
+            test_loss,
+            test_acc,
+        ) in CHECKPOINT_TEST_RE.findall(text)
+    ]
+    elastic_stop_matches = ELASTIC_STOP_RE.findall(text)
+    elastic_stop = None
+    if elastic_stop_matches:
+        reason, round_id, target_rounds, max_rounds = elastic_stop_matches[-1]
+        elastic_stop = {
+            "elastic_stop_reason": reason,
+            "elastic_stop_round": int(round_id),
+            "target_rounds": int(target_rounds),
+            "max_rounds": int(max_rounds),
+        }
+
     return {
         "round_metrics": round_metrics,
+        "checkpoint_metrics": checkpoint_metrics,
+        "elastic_stop": elastic_stop,
         "test_acc_final": parse_metric(FINAL_TEST_ACCURACY_RES, text),
         "test_loss_final": parse_metric(FINAL_TEST_LOSS_RES, text),
         "total_pure_train_time_sec": parse_metric([PURE_TRAINING_TIME_RE], text),
@@ -417,6 +488,26 @@ def plateau_round(
     return None
 
 
+def patience_round(
+    round_metrics: List[dict], key: str, patience: int, min_delta: float
+) -> Optional[int]:
+    values = finite_round_values(round_metrics, key)
+    if patience <= 0 or not values:
+        return None
+    best_value = float("inf")
+    rounds_without_improvement = 0
+    for item in values:
+        value = item[key]
+        if value < best_value - min_delta:
+            best_value = value
+            rounds_without_improvement = 0
+        else:
+            rounds_without_improvement += 1
+            if rounds_without_improvement >= patience:
+                return item["round"]
+    return None
+
+
 def end_window_stats(
     round_metrics: List[dict], key: str, window: int, tolerance: float
 ) -> dict:
@@ -443,6 +534,15 @@ def round_metric_value(
         return None
     for item in round_metrics:
         if item["round"] == round_id:
+            return item.get(key)
+    return None
+
+
+def checkpoint_metric_value(
+    checkpoint_metrics: List[dict], reason: str, key: str
+) -> Optional[float]:
+    for item in checkpoint_metrics:
+        if item["checkpoint_reason"] == reason:
             return item.get(key)
     return None
 
@@ -506,6 +606,32 @@ def write_round_metric_rows(path: Path, rows: List[dict]) -> None:
         writer.writerows(rows)
 
 
+def write_checkpoint_metric_rows(path: Path, rows: List[dict]) -> None:
+    fieldnames = [
+        "experiment_name",
+        "run_id",
+        "dataset",
+        "method",
+        "batch_size",
+        "seed",
+        "iid_beta",
+        "checkpoint_reason",
+        "checkpoint_round",
+        "checkpoint_val_loss",
+        "checkpoint_val_acc",
+        "checkpoint_train_comm_time_sec",
+        "checkpoint_test_loss",
+        "checkpoint_test_acc",
+    ]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_header = not path.exists() or path.stat().st_size == 0
+    with path.open("a", newline="", encoding="utf-8") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        if write_header:
+            writer.writeheader()
+        writer.writerows(rows)
+
+
 def run_experiment(
     config: ExperimentConfig,
     experiment_name: str,
@@ -550,7 +676,14 @@ def run_experiment(
 
                 set_seed(config.seed)
                 with patched_torch_load_for_ogb(config.use_ogb_load_patch):
-                    run_fedgraph(to_fedgraph_args(config, log_dir))
+                    run_fedgraph(
+                        to_fedgraph_args(
+                            config,
+                            log_dir,
+                            convergence_window,
+                            val_loss_tolerance,
+                        )
+                    )
             except Exception as exc:
                 status = "failed"
                 error = repr(exc)
@@ -570,6 +703,7 @@ def run_experiment(
     duration_sec = time.time() - start_time
     parsed = parse_run_log(log_path)
     round_metrics = parsed["round_metrics"]
+    checkpoint_metrics = parsed["checkpoint_metrics"]
 
     final_round = round_metrics[-1]["round"] if round_metrics else None
     val_acc_final = round_metric_value(round_metrics, final_round, "val_acc")
@@ -582,7 +716,13 @@ def run_experiment(
     val_acc_plateau_round = plateau_round(
         round_metrics, "val_acc", convergence_window, val_acc_tolerance
     )
-    val_convergence_round = val_loss_plateau_round
+    val_loss_patience_round = patience_round(
+        round_metrics,
+        "val_loss",
+        config.val_loss_patience,
+        config.val_loss_min_delta,
+    )
+    val_convergence_round = val_loss_patience_round
     val_loss_end_stats = end_window_stats(
         round_metrics, "val_loss", convergence_window, val_loss_tolerance
     )
@@ -621,6 +761,7 @@ def run_experiment(
         "val_loss_best_round": val_loss_best_round,
         "val_loss_plateau_round": val_loss_plateau_round,
         "val_acc_plateau_round": val_acc_plateau_round,
+        "val_loss_patience_round": val_loss_patience_round,
         "val_convergence_round": val_convergence_round,
         "val_convergence_local_steps": (
             val_convergence_round * config.local_step
@@ -635,6 +776,41 @@ def run_experiment(
         "convergence_window": convergence_window,
         "val_loss_tolerance": val_loss_tolerance,
         "val_acc_tolerance": val_acc_tolerance,
+        "elastic_training": config.elastic_training,
+        "target_rounds": config.global_rounds,
+        "max_rounds": (
+            config.max_rounds if config.max_rounds is not None else config.global_rounds
+        ),
+        "val_loss_patience": config.val_loss_patience,
+        "val_loss_min_delta": config.val_loss_min_delta,
+        "elastic_stop_reason": (
+            parsed["elastic_stop"]["elastic_stop_reason"]
+            if parsed["elastic_stop"] is not None
+            else None
+        ),
+        "elastic_stop_round": (
+            parsed["elastic_stop"]["elastic_stop_round"]
+            if parsed["elastic_stop"] is not None
+            else None
+        ),
+        "target_round_test_acc": checkpoint_metric_value(
+            checkpoint_metrics, "target_round", "checkpoint_test_acc"
+        ),
+        "target_round_test_loss": checkpoint_metric_value(
+            checkpoint_metrics, "target_round", "checkpoint_test_loss"
+        ),
+        "val_loss_patience_test_acc": checkpoint_metric_value(
+            checkpoint_metrics, "val_loss_patience", "checkpoint_test_acc"
+        ),
+        "val_loss_patience_test_loss": checkpoint_metric_value(
+            checkpoint_metrics, "val_loss_patience", "checkpoint_test_loss"
+        ),
+        "elastic_stop_test_acc": checkpoint_metric_value(
+            checkpoint_metrics, "elastic_stop", "checkpoint_test_acc"
+        ),
+        "elastic_stop_test_loss": checkpoint_metric_value(
+            checkpoint_metrics, "elastic_stop", "checkpoint_test_loss"
+        ),
         **val_loss_end_stats,
         **val_acc_end_stats,
         "total_pure_train_time_sec": parsed["total_pure_train_time_sec"],
@@ -681,10 +857,27 @@ def run_experiment(
         }
         for item in round_metrics
     ]
+    checkpoint_metric_rows = [
+        {
+            "experiment_name": experiment_name,
+            "run_id": run_id,
+            "dataset": config.dataset,
+            "method": config.method,
+            "batch_size": config.batch_size,
+            "seed": config.seed,
+            "iid_beta": config.iid_beta,
+            **item,
+        }
+        for item in checkpoint_metrics
+    ]
     write_validation_curve_rows(
         output_dir / "validation_curves.csv", validation_curve_rows
     )
     write_round_metric_rows(output_dir / "round_metrics.csv", round_metric_rows)
+    if checkpoint_metric_rows:
+        write_checkpoint_metric_rows(
+            output_dir / "checkpoint_metrics.csv", checkpoint_metric_rows
+        )
 
     summary_fields = [
         "experiment_name",
@@ -717,12 +910,26 @@ def run_experiment(
         "val_loss_best_round",
         "val_loss_plateau_round",
         "val_acc_plateau_round",
+        "val_loss_patience_round",
         "val_convergence_round",
         "val_convergence_local_steps",
         "val_convergence_time_sec",
         "convergence_window",
         "val_loss_tolerance",
         "val_acc_tolerance",
+        "elastic_training",
+        "target_rounds",
+        "max_rounds",
+        "val_loss_patience",
+        "val_loss_min_delta",
+        "elastic_stop_reason",
+        "elastic_stop_round",
+        "target_round_test_acc",
+        "target_round_test_loss",
+        "val_loss_patience_test_acc",
+        "val_loss_patience_test_loss",
+        "elastic_stop_test_acc",
+        "elastic_stop_test_loss",
         "val_loss_end_gain",
         "val_loss_end_range",
         "val_loss_flat_at_end",
@@ -777,6 +984,15 @@ def build_configs(args) -> List[ExperimentConfig]:
                         num_cpus_per_trainer=args.num_cpus_per_trainer,
                         num_gpus_per_trainer=args.num_gpus_per_trainer,
                         use_ogb_load_patch=use_ogb_load_patch,
+                        elastic_training=args.elastic_training,
+                        max_rounds=args.max_rounds,
+                        val_loss_patience=args.val_loss_patience,
+                        val_loss_min_delta=args.val_loss_min_delta,
+                        target_val_accs=parse_float_list(args.target_val_accs),
+                        target_val_losses=parse_float_list(args.target_val_losses),
+                        target_train_comm_times_sec=parse_float_list(
+                            args.target_train_comm_times_sec
+                        ),
                     )
                 )
 
@@ -837,6 +1053,36 @@ def parse_args():
     parser.add_argument("--convergence-window", type=int, default=10)
     parser.add_argument("--val-loss-tolerance", type=float, default=0.01)
     parser.add_argument("--val-acc-tolerance", type=float, default=0.0025)
+    parser.add_argument("--elastic-training", action="store_true")
+    parser.add_argument(
+        "--max-rounds",
+        type=int,
+        default=None,
+        help=(
+            "Hard upper bound for elastic training. Defaults to --rounds when "
+            "elastic training is disabled."
+        ),
+    )
+    parser.add_argument("--val-loss-patience", type=int, default=20)
+    parser.add_argument("--val-loss-min-delta", type=float, default=0.0)
+    parser.add_argument(
+        "--target-val-accs",
+        default="",
+        help="Comma-separated validation accuracy targets to checkpoint.",
+    )
+    parser.add_argument(
+        "--target-val-losses",
+        default="",
+        help="Comma-separated validation loss targets to checkpoint.",
+    )
+    parser.add_argument(
+        "--target-train-comm-times-sec",
+        default="",
+        help=(
+            "Comma-separated cumulative training+communication time targets, "
+            "in seconds, to checkpoint."
+        ),
+    )
     parser.add_argument(
         "--convergence-tolerance",
         type=float,
@@ -857,6 +1103,8 @@ def main() -> int:
     args = parse_args()
     if args.convergence_tolerance is not None:
         args.val_acc_tolerance = args.convergence_tolerance
+    if args.max_rounds is not None and args.max_rounds < args.rounds:
+        raise SystemExit("--max-rounds must be greater than or equal to --rounds")
     output_dir = resolve_output_dir(args)
     configs = build_configs(args)
     ensure_output_dir_available(output_dir, args.allow_existing_output_dir)
