@@ -7,6 +7,9 @@ import attridict
 from fedgraph.federated_methods import (
     _resolve_nc_class_num,
     _resolve_nc_global_node_num,
+    _nc_val_loss_patience_round,
+    _nc_plateau_round,
+    _parse_optional_float_list,
     _unpack_nc_data,
     _weighted_nc_metric,
     run_fedgraph,
@@ -83,6 +86,23 @@ class TestResolveNCGlobalNodeNum:
 
 
 class TestNCMetricHelpers:
+    def test_parse_optional_float_list(self):
+        assert _parse_optional_float_list("") == []
+        assert _parse_optional_float_list("0.5, 1.25") == [0.5, 1.25]
+        assert _parse_optional_float_list([2, "3.5"]) == [2.0, 3.5]
+
+    def test_nc_val_loss_patience_round(self):
+        losses = [3.0, 2.8, 2.7, 2.71, 2.72, 2.69, 2.70, 2.71]
+
+        assert _nc_val_loss_patience_round(losses, patience=2, min_delta=0.0) == 5
+        assert _nc_val_loss_patience_round(losses, patience=0, min_delta=0.0) is None
+
+    def test_nc_plateau_round(self):
+        values = [3.0, 2.8, 2.7, 2.695, 2.696, 2.694]
+
+        assert _nc_plateau_round(values, window=3, tolerance=0.01) == 5
+        assert _nc_plateau_round(values, window=10, tolerance=0.01) is None
+
     def test_unpack_nc_data_with_validation_fields(self):
         data = (
             torch.randn(2, 4),

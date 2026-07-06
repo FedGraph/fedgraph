@@ -205,6 +205,95 @@ def _weighted_nc_metric(results: np.ndarray, weights: list, metric_index: int) -
     return float(np.average([row[metric_index] for row in results], weights=weights))
 
 
+def _parse_optional_float_list(raw: Any) -> list:
+    if raw in (None, ""):
+        return []
+    if isinstance(raw, str):
+        return [float(item.strip()) for item in raw.split(",") if item.strip()]
+    return [float(item) for item in raw]
+
+
+def _nc_val_loss_patience_round(
+    val_losses: list, patience: int, min_delta: float
+) -> Optional[int]:
+    if patience <= 0 or not val_losses:
+        return None
+
+    best_loss = float("inf")
+    rounds_without_improvement = 0
+    for round_index, loss in enumerate(val_losses, start=1):
+        if loss < best_loss - min_delta:
+            best_loss = loss
+            rounds_without_improvement = 0
+        else:
+            rounds_without_improvement += 1
+            if rounds_without_improvement >= patience:
+                return round_index
+    return None
+
+
+def _nc_plateau_round(values: list, window: int, tolerance: float) -> Optional[int]:
+    if window <= 1 or len(values) < window:
+        return None
+    for end_idx in range(window - 1, len(values)):
+        recent = values[end_idx - window + 1 : end_idx + 1]
+        if max(recent) - min(recent) <= tolerance:
+            return end_idx + 1
+    return None
+
+
+def _clone_nc_model_state(model: torch.nn.Module) -> dict:
+    return {
+        key: value.detach().cpu().clone()
+        for key, value in model.state_dict().items()
+    }
+
+
+def _load_nc_model_state(server: Server, state_dict: dict, round_id: int) -> None:
+    server.model = server.model.to("cpu")
+    server.model.load_state_dict(state_dict)
+    server.model = server.model.to(server.device)
+    server.broadcast_params(round_id)
+
+
+def _evaluate_nc_test_metrics(trainers: list, test_data_weights: list) -> tuple:
+    results = [trainer.local_test.remote() for trainer in trainers]
+    results = np.array([ray.get(result) for result in results])
+    average_test_loss = np.average(
+        [row[0] for row in results], weights=test_data_weights, axis=0
+    )
+    average_test_accuracy = np.average(
+        [row[1] for row in results], weights=test_data_weights, axis=0
+    )
+    return float(average_test_loss), float(average_test_accuracy)
+
+
+def _add_nc_checkpoint(
+    checkpoints: dict,
+    server: Server,
+    reason: str,
+    round_id: int,
+    val_loss: float,
+    val_acc: float,
+    train_comm_time_sec: float,
+) -> None:
+    if reason in checkpoints:
+        return
+    checkpoints[reason] = {
+        "reason": reason,
+        "round": round_id,
+        "val_loss": val_loss,
+        "val_acc": val_acc,
+        "train_comm_time_sec": train_comm_time_sec,
+        "state_dict": _clone_nc_model_state(server.model),
+    }
+    print(
+        "NC_CHECKPOINT_CAPTURED, "
+        f"reason={reason}, round={round_id}, val_loss={val_loss}, "
+        f"val_acc={val_acc}, train_comm_time_sec={train_comm_time_sec}"
+    )
+
+
 def run_fedgraph(args: attridict) -> None:
     """
     Run the training process for the specified task.
@@ -909,9 +998,49 @@ def run_NC(args: attridict, data: Any = None) -> None:
     total_pure_training_time = 0.0  # forward + gradient descent
     total_communication_time = 0.0  # parameter aggregation
 
+    elastic_training = bool(getattr(args, "elastic_training", False))
+    target_rounds = int(args.global_rounds)
+    max_rounds = int(getattr(args, "max_rounds", target_rounds) or target_rounds)
+    if not elastic_training:
+        max_rounds = target_rounds
+    if max_rounds < target_rounds:
+        raise ValueError("max_rounds must be greater than or equal to global_rounds")
+
+    val_loss_patience = int(getattr(args, "val_loss_patience", 20))
+    val_loss_min_delta = float(getattr(args, "val_loss_min_delta", 0.0))
+    val_loss_plateau_window = int(
+        getattr(args, "val_loss_plateau_window", val_loss_patience)
+    )
+    val_loss_plateau_tolerance = float(
+        getattr(args, "val_loss_plateau_tolerance", 0.0)
+    )
+    target_val_accs = _parse_optional_float_list(
+        getattr(args, "target_val_accs", [])
+    )
+    target_val_losses = _parse_optional_float_list(
+        getattr(args, "target_val_losses", [])
+    )
+    target_train_comm_times = _parse_optional_float_list(
+        getattr(args, "target_train_comm_times_sec", [])
+    )
+    checkpoints = {}
+    val_losses = []
+
     print("global_rounds", args.global_rounds)
+    if elastic_training:
+        print(
+            "elastic_training enabled, "
+            f"target_rounds={target_rounds}, max_rounds={max_rounds}, "
+            f"val_loss_patience={val_loss_patience}, "
+            f"val_loss_min_delta={val_loss_min_delta}"
+        )
     global_acc_list = []
-    for i in range(args.global_rounds):
+    elastic_stop_reason = "fixed_rounds"
+    elastic_stop_round = target_rounds
+    val_loss_patience_round = None
+    val_loss_plateau_round = None
+    for i in range(max_rounds):
+        round_id = i + 1
         round_stats = server.train(i)
         round_training_time = round_stats["training_time"]
         round_comm_time = round_stats["communication_time"]
@@ -980,19 +1109,126 @@ def run_NC(args: attridict, data: Any = None) -> None:
         results = np.array([ray.get(result) for result in results])
         average_val_loss = _weighted_nc_metric(results, val_data_weights, 0)
         average_val_accuracy = _weighted_nc_metric(results, val_data_weights, 1)
+        val_losses.append(average_val_loss)
         global_acc_list.append(average_val_accuracy)
 
-        print(f"Round {i+1}: Global Val Loss = {average_val_loss:.4f}")
-        print(f"Round {i+1}: Global Val Accuracy = {average_val_accuracy:.4f}")
+        print(f"Round {round_id}: Global Val Loss = {average_val_loss:.4f}")
+        print(f"Round {round_id}: Global Val Accuracy = {average_val_accuracy:.4f}")
         print(
-            f"Round {i+1}: Training Time = {round_training_time:.2f}s, Communication Time = {round_comm_time:.2f}s"
+            f"Round {round_id}: Training Time = {round_training_time:.2f}s, Communication Time = {round_comm_time:.2f}s"
         )
 
         monitor.add_train_comm_cost(
             upload_mb=round_stats["upload_size"] / (1024 * 1024),
             download_mb=round_stats["download_size"] / (1024 * 1024),
         )
+
+        if elastic_training:
+            train_comm_time_sec = total_pure_training_time + total_communication_time
+            if round_id == target_rounds:
+                _add_nc_checkpoint(
+                    checkpoints,
+                    server,
+                    "target_round",
+                    round_id,
+                    average_val_loss,
+                    average_val_accuracy,
+                    train_comm_time_sec,
+                )
+
+            if val_loss_patience_round is None:
+                val_loss_patience_round = _nc_val_loss_patience_round(
+                    val_losses, val_loss_patience, val_loss_min_delta
+                )
+                if val_loss_patience_round == round_id:
+                    _add_nc_checkpoint(
+                        checkpoints,
+                        server,
+                        "val_loss_patience",
+                        round_id,
+                        average_val_loss,
+                        average_val_accuracy,
+                        train_comm_time_sec,
+                    )
+
+            if val_loss_plateau_round is None:
+                val_loss_plateau_round = _nc_plateau_round(
+                    val_losses,
+                    val_loss_plateau_window,
+                    val_loss_plateau_tolerance,
+                )
+                if val_loss_plateau_round == round_id:
+                    _add_nc_checkpoint(
+                        checkpoints,
+                        server,
+                        "val_loss_plateau",
+                        round_id,
+                        average_val_loss,
+                        average_val_accuracy,
+                        train_comm_time_sec,
+                    )
+
+            for target in target_val_accs:
+                if average_val_accuracy >= target:
+                    _add_nc_checkpoint(
+                        checkpoints,
+                        server,
+                        f"target_val_acc_{target:g}".replace(".", "p"),
+                        round_id,
+                        average_val_loss,
+                        average_val_accuracy,
+                        train_comm_time_sec,
+                    )
+            for target in target_val_losses:
+                if average_val_loss <= target:
+                    _add_nc_checkpoint(
+                        checkpoints,
+                        server,
+                        f"target_val_loss_{target:g}".replace(".", "p"),
+                        round_id,
+                        average_val_loss,
+                        average_val_accuracy,
+                        train_comm_time_sec,
+                    )
+            for target in target_train_comm_times:
+                if train_comm_time_sec >= target:
+                    _add_nc_checkpoint(
+                        checkpoints,
+                        server,
+                        f"target_train_comm_time_{target:g}".replace(".", "p"),
+                        round_id,
+                        average_val_loss,
+                        average_val_accuracy,
+                        train_comm_time_sec,
+                    )
+
+            if round_id >= target_rounds and val_loss_patience_round is not None:
+                elastic_stop_reason = "val_loss_patience"
+                elastic_stop_round = round_id
+                break
+            if round_id >= max_rounds:
+                elastic_stop_reason = "max_rounds"
+                elastic_stop_round = round_id
+                break
+
     monitor.train_time_end()
+    actual_rounds = len(global_acc_list)
+    if elastic_training and actual_rounds > 0:
+        train_comm_time_sec = total_pure_training_time + total_communication_time
+        _add_nc_checkpoint(
+            checkpoints,
+            server,
+            "elastic_stop",
+            actual_rounds,
+            val_losses[-1],
+            global_acc_list[-1],
+            train_comm_time_sec,
+        )
+        print(
+            "NC_ELASTIC_STOP, "
+            f"reason={elastic_stop_reason}, round={elastic_stop_round}, "
+            f"target_rounds={target_rounds}, max_rounds={max_rounds}"
+        )
     total_time = time.time() - training_start
 
     # Print time breakdown
@@ -1011,10 +1247,10 @@ def run_NC(args: attridict, data: Any = None) -> None:
         f"Communication Time Percentage: {(total_communication_time/total_time)*100:.1f}%"
     )
     print(
-        f"Average Training Time per Round: {total_pure_training_time/args.global_rounds:.2f} seconds"
+        f"Average Training Time per Round: {total_pure_training_time/actual_rounds:.2f} seconds"
     )
     print(
-        f"Average Communication Time per Round: {total_communication_time/args.global_rounds:.2f} seconds"
+        f"Average Communication Time per Round: {total_communication_time/actual_rounds:.2f} seconds"
     )
     print(f"{'='*80}")
 
@@ -1077,14 +1313,32 @@ def run_NC(args: attridict, data: Any = None) -> None:
     # train_data_weights = [len(i) for i in in_com_train_node_indexes]
     # test_data_weights = [len(i) for i in in_com_test_node_indexes]
 
-    results = [trainer.local_test.remote() for trainer in server.trainers]
-    results = np.array([ray.get(result) for result in results])
+    final_model_state = _clone_nc_model_state(server.model)
+    if elastic_training and checkpoints:
+        print("\nNC CHECKPOINT TEST METRICS")
+        for checkpoint in checkpoints.values():
+            _load_nc_model_state(
+                server,
+                checkpoint["state_dict"],
+                int(checkpoint["round"]),
+            )
+            checkpoint_test_loss, checkpoint_test_accuracy = (
+                _evaluate_nc_test_metrics(server.trainers, test_data_weights)
+            )
+            print(
+                "NC_CHECKPOINT_TEST, "
+                f"reason={checkpoint['reason']}, "
+                f"round={checkpoint['round']}, "
+                f"val_loss={checkpoint['val_loss']}, "
+                f"val_acc={checkpoint['val_acc']}, "
+                f"train_comm_time_sec={checkpoint['train_comm_time_sec']}, "
+                f"test_loss={checkpoint_test_loss}, "
+                f"test_acc={checkpoint_test_accuracy}"
+            )
+        _load_nc_model_state(server, final_model_state, actual_rounds)
 
-    average_final_test_loss = np.average(
-        [row[0] for row in results], weights=test_data_weights, axis=0
-    )
-    average_final_test_accuracy = np.average(
-        [row[1] for row in results], weights=test_data_weights, axis=0
+    average_final_test_loss, average_final_test_accuracy = _evaluate_nc_test_metrics(
+        server.trainers, test_data_weights
     )
     print(f"average_final_test_loss, {average_final_test_loss}")
     print(f"Average test accuracy, {average_final_test_accuracy}")
@@ -1186,7 +1440,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
 
     # Calculate average round time
     avg_round_time = (
-        total_pure_training_time / args.global_rounds if args.global_rounds > 0 else 0.0
+        total_pure_training_time / actual_rounds if actual_rounds > 0 else 0.0
     )
 
     # Get total communication cost from monitor (works in cluster)

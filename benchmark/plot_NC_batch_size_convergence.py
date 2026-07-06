@@ -275,6 +275,26 @@ def plateau_round(
     return None
 
 
+def patience_round(
+    curve: List[dict], key: str, patience: int, min_delta: float
+) -> Optional[int]:
+    values = finite_values(curve, key)
+    if patience <= 0 or not values:
+        return None
+    best_value = float("inf")
+    rounds_without_improvement = 0
+    for item in values:
+        value = item[key]
+        if value < best_value - min_delta:
+            best_value = value
+            rounds_without_improvement = 0
+        else:
+            rounds_without_improvement += 1
+            if rounds_without_improvement >= patience:
+                return item["round"]
+    return None
+
+
 def end_window_stats(
     curve: List[dict], key: str, window: int, tolerance: float
 ) -> dict:
@@ -299,6 +319,8 @@ def write_convergence_summary(
     window: int,
     val_loss_tolerance: float,
     val_acc_tolerance: float,
+    val_loss_patience: int,
+    val_loss_min_delta: float,
     output_path: Path,
 ) -> None:
     fieldnames = [
@@ -311,6 +333,7 @@ def write_convergence_summary(
         "val_loss_best",
         "val_loss_best_round",
         "val_loss_plateau_round",
+        "val_loss_patience_round",
         "val_acc_final",
         "val_acc_best",
         "val_acc_best_round",
@@ -334,6 +357,9 @@ def write_convergence_summary(
         val_loss_plateau_round = plateau_round(
             curve, "val_loss", window, val_loss_tolerance
         )
+        val_loss_patience_round = patience_round(
+            curve, "val_loss", val_loss_patience, val_loss_min_delta
+        )
         val_acc_plateau_round = plateau_round(
             curve, "val_acc", window, val_acc_tolerance
         )
@@ -348,11 +374,12 @@ def write_convergence_summary(
                 "val_loss_best": val_loss_best,
                 "val_loss_best_round": val_loss_best_round,
                 "val_loss_plateau_round": val_loss_plateau_round,
+                "val_loss_patience_round": val_loss_patience_round,
                 "val_acc_final": val_acc_final,
                 "val_acc_best": val_acc_best,
                 "val_acc_best_round": val_acc_best_round,
                 "val_acc_plateau_round": val_acc_plateau_round,
-                "val_convergence_round": val_loss_plateau_round,
+                "val_convergence_round": val_loss_patience_round,
                 **end_window_stats(
                     curve, "val_loss", window, val_loss_tolerance
                 ),
@@ -709,6 +736,8 @@ def parse_args():
     parser.add_argument("--convergence-window", type=int, default=10)
     parser.add_argument("--val-loss-tolerance", type=float, default=0.01)
     parser.add_argument("--val-acc-tolerance", type=float, default=0.0025)
+    parser.add_argument("--val-loss-patience", type=int, default=20)
+    parser.add_argument("--val-loss-min-delta", type=float, default=0.0)
     parser.add_argument(
         "--convergence-tolerance",
         type=float,
@@ -738,6 +767,8 @@ def main() -> int:
         args.convergence_window,
         args.val_loss_tolerance,
         args.val_acc_tolerance,
+        args.val_loss_patience,
+        args.val_loss_min_delta,
         output_dir / "convergence_summary.csv",
     )
     write_batch_summary(summary_rows, output_dir / "batch_summary.csv")
