@@ -69,8 +69,8 @@ config: Dict[str, Any] = {
 config = attridict(config)
 run_fedgraph(config)
 
-config.iid_beta=100
+config.iid_beta = 100
 run_fedgraph(config)
 
-config.iid_beta=10
+config.iid_beta = 10
 run_fedgraph(config)

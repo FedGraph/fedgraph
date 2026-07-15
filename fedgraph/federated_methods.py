@@ -1,4 +1,3 @@
-
 import argparse
 import copy
 import datetime
@@ -39,7 +38,7 @@ from fedgraph.utils_nc import get_1hop_feature_sum, save_all_trainers_data
 try:
     from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS  # noqa: F401
 except ImportError:  # pragma: no cover
-    OpenFHEThresholdCKKS = None  # type: ignore[assignment]
+    OpenFHEThresholdCKKS = None  # type: ignore[misc,assignment]
 
 # Optional differential privacy module.
 try:
@@ -168,9 +167,7 @@ def run_fedgraph(args: attridict) -> None:
     # the FedAvg-and-no-encryption combination from the previous prototype is
     # one supported regime but not a requirement.
     if getattr(args, "use_lowrank", False) and args.fedgraph_task != "NC":
-        raise ValueError(
-            "Low-rank compression currently only supported for NC tasks"
-        )
+        raise ValueError("Low-rank compression currently only supported for NC tasks")
 
     if args.fedgraph_task == "NC":
         _validate_nc_num_hops(args)
@@ -482,9 +479,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
     use_lowrank = getattr(args, "use_lowrank", False) and LOWRANK_AVAILABLE
     ServerClass = Server_LowRank if use_lowrank else Server
     _feature_dim = feature_shape if args.use_huggingface else features.shape[1]
-    server = ServerClass(
-        _feature_dim, args_hidden, class_num, device, trainers, args
-    )
+    server = ServerClass(_feature_dim, args_hidden, class_num, device, trainers, args)
 
     # End initialization time tracking
     server.broadcast_params(-1)
@@ -509,7 +504,9 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 ]
 
                 results = ray.get(encrypted_data)
-                encrypted_sums = [(r[0], r[1]) for r in results]  # (encrypted_sum, shape)
+                encrypted_sums = [
+                    (r[0], r[1]) for r in results
+                ]  # (encrypted_sum, shape)
                 encryption_times = [r[2] for r in results]
 
                 enc_sizes = [len(r[0]) for r in results]  # size of encrypted data
@@ -538,8 +535,10 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 decryption_times = ray.get(load_feature_refs)
             elif getattr(args, "he_backend", "tenseal") == "openfhe":
                 print("Starting OpenFHE threshold encrypted feature aggregation...")
+                import os
+                import tempfile
+
                 import openfhe
-                import os, tempfile
 
                 # Shared directory for OpenFHE serialized objects
                 he_dir = tempfile.mkdtemp(prefix="openfhe_")
@@ -547,7 +546,9 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 # --- Two-party key generation protocol ---
                 # 1. Server (lead party) generates initial key pair
                 print("Step 1: Server generates lead keys...")
-                server.openfhe_cc = OpenFHEThresholdCKKS(security_level=128, ring_dim=16384)
+                server.openfhe_cc = OpenFHEThresholdCKKS(
+                    security_level=128, ring_dim=16384
+                )
                 kp1 = server.openfhe_cc.generate_lead_keys()
 
                 # Serialize context and lead public key to shared files
@@ -562,9 +563,11 @@ def run_NC(args: attridict, data: Any = None) -> None:
 
                 # Trainer reads serialized context + lead PK from files, generates its share
                 pk2_path = os.path.join(he_dir, "pk_nonlead.bin")
-                ray.get(designated_trainer.setup_openfhe_nonlead.remote(
-                    cc_path, pk1_path, pk2_path
-                ))
+                ray.get(
+                    designated_trainer.setup_openfhe_nonlead.remote(
+                        cc_path, pk1_path, pk2_path
+                    )
+                )
 
                 # 3. Server reads the non-lead public key (= joint PK) and uses it
                 print("Step 3: Server reads joint public key...")
@@ -624,6 +627,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 if use_lowrank:
                     # Low-rank mode: decrypt each trainer separately, decompress, then add
                     from fedgraph.low_rank.compression_utils import svd_decompress
+
                     u_shape = meta["U_shape"]
                     s_len = meta["S_len"]
                     v_shape = meta["V_shape"]
@@ -631,7 +635,9 @@ def run_NC(args: attridict, data: Any = None) -> None:
                     u_size = u_shape[0] * u_shape[1]
                     v_size = v_shape[0] * v_shape[1]
 
-                    print(f"Decrypting {len(ct_paths)} trainers x {num_chunks} chunks (low-rank, rank={meta['rank']})...")
+                    print(
+                        f"Decrypting {len(ct_paths)} trainers x {num_chunks} chunks (low-rank, rank={meta['rank']})..."
+                    )
                     decrypted_tensor = torch.zeros(original_shape, dtype=torch.float32)
 
                     for trainer_idx in range(len(ct_paths)):
@@ -640,23 +646,31 @@ def run_NC(args: attridict, data: Any = None) -> None:
                         partial_leads = []
                         for chunk_idx in range(num_chunks):
                             chunk_path = f"{base}_chunk{chunk_idx}{ext}"
-                            ct, ok = openfhe.DeserializeCiphertext(chunk_path, openfhe.BINARY)
+                            ct, ok = openfhe.DeserializeCiphertext(
+                                chunk_path, openfhe.BINARY
+                            )
                             if not ok:
-                                raise RuntimeError(f"Failed to deserialize {chunk_path}")
+                                raise RuntimeError(
+                                    f"Failed to deserialize {chunk_path}"
+                                )
                             partial_leads.append(server.openfhe_cc.partial_decrypt(ct))
                             # Write ct for designated trainer
                             agg_path = os.path.join(he_dir, f"agg_ct_{chunk_idx}.bin")
                             openfhe.SerializeToFile(agg_path, ct, openfhe.BINARY)
 
                         # Batch partial decrypt on designated trainer
-                        ray.get(designated_trainer.openfhe_partial_decrypt_main_batch.remote(
-                            he_dir, num_chunks
-                        ))
+                        ray.get(
+                            designated_trainer.openfhe_partial_decrypt_main_batch.remote(
+                                he_dir, num_chunks
+                            )
+                        )
 
                         # Fuse and collect values
                         trainer_values = []
                         for chunk_idx in range(num_chunks):
-                            partial_main_path = os.path.join(he_dir, f"partial_main_{chunk_idx}.bin")
+                            partial_main_path = os.path.join(
+                                he_dir, f"partial_main_{chunk_idx}.bin"
+                            )
                             partial_main_ct, ok = openfhe.DeserializeCiphertext(
                                 partial_main_path, openfhe.BINARY
                             )
@@ -669,43 +683,68 @@ def run_NC(args: attridict, data: Any = None) -> None:
 
                         # Decompress SVD and accumulate
                         vals = trainer_values[:total_elements]
-                        U = torch.tensor(vals[:u_size], dtype=torch.float32).reshape(u_shape)
-                        S = torch.tensor(vals[u_size:u_size + s_len], dtype=torch.float32)
-                        V = torch.tensor(vals[u_size + s_len:u_size + s_len + v_size], dtype=torch.float32).reshape(v_shape)
+                        U = torch.tensor(vals[:u_size], dtype=torch.float32).reshape(
+                            u_shape
+                        )
+                        S = torch.tensor(
+                            vals[u_size : u_size + s_len], dtype=torch.float32
+                        )
+                        V = torch.tensor(
+                            vals[u_size + s_len : u_size + s_len + v_size],
+                            dtype=torch.float32,
+                        ).reshape(v_shape)
                         decrypted_tensor += svd_decompress(U, S, V)
 
                     shape = original_shape
-                    print(f"Low-rank decompressed and aggregated: rank={meta['rank']}, shape={shape}")
+                    print(
+                        f"Low-rank decompressed and aggregated: rank={meta['rank']}, shape={shape}"
+                    )
                 else:
                     # Standard mode: aggregate ciphertexts homomorphically, then decrypt
-                    print(f"Aggregating {num_chunks} chunks across {len(ct_paths)} trainers...")
+                    print(
+                        f"Aggregating {num_chunks} chunks across {len(ct_paths)} trainers..."
+                    )
                     partial_leads = []
                     for chunk_idx in range(num_chunks):
                         agg_ct = None
                         for i in range(len(ct_paths)):
                             base, ext = os.path.splitext(ct_paths[i])
                             chunk_path = f"{base}_chunk{chunk_idx}{ext}"
-                            ct, ok = openfhe.DeserializeCiphertext(chunk_path, openfhe.BINARY)
+                            ct, ok = openfhe.DeserializeCiphertext(
+                                chunk_path, openfhe.BINARY
+                            )
                             if not ok:
-                                raise RuntimeError(f"Failed to deserialize {chunk_path}")
-                            agg_ct = ct if agg_ct is None else server.openfhe_cc.add_ciphertexts(agg_ct, ct)
+                                raise RuntimeError(
+                                    f"Failed to deserialize {chunk_path}"
+                                )
+                            agg_ct = (
+                                ct
+                                if agg_ct is None
+                                else server.openfhe_cc.add_ciphertexts(agg_ct, ct)
+                            )
                         partial_leads.append(server.openfhe_cc.partial_decrypt(agg_ct))
                         agg_ct_path = os.path.join(he_dir, f"agg_ct_{chunk_idx}.bin")
                         openfhe.SerializeToFile(agg_ct_path, agg_ct, openfhe.BINARY)
 
                     print(f"Batch partial decryption on designated trainer...")
-                    ray.get(designated_trainer.openfhe_partial_decrypt_main_batch.remote(
-                        he_dir, num_chunks
-                    ))
+                    ray.get(
+                        designated_trainer.openfhe_partial_decrypt_main_batch.remote(
+                            he_dir, num_chunks
+                        )
+                    )
 
                     all_fused_values = []
                     for chunk_idx in range(num_chunks):
-                        partial_main_path = os.path.join(he_dir, f"partial_main_{chunk_idx}.bin")
+                        partial_main_path = os.path.join(
+                            he_dir, f"partial_main_{chunk_idx}.bin"
+                        )
                         partial_main_ct, ok = openfhe.DeserializeCiphertext(
                             partial_main_path, openfhe.BINARY
                         )
                         if not ok:
-                            raise RuntimeError(f"Failed to deserialize partial_main chunk {chunk_idx}")
+                            raise RuntimeError(
+                                f"Failed to deserialize partial_main chunk {chunk_idx}"
+                            )
                         fused = server.openfhe_cc.cc.MultipartyDecryptFusion(
                             [partial_leads[chunk_idx], partial_main_ct]
                         )
@@ -729,11 +768,14 @@ def run_NC(args: attridict, data: Any = None) -> None:
 
                 # Cleanup temp files
                 import shutil
+
                 shutil.rmtree(he_dir, ignore_errors=True)
 
                 pretrain_time = time.time() - pretrain_start
                 pretrain_upload = sum(enc_sizes) / (1024 * 1024)  # MB
-                pretrain_download = agg_size * len(server.trainers) / (1024 * 1024)  # MB
+                pretrain_download = (
+                    agg_size * len(server.trainers) / (1024 * 1024)
+                )  # MB
                 pretrain_comm_cost = pretrain_upload + pretrain_download
 
                 # Print performance metrics
@@ -742,9 +784,13 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 print(f"Aggregation Time: {aggregation_time:.2f} seconds")
                 print(f"Pre-training Upload: {pretrain_upload:.2f} MB")
                 print(f"Pre-training Download: {pretrain_download:.2f} MB")
-                print(f"Total Pre-training Communication Cost: {pretrain_comm_cost:.2f} MB")
+                print(
+                    f"Total Pre-training Communication Cost: {pretrain_comm_cost:.2f} MB"
+                )
             else:
-                raise ValueError(f"Unknown he_backend: {getattr(args, 'he_backend', None)}")
+                raise ValueError(
+                    f"Unknown he_backend: {getattr(args, 'he_backend', None)}"
+                )
             pretrain_time = time.time() - pretrain_start
             pretrain_upload = sum(enc_sizes) / (1024 * 1024)  # MB
             pretrain_download = sum(download_sizes) / (1024 * 1024)  # MB
@@ -1212,7 +1258,7 @@ def run_NC_dp(args: attridict, data: Any = None) -> None:
     # Create trainers (same as original)
     if args.use_huggingface:
         trainers = [
-            Trainer.remote(
+            Trainer.remote(  # type: ignore[attr-defined]
                 rank=i,
                 args_hidden=args_hidden,
                 device=device,
@@ -1222,7 +1268,7 @@ def run_NC_dp(args: attridict, data: Any = None) -> None:
         ]
     else:
         trainers = [
-            Trainer.remote(
+            Trainer.remote(  # type: ignore[attr-defined]
                 rank=i,
                 args_hidden=args_hidden,
                 device=device,
@@ -1474,7 +1520,7 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
     # Create trainers
     if args.use_huggingface:
         trainers = [
-            Trainer.remote(
+            Trainer.remote(  # type: ignore[attr-defined]
                 rank=i,
                 args_hidden=args_hidden,
                 device=device,
@@ -1484,7 +1530,7 @@ def run_NC_lowrank(args: attridict, data: Any = None) -> None:
         ]
     else:
         trainers = [
-            Trainer.remote(
+            Trainer.remote(  # type: ignore[attr-defined]
                 rank=i,
                 args_hidden=args_hidden,
                 device=device,

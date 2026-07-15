@@ -94,18 +94,18 @@ def extract_metrics(exp_text, algorithm, dataset, trainers, iid_beta):
         "Accuracy": accuracy,
         "Train_Time_ms": train_time_ms,
         "Train_Time_s": train_time_s,
-        "Theoretical_Pretrain_MB": float(theoretical_pretrain[-1])
-        if theoretical_pretrain
-        else 0,
-        "Theoretical_Train_MB": float(theoretical_train[-1])
-        if theoretical_train
-        else 0,
-        "Actual_Pretrain_MB": float(actual_pretrain_match.group(1))
-        if actual_pretrain_match
-        else None,
-        "Actual_Train_MB": float(actual_train_match.group(1))
-        if actual_train_match
-        else None,
+        "Theoretical_Pretrain_MB": (
+            float(theoretical_pretrain[-1]) if theoretical_pretrain else 0
+        ),
+        "Theoretical_Train_MB": (
+            float(theoretical_train[-1]) if theoretical_train else 0
+        ),
+        "Actual_Pretrain_MB": (
+            float(actual_pretrain_match.group(1)) if actual_pretrain_match else None
+        ),
+        "Actual_Train_MB": (
+            float(actual_train_match.group(1)) if actual_train_match else None
+        ),
     }
     result["Theoretical_Total_MB"] = (
         result["Theoretical_Pretrain_MB"] + result["Theoretical_Train_MB"]

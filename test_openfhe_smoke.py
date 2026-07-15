@@ -2,8 +2,11 @@
 """
 Minimal OpenFHE CKKS smoke test to verify setup before trying multiparty.
 """
-import openfhe
+
 import time
+
+import openfhe
+
 
 def test_basic_ckks():
     """Test basic CKKS functionality (no multiparty)."""
@@ -51,7 +54,7 @@ def test_basic_ckks():
     print(f"Result:   {result[:len(x)]}")
 
     # Verify accuracy
-    errors = [abs(e - r) for e, r in zip(x, result[:len(x)])]
+    errors = [abs(e - r) for e, r in zip(x, result[: len(x)])]
     max_error = max(errors)
     print(f"Max error: {max_error:.2e}")
 
@@ -62,11 +65,13 @@ def test_basic_ckks():
         print("❌ Basic CKKS test FAILED!")
         return False
 
+
 def test_import_speed():
     """Test OpenFHE import speed."""
     print("🔍 Testing OpenFHE import speed...")
     start = time.time()
     import openfhe
+
     import_time = time.time() - start
     print(f"✅ Import took {import_time:.2f} seconds")
 
@@ -76,6 +81,7 @@ def test_import_speed():
     else:
         print("⚠️  Import is slow (possible emulation)")
         return False
+
 
 if __name__ == "__main__":
     print("🚀 OpenFHE Smoke Test")

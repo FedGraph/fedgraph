@@ -4,7 +4,7 @@ import random
 import time
 import warnings
 from io import BytesIO
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 logging.basicConfig(level=logging.INFO)
 # logger = logging.getLogger(__name__)
@@ -30,13 +30,15 @@ from fedgraph.gnn_models import (
     GCN_arxiv,
     SAGE_products,
 )
+
 # Threshold-HE backend is optional. We delay-import OpenFHE bindings here so the
 # rest of fedgraph stays importable on systems without the OpenFHE wheel.
 try:
     from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS  # noqa: F401
+
     _OPENFHE_AVAILABLE = True
 except ImportError:  # pragma: no cover - exercised only when openfhe is missing
-    OpenFHEThresholdCKKS = None  # type: ignore[assignment]
+    OpenFHEThresholdCKKS = None  # type: ignore[misc,assignment]
     _OPENFHE_AVAILABLE = False
 
 from fedgraph.train_func import test, train
@@ -162,8 +164,8 @@ class Trainer_General:
         features: torch.Tensor = None,
         idx_train: torch.Tensor = None,
         idx_test: torch.Tensor = None,
-        global_node_num: int = None,
-        class_num: int = None,
+        global_node_num: Optional[int] = None,
+        class_num: Optional[int] = None,
     ):
         # from gnn_models import GCN_Graph_Classification
         # Per-trainer seed = global_seed * 1000 + rank  (lets us vary across runs
@@ -296,7 +298,9 @@ class Trainer_General:
                     dropout=0.5,
                     NumLayers=self.args.num_layers,
                 ).to(self.device)
-            elif "ogbn" in self.args.dataset:  # ogbn large datasets default to GCN_arxiv
+            elif (
+                "ogbn" in self.args.dataset
+            ):  # ogbn large datasets default to GCN_arxiv
                 print("Running GCN_arxiv")
                 self.model = GCN_arxiv(
                     nfeat=self.features.shape[1],
@@ -332,7 +336,7 @@ class Trainer_General:
         # load global parameter from global server
         if self.model is None:
             return
-            
+
         self.model.to("cpu")
         for (
             p,
@@ -384,10 +388,12 @@ class Trainer_General:
 
         # Sum of features of all 1-hop nodes for each node
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
-            new_feature_for_trainer, self.adj, self.device,
-            norm_type=getattr(self.args, "norm_type", "none")
+            new_feature_for_trainer,
+            self.adj,
+            self.device,
+            norm_type=getattr(self.args, "norm_type", "none"),
         )
-        if hasattr(self.args, 'use_encryption') and self.args.use_encryption:
+        if hasattr(self.args, "use_encryption") and self.args.use_encryption:
             print(
                 f"Trainer {self.rank} - Original feature sum (first 10 and last 10 elements): "
                 f"{one_hop_neighbor_feature_sum.flatten()[:10].tolist()} ... {one_hop_neighbor_feature_sum.flatten()[-10:].tolist()}"
@@ -411,8 +417,10 @@ class Trainer_General:
         ).to(self.device)
         new_feature_for_trainer[self.local_node_index] = self.features
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
-            new_feature_for_trainer, self.adj, self.device,
-            norm_type=getattr(self.args, "norm_type", "none")
+            new_feature_for_trainer,
+            self.adj,
+            self.device,
+            norm_type=getattr(self.args, "norm_type", "none"),
         )
         computation_time = time.time() - computation_start
 
@@ -473,8 +481,8 @@ class Trainer_General:
 
     def get_encrypted_local_feature_sum(self, ct_output_path=None):
         # Check HE backend and route accordingly
-        if hasattr(self, 'he_backend') and self.he_backend == "openfhe":
-            if getattr(self, 'use_lowrank', False):
+        if hasattr(self, "he_backend") and self.he_backend == "openfhe":
+            if getattr(self, "use_lowrank", False):
                 return self._get_openfhe_lowrank_encrypted_feature_sum(ct_output_path)
             return self._get_openfhe_encrypted_local_feature_sum(ct_output_path)
         else:
@@ -482,19 +490,22 @@ class Trainer_General:
 
     def _get_openfhe_encrypted_local_feature_sum(self, ct_output_path=None):
         """OpenFHE encryption of local feature sum, chunked and serialized to files."""
-        import openfhe
         import json
+
+        import openfhe
 
         new_feature_for_trainer = torch.zeros(
             self.global_node_num, self.features.shape[1]
         ).to(self.device)
         new_feature_for_trainer[self.local_node_index] = self.features
         feature_sum = get_1hop_feature_sum(
-            new_feature_for_trainer, self.adj, self.device,
-            norm_type=getattr(self.args, "norm_type", "none")
+            new_feature_for_trainer,
+            self.adj,
+            self.device,
+            norm_type=getattr(self.args, "norm_type", "none"),
         )
 
-        if not hasattr(self, 'openfhe_cc'):
+        if not hasattr(self, "openfhe_cc"):
             raise RuntimeError("OpenFHE context not available on trainer")
 
         encryption_start = time.time()
@@ -516,16 +527,24 @@ class Trainer_General:
             # Write metadata
             meta_path = f"{base}_meta.json"
             with open(meta_path, "w") as f:
-                json.dump({"num_chunks": num_chunks, "slot_count": slot_count,
-                           "total_elements": len(feature_list)}, f)
+                json.dump(
+                    {
+                        "num_chunks": num_chunks,
+                        "slot_count": slot_count,
+                        "total_elements": len(feature_list),
+                    },
+                    f,
+                )
 
         encryption_time = time.time() - encryption_start
         return feature_sum.shape, encryption_time
 
     def _get_openfhe_lowrank_encrypted_feature_sum(self, ct_output_path=None):
         """Low-rank compress feature sum, then encrypt with OpenFHE threshold HE."""
-        import openfhe
         import json
+
+        import openfhe
+
         from fedgraph.low_rank.compression_utils import svd_compress
 
         new_feature_for_trainer = torch.zeros(
@@ -533,11 +552,13 @@ class Trainer_General:
         ).to(self.device)
         new_feature_for_trainer[self.local_node_index] = self.features
         feature_sum = get_1hop_feature_sum(
-            new_feature_for_trainer, self.adj, self.device,
-            norm_type=getattr(self.args, "norm_type", "none")
+            new_feature_for_trainer,
+            self.adj,
+            self.device,
+            norm_type=getattr(self.args, "norm_type", "none"),
         )
 
-        if not hasattr(self, 'openfhe_cc'):
+        if not hasattr(self, "openfhe_cc"):
             raise RuntimeError("OpenFHE context not available on trainer")
 
         encryption_start = time.time()
@@ -568,17 +589,20 @@ class Trainer_General:
             # Write metadata including SVD shape info for reconstruction
             meta_path = f"{base}_meta.json"
             with open(meta_path, "w") as f:
-                json.dump({
-                    "num_chunks": num_chunks,
-                    "slot_count": slot_count,
-                    "total_elements": len(all_values),
-                    "lowrank": True,
-                    "rank": rank,
-                    "U_shape": list(U.shape),
-                    "S_len": len(s_flat),
-                    "V_shape": list(V.shape),
-                    "original_shape": list(feature_sum.shape),
-                }, f)
+                json.dump(
+                    {
+                        "num_chunks": num_chunks,
+                        "slot_count": slot_count,
+                        "total_elements": len(all_values),
+                        "lowrank": True,
+                        "rank": rank,
+                        "U_shape": list(U.shape),
+                        "S_len": len(s_flat),
+                        "V_shape": list(V.shape),
+                        "original_shape": list(feature_sum.shape),
+                    },
+                    f,
+                )
 
         encryption_time = time.time() - encryption_start
         return feature_sum.shape, encryption_time
@@ -591,8 +615,10 @@ class Trainer_General:
         ).to(self.device)
         new_feature_for_trainer[self.local_node_index] = self.features
         feature_sum = get_1hop_feature_sum(
-            new_feature_for_trainer, self.adj, self.device,
-            norm_type=getattr(self.args, "norm_type", "none")
+            new_feature_for_trainer,
+            self.adj,
+            self.device,
+            norm_type=getattr(self.args, "norm_type", "none"),
         )
 
         # Encrypt the feature sum
@@ -606,6 +632,7 @@ class Trainer_General:
     def setup_openfhe_nonlead(self, cc_path, lead_pk_path, output_pk_path):
         """Setup OpenFHE as non-lead party using file-based serialization."""
         import openfhe
+
         from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS
 
         # Deserialize context from file
@@ -642,6 +669,7 @@ class Trainer_General:
     def set_openfhe_public_key(self, cc_path, joint_pk_path):
         """Set the joint public key for encryption-only trainers using file-based serialization."""
         import openfhe
+
         from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS
 
         # Deserialize context
@@ -671,7 +699,7 @@ class Trainer_General:
         """Batch partial decryption of all chunks at once."""
         import openfhe
 
-        if not hasattr(self, 'openfhe_cc'):
+        if not hasattr(self, "openfhe_cc"):
             raise RuntimeError("OpenFHE context not initialized on trainer")
 
         for chunk_idx in range(num_chunks):
@@ -687,7 +715,9 @@ class Trainer_General:
             )
             openfhe.SerializeToFile(partial_path, partial_list[0], openfhe.BINARY)
 
-        print(f"Trainer {self.rank}: Batch partial decryption done ({num_chunks} chunks)")
+        print(
+            f"Trainer {self.rank}: Batch partial decryption done ({num_chunks} chunks)"
+        )
         return True
 
     def load_encrypted_feature_aggregation(self, encrypted_data):
@@ -737,18 +767,18 @@ class Trainer_General:
         """Load encrypted parameters with rescaling"""
         params_list, metadata = encrypted_data
 
-        self.model.to("cpu")
+        self.model.to("cpu")  # type: ignore[attr-defined]
 
         # load each layer's parameters
         for param, enc_param, meta in zip(
-            self.model.parameters(), params_list, metadata
+            self.model.parameters(), params_list, metadata  # type: ignore[attr-defined]
         ):
-            decrypted = ts.ckks_vector_from(self.he_context, enc_param).decrypt()
+            decrypted = ts.ckks_vector_from(self.he_context, enc_param).decrypt()  # type: ignore[attr-defined]
             param_data = torch.tensor(decrypted).reshape(meta["shape"])
             param_data = param_data / meta["scale"]  # Reverse scaling
             param.data.copy_(param_data)
 
-        self.model.to(self.device)
+        self.model.to(self.device)  # type: ignore[attr-defined]
         return True
 
     def use_fedavg_feature(self) -> None:
@@ -908,7 +938,11 @@ class Trainer_General:
         test_labels = self.test_labels.to(self.device)
         idx_test = self.idx_test.to(self.device)
         local_test_loss, local_test_acc = test(
-            self.model, feats, adj, test_labels, idx_test,
+            self.model,
+            feats,
+            adj,
+            test_labels,
+            idx_test,
         )
         self.test_losses.append(local_test_loss)
         self.test_accs.append(local_test_acc)
@@ -1649,8 +1683,10 @@ class Trainer_LP:
         buffer_size : int, optional
             The size of the buffer. The default is 10.
         """
-        print("loading buffer_train_data_list") if use_buffer else print(
-            "loading train_data and test_data"
+        (
+            print("loading buffer_train_data_list")
+            if use_buffer
+            else print("loading train_data and test_data")
         )
 
         load_res = get_data_loaders_per_time_step(

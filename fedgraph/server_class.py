@@ -15,7 +15,7 @@ import torch
 try:
     from fedgraph.openfhe_threshold import OpenFHEThresholdCKKS  # noqa: F401
 except ImportError:  # pragma: no cover
-    OpenFHEThresholdCKKS = None  # type: ignore[assignment]
+    OpenFHEThresholdCKKS = None  # type: ignore[misc,assignment]
 from dtaidistance import dtw
 
 from fedgraph.gnn_models import (
@@ -126,7 +126,7 @@ class Server:
             self.he_backend = getattr(args, "he_backend", "tenseal")
             if self.he_backend == "openfhe":
                 self.openfhe_cc = OpenFHEThresholdCKKS()
-                self.aggregation_stats = []
+                self.aggregation_stats: list[Any] = []
                 print("Initialized OpenFHE threshold context")
             else:
                 self.he_backend = "tenseal"
@@ -183,7 +183,9 @@ class Server:
                 selected_nodes.min().item() < 0
                 or selected_nodes.max().item() >= num_nodes
             ):
-                raise ValueError("node_indexes contains values outside feature sum shape")
+                raise ValueError(
+                    "node_indexes contains values outside feature sum shape"
+                )
 
         mask = torch.zeros((num_nodes, feature_dim), dtype=torch.float64)
         mask[selected_nodes] = 1.0
@@ -201,7 +203,9 @@ class Server:
         first_params, _ = encrypted_params_list[0]
         n_layers = len(first_params)
         if n_layers == 0:
-            raise ValueError("encrypted parameter payload must contain at least one layer")
+            raise ValueError(
+                "encrypted parameter payload must contain at least one layer"
+            )
 
         layer_shapes = []
         layer_scale_values = [[] for _ in range(n_layers)]
@@ -213,7 +217,9 @@ class Server:
             if len(trainer_params) != n_layers:
                 raise ValueError("all trainers must provide the same number of layers")
             if len(trainer_metadata) != n_layers:
-                raise ValueError("metadata length must match encrypted parameter layers")
+                raise ValueError(
+                    "metadata length must match encrypted parameter layers"
+                )
 
             validated_metadata = []
             for layer_idx, metadata in enumerate(trainer_metadata):
@@ -244,7 +250,10 @@ class Server:
             validated_params.append((trainer_params, validated_metadata))
 
         aggregation_metadata = [
-            {"shape": layer_shapes[layer_idx], "scale": max(layer_scale_values[layer_idx])}
+            {
+                "shape": layer_shapes[layer_idx],
+                "scale": max(layer_scale_values[layer_idx]),
+            }
             for layer_idx in range(n_layers)
         ]
 

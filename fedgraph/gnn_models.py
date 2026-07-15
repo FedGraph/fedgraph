@@ -519,7 +519,7 @@ class GIN(torch.nn.Module):
             The prediction of the model.
         """
         x, edge_index, batch = data.x, data.edge_index, data.batch
-        x = self.pre(x)
+        x = self.pre(x)  # type: ignore[misc]
         for i in range(len(self.graph_convs)):
             x = self.graph_convs[i](x, edge_index)
             x = F.relu(x)
@@ -527,7 +527,7 @@ class GIN(torch.nn.Module):
         x = global_add_pool(x, batch)
         x = self.post(x)
         x = F.dropout(x, self.dropout, training=self.training)
-        x = self.readout(x)
+        x = self.readout(x)  # type: ignore[misc]
         x = F.log_softmax(x, dim=1)
         return x
 

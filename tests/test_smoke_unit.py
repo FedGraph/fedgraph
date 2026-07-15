@@ -5,6 +5,7 @@ spinning up a Ray cluster.  Total runtime is well under five seconds on
 a laptop CPU; the end-to-end pipeline is covered in
 ``test_smoke_e2e.py``.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -12,10 +13,10 @@ import torch
 
 from fedgraph.utils_nc import get_1hop_feature_sum
 
-
 # ---------------------------------------------------------------------------
 # Adjacency normalization (backward-compat default + new opt-in modes)
 # ---------------------------------------------------------------------------
+
 
 def _toy_graph():
     # 4-node line: 0-1-2-3
@@ -39,23 +40,16 @@ def test_default_norm_type_is_none_backward_compat():
 
 def test_norm_type_sym_matches_gcn_normalization():
     features, edge_index = _toy_graph()
-    out = get_1hop_feature_sum(
-        features, edge_index, device="cpu", norm_type="sym"
-    )
+    out = get_1hop_feature_sum(features, edge_index, device="cpu", norm_type="sym")
     # Row 0 has degree 2 (self + 1 neighbour); neighbour 1 has degree 3
     # (self + 0 + 2).  Symmetric weight = 1/sqrt(deg_i * deg_j).
-    expected = (
-        features[0] / 2.0
-        + features[1] / (2 ** 0.5 * 3 ** 0.5)
-    )
+    expected = features[0] / 2.0 + features[1] / (2**0.5 * 3**0.5)
     assert torch.allclose(out[0], expected, atol=1e-6)
 
 
 def test_norm_type_row_is_stochastic():
     features, edge_index = _toy_graph()
-    out = get_1hop_feature_sum(
-        features, edge_index, device="cpu", norm_type="row"
-    )
+    out = get_1hop_feature_sum(features, edge_index, device="cpu", norm_type="row")
     # Each output row is a convex combination of its self-loop neighbourhood.
     row_sums = out.sum(dim=1)
     assert torch.allclose(row_sums, torch.ones_like(row_sums), atol=1e-6)
@@ -64,14 +58,13 @@ def test_norm_type_row_is_stochastic():
 def test_unknown_norm_type_raises():
     features, edge_index = _toy_graph()
     with pytest.raises(ValueError):
-        get_1hop_feature_sum(
-            features, edge_index, device="cpu", norm_type="bogus"
-        )
+        get_1hop_feature_sum(features, edge_index, device="cpu", norm_type="bogus")
 
 
 # ---------------------------------------------------------------------------
 # Low-rank compression (round-trip)
 # ---------------------------------------------------------------------------
+
 
 def test_svd_round_trip_is_close_for_low_rank_matrix():
     from fedgraph.low_rank.compression_utils import svd_compress, svd_decompress
@@ -101,6 +94,7 @@ def test_svd_handles_rank_larger_than_min_shape():
 # ---------------------------------------------------------------------------
 # Optional OpenFHE wrapper smoke test
 # ---------------------------------------------------------------------------
+
 
 def test_openfhe_wrapper_imports_or_skips():
     """The wrapper module must not raise at import time even when openfhe is

@@ -1,23 +1,26 @@
+minimum_pre_commit_version: "4.6.0"
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v6.0.0
     hooks:
       - id: check-merge-conflict
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
-      - id: end-of-file-fixer
-      - id: check-yaml
   - repo: https://github.com/PyCQA/isort
-    rev: 5.12.0
+    rev: 8.0.1
     hooks:
       - id: isort
         name: isort
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.7.1
+    rev: v1.20.2
     hooks:
       - id: mypy
+        additional_dependencies: [types-requests]
+        files: ^fedgraph/
+        args: [--config-file=pyproject.toml]
   - repo: https://github.com/psf/black
-    rev: 23.11.0
+    rev: 26.5.1
     hooks:
       - id: black

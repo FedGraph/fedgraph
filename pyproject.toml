@@ -5,3 +5,7 @@ build-backend = "setuptools.build_meta"
 # third party tools
 [tool.isort]
 profile = "black"
+
+[tool.mypy]
+python_version = "3.9"
+ignore_missing_imports = true

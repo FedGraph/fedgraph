@@ -1,6 +1,8 @@
 # tests/test_threshold_ckks_min.py
-import openfhe
 import math
+
+import openfhe
+
 
 def make_cc():
     params = openfhe.CCParamsCKKSRNS()
@@ -20,6 +22,7 @@ def make_cc():
     ):
         cc.Enable(feature)
     return cc
+
 
 def test_two_party_threshold_ckks_add():
     cc = make_cc()
@@ -50,12 +53,13 @@ def test_two_party_threshold_ckks_add():
     fused = cc.MultipartyDecryptFusion([p_lead, p_main])
     out = fused.GetRealPackedValue()
 
-    expect = [a+b for a,b in zip(x,y)]
+    expect = [a + b for a, b in zip(x, y)]
     print(f"Expected: {expect}")
     print(f"Result:   {out[:len(expect)]}")
 
-    assert all(abs(e-r) < 1e-3 for e,r in zip(expect, out[:len(expect)]))
+    assert all(abs(e - r) < 1e-3 for e, r in zip(expect, out[: len(expect)]))
     print("✅ Two-party threshold CKKS test passed!")
+
 
 if __name__ == "__main__":
     test_two_party_threshold_ckks_add()

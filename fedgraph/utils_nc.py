@@ -123,7 +123,7 @@ def label_dirichlet_partition(
     max_attempts = 1000  # increased // can revoke later
     while attempts < max_attempts:
         attempts += 1
-        idx_batch = [[] for _ in range(n_parties)]
+        idx_batch: list[list[int]] = [[] for _ in range(n_parties)]
 
         for k in range(K):
             idx_k = label_indices[k]
@@ -443,15 +443,17 @@ def get_1hop_feature_sum(
             if norm_type == "sym":
                 # Symmetric normalization: D^{-1/2} A D^{-1/2}
                 deg_inv_sqrt = deg.pow(-0.5)
-                deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
+                deg_inv_sqrt[deg_inv_sqrt == float("inf")] = 0
                 edge_weight = deg_inv_sqrt[src] * deg_inv_sqrt[dst]
             elif norm_type == "row":
                 # Row normalization (mean aggregation): D^{-1} A
                 deg_inv = deg.pow(-1)
-                deg_inv[deg_inv == float('inf')] = 0
+                deg_inv[deg_inv == float("inf")] = 0
                 edge_weight = deg_inv[src]
             else:
-                raise ValueError(f"Unknown norm_type: {norm_type}. Use 'sym', 'row', or 'none'.")
+                raise ValueError(
+                    f"Unknown norm_type: {norm_type}. Use 'sym', 'row', or 'none'."
+                )
 
         adjacency_matrix = torch.sparse_coo_tensor(
             edge_with_self,

@@ -18,9 +18,9 @@ from fedgraph.federated_methods import run_fedgraph
 # Datasets to benchmark
 datasets = [
     "cora",
-    #"citeseer",
-    #"pubmed",
-    #"ogbn-arxiv",
+    # "citeseer",
+    # "pubmed",
+    # "ogbn-arxiv",
 ]  # You can add more: ["cora", "citeseer", "ogbn-arxiv", "ogbn-products"]
 # datasets = ["ogbn-papers100M"]
 # Number of trainers to test
