@@ -13,12 +13,13 @@ The protocol follows the official OpenFHE multiparty CKKS example:
 - Fusion combines both partial decryptions
 """
 
-import openfhe
-import numpy as np
-from typing import List, Tuple, Optional, Union
 import logging
-import tempfile
 import os
+import tempfile
+from typing import List, Optional, Tuple, Union
+
+import numpy as np
+import openfhe
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,9 @@ class OpenFHEThresholdCKKS:
         self.cc.Enable(openfhe.ADVANCEDSHE)
         self.cc.Enable(openfhe.MULTIPARTY)
 
-        logger.info(f"OpenFHE context initialized (ring_dim={self.cc.GetRingDimension()})")
+        logger.info(
+            f"OpenFHE context initialized (ring_dim={self.cc.GetRingDimension()})"
+        )
 
     def generate_lead_keys(self):
         """Lead party (server): generate initial key pair."""
@@ -166,7 +169,9 @@ class OpenFHEThresholdCKKS:
         tmpdir = tempfile.mkdtemp()
         pk_path = os.path.join(tmpdir, "pk.bin")
         try:
-            self.cc.SerializeToFile(pk_path, openfhe.BINARY)  # context must be serialized first
+            self.cc.SerializeToFile(
+                pk_path, openfhe.BINARY
+            )  # context must be serialized first
             if not openfhe.SerializeToFile(pk_path, self.public_key, openfhe.BINARY):
                 raise RuntimeError("Failed to serialize public key")
             with open(pk_path, "rb") as f:
@@ -217,7 +222,9 @@ class OpenFHEThresholdCKKS:
         }
 
 
-def create_threshold_context(security_level: int = 128, ring_dim: int = 16384) -> OpenFHEThresholdCKKS:
+def create_threshold_context(
+    security_level: int = 128, ring_dim: int = 16384
+) -> OpenFHEThresholdCKKS:
     """Create a new threshold HE context."""
     return OpenFHEThresholdCKKS(security_level, ring_dim)
 
@@ -251,7 +258,11 @@ def test_threshold_he():
         # 3) Server also sets the joint public key (kp2.publicKey)
         server.set_public_key(kp2.publicKey)
 
-        print("Joint PK set on both?", server.public_key is not None, trainer.public_key is not None)
+        print(
+            "Joint PK set on both?",
+            server.public_key is not None,
+            trainer.public_key is not None,
+        )
         print("Lead/Main flags:", server.is_lead_party, trainer.is_lead_party)
 
         # Encrypt test vectors

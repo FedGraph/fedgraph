@@ -7,6 +7,7 @@ Provides:
 * Skip markers for tests that require optional encryption backends
   (``needs_openfhe``, ``needs_tenseal``).
 """
+
 from __future__ import annotations
 
 import os
@@ -19,14 +20,15 @@ import pytest
 import torch
 from torch_geometric.data import Data
 
-
 # ---------------------------------------------------------------------------
 # Optional encryption backends -- skip markers
 # ---------------------------------------------------------------------------
 
+
 def _openfhe_available() -> bool:
     try:
         import openfhe  # noqa: F401
+
         return True
     except Exception:  # pragma: no cover - exercised only on systems without openfhe
         return False
@@ -35,6 +37,7 @@ def _openfhe_available() -> bool:
 def _tenseal_available() -> bool:
     try:
         import tenseal  # noqa: F401
+
         return True
     except Exception:  # pragma: no cover
         return False
@@ -55,6 +58,7 @@ needs_tenseal = pytest.mark.skipif(
 # Common fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def temp_dir():
     """Create a temporary directory for test files."""
@@ -74,7 +78,9 @@ def sample_graph_data():
     x = torch.randn(num_nodes, num_features)
 
     # Create edges (simple chain graph)
-    edge_index = torch.tensor([[i, i + 1] for i in range(num_nodes - 1)]).t().contiguous()
+    edge_index = (
+        torch.tensor([[i, i + 1] for i in range(num_nodes - 1)]).t().contiguous()
+    )
 
     # Create labels
     y = torch.randint(0, num_classes, (num_nodes,))
@@ -112,11 +118,9 @@ def mock_args():
 @pytest.fixture
 def mock_ray_cluster():
     """Mock Ray cluster for testing."""
-    with patch("ray.init") as mock_init, \
-         patch("ray.get") as mock_get, \
-         patch("ray.put") as mock_put, \
-         patch("ray.remote") as mock_remote:
-
+    with patch("ray.init") as mock_init, patch("ray.get") as mock_get, patch(
+        "ray.put"
+    ) as mock_put, patch("ray.remote") as mock_remote:
         mock_init.return_value = None
         mock_get.side_effect = lambda x: x
         mock_put.side_effect = lambda x: x

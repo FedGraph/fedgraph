@@ -33,7 +33,7 @@ class Server_LowRank(Server):
         self.energy_threshold = getattr(args, "energy_threshold", 0.95)
         self.fixed_rank = getattr(args, "fixed_rank", 10)
 
-        self.compression_stats = []
+        self.compression_stats: list[Dict[str, Any]] = []
 
         print(f"Server initialized with low-rank compression: {self.use_lowrank}")
         if self.use_lowrank:

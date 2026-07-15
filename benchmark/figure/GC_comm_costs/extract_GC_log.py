@@ -141,18 +141,18 @@ def extract_metrics(exp_text, algorithm, dataset, trainers):
         "Trainers": trainers,
         "Accuracy": accuracy,
         "Train_Time_ms": train_time,
-        "Theoretical_Pretrain_MB": float(theoretical_pretrain[-1])
-        if theoretical_pretrain
-        else 0,
-        "Theoretical_Train_MB": float(theoretical_train[-1])
-        if theoretical_train
-        else 0,
-        "Actual_Pretrain_MB": float(actual_pretrain_match.group(1))
-        if actual_pretrain_match
-        else None,
-        "Actual_Train_MB": float(actual_train_match.group(1))
-        if actual_train_match
-        else None,
+        "Theoretical_Pretrain_MB": (
+            float(theoretical_pretrain[-1]) if theoretical_pretrain else 0
+        ),
+        "Theoretical_Train_MB": (
+            float(theoretical_train[-1]) if theoretical_train else 0
+        ),
+        "Actual_Pretrain_MB": (
+            float(actual_pretrain_match.group(1)) if actual_pretrain_match else None
+        ),
+        "Actual_Train_MB": (
+            float(actual_train_match.group(1)) if actual_train_match else None
+        ),
     }
 
     # Calculate totals
@@ -185,15 +185,19 @@ def generate_accuracy_comparison(df, output_file="gc_accuracy_comparison.pdf"):
     plt.figure(figsize=(14, 8))
     datasets = sorted(
         comparison_data["Dataset"].unique(),
-        key=lambda x: ["IMDB-BINARY", "IMDB-MULTI", "MUTAG", "BZR", "COX2"].index(x)
-        if x in ["IMDB-BINARY", "IMDB-MULTI", "MUTAG", "BZR", "COX2"]
-        else 999,
+        key=lambda x: (
+            ["IMDB-BINARY", "IMDB-MULTI", "MUTAG", "BZR", "COX2"].index(x)
+            if x in ["IMDB-BINARY", "IMDB-MULTI", "MUTAG", "BZR", "COX2"]
+            else 999
+        ),
     )
     algorithms = sorted(
         comparison_data["Algorithm"].unique(),
-        key=lambda x: ["FedAvg", "GCFL", "GCFL+", "GCFL+dWs"].index(x)
-        if x in ["FedAvg", "GCFL", "GCFL+", "GCFL+dWs"]
-        else 999,
+        key=lambda x: (
+            ["FedAvg", "GCFL", "GCFL+", "GCFL+dWs"].index(x)
+            if x in ["FedAvg", "GCFL", "GCFL+", "GCFL+dWs"]
+            else 999
+        ),
     )
     x_positions = np.arange(len(datasets))
     width = 0.8 / len(algorithms)
@@ -249,15 +253,19 @@ def generate_train_time_comparison(df, output_file="gc_train_time_comparison.pdf
     plt.figure(figsize=(14, 8))
     datasets = sorted(
         comparison_data["Dataset"].unique(),
-        key=lambda x: ["IMDB-BINARY", "IMDB-MULTI", "MUTAG", "BZR", "COX2"].index(x)
-        if x in ["IMDB-BINARY", "IMDB-MULTI", "MUTAG", "BZR", "COX2"]
-        else 999,
+        key=lambda x: (
+            ["IMDB-BINARY", "IMDB-MULTI", "MUTAG", "BZR", "COX2"].index(x)
+            if x in ["IMDB-BINARY", "IMDB-MULTI", "MUTAG", "BZR", "COX2"]
+            else 999
+        ),
     )
     algorithms = sorted(
         comparison_data["Algorithm"].unique(),
-        key=lambda x: ["FedAvg", "GCFL", "GCFL+", "GCFL+dWs"].index(x)
-        if x in ["FedAvg", "GCFL", "GCFL+", "GCFL+dWs"]
-        else 999,
+        key=lambda x: (
+            ["FedAvg", "GCFL", "GCFL+", "GCFL+dWs"].index(x)
+            if x in ["FedAvg", "GCFL", "GCFL+", "GCFL+dWs"]
+            else 999
+        ),
     )
     x_positions = np.arange(len(datasets))
     width = 0.8 / len(algorithms)
@@ -330,16 +338,20 @@ def generate_comm_cost_comparison(df, output_file="gc_comm_cost_comparison.pdf")
     # Datasets and algorithms
     datasets = sorted(
         comparison_data["Dataset"].unique(),
-        key=lambda x: ["IMDB-BINARY", "IMDB-MULTI", "MUTAG", "BZR", "COX2"].index(x)
-        if x in ["IMDB-BINARY", "IMDB-MULTI", "MUTAG", "BZR", "COX2"]
-        else 999,
+        key=lambda x: (
+            ["IMDB-BINARY", "IMDB-MULTI", "MUTAG", "BZR", "COX2"].index(x)
+            if x in ["IMDB-BINARY", "IMDB-MULTI", "MUTAG", "BZR", "COX2"]
+            else 999
+        ),
     )
 
     algorithms = sorted(
         comparison_data["Algorithm"].unique(),
-        key=lambda x: ["FedAvg", "GCFL", "GCFL+", "GCFL+dWs"].index(x)
-        if x in ["FedAvg", "GCFL", "GCFL+", "GCFL+dWs"]
-        else 999,
+        key=lambda x: (
+            ["FedAvg", "GCFL", "GCFL+", "GCFL+dWs"].index(x)
+            if x in ["FedAvg", "GCFL", "GCFL+", "GCFL+dWs"]
+            else 999
+        ),
     )
 
     # X-axis setup

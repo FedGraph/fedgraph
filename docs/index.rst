@@ -79,3 +79,4 @@ Whether you are a federated learning researcher or a first-time user of federate
 
    cite
    reference
+   pre_commit

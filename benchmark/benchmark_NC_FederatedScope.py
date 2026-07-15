@@ -67,7 +67,7 @@ def make_data_loader(name):
         ds = Planetoid(root="data/", name=PLANETOID_NAMES[name])
         full = ds[0]
         num_classes = int(full.y.max().item()) + 1
-        
+
         # 与data_process.py完全一致：在全部节点上做Dirichlet分割
         split_idxs = label_dirichlet_partition(
             full.y,  # 使用全部节点，不只是训练节点
@@ -77,16 +77,16 @@ def make_data_loader(name):
             config.iid_beta,
             config.distribution_type,
         )
-        
+
         parts = []
         for idxs in split_idxs:
             client_nodes = torch.tensor(idxs)
-            
+
             # 为每个客户端创建mask，但保持原有的train/val/test划分逻辑
             train_mask = torch.zeros(full.num_nodes, dtype=torch.bool)
             val_mask = torch.zeros(full.num_nodes, dtype=torch.bool)
             test_mask = torch.zeros(full.num_nodes, dtype=torch.bool)
-            
+
             # 在客户端节点中，保持原有数据集的train/val/test划分
             for node in client_nodes:
                 if full.train_mask[node]:
@@ -95,20 +95,21 @@ def make_data_loader(name):
                     val_mask[node] = True
                 elif full.test_mask[node]:
                     test_mask[node] = True
-            
+
             parts.append(
                 Data(
                     x=full.x,
                     edge_index=full.edge_index,
                     y=full.y,
                     train_mask=train_mask,  # 保持原有train划分
-                    val_mask=val_mask,      # 保持原有val划分
-                    test_mask=test_mask,    # 保持原有test划分
+                    val_mask=val_mask,  # 保持原有val划分
+                    test_mask=test_mask,  # 保持原有test划分
                 )
             )
-        
+
         data_dict = {
-            i + 1: {
+            i
+            + 1: {
                 "data": parts[i],
                 "train": [parts[i]],
                 "val": [parts[i]],
@@ -139,7 +140,6 @@ builder, mkey = make_model_builder("cora", 7)
 register_model(mkey, builder)
 
 
-
 def run_fedscope_experiment(ds, beta):
     cfg = global_cfg.clone()
     cfg.defrost()
@@ -150,7 +150,7 @@ def run_fedscope_experiment(ds, beta):
     cfg.federate.client_num = CLIENT_NUM
     cfg.federate.total_round_num = TOTAL_ROUNDS
     cfg.federate.make_global_eval = False
-    cfg.federate.process_num = CLIENT_NUM  
+    cfg.federate.process_num = CLIENT_NUM
     cfg.federate.num_cpus_per_trainer = CPUS_PER_TRAINER
     cfg.data.root = "data/"
     cfg.data.type = ds
@@ -180,13 +180,17 @@ def run_fedscope_experiment(ds, beta):
     res = runner.run()
     dur = time.time() - t0
     mem = peak_memory_mb()
-    
+
     # 获取FederatedScope结果
-    
+
     # 从FederatedScope的结果中获取准确率
     # 使用加权平均以与FedGraph保持一致
-    acc = res.get("client_summarized_weighted_avg", {}).get("test_acc", 0.0) if res else 0.0
-    
+    acc = (
+        res.get("client_summarized_weighted_avg", {}).get("test_acc", 0.0)
+        if res
+        else 0.0
+    )
+
     acc_pct = acc * 100 if acc <= 1.0 else acc
     model = runner.server.model if runner.server else None
     if model is not None:
@@ -208,8 +212,6 @@ def run_fedscope_experiment(ds, beta):
         "nodes": full.num_nodes,
         "edges": full.edge_index.size(1),
     }
-
-
 
 
 def main():

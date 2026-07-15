@@ -54,7 +54,7 @@ setup(
         "ogb",
     ],
     extras_require={
-        "dev": ["build", "mypy", "pre-commit", "pytest"],
+        "dev": ["build", "mypy>=1.20,<2", "pre-commit>=4.6,<5", "pytest"],
         # Optional threshold-HE backend used by FedGCN-v2. Install with
         #     pip install "fedgraph[openfhe]"
         # OpenFHE Python wheels are only published for Linux/manylinux at the

@@ -20,11 +20,11 @@ class Trainer_General_LowRank(Trainer_General):
         Get model parameters with optional compression.
         """
         if not self.use_lowrank:
-            return {"params": dict(self.model.named_parameters()), "compressed": False}
+            return {"params": dict(self.model.named_parameters()), "compressed": False}  # type: ignore[attr-defined]
 
         params = {
             name: param.data.cpu().detach()
-            for name, param in self.model.named_parameters()
+            for name, param in self.model.named_parameters()  # type: ignore[attr-defined]
         }
 
         compressed_params = {}
@@ -55,18 +55,18 @@ class Trainer_General_LowRank(Trainer_General):
         if not compressed_data.get("compressed", False):
             # Standard parameter update
             params = compressed_data["params"]
-            self.model.to("cpu")
-            for name, param in self.model.named_parameters():
+            self.model.to("cpu")  # type: ignore[attr-defined]
+            for name, param in self.model.named_parameters():  # type: ignore[attr-defined]
                 if name in params:
                     param.data.copy_(params[name])
-            self.model.to(self.device)
+            self.model.to(self.device)  # type: ignore[attr-defined]
             return
 
         # Decompress and update
-        self.model.to("cpu")
+        self.model.to("cpu")  # type: ignore[attr-defined]
         compressed_params = compressed_data["params"]
 
-        for name, param in self.model.named_parameters():
+        for name, param in self.model.named_parameters():  # type: ignore[attr-defined]
             if name in compressed_params:
                 param_data = compressed_params[name]
                 if isinstance(param_data, dict) and "U" in param_data:
@@ -79,4 +79,4 @@ class Trainer_General_LowRank(Trainer_General):
                     # Direct copy
                     param.data.copy_(param_data)
 
-        self.model.to(self.device)
+        self.model.to(self.device)  # type: ignore[attr-defined]

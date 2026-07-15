@@ -81,9 +81,9 @@ def process_log(log_content):
 
         train_network_match = re.search(r"Log ([^,]+) network: (\d+\.\d+)", line)
         if train_network_match and train_mode:
-            current_experiment[
-                f"Train Network {(train_network_match.group(1))}"
-            ] = float(train_network_match.group(2))
+            current_experiment[f"Train Network {(train_network_match.group(1))}"] = (
+                float(train_network_match.group(2))
+            )
         average_accuracy_match = re.search(r"Average test accuracy: (\d+\.\d+)", line)
         if average_accuracy_match:
             current_experiment["Average Test Accuracy"] = float(

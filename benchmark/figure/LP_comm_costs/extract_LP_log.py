@@ -122,18 +122,22 @@ def extract_lp_data(logfile):
             "Dataset": countries,
             "AUC": auc,
             "TrainTime": train_time_ms,
-            "Theoretical_Pretrain_MB": float(theoretical_pretrain_match.group(1))
-            if theoretical_pretrain_match
-            else 0,
-            "Theoretical_Train_MB": float(theoretical_train_match.group(1))
-            if theoretical_train_match
-            else 0,
-            "Actual_Pretrain_MB": float(actual_pretrain_match.group(1))
-            if actual_pretrain_match
-            else 0,
-            "Actual_Train_MB": float(actual_train_match.group(1))
-            if actual_train_match
-            else 0,
+            "Theoretical_Pretrain_MB": (
+                float(theoretical_pretrain_match.group(1))
+                if theoretical_pretrain_match
+                else 0
+            ),
+            "Theoretical_Train_MB": (
+                float(theoretical_train_match.group(1))
+                if theoretical_train_match
+                else 0
+            ),
+            "Actual_Pretrain_MB": (
+                float(actual_pretrain_match.group(1)) if actual_pretrain_match else 0
+            ),
+            "Actual_Train_MB": (
+                float(actual_train_match.group(1)) if actual_train_match else 0
+            ),
             "Hit_Rate": hit_rate,
         }
 

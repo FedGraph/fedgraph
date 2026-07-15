@@ -19,6 +19,7 @@ Each test only asserts that the pipeline runs and produces a reasonable
 test accuracy.  We do not regression-test exact numbers because the
 gcn_v2 work intentionally changes the default normalization.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -31,10 +32,10 @@ import ray
 
 from tests.conftest import needs_openfhe, needs_tenseal
 
-
 # ---------------------------------------------------------------------------
 # Shared minimal config
 # ---------------------------------------------------------------------------
+
 
 def _base_cora_config(**overrides):
     cfg = {
@@ -67,7 +68,7 @@ def _base_cora_config(**overrides):
         # try to grab 20 GB of /dev/shm.
         "ray_init_kwargs": {
             "num_cpus": 2,
-            "object_store_memory": 128 * 1024 ** 2,  # 128 MiB
+            "object_store_memory": 128 * 1024**2,  # 128 MiB
             "include_dashboard": False,
             "configure_logging": False,
         },
@@ -91,9 +92,10 @@ def _run(cfg) -> float:
     captured stdout.  We tolerate a wide range -- the goal is to verify the
     pipeline doesn't crash and produces a non-trivial number, not to
     benchmark."""
-    from fedgraph.federated_methods import run_fedgraph
     import io
     from contextlib import redirect_stdout
+
+    from fedgraph.federated_methods import run_fedgraph
 
     buf = io.StringIO()
     with redirect_stdout(buf):
@@ -114,6 +116,7 @@ def _run(cfg) -> float:
 # Plaintext path -- original aggregation
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.timeout(120)
 def test_smoke_plaintext_default_norm_none():
     with _ray_shutdown_after():
@@ -126,6 +129,7 @@ def test_smoke_plaintext_default_norm_none():
 # Plaintext path -- new (FedGCN-v2) symmetric normalization opt-in
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.timeout(120)
 def test_smoke_plaintext_norm_sym_opt_in():
     with _ray_shutdown_after():
@@ -136,6 +140,7 @@ def test_smoke_plaintext_norm_sym_opt_in():
 # ---------------------------------------------------------------------------
 # TenSEAL backend
 # ---------------------------------------------------------------------------
+
 
 @needs_tenseal
 @pytest.mark.timeout(180)
@@ -149,6 +154,7 @@ def test_smoke_tenseal_encrypted():
 # ---------------------------------------------------------------------------
 # OpenFHE threshold backend
 # ---------------------------------------------------------------------------
+
 
 @needs_openfhe
 @pytest.mark.timeout(300)
@@ -165,6 +171,7 @@ def test_smoke_openfhe_threshold_encrypted():
 # ---------------------------------------------------------------------------
 # OpenFHE threshold + low-rank
 # ---------------------------------------------------------------------------
+
 
 @needs_openfhe
 @pytest.mark.timeout(300)

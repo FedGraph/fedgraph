@@ -353,7 +353,9 @@ def NC_load_data(dataset_str: str) -> tuple:
         # large for HE simulation (2.4M nodes).
         sub_n = int(os.environ.get("FEDGRAPH_SUBSAMPLE_NODES", "0"))
         if sub_n > 0 and features.shape[0] > sub_n:
-            print(f"[subsample] Reducing {dataset_str} from {features.shape[0]} to {sub_n} nodes")
+            print(
+                f"[subsample] Reducing {dataset_str} from {features.shape[0]} to {sub_n} nodes"
+            )
             keep = torch.arange(sub_n)
             keep_set = set(keep.tolist())
             features = features[keep]
@@ -362,7 +364,8 @@ def NC_load_data(dataset_str: str) -> tuple:
             row, col, val = adj.coo()
             edge_mask = (row < sub_n) & (col < sub_n)
             adj = torch_sparse.SparseTensor(
-                row=row[edge_mask], col=col[edge_mask],
+                row=row[edge_mask],
+                col=col[edge_mask],
                 value=val[edge_mask] if val is not None else None,
                 sparse_sizes=(sub_n, sub_n),
             )
@@ -370,8 +373,10 @@ def NC_load_data(dataset_str: str) -> tuple:
             idx_train = idx_train[idx_train < sub_n]
             idx_val = idx_val[idx_val < sub_n]
             idx_test = idx_test[idx_test < sub_n]
-            print(f"[subsample] kept {features.shape[0]} nodes, {edge_mask.sum().item()} edges, "
-                  f"{len(idx_train)} train, {len(idx_test)} test")
+            print(
+                f"[subsample] kept {features.shape[0]} nodes, {edge_mask.sum().item()} edges, "
+                f"{len(idx_train)} train, {len(idx_test)} test"
+            )
 
     elif dataset_str == "reddit":
         from dgl.data import RedditDataset

@@ -240,14 +240,14 @@ def get_data_by_time_step(
     ]  # only keeps the edges within the time range
 
     if constant_edges != -1:  # only keep the last `constant_edges` edges
-        data_current_time_step[
-            "user", "select", "item"
-        ].edge_index = data_current_time_step["user", "select", "item"].edge_index[
-            :, -constant_edges:
-        ]
-    data_current_time_step[
-        "user", "select", "item"
-    ].edge_attr = None  # no need to store the edge attributes
+        data_current_time_step["user", "select", "item"].edge_index = (
+            data_current_time_step["user", "select", "item"].edge_index[
+                :, -constant_edges:
+            ]
+        )
+    data_current_time_step["user", "select", "item"].edge_attr = (
+        None  # no need to store the edge attributes
+    )
 
     data_current_time_step = torch_geometric.transforms.ToUndirected()(
         data_current_time_step
