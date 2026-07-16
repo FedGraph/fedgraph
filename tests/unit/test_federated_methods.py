@@ -6,8 +6,10 @@ import pytest
 import torch
 
 from fedgraph.federated_methods import (
+    _aggregate_indexed_feature_sums,
     _resolve_nc_class_num,
     _resolve_nc_global_node_num,
+    _resolve_pretrain_feature_upload_mode,
     _unpack_nc_data,
     _weighted_nc_metric,
     run_fedgraph,
@@ -136,6 +138,42 @@ class TestNCMetricHelpers:
 
         assert _weighted_nc_metric(results, [0, 0], 1) == 0.0
         assert _weighted_nc_metric(results, [1, 3], 1) == pytest.approx(0.6875)
+
+
+class TestIndexedFeatureAggregation:
+    def test_defaults_to_dense_upload_mode(self):
+        assert _resolve_pretrain_feature_upload_mode(attridict.AttriDict()) == "dense"
+
+    def test_rejects_unknown_upload_mode(self):
+        args = attridict.AttriDict(pretrain_feature_upload_mode="sparse")
+
+        with pytest.raises(ValueError, match="dense.*indexed"):
+            _resolve_pretrain_feature_upload_mode(args)
+
+    def test_aggregates_only_requested_rows_in_trainer_order(self):
+        indexed_feature_sums = [
+            (
+                torch.tensor([5, 2, 9]),
+                torch.tensor([[0.0, 0.0], [1.0, 2.0], [9.0, 9.0]]),
+            ),
+            (
+                torch.tensor([2, 7]),
+                torch.tensor([[3.0, 4.0], [5.0, 6.0]]),
+            ),
+        ]
+        requested_rows = [torch.tensor([5, 2]), torch.tensor([2, 7])]
+
+        trainer_rows = _aggregate_indexed_feature_sums(
+            indexed_feature_sums, requested_rows
+        )
+
+        dense_global_sum = torch.zeros((10, 2))
+        for row_ids, row_values in indexed_feature_sums:
+            dense_global_sum.index_add_(0, row_ids, row_values)
+
+        assert torch.equal(trainer_rows[0], dense_global_sum[requested_rows[0]])
+        assert torch.equal(trainer_rows[1], dense_global_sum[requested_rows[1]])
+        assert torch.equal(trainer_rows[0][0], torch.zeros(2))
 
 
 class TestRunFedgraph:

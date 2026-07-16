@@ -425,6 +425,44 @@ class Trainer_General:
 
         return one_hop_neighbor_feature_sum
 
+    def get_indexed_local_feature_sum(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return structurally active global rows of the local feature sum.
+
+        The values remain dense across the feature dimension. This avoids
+        transmitting rows that cannot receive a contribution from this
+        trainer's locally owned nodes, while preserving rows whose aggregate
+        happens to be numerically zero.
+
+        Notes
+        -----
+        This first compact-upload implementation still uses
+        get_local_feature_sum for the local computation. It reduces Ray upload
+        and server aggregation memory, not the trainer's temporary dense
+        feature-sum allocation.
+        """
+        feature_sum = self.get_local_feature_sum()
+        if self.adj.ndim != 2 or self.adj.size(0) != 2:
+            raise ValueError(
+                "adj must be an edge-index tensor with shape [2, num_edges]"
+            )
+
+        # get_1hop_feature_sum computes A @ X, so a locally owned feature at
+        # column/target node contributes to the corresponding source/output row.
+        source_nodes = self.adj[0].long()
+        target_nodes = self.adj[1].long()
+        local_node_mask = torch.zeros(
+            self.global_node_num, dtype=torch.bool, device=self.device
+        )
+        local_node_mask[self.local_node_index] = True
+        contributing_rows = source_nodes[local_node_mask[target_nodes]]
+
+        # get_1hop_feature_sum adds self-loops. Include local rows explicitly
+        # so zero-valued local features are retained as structural contributions.
+        row_ids = torch.unique(
+            torch.cat([contributing_rows, self.local_node_index]), sorted=True
+        )
+        return row_ids, feature_sum[row_ids]
+
     def get_local_feature_sum_og(self) -> torch.Tensor:
         """
         Computes the sum of features of all 1-hop neighbors for each node, used for plain text version.

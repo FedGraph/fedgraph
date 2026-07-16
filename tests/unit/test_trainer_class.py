@@ -351,6 +351,40 @@ class TestTrainerGeneral:
         with pytest.raises(RuntimeError, match="metadata must be initialized"):
             trainer.get_local_feature_sum()
 
+    def test_get_indexed_local_feature_sum_keeps_structural_zero_rows(self):
+        self.args.use_encryption = False
+        self.args.norm_type = "none"
+        local_node_index = torch.tensor([1])
+        edge_index = torch.tensor([[0, 2], [1, 1]])
+        local_features = torch.tensor([[0.0, 0.0]])
+        trainer = Trainer_General(
+            rank=self.rank,
+            args_hidden=self.args_hidden,
+            device=self.device,
+            args=self.args,
+            local_node_index=local_node_index,
+            communicate_node_index=torch.tensor([0, 1, 2]),
+            adj=edge_index,
+            train_labels=torch.tensor([0]),
+            test_labels=torch.tensor([0]),
+            features=local_features,
+            idx_train=torch.tensor([0]),
+            idx_test=torch.tensor([0]),
+            global_node_num=4,
+            class_num=1,
+        )
+        full_feature_sum = torch.tensor(
+            [[4.0, 5.0], [0.0, 0.0], [6.0, 7.0], [0.0, 0.0]]
+        )
+
+        with patch.object(
+            trainer, "get_local_feature_sum", return_value=full_feature_sum
+        ):
+            row_ids, row_values = trainer.get_indexed_local_feature_sum()
+
+        assert torch.equal(row_ids, torch.tensor([0, 1, 2]))
+        assert torch.equal(row_values, full_feature_sum[row_ids])
+
     def test_load_feature_aggregation(self):
         """Test load_feature_aggregation method."""
         trainer = Trainer_General(

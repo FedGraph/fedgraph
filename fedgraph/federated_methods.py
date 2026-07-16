@@ -204,6 +204,74 @@ def _weighted_nc_metric(results: np.ndarray, weights: list, metric_index: int) -
     return float(np.average([row[metric_index] for row in results], weights=weights))
 
 
+def _resolve_pretrain_feature_upload_mode(args: Any) -> str:
+    """Return the configured plaintext FedGCN pretraining upload mode."""
+    mode = getattr(args, "pretrain_feature_upload_mode", "dense")
+    if mode not in {"dense", "indexed"}:
+        raise ValueError(
+            "pretrain_feature_upload_mode must be either 'dense' or 'indexed'"
+        )
+    return mode
+
+
+def _aggregate_indexed_feature_sums(
+    indexed_feature_sums: list[tuple[torch.Tensor, torch.Tensor]],
+    requested_node_indexes: list[torch.Tensor],
+) -> list[torch.Tensor]:
+    """Aggregate indexed dense feature rows and return each trainer's rows.
+
+    Each item contains global row IDs and a dense block of feature values. The
+    server only materializes the union of rows requested by trainers, rather
+    than a full global_node_num by feature_dim tensor.
+    """
+    if not indexed_feature_sums:
+        raise ValueError("indexed_feature_sums must not be empty")
+
+    requested_rows = [
+        node_indexes.detach().cpu().long().flatten()
+        for node_indexes in requested_node_indexes
+    ]
+    first_values = indexed_feature_sums[0][1].detach().cpu()
+    if first_values.ndim != 2:
+        raise ValueError("indexed feature values must be two-dimensional")
+    feature_dim = first_values.size(1)
+    value_dtype = first_values.dtype
+
+    for row_ids, row_values in indexed_feature_sums:
+        row_ids = row_ids.detach().cpu().long().flatten()
+        row_values = row_values.detach().cpu()
+        if row_values.ndim != 2 or row_values.size(0) != row_ids.numel():
+            raise ValueError(
+                "each indexed feature sum must have one dense row per row ID"
+            )
+        if row_values.size(1) != feature_dim or row_values.dtype != value_dtype:
+            raise ValueError("indexed feature sums must share dtype and feature width")
+
+    all_requested_rows = torch.unique(torch.cat(requested_rows), sorted=True)
+    if all_requested_rows.numel() == 0:
+        return [
+            torch.empty((0, feature_dim), dtype=value_dtype) for _ in requested_rows
+        ]
+
+    aggregated_rows = torch.zeros(
+        (all_requested_rows.numel(), feature_dim), dtype=value_dtype
+    )
+    for row_ids, row_values in indexed_feature_sums:
+        row_ids = row_ids.detach().cpu().long().flatten()
+        row_values = row_values.detach().cpu()
+        positions = torch.searchsorted(all_requested_rows, row_ids)
+        valid = positions < all_requested_rows.numel()
+        matches = torch.zeros_like(valid)
+        matches[valid] = all_requested_rows[positions[valid]] == row_ids[valid]
+        if matches.any():
+            aggregated_rows.index_add_(0, positions[matches], row_values[matches])
+
+    return [
+        aggregated_rows[torch.searchsorted(all_requested_rows, node_indexes)]
+        for node_indexes in requested_rows
+    ]
+
+
 def run_fedgraph(args: attridict) -> None:
     """
     Run the training process for the specified task.
@@ -887,51 +955,58 @@ def run_NC(args: attridict, data: Any = None) -> None:
         else:
             pretrain_upload = 0
             pretrain_download = 0
-            local_neighbor_feature_sums = [
-                trainer.get_local_feature_sum.remote() for trainer in server.trainers
-            ]
-            # Record uploaded data sizes. Run server-side aggregation on CPU
-            # since Ray actors may return tensors from different devices.
+            upload_mode = _resolve_pretrain_feature_upload_mode(args)
             upload_sizes = []
-            global_feature_sum = torch.zeros_like(features).cpu()
-            while True:
-                ready, left = ray.wait(
-                    local_neighbor_feature_sums, num_returns=1, timeout=None
+
+            if upload_mode == "dense":
+                local_neighbor_feature_sums = [
+                    trainer.get_local_feature_sum.remote()
+                    for trainer in server.trainers
+                ]
+                # Run server-side aggregation on CPU since Ray actors may
+                # return tensors from different devices.
+                global_feature_sum = torch.zeros_like(features).cpu()
+                while local_neighbor_feature_sums:
+                    ready, local_neighbor_feature_sums = ray.wait(
+                        local_neighbor_feature_sums, num_returns=1, timeout=None
+                    )
+                    local_sum = ray.get(ready[0]).cpu()
+                    global_feature_sum += local_sum
+                    upload_sizes.append(local_sum.element_size() * local_sum.nelement())
+                trainer_aggregations = [
+                    global_feature_sum[
+                        communicate_node_global_indexes[i].clone().detach().cpu()
+                    ]
+                    for i in range(args.n_trainer)
+                ]
+            else:
+                indexed_feature_sums = [
+                    trainer.get_indexed_local_feature_sum.remote()
+                    for trainer in server.trainers
+                ]
+                indexed_results = []
+                while indexed_feature_sums:
+                    ready, indexed_feature_sums = ray.wait(
+                        indexed_feature_sums, num_returns=1, timeout=None
+                    )
+                    row_ids, row_values = ray.get(ready[0])
+                    upload_sizes.append(
+                        row_ids.element_size() * row_ids.nelement()
+                        + row_values.element_size() * row_values.nelement()
+                    )
+                    indexed_results.append((row_ids, row_values))
+                trainer_aggregations = _aggregate_indexed_feature_sums(
+                    indexed_results, communicate_node_global_indexes
                 )
-                if ready:
-                    for t in ready:
-                        local_sum = ray.get(t).cpu()
-                        global_feature_sum += local_sum
-                        # Calculate size of uploaded data
-                        upload_sizes.append(
-                            local_sum.element_size() * local_sum.nelement()
-                        )
-                local_neighbor_feature_sums = left
-                if not local_neighbor_feature_sums:
-                    break
-            # Calculate total upload size
+
             pretrain_upload = sum(upload_sizes) / (1024 * 1024)  # MB
-            print("server aggregates all local neighbor feature sums")
-            # TODO: Verify that the aggregated global feature sum matches the true 1-hop feature sum for correctness checking.
-            # test if aggregation is correct
-            # if not args.use_huggingface and args.num_hops != 0:
-            # assert (
-            #     global_feature_sum
-            #     != get_1hop_feature_sum(features, edge_index, device)
-            # ).sum() == 0
-            # Calculate and record download sizes (done on CPU to match global_feature_sum)
+            print(f"server aggregates local neighbor feature sums ({upload_mode})")
             download_sizes = []
-            for i in range(args.n_trainer):
-                communicate_nodes = (
-                    communicate_node_global_indexes[i].clone().detach().cpu()
-                )
-                trainer_aggregation = global_feature_sum[communicate_nodes]
-                # Calculate download size for each trainer
+            for i, trainer_aggregation in enumerate(trainer_aggregations):
                 download_sizes.append(
                     trainer_aggregation.element_size() * trainer_aggregation.nelement()
                 )
                 server.trainers[i].load_feature_aggregation.remote(trainer_aggregation)
-            # Calculate total download size
             pretrain_download = sum(download_sizes) / (1024 * 1024)  # MB
             print("clients received feature aggregation from server")
         [trainer.relabel_adj.remote() for trainer in server.trainers]
