@@ -131,9 +131,11 @@ class TestSaveTrainerDataToHuggingFace:
             communicate_node_global_index=torch.tensor([0, 1, 2]),
             global_edge_index_client=torch.tensor([[0, 1], [1, 2]]),
             train_labels=torch.tensor([0]),
+            val_labels=torch.tensor([2]),
             test_labels=torch.tensor([1]),
             features=torch.randn(2, 4),
             in_com_train_node_local_indexes=torch.tensor([0]),
+            in_com_val_node_local_indexes=torch.tensor([2]),
             in_com_test_node_local_indexes=torch.tensor([1]),
             global_node_num=3,
             class_num=2,
@@ -145,6 +147,8 @@ class TestSaveTrainerDataToHuggingFace:
         }
         assert "global_node_num.pt" in uploaded_files
         assert "class_num.pt" in uploaded_files
+        assert "val_labels.pt" in uploaded_files
+        assert "idx_val.pt" in uploaded_files
 
     @patch("fedgraph.utils_nc.save_trainer_data_to_hugging_face")
     def test_bulk_save_passes_consistent_global_metadata(self, mock_save_trainer):
@@ -154,8 +158,8 @@ class TestSaveTrainerDataToHuggingFace:
         save_all_trainers_data(
             split_node_indexes=[torch.tensor([0, 1]), torch.tensor([2, 3])],
             communicate_node_global_indexes=[
-                torch.tensor([0, 1]),
-                torch.tensor([2, 3]),
+                torch.tensor([0, 1, 2]),
+                torch.tensor([1, 2, 3]),
             ],
             global_edge_indexes_clients=[
                 torch.tensor([[0], [1]]),
@@ -164,6 +168,7 @@ class TestSaveTrainerDataToHuggingFace:
             labels=labels,
             features=features,
             in_com_train_node_local_indexes=[torch.tensor([0]), torch.tensor([0])],
+            in_com_val_node_local_indexes=[torch.tensor([2]), torch.tensor([2])],
             in_com_test_node_local_indexes=[torch.tensor([1]), torch.tensor([1])],
             n_trainer=2,
             class_num=3,
@@ -174,6 +179,10 @@ class TestSaveTrainerDataToHuggingFace:
         for call in mock_save_trainer.call_args_list:
             assert call.kwargs["global_node_num"] == 4
             assert call.kwargs["class_num"] == 3
+            assert not torch.equal(
+                call.kwargs["in_com_val_node_local_indexes"],
+                call.kwargs["in_com_test_node_local_indexes"],
+            )
 
 
 class TestLabelDirichletPartition:
@@ -319,6 +328,40 @@ class TestGetInCommIndexes:
 
         assert len(communicate_node_global_indexes) == n_trainers
         assert len(global_edge_indexes_clients) == n_trainers
+
+    def test_get_in_comm_indexes_with_validation_indexes(self):
+        """Test communication index generation includes validation nodes."""
+        edge_index = torch.tensor([[0, 1, 2, 3, 4], [1, 2, 3, 4, 0]])
+        split_node_indexes = [
+            torch.tensor([0, 1]),
+            torch.tensor([2, 3]),
+            torch.tensor([4]),
+        ]
+
+        result = get_in_comm_indexes(
+            edge_index,
+            split_node_indexes,
+            3,
+            2,
+            torch.tensor([0, 2]),
+            torch.tensor([1, 3]),
+            idx_val=torch.tensor([4]),
+        )
+
+        assert len(result) == 5
+        (
+            communicate_node_global_indexes,
+            in_com_train_node_local_indexes,
+            in_com_val_node_local_indexes,
+            in_com_test_node_local_indexes,
+            global_edge_indexes_clients,
+        ) = result
+
+        assert len(communicate_node_global_indexes) == 3
+        assert len(in_com_train_node_local_indexes) == 3
+        assert len(in_com_val_node_local_indexes) == 3
+        assert len(in_com_test_node_local_indexes) == 3
+        assert len(global_edge_indexes_clients) == 3
 
     def test_get_in_comm_indexes_rejects_unsupported_one_hop(self):
         """Test that the old ambiguous 1-hop NC mode is rejected."""

@@ -76,10 +76,19 @@ def load_trainer_data_from_hugging_face(trainer_id, args):
     )
     global_edge_index_client = download_and_load_tensor("adj.pt")
     train_labels = download_and_load_tensor("train_labels.pt")
+    val_labels = download_and_load_tensor("val_labels.pt", optional=True)
     test_labels = download_and_load_tensor("test_labels.pt")
     features = download_and_load_tensor("features.pt")
     in_com_train_node_local_indexes = download_and_load_tensor("idx_train.pt")
+    in_com_val_node_local_indexes = download_and_load_tensor(
+        "idx_val.pt", optional=True
+    )
     in_com_test_node_local_indexes = download_and_load_tensor("idx_test.pt")
+    if val_labels is None or in_com_val_node_local_indexes is None:
+        val_labels = torch.empty(0, dtype=train_labels.dtype)
+        in_com_val_node_local_indexes = torch.empty(
+            0, dtype=in_com_train_node_local_indexes.dtype
+        )
     global_node_num = download_and_load_tensor("global_node_num.pt", optional=True)
     class_num = download_and_load_tensor("class_num.pt", optional=True)
     if global_node_num is None or class_num is None:
@@ -93,9 +102,11 @@ def load_trainer_data_from_hugging_face(trainer_id, args):
         communicate_node_global_index,
         global_edge_index_client,
         train_labels,
+        val_labels,
         test_labels,
         features,
         in_com_train_node_local_indexes,
+        in_com_val_node_local_indexes,
         in_com_test_node_local_indexes,
         global_node_num,
         class_num,
@@ -160,9 +171,11 @@ class Trainer_General:
         communicate_node_index: torch.Tensor = None,
         adj: torch.Tensor = None,
         train_labels: torch.Tensor = None,
+        val_labels: torch.Tensor = None,
         test_labels: torch.Tensor = None,
         features: torch.Tensor = None,
         idx_train: torch.Tensor = None,
+        idx_val: torch.Tensor = None,
         idx_test: torch.Tensor = None,
         global_node_num: Optional[int] = None,
         class_num: Optional[int] = None,
@@ -194,13 +207,19 @@ class Trainer_General:
                 communicate_node_index,
                 adj,
                 train_labels,
+                val_labels,
                 test_labels,
                 features,
                 idx_train,
+                idx_val,
                 idx_test,
                 global_node_num,
                 class_num,
             ) = load_trainer_data_from_hugging_face(rank, args)
+        if val_labels is None:
+            val_labels = torch.empty(0, dtype=train_labels.dtype)
+        if idx_val is None:
+            idx_val = torch.empty(0, dtype=idx_train.dtype)
         self.rank = rank  # rank = trainer ID
 
         self.device = device
@@ -212,15 +231,19 @@ class Trainer_General:
 
         self.test_losses: list = []
         self.test_accs: list = []
+        self.val_losses: list = []
+        self.val_accs: list = []
 
         self.local_node_index = local_node_index.to(device)
         self.communicate_node_index = communicate_node_index.to(device)
 
         self.adj = adj.to(device)
         self.train_labels = train_labels.to(device)
+        self.val_labels = val_labels.to(device)
         self.test_labels = test_labels.to(device)
         self.features = features.to(device)
         self.idx_train = idx_train.to(device)
+        self.idx_val = idx_val.to(device)
         self.idx_test = idx_test.to(device)
 
         self.local_step = args.local_step
@@ -246,7 +269,7 @@ class Trainer_General:
     def get_info(self):
         label_nums = [
             int(labels.max().item()) + 1
-            for labels in (self.train_labels, self.test_labels)
+            for labels in (self.train_labels, self.val_labels, self.test_labels)
             if labels.numel() > 0
         ]
         return {
@@ -256,6 +279,7 @@ class Trainer_General:
             "class_num": self.class_num,
             "feature_shape": self.features.shape[1],
             "len_in_com_train_node_local_indexes": len(self.idx_train),
+            "len_in_com_val_node_local_indexes": len(self.idx_val),
             "len_in_com_test_node_local_indexes": len(self.idx_test),
             "communicate_node_global_index": self.communicate_node_index,
         }
@@ -829,7 +853,8 @@ class Trainer_General:
 
         self.feature_aggregation = self.feature_aggregation.to(self.device)
         data = None
-        if hasattr(self.args, "batch_size") and self.args.batch_size > 0:
+        use_mini_batch = hasattr(self.args, "batch_size") and self.args.batch_size > 0
+        if use_mini_batch:
             # batch preparation
             train_mask = torch.zeros(
                 self.feature_aggregation.size(0), dtype=torch.bool
@@ -852,40 +877,43 @@ class Trainer_General:
         acc_train = 0.0
         for iteration in range(self.local_step):
             self.model.train()
-            if hasattr(self.args, "batch_size") and self.args.batch_size > 0:
+            if use_mini_batch:
                 # print(f"Training with batch size {self.args.batch_size}")
                 loader = NeighborLoader(
                     data,
                     num_neighbors=[-1] * self.args.num_layers,
                     batch_size=self.args.batch_size,
                     input_nodes=self.idx_train,
-                    shuffle=False,
+                    shuffle=True,
                     num_workers=0,
                 )
-                batch_iter = iter(loader)
-                batch = next(batch_iter, None)
-                while batch is not None:
+                batch = next(iter(loader), None)
+                if batch is None:
+                    loss_train, acc_train = 0.0, 0.0
+                else:
                     batch_feature_aggregation = batch.x
                     batch_adj_matrix = batch.edge_index
+                    seed_node_count = int(batch.batch_size)
+                    seed_node_index = torch.arange(
+                        seed_node_count, device=batch_feature_aggregation.device
+                    )
+                    seed_labels = batch.y[:seed_node_count].to(
+                        batch_feature_aggregation.device
+                    )
 
-                    # print(f"Batch Feature Aggregation (Node Features): {batch_feature_aggregation.size()}")
-                    # print(f"Batch Adjacency Matrix (Edge Index): {batch_adj_matrix}")
-                    # print(f"Training Labels (Filtered by train_mask): {batch.y[batch.train_mask]}")
-                    # print(f"Train Mask: {batch.train_mask}")
+                    # NeighborLoader puts the sampled seed nodes first. Use
+                    # only those nodes for supervised loss; remaining nodes
+                    # provide GCN message-passing context.
                     loss_train, acc_train = train(
                         iteration,
                         self.model,
                         self.optimizer,
                         batch_feature_aggregation,
                         batch_adj_matrix,
-                        batch.y[batch.train_mask],
-                        batch.train_mask,
+                        seed_labels,
+                        seed_node_index,
                     )
                     # print(f"acc_train: {acc_train}")
-
-                    self.train_losses.append(loss_train)
-                    self.train_accs.append(acc_train)
-                    batch = next(batch_iter, None)
             else:
                 # print("Training with full batch")
                 # print(f"feature_aggregation size: {self.feature_aggregation.size()}")
@@ -916,7 +944,52 @@ class Trainer_General:
             self.train_losses.append(loss_train)
             self.train_accs.append(acc_train)
             # print(f"acc_train: {acc_train}")
-            self.local_test()
+
+    def _local_eval(
+        self,
+        labels: torch.Tensor,
+        indexes: torch.Tensor,
+        losses: list,
+        accuracies: list,
+    ) -> list:
+        if self.model is None or self.feature_aggregation is None:
+            return [0.0, 0.0]
+        if (
+            labels is None
+            or indexes is None
+            or labels.numel() == 0
+            or indexes.numel() == 0
+        ):
+            return [0.0, 0.0]
+
+        # Ensure everything is on the trainer's device (model may have been
+        # moved to CPU during aggregation).
+        self.model = self.model.to(self.device)
+        feats = self.feature_aggregation.to(self.device)
+        adj = self.adj.to(self.device)
+        labels = labels.to(self.device)
+        indexes = indexes.to(self.device)
+        local_loss, local_acc = test(self.model, feats, adj, labels, indexes)
+        losses.append(local_loss)
+        accuracies.append(local_acc)
+        return [local_loss, local_acc]
+
+    def local_val(self) -> list:
+        """
+        Evaluates the model on the local validation dataset.
+
+        Returns
+        -------
+        (list) : list
+            A list containing the validation loss and accuracy
+            [local_val_loss, local_val_acc].
+        """
+        return self._local_eval(
+            self.val_labels,
+            self.idx_val,
+            self.val_losses,
+            self.val_accs,
+        )
 
     def local_test(self) -> list:
         """
@@ -927,26 +1000,12 @@ class Trainer_General:
         (list) : list
             A list containing the test loss and accuracy [local_test_loss, local_test_acc].
         """
-        if self.model is None or self.feature_aggregation is None:
-            return [0.0, 0.0]
-
-        # Ensure everything is on the trainer's device (model may have been
-        # moved to CPU during aggregation).
-        self.model = self.model.to(self.device)
-        feats = self.feature_aggregation.to(self.device)
-        adj = self.adj.to(self.device)
-        test_labels = self.test_labels.to(self.device)
-        idx_test = self.idx_test.to(self.device)
-        local_test_loss, local_test_acc = test(
-            self.model,
-            feats,
-            adj,
-            test_labels,
-            idx_test,
+        return self._local_eval(
+            self.test_labels,
+            self.idx_test,
+            self.test_losses,
+            self.test_accs,
         )
-        self.test_losses.append(local_test_loss)
-        self.test_accs.append(local_test_acc)
-        return [local_test_loss, local_test_acc]
 
     def get_params(self) -> tuple:
         """

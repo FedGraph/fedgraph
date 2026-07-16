@@ -160,6 +160,7 @@ class TestNCLoadData:
         with patch("scipy.sparse.vstack") as mock_vstack, patch(
             "networkx.adjacency_matrix"
         ) as mock_adj, patch("networkx.from_dict_of_lists") as mock_from_dict:
+
             mock_features = Mock()
             mock_features.toarray.return_value = np.random.random((2708, 50))
             mock_vstack.return_value = mock_features
@@ -355,6 +356,7 @@ class TestDataLoaderNC:
             {
                 i: torch.arange(0, 5) for i in range(3)
             },  # in_com_train_node_local_indexes
+            {i: torch.arange(8, 9) for i in range(3)},  # in_com_val_node_local_indexes
             {i: torch.arange(5, 8) for i in range(3)},  # in_com_test_node_local_indexes
             {
                 i: torch.stack([torch.arange(0, 10), torch.arange(1, 11)])
@@ -364,17 +366,19 @@ class TestDataLoaderNC:
 
         result = data_loader_NC(args)
 
-        assert len(result) == 11
+        assert len(result) == 13
         (
             edge_index,
             returned_features,
             returned_labels,
             returned_idx_train,
+            returned_idx_val,
             returned_idx_test,
             class_num,
             split_node_indexes,
             communicate_node_global_indexes,
             in_com_train_node_local_indexes,
+            in_com_val_node_local_indexes,
             in_com_test_node_local_indexes,
             global_edge_indexes_clients,
         ) = result
@@ -383,6 +387,7 @@ class TestDataLoaderNC:
         assert torch.equal(returned_features, features)
         assert torch.equal(returned_labels, labels)
         assert torch.equal(returned_idx_train, idx_train)
+        assert torch.equal(returned_idx_val, idx_val)
         assert torch.equal(returned_idx_test, idx_test)
         assert class_num == num_classes
         assert len(split_node_indexes) == args.n_trainer
@@ -460,6 +465,7 @@ class TestDataProcessIntegration:
         ) as mock_partition, patch(
             "fedgraph.data_process.get_in_comm_indexes"
         ) as mock_indexes:
+
             # Setup test data
             features = torch.randn(100, 50)
             adj = torch_sparse.tensor.SparseTensor.from_dense(torch.eye(100))
@@ -477,7 +483,7 @@ class TestDataProcessIntegration:
                 idx_test,
             )
             mock_partition.return_value = [list(range(0, 50)), list(range(50, 100))]
-            mock_indexes.return_value = ({}, {}, {}, {})
+            mock_indexes.return_value = ({}, {}, {}, {}, {})
 
             # Create args
             args = Mock()
@@ -493,7 +499,7 @@ class TestDataProcessIntegration:
             result = data_loader(args)
 
             assert result is not None
-            assert len(result) == 11
+            assert len(result) == 13
             mock_load.assert_called_once()
             mock_partition.assert_called_once()
             mock_indexes.assert_called_once()

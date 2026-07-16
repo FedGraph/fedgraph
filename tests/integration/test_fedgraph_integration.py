@@ -31,6 +31,7 @@ class TestFedGraphNCWorkflow:
         self.labels = torch.randint(0, self.num_classes, (self.num_nodes,))
         self.edge_index = torch.randint(0, self.num_nodes, (2, 200))
         self.idx_train = torch.arange(0, 70)
+        self.idx_val = torch.arange(70, 85)
         self.idx_test = torch.arange(85, 100)
 
         # Create node splits for trainers
@@ -57,12 +58,18 @@ class TestFedGraphNCWorkflow:
         from fedgraph.data_process import data_loader_NC
 
         # Setup mocks
+        mock_adj = Mock()
+        mock_adj.coo.return_value = (
+            self.edge_index[0],
+            self.edge_index[1],
+            torch.ones(self.edge_index.size(1)),
+        )
         mock_load_data.return_value = (
             self.features,
-            Mock(),
+            mock_adj,
             self.labels,
             self.idx_train,
-            Mock(),
+            self.idx_val,
             self.idx_test,
         )
         mock_partition.return_value = [
@@ -71,6 +78,7 @@ class TestFedGraphNCWorkflow:
         mock_get_indexes.return_value = (
             {i: torch.arange(i * 20, (i + 1) * 20) for i in range(self.num_trainers)},
             {i: torch.arange(0, 10) for i in range(self.num_trainers)},
+            {i: torch.arange(15, 18) for i in range(self.num_trainers)},
             {i: torch.arange(10, 15) for i in range(self.num_trainers)},
             {i: self.edge_index for i in range(self.num_trainers)},
         )
@@ -87,7 +95,7 @@ class TestFedGraphNCWorkflow:
         # Test the pipeline
         result = data_loader_NC(args)
 
-        assert len(result) == 11  # Expected return tuple length
+        assert len(result) == 13  # Expected return tuple length
         assert mock_load_data.called
         assert mock_partition.called
         assert mock_get_indexes.called
