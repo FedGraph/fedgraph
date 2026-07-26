@@ -3,7 +3,7 @@ kind: ClusterConfig
 
 metadata:
   name: mlarge-1739510276
-  region: us-east-1
+  region: eu-central-1
 
 nodeGroups:
   - name: head-nodes

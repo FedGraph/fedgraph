@@ -1,0 +1,128 @@
+# Draft-only RayCluster for a small FedGraph GPU KubeRay walkthrough.
+#
+# This config is not referenced by setup_cluster.sh. Review the operator CRD
+# version with `kubectl api-resources | grep -i ray` before applying.
+
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: fedgraph-gpu
+  namespace: default
+  labels:
+    app.kubernetes.io/name: fedgraph
+    app.kubernetes.io/component: raycluster
+spec:
+  # Keep this aligned with the Ray version inside the container image.
+  rayVersion: "2.56.0"
+  enableInTreeAutoscaling: true
+  autoscalerOptions:
+    idleTimeoutSeconds: 300
+    upscalingMode: Default
+
+  headGroupSpec:
+    serviceType: ClusterIP
+    rayStartParams:
+      dashboard-host: "0.0.0.0"
+      block: "true"
+    template:
+      metadata:
+        labels:
+          fedgraph-role: ray-head
+      spec:
+        nodeSelector:
+          ray-node-type: head
+        containers:
+          - name: ray-head
+            image: public.ecr.aws/i7t1s5i1/fedgraph:gpu-draft
+            imagePullPolicy: Always
+            resources:
+              limits:
+                cpu: "3"
+                memory: "8Gi"
+              requests:
+                cpu: "2"
+                memory: "6Gi"
+            env:
+              - name: RAY_GRAFANA_IFRAME_HOST
+                value: http://127.0.0.1:3000
+              - name: RAY_GRAFANA_HOST
+                value: http://prometheus-grafana.prometheus-system.svc:80
+              - name: RAY_PROMETHEUS_HOST
+                value: http://prometheus-kube-prometheus-prometheus.prometheus-system.svc:9090
+              - name: RAY_memory_usage_threshold
+                value: "0.92"
+            ports:
+              - containerPort: 6379
+                name: gcs
+              - containerPort: 8265
+                name: dashboard
+              - containerPort: 10001
+                name: client
+              - containerPort: 8080
+                name: metrics
+              - containerPort: 8000
+                name: serve
+              - containerPort: 44217
+                name: as-metrics
+              - containerPort: 44227
+                name: dash-metrics
+            lifecycle:
+              preStop:
+                exec:
+                  command: ["/bin/sh", "-c", "ray stop"]
+
+  workerGroupSpecs:
+    # One GPU per worker pod and one full GPU per FedGraph trainer actor forces
+    # one trainer onto each single-GPU EC2 node.
+    - groupName: gpu-workers
+      replicas: 0
+      minReplicas: 0
+      maxReplicas: 5
+      rayStartParams:
+        block: "true"
+      template:
+        metadata:
+          labels:
+            fedgraph-role: ray-worker
+        spec:
+          nodeSelector:
+            ray-node-type: gpu-worker
+          tolerations:
+            - key: nvidia.com/gpu
+              operator: Exists
+              effect: NoSchedule
+          containers:
+            - name: ray-worker
+              image: public.ecr.aws/i7t1s5i1/fedgraph:gpu-draft
+              imagePullPolicy: Always
+              resources:
+                limits:
+                  cpu: "3"
+                  memory: "12Gi"
+                  nvidia.com/gpu: "1"
+                requests:
+                  cpu: "3"
+                  memory: "12Gi"
+                  nvidia.com/gpu: "1"
+              env:
+                - name: RAY_DISABLE_DOCKER_CPU_WARNING
+                  value: "1"
+                - name: RAY_memory_usage_threshold
+                  value: "0.92"
+              ports:
+                - containerPort: 8080
+                  name: metrics
+              lifecycle:
+                preStop:
+                  exec:
+                    command: ["/bin/sh", "-c", "ray stop"]
+              volumeMounts:
+                - mountPath: /tmp/ray
+                  name: ray-temp
+                - mountPath: /var/log
+                  name: log-volume
+          volumes:
+            - name: ray-temp
+              emptyDir: {}
+            - name: log-volume
+              emptyDir: {}

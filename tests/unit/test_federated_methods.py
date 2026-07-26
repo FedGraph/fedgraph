@@ -7,6 +7,7 @@ import torch
 
 from fedgraph.federated_methods import (
     _resolve_nc_class_num,
+    _resolve_nc_devices,
     _resolve_nc_global_node_num,
     _nc_val_loss_patience_round,
     _nc_plateau_round,
@@ -19,6 +20,36 @@ from fedgraph.federated_methods import (
     run_LP,
     run_NC,
 )
+
+
+class TestResolveNCDevices:
+    def test_preserves_coupled_gpu_default(self):
+        args = attridict.AttriDict(gpu=True, num_gpus_per_trainer=1)
+        trainer_device, server_device, gpu_count = _resolve_nc_devices(args)
+
+        assert trainer_device == torch.device("cuda")
+        assert server_device == torch.device("cuda")
+        assert gpu_count == 1
+
+    def test_allows_cpu_server_with_gpu_trainers(self):
+        args = attridict.AttriDict(
+            gpu=True,
+            num_gpus_per_trainer=1,
+            server_device="cpu",
+        )
+        trainer_device, server_device, gpu_count = _resolve_nc_devices(args)
+
+        assert trainer_device == torch.device("cuda")
+        assert server_device == torch.device("cpu")
+        assert gpu_count == 1
+
+    def test_cpu_run_never_reserves_trainer_gpus(self):
+        args = attridict.AttriDict(gpu=False, num_gpus_per_trainer=1)
+        trainer_device, server_device, gpu_count = _resolve_nc_devices(args)
+
+        assert trainer_device == torch.device("cpu")
+        assert server_device == torch.device("cpu")
+        assert gpu_count == 0
 
 
 class TestResolveNCClassNum:

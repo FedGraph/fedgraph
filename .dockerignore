@@ -1,0 +1,24 @@
+.git
+.github
+.pytest_cache
+.ruff_cache
+.mypy_cache
+__pycache__
+*.py[cod]
+*.log
+.coverage
+htmlcov
+build
+dist
+*.egg-info
+
+# Datasets and benchmark output are mounted or downloaded at runtime.
+data
+dataset
+benchmark/results
+results
+
+# Local walkthrough material is not needed by the runtime image.
+docs
+kuberay
+ray_cluster_configs

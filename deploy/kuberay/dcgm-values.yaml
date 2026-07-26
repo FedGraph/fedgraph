@@ -1,0 +1,35 @@
+arguments:
+  - -f
+  - /etc/dcgm-exporter/default-counters.csv
+  - -c
+  - "5000"
+
+nodeSelector:
+  ray-node-type: gpu-worker
+
+tolerations:
+  - key: nvidia.com/gpu
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+
+serviceMonitor:
+  enabled: true
+  interval: 5s
+  scrapeTimeout: 4s
+  additionalLabels:
+    release: prometheus
+
+kubernetes:
+  enablePodLabels: true
+  enablePodUID: true
+  podLabelAllowlistRegex:
+    - ^ray\.io/(cluster|group|node-type)$
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 300m
+    memory: 512Mi

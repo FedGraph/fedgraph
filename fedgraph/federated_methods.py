@@ -119,6 +119,27 @@ def _resolve_nc_global_node_num(
     return sum(int(info["features_num"]) for info in trainer_information)
 
 
+def _resolve_nc_devices(args: Any) -> tuple[torch.device, torch.device, float]:
+    """Resolve trainer and optional server devices for the NC workflow."""
+    if args.gpu:
+        trainer_device = torch.device("cuda")
+        num_gpus_per_trainer = args.num_gpus_per_trainer
+    else:
+        trainer_device = torch.device("cpu")
+        num_gpus_per_trainer = 0
+
+    # Temporary opt-in for a CPU-only KubeRay head. The default keeps the
+    # existing coupled server/trainer device behavior until the device model is
+    # refactored across all FedGraph tasks.
+    configured_server_device = getattr(args, "server_device", None)
+    server_device = (
+        torch.device(configured_server_device)
+        if configured_server_device
+        else trainer_device
+    )
+    return trainer_device, server_device, num_gpus_per_trainer
+
+
 def _validate_nc_num_hops(args: Any) -> None:
     if not hasattr(args, "num_hops"):
         return
@@ -498,13 +519,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
         args_hidden = 256
 
     num_cpus_per_trainer = args.num_cpus_per_trainer
-    # specifying a target GPU
-    if args.gpu:
-        device = torch.device("cuda")
-        num_gpus_per_trainer = args.num_gpus_per_trainer
-    else:
-        device = torch.device("cpu")
-        num_gpus_per_trainer = 0
+    trainer_device, server_device, num_gpus_per_trainer = _resolve_nc_devices(args)
 
     #######################################################################
     # Define and Send Data to Trainers
@@ -569,7 +584,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
             Trainer.remote(  # type: ignore
                 rank=i,
                 args_hidden=args_hidden,
-                device=device,
+                device=trainer_device,
                 args=args,
             )
             for i in range(args.n_trainer)
@@ -579,7 +594,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
             Trainer.remote(  # type: ignore
                 rank=i,
                 args_hidden=args_hidden,
-                device=device,
+                device=trainer_device,
                 args=args,
                 local_node_index=split_node_indexes[i],
                 communicate_node_index=communicate_node_global_indexes[i],
@@ -649,7 +664,9 @@ def run_NC(args: attridict, data: Any = None) -> None:
     use_lowrank = getattr(args, "use_lowrank", False) and LOWRANK_AVAILABLE
     ServerClass = Server_LowRank if use_lowrank else Server
     _feature_dim = feature_shape if args.use_huggingface else features.shape[1]
-    server = ServerClass(_feature_dim, args_hidden, class_num, device, trainers, args)
+    server = ServerClass(
+        _feature_dim, args_hidden, class_num, server_device, trainers, args
+    )
 
     # End initialization time tracking
     server.broadcast_params(-1)
@@ -691,7 +708,10 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 download_sizes = []
                 for i in range(args.n_trainer):
                     communicate_nodes = (
-                        communicate_node_global_indexes[i].clone().detach().to(device)
+                        communicate_node_global_indexes[i]
+                        .clone()
+                        .detach()
+                        .to(server_device)
                     )
                     trainer_aggregation = server.mask_encrypted_feature_sum(
                         aggregated_result, communicate_nodes

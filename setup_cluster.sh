@@ -16,7 +16,7 @@ check_command() {
 echo "Configuring AWS credentials..."
 read -p "Enter AWS Access Key ID: " aws_access_key
 read -p "Enter AWS Secret Access Key: " aws_secret_key
-read -p "Enter AWS Default Region (e.g., us-east-1): " aws_region
+read -p "Enter AWS Default Region (e.g., eu-central-1): " aws_region
 
 aws configure set aws_access_key_id $aws_access_key
 check_command "AWS Access Key configuration"
@@ -156,6 +156,6 @@ echo "kubectl delete -f ray_cluster_configs/ray_kubernetes_cluster.yaml"
 echo "kubectl delete -f ray_cluster_configs/ray_kubernetes_ingress.yaml"
 echo "kubectl get nodes -o name | xargs kubectl delete"
 echo "eksctl delete cluster --region $aws_region --name $CLUSTER_NAME"
-# eksctl delete cluster --region us-east-1 --name mlarge-1739510276
+# eksctl delete cluster --region eu-central-1 --name mlarge-1739510276
 
 echo "Setup completed successfully!"

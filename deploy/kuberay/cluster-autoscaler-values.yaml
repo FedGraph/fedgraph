@@ -1,0 +1,30 @@
+cloudProvider: aws
+
+rbac:
+  serviceAccount:
+    create: false
+    name: cluster-autoscaler
+
+nodeSelector:
+  workload: system
+
+extraArgs:
+  expander: least-waste
+  scale-down-delay-after-add: 5m
+  scale-down-unneeded-time: 5m
+  scan-interval: 20s
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 300Mi
+  limits:
+    cpu: 300m
+    memory: 600Mi
+
+serviceMonitor:
+  enabled: true
+  interval: 5s
+  namespace: prometheus-system
+  selector:
+    release: prometheus

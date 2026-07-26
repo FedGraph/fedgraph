@@ -82,6 +82,7 @@ class ExperimentConfig:
     num_layers: int
     num_hops: int
     gpu: bool
+    server_device: Optional[str]
     num_cpus_per_trainer: int
     num_gpus_per_trainer: float
     use_ogb_load_patch: bool
@@ -339,6 +340,7 @@ def to_fedgraph_args(
             "num_layers": config.num_layers,
             "num_hops": config.num_hops,
             "gpu": config.gpu,
+            "server_device": config.server_device,
             "num_cpus_per_trainer": config.num_cpus_per_trainer,
             "num_gpus_per_trainer": config.num_gpus_per_trainer,
             "logdir": str(logdir),
@@ -981,6 +983,7 @@ def build_configs(args) -> List[ExperimentConfig]:
                         num_layers=args.num_layers,
                         num_hops=args.num_hops,
                         gpu=args.gpu,
+                        server_device=args.server_device,
                         num_cpus_per_trainer=args.num_cpus_per_trainer,
                         num_gpus_per_trainer=args.num_gpus_per_trainer,
                         use_ogb_load_patch=use_ogb_load_patch,
@@ -1021,6 +1024,15 @@ def parse_args():
     parser.add_argument("--num-hops", type=int, default=0)
     parser.add_argument("--method", default=None)
     parser.add_argument("--gpu", action="store_true")
+    parser.add_argument(
+        "--server-device",
+        choices=("cpu", "cuda"),
+        default=None,
+        help=(
+            "Temporary NC server-device override. By default, the server uses "
+            "the same device selected by --gpu."
+        ),
+    )
     parser.add_argument("--num-cpus-per-trainer", type=int, default=1)
     parser.add_argument("--num-gpus-per-trainer", type=float, default=0.0)
     parser.add_argument(

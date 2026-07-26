@@ -1,0 +1,57 @@
+# Draft GPU image for FedGraph on KubeRay.
+#
+# This file is intentionally not used by setup_cluster.sh yet. Review the base
+# image tag and CUDA/PyTorch/PyG versions before building or pushing.
+#
+# The existing Dockerfile installs CPU PyTorch. For GPU Ray worker pods, the
+# image must include CUDA-compatible PyTorch and matching PyG extension wheels.
+
+ARG RAY_VERSION=2.56.0
+FROM rayproject/ray-ml:${RAY_VERSION}-gpu
+
+WORKDIR /app
+
+USER root
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY docker_requirements.txt .
+
+# Align these with the CUDA runtime in the selected rayproject/ray-ml image.
+# The local EC2 validation environment used torch 2.5.1+cu121 successfully.
+RUN python -m pip install --no-cache-dir --upgrade pip && \
+    python -m pip install --no-cache-dir \
+      torch==2.5.1+cu121 \
+      --index-url https://download.pytorch.org/whl/cu121 && \
+    python -m pip install --no-cache-dir \
+      pyg-lib \
+      torch-scatter \
+      torch-sparse \
+      torch-cluster \
+      torch-spline-conv \
+      -f https://data.pyg.org/whl/torch-2.5.1+cu121.html && \
+    python -m pip install --no-cache-dir torch-geometric
+
+RUN grep -v "tenseal" docker_requirements.txt | \
+    grep -v "torch" | \
+    grep -v "torch-cluster" | \
+    grep -v "torch-scatter" | \
+    grep -v "torch-sparse" | \
+    grep -v "torch-spline-conv" | \
+    grep -v "torch-geometric" > requirements_filtered.txt && \
+    python -m pip install --no-cache-dir -r requirements_filtered.txt
+
+RUN python -m pip install --no-cache-dir openfhe==1.2.3.0.24.4 || \
+    echo "Warning: OpenFHE installation may need manual verification"
+
+COPY fedgraph /app/fedgraph
+COPY benchmark /app/benchmark
+COPY setup.py README.md ./
+
+RUN python -m pip install --no-deps -e .
+
+CMD ["python", "-c", "import torch, ray, fedgraph; print('cuda_available=', torch.cuda.is_available()); print('ray=', ray.__version__)"]

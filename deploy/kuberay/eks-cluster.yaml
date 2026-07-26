@@ -1,0 +1,91 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: fedgraph-gpu
+  region: eu-central-1
+  version: "1.34"
+
+iam:
+  withOIDC: true
+  serviceAccounts:
+    - metadata:
+        name: cluster-autoscaler
+        namespace: kube-system
+      attachPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - autoscaling:SetDesiredCapacity
+              - autoscaling:TerminateInstanceInAutoScalingGroup
+            Resource: "*"
+            Condition:
+              StringEquals:
+                aws:ResourceTag/k8s.io/cluster-autoscaler/enabled: "true"
+                aws:ResourceTag/k8s.io/cluster-autoscaler/fedgraph-gpu: owned
+          - Effect: Allow
+            Action:
+              - autoscaling:DescribeAutoScalingGroups
+              - autoscaling:DescribeAutoScalingInstances
+              - autoscaling:DescribeLaunchConfigurations
+              - autoscaling:DescribeScalingActivities
+              - autoscaling:DescribeTags
+              - ec2:DescribeImages
+              - ec2:DescribeInstanceTypes
+              - ec2:DescribeLaunchTemplateVersions
+              - ec2:GetInstanceTypesFromInstanceRequirements
+              - eks:DescribeNodegroup
+            Resource: "*"
+
+addons:
+  - name: aws-ebs-csi-driver
+    wellKnownPolicies:
+      ebsCSIController: true
+
+managedNodeGroups:
+  # System services, monitoring, and the CPU-only Ray head share this node.
+  - name: system-head-cpu
+    instanceType: m7i.xlarge
+    amiFamily: AmazonLinux2023
+    minSize: 1
+    desiredCapacity: 1
+    maxSize: 1
+    volumeSize: 100
+    volumeType: gp3
+    volumeEncrypted: true
+    labels:
+      workload: system
+      ray-node-type: head
+    tags:
+      workload: system-head
+      k8s.io/cluster-autoscaler/enabled: "true"
+      k8s.io/cluster-autoscaler/fedgraph-gpu: owned
+    propagateASGTags: true
+
+  # GPU workers begin at zero. Ray creates pending worker pods on demand, then
+  # Cluster Autoscaler adds up to five EC2 nodes. Each node has one T4 GPU, so
+  # one one-GPU Ray worker pod and trainer actor can run on each node.
+  - name: ray-worker-gpu
+    instanceType: g4dn.xlarge
+    amiFamily: AmazonLinux2023
+    minSize: 0
+    desiredCapacity: 0
+    maxSize: 5
+    volumeSize: 100
+    volumeType: gp3
+    volumeEncrypted: true
+    labels:
+      workload: ray
+      ray-node-type: gpu-worker
+      accelerator: nvidia-tesla-t4
+      k8s.amazonaws.com/accelerator: nvidia-tesla-t4
+    taints:
+      - key: nvidia.com/gpu
+        value: "true"
+        effect: NoSchedule
+    tags:
+      workload: ray-gpu-worker
+      k8s.io/cluster-autoscaler/enabled: "true"
+      k8s.io/cluster-autoscaler/fedgraph-gpu: owned
+    propagateASGTags: true

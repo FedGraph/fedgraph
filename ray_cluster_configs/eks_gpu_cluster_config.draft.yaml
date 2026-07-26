@@ -1,0 +1,55 @@
+# Draft-only EKS config for a small FedGraph GPU KubeRay walkthrough.
+#
+# Do not apply this before reviewing AWS quotas, region availability, AMI/GPU
+# driver setup, and the preferred Kubernetes node autoscaler. The existing
+# deploy/kuberay/eks-cluster.yaml is the runnable source of truth.
+
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: fedgraph-gpu-draft
+  region: eu-central-1
+
+managedNodeGroups:
+  # System services, monitoring, and the CPU-only Ray head share this node.
+  - name: system-head-cpu
+    instanceType: m7i.xlarge
+    amiFamily: AmazonLinux2023
+    desiredCapacity: 1
+    minSize: 1
+    maxSize: 1
+    volumeSize: 100
+    labels:
+      ray-node-type: head
+      workload: system
+    tags:
+      k8s.io/cluster-autoscaler/enabled: "true"
+      k8s.io/cluster-autoscaler/fedgraph-gpu-draft: "owned"
+    propagateASGTags: true
+
+  # Five cost-bounded T4 workers force one trainer actor onto each GPU node.
+  - name: ray-gpu-workers
+    instanceType: g4dn.xlarge
+    amiFamily: AmazonLinux2023
+    desiredCapacity: 0
+    minSize: 0
+    maxSize: 5
+    volumeSize: 100
+    labels:
+      ray-node-type: gpu-worker
+      workload: fedgraph
+      accelerator: nvidia-tesla-t4
+      k8s.amazonaws.com/accelerator: nvidia-tesla-t4
+    taints:
+      - key: nvidia.com/gpu
+        value: "true"
+        effect: NoSchedule
+    tags:
+      k8s.io/cluster-autoscaler/enabled: "true"
+      k8s.io/cluster-autoscaler/fedgraph-gpu-draft: "owned"
+    propagateASGTags: true
+
+# GPU nodes also need the NVIDIA Kubernetes device plugin or NVIDIA GPU
+# Operator so pods can request nvidia.com/gpu and Prometheus can collect GPU
+# metrics via DCGM exporter.

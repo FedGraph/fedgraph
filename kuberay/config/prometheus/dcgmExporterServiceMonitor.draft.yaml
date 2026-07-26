@@ -1,0 +1,25 @@
+# Draft-only ServiceMonitor for NVIDIA DCGM exporter GPU metrics.
+#
+# Apply only after installing the NVIDIA device plugin or GPU Operator and
+# confirming the dcgm-exporter namespace, service labels, and metrics port name.
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: dcgm-exporter-monitor
+  namespace: prometheus-system
+  labels:
+    release: prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+      - gpu-operator
+      - nvidia-gpu-operator
+      - kube-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dcgm-exporter
+  endpoints:
+    - port: metrics
+      interval: 5s
+      scrapeTimeout: 2s

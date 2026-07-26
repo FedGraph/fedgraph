@@ -1,0 +1,63 @@
+alertmanager:
+  enabled: false
+
+grafana:
+  nodeSelector:
+    workload: system
+  grafana.ini:
+    security:
+      allow_embedding: true
+    auth.anonymous:
+      enabled: true
+      org_role: Viewer
+  persistence:
+    enabled: true
+    storageClassName: gp3-delete
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi
+
+prometheusOperator:
+  nodeSelector:
+    workload: system
+
+prometheus:
+  prometheusSpec:
+    nodeSelector:
+      workload: system
+    retention: 10d
+    scrapeInterval: 5s
+    evaluationInterval: 5s
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: "2"
+        memory: 6Gi
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3-delete
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 20Gi
+
+kube-state-metrics:
+  nodeSelector:
+    workload: system
+
+prometheus-node-exporter:
+  tolerations:
+    - operator: Exists
+
+# These control-plane components are managed by EKS and are not directly
+# scrapeable from worker nodes.
+kubeControllerManager:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeScheduler:
+  enabled: false
