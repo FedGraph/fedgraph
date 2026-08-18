@@ -264,8 +264,7 @@ def _nc_plateau_round(values: list, window: int, tolerance: float) -> Optional[i
 
 def _clone_nc_model_state(model: torch.nn.Module) -> dict:
     return {
-        key: value.detach().cpu().clone()
-        for key, value in model.state_dict().items()
+        key: value.detach().cpu().clone() for key, value in model.state_dict().items()
     }
 
 
@@ -644,9 +643,11 @@ def run_NC(args: attridict, data: Any = None) -> None:
     test_data_weights = [
         info["len_in_com_test_node_local_indexes"] for info in trainer_information
     ]
-    communicate_node_global_indexes = [
-        info["communicate_node_global_index"] for info in trainer_information
-    ]
+    trainer_communicate_node_global_indexes: list[torch.Tensor] = []
+    if args.method != "FedAvg":
+        trainer_communicate_node_global_indexes = [
+            info["communicate_node_global_index"] for info in trainer_information
+        ]
     ray.get(
         [
             trainers[i].init_model.remote(global_node_num, class_num)
@@ -708,7 +709,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 download_sizes = []
                 for i in range(args.n_trainer):
                     communicate_nodes = (
-                        communicate_node_global_indexes[i]
+                        trainer_communicate_node_global_indexes[i]
                         .clone()
                         .detach()
                         .to(server_device)
@@ -1075,19 +1076,15 @@ def run_NC(args: attridict, data: Any = None) -> None:
     val_loss_plateau_window = int(
         getattr(args, "val_loss_plateau_window", val_loss_patience)
     )
-    val_loss_plateau_tolerance = float(
-        getattr(args, "val_loss_plateau_tolerance", 0.0)
-    )
-    target_val_accs = _parse_optional_float_list(
-        getattr(args, "target_val_accs", [])
-    )
+    val_loss_plateau_tolerance = float(getattr(args, "val_loss_plateau_tolerance", 0.0))
+    target_val_accs = _parse_optional_float_list(getattr(args, "target_val_accs", []))
     target_val_losses = _parse_optional_float_list(
         getattr(args, "target_val_losses", [])
     )
     target_train_comm_times = _parse_optional_float_list(
         getattr(args, "target_train_comm_times_sec", [])
     )
-    checkpoints = {}
+    checkpoints: dict[str, dict[str, Any]] = {}
     val_losses = []
 
     print("global_rounds", args.global_rounds)
@@ -1386,8 +1383,8 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 checkpoint["state_dict"],
                 int(checkpoint["round"]),
             )
-            checkpoint_test_loss, checkpoint_test_accuracy = (
-                _evaluate_nc_test_metrics(server.trainers, test_data_weights)
+            checkpoint_test_loss, checkpoint_test_accuracy = _evaluate_nc_test_metrics(
+                server.trainers, test_data_weights
             )
             print(
                 "NC_CHECKPOINT_TEST, "

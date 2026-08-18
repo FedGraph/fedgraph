@@ -51,8 +51,71 @@ from fedgraph.utils_lp import (
 from fedgraph.utils_nc import get_1hop_feature_sum
 
 
+def _resolve_huggingface_artifact_num_hops(args: Any) -> int:
+    """Return the hop suffix used by a legacy Hugging Face artifact."""
+    configured_hops = getattr(args, "hf_artifact_num_hops", None)
+    if configured_hops is None or not isinstance(configured_hops, int):
+        return int(args.num_hops)
+    if configured_hops < 0:
+        raise ValueError("hf_artifact_num_hops must be non-negative")
+    return configured_hops
+
+
+def _uses_legacy_huggingface_fedavg_adjacency(args: Any) -> bool:
+    """Whether a FedAvg run needs legacy Hf coordinate conversion."""
+    return (
+        getattr(args, "method", None) == "FedAvg"
+        and getattr(args, "use_huggingface", False) is True
+        and _resolve_huggingface_artifact_num_hops(args) > 0
+    )
+
+
+def _remap_legacy_huggingface_fedavg_indexes(
+    local_node_index: torch.Tensor,
+    communicate_node_index: torch.Tensor,
+    indexes: torch.Tensor,
+    index_name: str,
+) -> torch.Tensor:
+    """Convert legacy communication-row positions to local feature-row positions."""
+    if local_node_index.ndim != 1 or communicate_node_index.ndim != 1:
+        raise ValueError("legacy node-index tensors must be one-dimensional")
+    if indexes.ndim != 1:
+        raise ValueError(f"{index_name} must be one-dimensional")
+
+    local_node_index = local_node_index.long()
+    communicate_node_index = communicate_node_index.long()
+    indexes = indexes.long()
+    if local_node_index.numel() > 1 and not bool(
+        torch.all(local_node_index[1:] >= local_node_index[:-1])
+    ):
+        raise ValueError("local_node_index must be sorted for legacy FedAvg")
+    if indexes.numel() == 0:
+        return indexes
+    if bool(torch.any(indexes < 0)) or bool(
+        torch.any(indexes >= communicate_node_index.numel())
+    ):
+        raise ValueError(
+            f"{index_name} contains positions outside communicate_node_index"
+        )
+
+    node_ids = communicate_node_index[indexes]
+    local_positions = torch.searchsorted(local_node_index, node_ids)
+    in_local_range = local_positions < local_node_index.numel()
+    matches = torch.zeros_like(in_local_range)
+    matches[in_local_range] = (
+        local_node_index[local_positions[in_local_range]] == node_ids[in_local_range]
+    )
+    if not bool(torch.all(matches)):
+        missing_count = int((~matches).sum().item())
+        raise ValueError(
+            f"{index_name} contains {missing_count} nodes outside the local partition"
+        )
+    return local_positions
+
+
 def load_trainer_data_from_hugging_face(trainer_id, args):
-    repo_name = f"FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{args.num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}"
+    artifact_num_hops = _resolve_huggingface_artifact_num_hops(args)
+    repo_name = f"FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{artifact_num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}"
 
     def download_and_load_tensor(file_name, optional=False):
         try:
@@ -69,7 +132,10 @@ def load_trainer_data_from_hugging_face(trainer_id, args):
         print(f"Loaded {file_name}, size: {tensor.size()}")
         return tensor
 
-    print(f"Loading client data {trainer_id}")
+    print(
+        f"Loading client data {trainer_id} from {artifact_num_hops}-hop "
+        "Hugging Face artifact"
+    )
     local_node_index = download_and_load_tensor("local_node_index.pt")
     communicate_node_global_index = download_and_load_tensor(
         "communicate_node_index.pt"
@@ -221,6 +287,17 @@ class Trainer_General:
         if idx_val is None:
             idx_val = torch.empty(0, dtype=idx_train.dtype)
         self.rank = rank  # rank = trainer ID
+        uses_legacy_huggingface_fedavg = _uses_legacy_huggingface_fedavg_adjacency(args)
+        if uses_legacy_huggingface_fedavg:
+            idx_train = _remap_legacy_huggingface_fedavg_indexes(
+                local_node_index, communicate_node_index, idx_train, "idx_train"
+            )
+            idx_val = _remap_legacy_huggingface_fedavg_indexes(
+                local_node_index, communicate_node_index, idx_val, "idx_val"
+            )
+            idx_test = _remap_legacy_huggingface_fedavg_indexes(
+                local_node_index, communicate_node_index, idx_test, "idx_test"
+            )
 
         self.device = device
 
@@ -235,9 +312,20 @@ class Trainer_General:
         self.val_accs: list = []
 
         self.local_node_index = local_node_index.to(device)
-        self.communicate_node_index = communicate_node_index.to(device)
+        self.communicate_node_index = (
+            self.local_node_index
+            if uses_legacy_huggingface_fedavg
+            else communicate_node_index.to(device)
+        )
 
-        self.adj = adj.to(device)
+        if uses_legacy_huggingface_fedavg:
+            # k_hop_subgraph allocates several edge-sized masks and a global-ID
+            # mapping. Relabel before moving the large legacy edge index to VRAM.
+            self.adj = adj
+            self.relabel_adj(local_node_index)
+            self.adj = self.adj.to(device)
+        else:
+            self.adj = adj.to(device)
         self.train_labels = train_labels.to(device)
         self.val_labels = val_labels.to(device)
         self.test_labels = test_labels.to(device)
@@ -272,7 +360,7 @@ class Trainer_General:
             for labels in (self.train_labels, self.val_labels, self.test_labels)
             if labels.numel() > 0
         ]
-        return {
+        info = {
             "features_num": len(self.features),
             "label_num": max(label_nums, default=None),
             "global_node_num": self.global_node_num,
@@ -281,8 +369,10 @@ class Trainer_General:
             "len_in_com_train_node_local_indexes": len(self.idx_train),
             "len_in_com_val_node_local_indexes": len(self.idx_val),
             "len_in_com_test_node_local_indexes": len(self.idx_test),
-            "communicate_node_global_index": self.communicate_node_index,
         }
+        if self.args.method != "FedAvg":
+            info["communicate_node_global_index"] = self.communicate_node_index
+        return info
 
     def init_model(self, global_node_num, class_num):
         self.global_node_num = global_node_num
@@ -808,10 +898,24 @@ class Trainer_General:
     def use_fedavg_feature(self) -> None:
         self.feature_aggregation
 
-    def relabel_adj(self) -> None:
+    def relabel_adj(self, node_index: Optional[torch.Tensor] = None) -> None:
         """
-        Relabels the adjacency matrix based on the communication node index.
+        Relabel the adjacency matrix against communication or explicitly supplied IDs.
         """
+        relabel_node_index = (
+            self.communicate_node_index if node_index is None else node_index
+        )
+        max_node_id = -1
+        if relabel_node_index.numel() > 0:
+            max_node_id = max(max_node_id, int(relabel_node_index.max().item()))
+        if self.adj.numel() > 0:
+            max_node_id = max(max_node_id, int(self.adj.max().item()))
+
+        # PyG otherwise infers num_nodes from adj.max(). A legacy Hf shard can
+        # own an isolated high-ID node that does not occur in its edge list.
+        # The explicit bound preserves that node while relabeling its local
+        # induced adjacency.
+        num_nodes = max_node_id + 1
         # print(f"Max value in adj: {self.adj.max()}")
         # print(
         #     f"Max value in communicate_node_index: {self.communicate_node_index.max()}"
@@ -822,7 +926,11 @@ class Trainer_General:
         # print(f"distinct communic: {len(self.communicate_node_index)}")
         # time.sleep(30)
         _, self.adj, __, ___ = torch_geometric.utils.k_hop_subgraph(
-            self.communicate_node_index, 0, self.adj, relabel_nodes=True
+            relabel_node_index,
+            0,
+            self.adj,
+            relabel_nodes=True,
+            num_nodes=num_nodes,
         )
         # print(f"Max value in adj: {self.adj.max()}")
         # print(

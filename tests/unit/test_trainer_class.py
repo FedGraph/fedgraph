@@ -9,6 +9,7 @@ from huggingface_hub.errors import EntryNotFoundError
 from fedgraph.trainer_class import (
     Trainer_GC,
     Trainer_General,
+    _resolve_huggingface_artifact_num_hops,
     load_trainer_data_from_hugging_face,
 )
 
@@ -51,6 +52,7 @@ class TestLoadTrainerDataFromHuggingFace:
         args.n_trainer = 5
         args.num_hops = 2
         args.iid_beta = 0.5
+        args.hf_artifact_num_hops = 1
 
         result = load_trainer_data_from_hugging_face(trainer_id=0, args=args)
 
@@ -59,7 +61,7 @@ class TestLoadTrainerDataFromHuggingFace:
 
         # Verify calls
         assert mock_hf_download.call_count == 12
-        expected_repo = "FedGraph/fedgraph_cora_5trainer_2hop_iid_beta_0.5_trainer_id_0"
+        expected_repo = "FedGraph/fedgraph_cora_5trainer_1hop_iid_beta_0.5_trainer_id_0"
         mock_hf_download.assert_any_call(
             repo_id=expected_repo, repo_type="dataset", filename="local_node_index.pt"
         )
@@ -88,6 +90,20 @@ class TestLoadTrainerDataFromHuggingFace:
 
         assert len(result) == 12
         assert result[-2:] == (None, None)
+
+    def test_resolves_legacy_huggingface_hop_suffix(self):
+        args = Mock()
+        args.num_hops = 2
+        args.hf_artifact_num_hops = 1
+
+        assert _resolve_huggingface_artifact_num_hops(args) == 1
+
+    def test_defaults_to_runtime_hops_without_legacy_override(self):
+        args = Mock()
+        args.num_hops = 2
+        args.hf_artifact_num_hops = None
+
+        assert _resolve_huggingface_artifact_num_hops(args) == 2
 
 
 class TestTrainerGeneral:
@@ -206,6 +222,140 @@ class TestTrainerGeneral:
             max(self.train_labels.max().item(), self.test_labels.max().item()) + 1
         )
         assert info["label_num"] == expected_label_num
+        assert "communicate_node_global_index" not in info
+
+    def test_fedgcn_get_info_includes_communication_indexes(self):
+        self.args.method = "FedGCN"
+        trainer = Trainer_General(
+            rank=self.rank,
+            args_hidden=self.args_hidden,
+            device=self.device,
+            args=self.args,
+            local_node_index=self.local_node_index,
+            communicate_node_index=self.communicate_node_index,
+            adj=self.adj,
+            train_labels=self.train_labels,
+            test_labels=self.test_labels,
+            features=self.features,
+            idx_train=self.idx_train,
+            idx_test=self.idx_test,
+        )
+
+        info = trainer.get_info()
+
+        assert torch.equal(
+            info["communicate_node_global_index"], trainer.communicate_node_index
+        )
+
+    def test_fedavg_relabels_legacy_huggingface_adjacency(self):
+        self.args.use_huggingface = True
+        self.args.hf_artifact_num_hops = 1
+        local_node_index = torch.tensor([10, 20, 30])
+        # The legacy positions are relative to the larger communication tensor.
+        global_edge_index = torch.tensor([[10, 20, 20, 30, 99], [20, 10, 30, 20, 10]])
+        trainer = Trainer_General(
+            rank=self.rank,
+            args_hidden=self.args_hidden,
+            device=self.device,
+            args=self.args,
+            local_node_index=local_node_index,
+            communicate_node_index=torch.tensor([5, 10, 20, 30, 40]),
+            adj=global_edge_index,
+            train_labels=torch.tensor([0]),
+            test_labels=torch.tensor([1]),
+            features=torch.randn(3, 2),
+            idx_train=torch.tensor([1]),
+            idx_test=torch.tensor([3]),
+        )
+
+        torch.testing.assert_close(
+            trainer.adj, torch.tensor([[0, 1, 1, 2], [1, 0, 2, 1]])
+        )
+        assert trainer.feature_aggregation is trainer.features
+        assert "communicate_node_global_index" not in trainer.get_info()
+        torch.testing.assert_close(trainer.idx_train, torch.tensor([0]))
+        torch.testing.assert_close(trainer.idx_test, torch.tensor([2]))
+
+    def test_fedavg_relabels_legacy_isolated_high_id_node(self):
+        self.args.use_huggingface = True
+        self.args.hf_artifact_num_hops = 1
+        # The node with global ID 111 has no local edge. PyG must not infer its
+        # node-mask length only from the highest adjacency endpoint (20).
+        local_node_index = torch.tensor([10, 20, 111])
+        global_edge_index = torch.tensor([[10, 20], [20, 10]])
+        trainer = Trainer_General(
+            rank=self.rank,
+            args_hidden=self.args_hidden,
+            device=self.device,
+            args=self.args,
+            local_node_index=local_node_index,
+            communicate_node_index=torch.tensor([5, 10, 20, 111]),
+            adj=global_edge_index,
+            train_labels=torch.tensor([0]),
+            test_labels=torch.tensor([1]),
+            features=torch.randn(3, 2),
+            idx_train=torch.tensor([1]),
+            idx_test=torch.tensor([3]),
+        )
+
+        torch.testing.assert_close(trainer.adj, torch.tensor([[0, 1], [1, 0]]))
+        torch.testing.assert_close(trainer.idx_train, torch.tensor([0]))
+        torch.testing.assert_close(trainer.idx_test, torch.tensor([2]))
+
+    def test_fedavg_relabels_legacy_huggingface_adjacency_before_device_transfer(
+        self, monkeypatch
+    ):
+        self.args.use_huggingface = True
+        self.args.hf_artifact_num_hops = 1
+        observed_devices = []
+        original_relabel_adj = Trainer_General.relabel_adj
+
+        def spy_relabel_adj(trainer, node_index=None):
+            observed_devices.append((trainer.adj.device.type, node_index.device.type))
+            return original_relabel_adj(trainer, node_index)
+
+        monkeypatch.setattr(Trainer_General, "relabel_adj", spy_relabel_adj)
+        trainer = Trainer_General(
+            rank=self.rank,
+            args_hidden=self.args_hidden,
+            device=torch.device("meta"),
+            args=self.args,
+            local_node_index=torch.tensor([10, 20]),
+            communicate_node_index=torch.tensor([5, 10, 20]),
+            adj=torch.tensor([[10, 20], [20, 10]]),
+            train_labels=torch.tensor([0]),
+            test_labels=torch.tensor([1]),
+            features=torch.randn(2, 2),
+            idx_train=torch.tensor([1]),
+            idx_test=torch.tensor([2]),
+        )
+
+        assert observed_devices == [("cpu", "cpu")]
+        assert trainer.adj.device.type == "meta"
+
+    def test_fedavg_leaves_zero_hop_huggingface_adjacency_unchanged(self):
+        self.args.use_huggingface = True
+        self.args.hf_artifact_num_hops = 0
+        self.args.num_hops = 0
+        local_node_index = torch.tensor([10, 20])
+        local_edge_index = torch.tensor([[0, 1], [1, 0]])
+        trainer = Trainer_General(
+            rank=self.rank,
+            args_hidden=self.args_hidden,
+            device=self.device,
+            args=self.args,
+            local_node_index=local_node_index,
+            communicate_node_index=local_node_index,
+            adj=local_edge_index,
+            train_labels=torch.tensor([0]),
+            test_labels=torch.tensor([1]),
+            features=torch.randn(2, 2),
+            idx_train=torch.tensor([0]),
+            idx_test=torch.tensor([1]),
+        )
+
+        torch.testing.assert_close(trainer.adj, local_edge_index)
+        assert trainer.feature_aggregation is trainer.features
 
     @pytest.mark.parametrize(
         ("train_labels", "test_labels", "expected_label_num"),
