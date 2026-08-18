@@ -482,6 +482,39 @@ class TestTrainerGeneral:
                 local_features.shape[1],
             )
 
+    @pytest.mark.parametrize("norm_type", ["none", "row", "sym"])
+    def test_indexed_feature_sum_matches_dense_feature_sum(self, norm_type):
+        args = Mock()
+        args.seed = 42
+        args.local_step = 1
+        args.method = "FedGCN"
+        args.norm_type = norm_type
+        args.use_encryption = False
+        local_node_index = torch.tensor([1, 4])
+        local_features = torch.tensor([[1.0, 2.0], [3.0, 5.0]])
+        edge_index = torch.tensor([[0, 0, 2, 3, 4, 4], [1, 4, 1, 4, 1, 4]])
+        trainer = Trainer_General(
+            rank=0,
+            args_hidden=2,
+            device=torch.device("cpu"),
+            args=args,
+            local_node_index=local_node_index,
+            communicate_node_index=torch.arange(6),
+            adj=edge_index,
+            train_labels=torch.tensor([0]),
+            test_labels=torch.tensor([0]),
+            features=local_features,
+            idx_train=torch.tensor([0]),
+            idx_test=torch.tensor([0]),
+        )
+        trainer.global_node_num = 6
+
+        dense_feature_sum = trainer.get_local_feature_sum()
+        row_ids, row_values = trainer.get_indexed_local_feature_sum()
+
+        torch.testing.assert_close(row_ids, torch.tensor([0, 1, 2, 3, 4]))
+        torch.testing.assert_close(row_values, dense_feature_sum[row_ids])
+
     def test_get_local_feature_sum_requires_global_node_num(self):
         trainer = Trainer_General(
             rank=self.rank,

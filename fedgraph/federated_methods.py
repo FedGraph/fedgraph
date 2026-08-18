@@ -21,6 +21,12 @@ import torch
 from fedgraph.data_process import data_loader
 from fedgraph.gnn_models import GIN
 from fedgraph.monitor_class import Monitor
+from fedgraph.resource_monitor import (
+    append_resource_snapshot,
+    collect_resource_snapshot,
+    reset_cuda_peak_memory,
+    write_resource_snapshot_summary,
+)
 from fedgraph.server_class import Server, Server_GC, Server_LP
 from fedgraph.train_func import gc_avg_accuracy
 from fedgraph.trainer_class import Trainer_GC, Trainer_General, Trainer_LP
@@ -223,6 +229,125 @@ def _weighted_nc_metric(results: np.ndarray, weights: list, metric_index: int) -
     if not weights or sum(weights) == 0:
         return 0.0
     return float(np.average([row[metric_index] for row in results], weights=weights))
+
+
+def _resolve_nc_evaluation_split(args: Any) -> str:
+    """Return the explicitly requested per-round NC evaluation split."""
+    split = getattr(args, "evaluation_split", "validation")
+    if split not in {"validation", "test"}:
+        raise ValueError("evaluation_split must be either 'validation' or 'test'")
+    return split
+
+
+_NC_RESOURCE_MONITOR_MODES = {"off", "manual", "prometheus", "hybrid"}
+
+
+def _resolve_nc_resource_monitor_mode(args: Any) -> str:
+    """Return the explicit NC resource-observability mode."""
+    mode = str(getattr(args, "resource_monitor_mode", "off")).lower()
+    if mode not in _NC_RESOURCE_MONITOR_MODES:
+        choices = ", ".join(sorted(_NC_RESOURCE_MONITOR_MODES))
+        raise ValueError(f"resource_monitor_mode must be one of: {choices}")
+    return mode
+
+
+def _resource_snapshot_due(round_id: int, interval_rounds: int) -> bool:
+    """Sample the first round and then a bounded periodic set of rounds."""
+    return interval_rounds > 0 and (round_id == 1 or round_id % interval_rounds == 0)
+
+
+def _append_nc_resource_snapshots(
+    snapshot_path: Path,
+    mode: str,
+    snapshots: list[dict[str, Any]],
+) -> None:
+    for snapshot in snapshots:
+        snapshot["resource_monitor_mode"] = mode
+        append_resource_snapshot(snapshot_path, snapshot)
+
+
+def _evaluate_nc_trainers(
+    trainers: list,
+    evaluation_split: str,
+    val_data_weights: list,
+    test_data_weights: list,
+) -> tuple[float, float]:
+    """Collect weighted per-round metrics from the configured NC split."""
+    if evaluation_split == "validation":
+        results = [trainer.local_val.remote() for trainer in trainers]
+        weights = val_data_weights
+    else:
+        results = [trainer.local_test.remote() for trainer in trainers]
+        weights = test_data_weights
+
+    metrics = np.array([ray.get(result) for result in results])
+    return (
+        _weighted_nc_metric(metrics, weights, 0),
+        _weighted_nc_metric(metrics, weights, 1),
+    )
+
+
+def _resolve_pretrain_feature_upload_mode(args: Any) -> str:
+    """Return the configured plaintext FedGCN pretraining upload mode."""
+    mode = getattr(args, "pretrain_feature_upload_mode", "dense")
+    if mode not in {"dense", "indexed"}:
+        raise ValueError(
+            "pretrain_feature_upload_mode must be either 'dense' or 'indexed'"
+        )
+    return mode
+
+
+def _aggregate_indexed_feature_sums(
+    indexed_feature_sums: list[tuple[torch.Tensor, torch.Tensor]],
+    requested_node_indexes: list[torch.Tensor],
+) -> list[torch.Tensor]:
+    """Aggregate indexed dense feature rows and return each trainer's rows."""
+    if not indexed_feature_sums:
+        raise ValueError("indexed_feature_sums must not be empty")
+
+    requested_rows = [
+        node_indexes.detach().cpu().long().flatten()
+        for node_indexes in requested_node_indexes
+    ]
+    first_values = indexed_feature_sums[0][1].detach().cpu()
+    if first_values.ndim != 2:
+        raise ValueError("indexed feature values must be two-dimensional")
+    feature_dim = first_values.size(1)
+    value_dtype = first_values.dtype
+
+    for row_ids, row_values in indexed_feature_sums:
+        row_ids = row_ids.detach().cpu().long().flatten()
+        row_values = row_values.detach().cpu()
+        if row_values.ndim != 2 or row_values.size(0) != row_ids.numel():
+            raise ValueError(
+                "each indexed feature sum must have one dense row per row ID"
+            )
+        if row_values.size(1) != feature_dim or row_values.dtype != value_dtype:
+            raise ValueError("indexed feature sums must share dtype and feature width")
+
+    all_requested_rows = torch.unique(torch.cat(requested_rows), sorted=True)
+    if all_requested_rows.numel() == 0:
+        return [
+            torch.empty((0, feature_dim), dtype=value_dtype) for _ in requested_rows
+        ]
+
+    aggregated_rows = torch.zeros(
+        (all_requested_rows.numel(), feature_dim), dtype=value_dtype
+    )
+    for row_ids, row_values in indexed_feature_sums:
+        row_ids = row_ids.detach().cpu().long().flatten()
+        row_values = row_values.detach().cpu()
+        positions = torch.searchsorted(all_requested_rows, row_ids)
+        valid = positions < all_requested_rows.numel()
+        matches = torch.zeros_like(valid)
+        matches[valid] = all_requested_rows[positions[valid]] == row_ids[valid]
+        if matches.any():
+            aggregated_rows.index_add_(0, positions[matches], row_values[matches])
+
+    return [
+        aggregated_rows[torch.searchsorted(all_requested_rows, node_indexes)]
+        for node_indexes in requested_rows
+    ]
 
 
 def _parse_optional_float_list(raw: Any) -> list:
@@ -997,14 +1122,50 @@ def run_NC(args: attridict, data: Any = None) -> None:
         else:
             pretrain_upload = 0
             pretrain_download = 0
-            local_neighbor_feature_sums = [
-                trainer.get_local_feature_sum.remote() for trainer in server.trainers
-            ]
-            # Record uploaded data sizes. Run server-side aggregation on CPU
-            # since Ray actors may return tensors from different devices.
-            upload_sizes = []
-            global_feature_sum = torch.zeros_like(features).cpu()
-            while True:
+            upload_mode = _resolve_pretrain_feature_upload_mode(args)
+            indexed_trainer_aggregations = []
+            indexed_upload_sizes = []
+            if upload_mode == "indexed":
+                indexed_feature_sum_refs = [
+                    trainer.get_indexed_local_feature_sum.remote()
+                    for trainer in server.trainers
+                ]
+                indexed_feature_sums: list[tuple[torch.Tensor, torch.Tensor]] = []
+                while indexed_feature_sum_refs:
+                    ready, indexed_feature_sum_refs = ray.wait(
+                        indexed_feature_sum_refs, num_returns=1, timeout=None
+                    )
+                    indexed_feature_sums.extend(
+                        ray.get(feature_sum_ref) for feature_sum_ref in ready
+                    )
+
+                indexed_upload_sizes = [
+                    row_ids.element_size() * row_ids.nelement()
+                    + row_values.element_size() * row_values.nelement()
+                    for row_ids, row_values in indexed_feature_sums
+                ]
+                indexed_trainer_aggregations = _aggregate_indexed_feature_sums(
+                    indexed_feature_sums, trainer_communicate_node_global_indexes
+                )
+
+            local_neighbor_feature_sums = (
+                [trainer.get_local_feature_sum.remote() for trainer in server.trainers]
+                if upload_mode == "dense"
+                else []
+            )
+            # Dense uploads aggregate on the server CPU because Ray actors may
+            # return tensors from different devices.
+            upload_sizes = indexed_upload_sizes
+            if upload_mode == "dense":
+                if args.use_huggingface:
+                    raise ValueError(
+                        "Hugging Face FedGCN pretraining requires "
+                        "pretrain_feature_upload_mode='indexed'"
+                    )
+                global_feature_sum = torch.zeros_like(features).cpu()
+            else:
+                global_feature_sum = None
+            while local_neighbor_feature_sums:
                 ready, left = ray.wait(
                     local_neighbor_feature_sums, num_returns=1, timeout=None
                 )
@@ -1032,10 +1193,16 @@ def run_NC(args: attridict, data: Any = None) -> None:
             # Calculate and record download sizes (done on CPU to match global_feature_sum)
             download_sizes = []
             for i in range(args.n_trainer):
-                communicate_nodes = (
-                    communicate_node_global_indexes[i].clone().detach().cpu()
-                )
-                trainer_aggregation = global_feature_sum[communicate_nodes]
+                if upload_mode == "dense":
+                    communicate_nodes = (
+                        trainer_communicate_node_global_indexes[i]
+                        .clone()
+                        .detach()
+                        .cpu()
+                    )
+                    trainer_aggregation = global_feature_sum[communicate_nodes]
+                else:
+                    trainer_aggregation = indexed_trainer_aggregations[i]
                 # Calculate download size for each trainer
                 download_sizes.append(
                     trainer_aggregation.element_size() * trainer_aggregation.nelement()

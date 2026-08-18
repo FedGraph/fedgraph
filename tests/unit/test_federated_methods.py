@@ -6,12 +6,17 @@ import pytest
 import torch
 
 from fedgraph.federated_methods import (
+    _aggregate_indexed_feature_sums,
+    _nc_plateau_round,
+    _nc_val_loss_patience_round,
+    _parse_optional_float_list,
     _resolve_nc_class_num,
     _resolve_nc_devices,
+    _resolve_nc_evaluation_split,
     _resolve_nc_global_node_num,
-    _nc_val_loss_patience_round,
-    _nc_plateau_round,
-    _parse_optional_float_list,
+    _resolve_nc_resource_monitor_mode,
+    _resolve_pretrain_feature_upload_mode,
+    _resource_snapshot_due,
     _unpack_nc_data,
     _weighted_nc_metric,
     run_fedgraph,
@@ -119,6 +124,42 @@ class TestResolveNCGlobalNodeNum:
             _resolve_nc_global_node_num(True, trainer_information)
 
 
+class TestIndexedFeatureAggregation:
+    def test_defaults_to_dense_uploads(self):
+        assert _resolve_pretrain_feature_upload_mode(attridict.AttriDict()) == "dense"
+
+    def test_rejects_unknown_upload_mode(self):
+        with pytest.raises(ValueError, match="dense.*indexed"):
+            _resolve_pretrain_feature_upload_mode(
+                attridict.AttriDict(pretrain_feature_upload_mode="sparse")
+            )
+
+    def test_aggregates_only_requested_rows_in_requested_order(self):
+        indexed_feature_sums = [
+            (
+                torch.tensor([2, 5]),
+                torch.tensor([[1.0, 10.0], [2.0, 20.0]]),
+            ),
+            (
+                torch.tensor([2, 7]),
+                torch.tensor([[3.0, 30.0], [4.0, 40.0]]),
+            ),
+        ]
+        requested_rows = [torch.tensor([5, 2]), torch.tensor([2, 7])]
+
+        aggregations = _aggregate_indexed_feature_sums(
+            indexed_feature_sums, requested_rows
+        )
+
+        assert len(aggregations) == 2
+        torch.testing.assert_close(
+            aggregations[0], torch.tensor([[2.0, 20.0], [4.0, 40.0]])
+        )
+        torch.testing.assert_close(
+            aggregations[1], torch.tensor([[4.0, 40.0], [4.0, 40.0]])
+        )
+
+
 class TestNCMetricHelpers:
     def test_parse_optional_float_list(self):
         assert _parse_optional_float_list("") == []
@@ -187,6 +228,44 @@ class TestNCMetricHelpers:
 
         assert _weighted_nc_metric(results, [0, 0], 1) == 0.0
         assert _weighted_nc_metric(results, [1, 3], 1) == pytest.approx(0.6875)
+
+
+class TestResolveNCEvaluationSplit:
+    def test_defaults_to_validation(self):
+        assert _resolve_nc_evaluation_split(attridict.AttriDict()) == "validation"
+
+    def test_allows_explicit_test_split(self):
+        args = attridict.AttriDict(evaluation_split="test")
+
+        assert _resolve_nc_evaluation_split(args) == "test"
+
+    def test_rejects_unknown_split(self):
+        args = attridict.AttriDict(evaluation_split="training")
+
+        with pytest.raises(ValueError, match="evaluation_split"):
+            _resolve_nc_evaluation_split(args)
+
+
+class TestNCResourceMonitor:
+    def test_defaults_to_off(self):
+        assert _resolve_nc_resource_monitor_mode(attridict.AttriDict()) == "off"
+
+    def test_allows_explicit_prometheus_mode(self):
+        args = attridict.AttriDict(resource_monitor_mode="prometheus")
+
+        assert _resolve_nc_resource_monitor_mode(args) == "prometheus"
+
+    def test_rejects_unknown_mode(self):
+        args = attridict.AttriDict(resource_monitor_mode="verbose")
+
+        with pytest.raises(ValueError, match="resource_monitor_mode"):
+            _resolve_nc_resource_monitor_mode(args)
+
+    def test_snapshot_schedule_is_round_bounded(self):
+        assert _resource_snapshot_due(1, 10)
+        assert not _resource_snapshot_due(2, 10)
+        assert _resource_snapshot_due(10, 10)
+        assert not _resource_snapshot_due(10, 0)
 
 
 class TestRunFedgraph:

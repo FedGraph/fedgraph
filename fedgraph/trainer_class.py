@@ -351,7 +351,6 @@ class Trainer_General:
         )
         self.feature_aggregation = None
         if self.args.method == "FedAvg":
-            # print("Loading feature as the feature aggregation for fedavg method")
             self.feature_aggregation = self.features
 
     def get_info(self):
@@ -514,6 +513,116 @@ class Trainer_General:
             )
 
         return one_hop_neighbor_feature_sum
+
+    @torch.no_grad()
+    def get_indexed_local_feature_sum(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return only global feature-sum rows affected by local feature rows.
+
+        This is mathematically equivalent to ``get_local_feature_sum`` on the
+        returned rows, but never materializes a ``global_node_num x feature_dim``
+        tensor. The server receives dense feature values only for active rows,
+        paired with their global node IDs.
+        """
+        if self.global_node_num is None:
+            raise RuntimeError(
+                "Trainer model metadata must be initialized before feature aggregation"
+            )
+        if self.adj.ndim != 2 or self.adj.size(0) != 2:
+            raise ValueError(
+                "adj must be an edge-index tensor with shape [2, num_edges]"
+            )
+
+        local_node_ids = self.local_node_index.long()
+        if local_node_ids.numel() != self.features.size(0):
+            raise ValueError(
+                "local_node_index must contain one global ID per feature row"
+            )
+        if local_node_ids.numel() > 1 and not bool(
+            torch.all(local_node_ids[1:] >= local_node_ids[:-1])
+        ):
+            raise ValueError("local_node_index must be sorted for indexed aggregation")
+
+        source_nodes = self.adj[0].long()
+        target_nodes = self.adj[1].long()
+        target_positions = torch.searchsorted(local_node_ids, target_nodes)
+        valid_positions = target_positions < local_node_ids.numel()
+        target_is_local = torch.zeros_like(valid_positions)
+        target_is_local[valid_positions] = (
+            local_node_ids[target_positions[valid_positions]]
+            == target_nodes[valid_positions]
+        )
+
+        contributing_sources = source_nodes[target_is_local]
+        contributing_features = self.features[target_positions[target_is_local]]
+        row_ids = torch.unique(
+            torch.cat([contributing_sources, local_node_ids]), sorted=True
+        )
+        row_values = torch.zeros(
+            (row_ids.numel(), self.features.size(1)),
+            dtype=self.features.dtype,
+            device=self.device,
+        )
+
+        norm_type = getattr(self.args, "norm_type", "none")
+        if norm_type not in {"none", "row", "sym"}:
+            raise ValueError(
+                f"Unknown norm_type: {norm_type}. Use 'sym', 'row', or 'none'."
+            )
+
+        if norm_type == "none":
+            edge_weights = torch.ones(
+                contributing_sources.numel(),
+                dtype=self.features.dtype,
+                device=self.device,
+            )
+            self_weights = torch.ones(
+                local_node_ids.numel(),
+                dtype=self.features.dtype,
+                device=self.device,
+            )
+        else:
+            degree_nodes, edge_counts = torch.unique(
+                source_nodes, sorted=True, return_counts=True
+            )
+
+            def degrees_for(node_ids: torch.Tensor) -> torch.Tensor:
+                positions = torch.searchsorted(degree_nodes, node_ids)
+                valid = positions < degree_nodes.numel()
+                matches = torch.zeros_like(valid)
+                matches[valid] = degree_nodes[positions[valid]] == node_ids[valid]
+                degrees = torch.ones(
+                    node_ids.numel(), dtype=self.features.dtype, device=self.device
+                )
+                degrees[matches] = (
+                    edge_counts[positions[matches]].to(self.features.dtype) + 1
+                )
+                return degrees
+
+            source_degrees = degrees_for(contributing_sources)
+            local_degrees = degrees_for(local_node_ids)
+            if norm_type == "row":
+                edge_weights = source_degrees.reciprocal()
+                self_weights = local_degrees.reciprocal()
+            else:
+                target_degrees = degrees_for(target_nodes[target_is_local])
+                edge_weights = source_degrees.rsqrt() * target_degrees.rsqrt()
+                self_weights = local_degrees.reciprocal()
+
+        if contributing_sources.numel() > 0:
+            source_positions = torch.searchsorted(row_ids, contributing_sources)
+            row_values.index_add_(
+                0,
+                source_positions,
+                contributing_features * edge_weights.unsqueeze(1),
+            )
+
+        local_positions = torch.searchsorted(row_ids, local_node_ids)
+        row_values.index_add_(
+            0,
+            local_positions,
+            self.features * self_weights.unsqueeze(1),
+        )
+        return row_ids.detach().cpu(), row_values.detach().cpu()
 
     def get_local_feature_sum_og(self) -> torch.Tensor:
         """
