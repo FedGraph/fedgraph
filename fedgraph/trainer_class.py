@@ -1186,7 +1186,45 @@ class Trainer_General:
         adj = self.adj.to(self.device)
         labels = labels.to(self.device)
         indexes = indexes.to(self.device)
-        local_loss, local_acc = test(self.model, feats, adj, labels, indexes)
+        use_mini_batch = hasattr(self.args, "batch_size") and self.args.batch_size > 0
+        if use_mini_batch:
+            data = Data(x=feats, edge_index=adj)
+            loader = NeighborLoader(
+                data,
+                num_neighbors=[-1] * self.args.num_layers,
+                batch_size=self.args.batch_size,
+                input_nodes=indexes,
+                shuffle=False,
+                num_workers=0,
+            )
+            total_loss = torch.zeros((), device=self.device)
+            total_correct = torch.zeros((), device=self.device, dtype=torch.long)
+            total_examples = 0
+
+            self.model.eval()
+            with torch.no_grad():
+                for batch in loader:
+                    seed_node_count = int(batch.batch_size)
+                    if seed_node_count == 0:
+                        continue
+
+                    # ``input_id`` is each seed's position in ``indexes``. It
+                    # lets us keep labels as a compact split-aligned tensor.
+                    seed_labels = labels[batch.input_id.to(labels.device)]
+                    seed_output = self.model(batch.x, batch.edge_index)[
+                        :seed_node_count
+                    ]
+                    total_loss += F.nll_loss(seed_output, seed_labels, reduction="sum")
+                    total_correct += (seed_output.argmax(dim=-1) == seed_labels).sum()
+                    total_examples += seed_node_count
+
+            if total_examples == 0:
+                local_loss, local_acc = 0.0, 0.0
+            else:
+                local_loss = (total_loss / total_examples).item()
+                local_acc = (total_correct.float() / total_examples).item()
+        else:
+            local_loss, local_acc = test(self.model, feats, adj, labels, indexes)
         losses.append(local_loss)
         accuracies.append(local_acc)
         return [local_loss, local_acc]

@@ -26,14 +26,14 @@ from typing import Iterable, List, Optional
 
 import numpy as np
 
-# FedGraph's NC runner currently reports experiment metrics through stdout.
-# These patterns convert those logs into structured CSV/JSON outputs. Current
-# runs report per-round validation metrics and final-only test metrics.
-ROUND_VALIDATION_LOSS_RE = re.compile(
-    r"Round\s+(\d+):\s+Global Val Loss\s*=\s*([0-9.eE+-]+)"
+# FedGraph's NC runner reports experiment metrics through stdout. These patterns
+# convert those logs into structured CSV/JSON outputs without mislabelling a
+# legacy per-round test evaluation as validation.
+ROUND_EVALUATION_LOSS_RE = re.compile(
+    r"Round\s+(\d+):\s+Global (Val|Test) Loss\s*=\s*([0-9.eE+-]+)"
 )
-ROUND_VALIDATION_ACCURACY_RE = re.compile(
-    r"Round\s+(\d+):\s+Global Val Accuracy\s*=\s*([0-9.eE+-]+)"
+ROUND_EVALUATION_ACCURACY_RE = re.compile(
+    r"Round\s+(\d+):\s+Global (Val|Test) Accuracy\s*=\s*([0-9.eE+-]+)"
 )
 ROUND_TIMING_RE = re.compile(
     r"Round\s+(\d+):\s+Training Time\s*=\s*([0-9.eE+-]+)s,\s+"
@@ -83,8 +83,14 @@ class ExperimentConfig:
     num_hops: int
     gpu: bool
     server_device: Optional[str]
+    pretrain_feature_upload_mode: str
+    use_huggingface: bool
+    hf_artifact_num_hops: Optional[int]
+    evaluation_split: str
     num_cpus_per_trainer: int
     num_gpus_per_trainer: float
+    resource_monitor_mode: str
+    resource_snapshot_interval_rounds: int
     use_ogb_load_patch: bool
     elastic_training: bool
     max_rounds: Optional[int]
@@ -306,6 +312,8 @@ def write_run_plan(output_dir: Path, configs: List[ExperimentConfig], args) -> N
             "round_metrics": str(output_dir / "round_metrics.csv"),
             "checkpoint_metrics": str(output_dir / "checkpoint_metrics.csv"),
             "runs_dir": str(output_dir / "runs"),
+            "resource_snapshots": "runs/*/fedgraph_logs/resource_snapshots.jsonl",
+            "resource_snapshot_summaries": "runs/*/fedgraph_logs/resource_snapshot_summary.json",
         },
         "configs": [asdict(config) for config in configs],
     }
@@ -341,11 +349,16 @@ def to_fedgraph_args(
             "num_hops": config.num_hops,
             "gpu": config.gpu,
             "server_device": config.server_device,
+            "pretrain_feature_upload_mode": config.pretrain_feature_upload_mode,
             "num_cpus_per_trainer": config.num_cpus_per_trainer,
             "num_gpus_per_trainer": config.num_gpus_per_trainer,
             "logdir": str(logdir),
             "use_encryption": False,
-            "use_huggingface": False,
+            "use_huggingface": config.use_huggingface,
+            "hf_artifact_num_hops": config.hf_artifact_num_hops,
+            "evaluation_split": config.evaluation_split,
+            "resource_monitor_mode": config.resource_monitor_mode,
+            "resource_snapshot_interval_rounds": config.resource_snapshot_interval_rounds,
             "saveto_huggingface": False,
             "use_cluster": False,
             "use_lowrank": False,
@@ -382,14 +395,17 @@ def parse_run_log(log_path: Path):
     # Each FedGraph run gets its own stdout log; parsing here avoids changing
     # the core training API just for this benchmark.
     text = log_path.read_text(encoding="utf-8", errors="replace")
-    val_acc_by_round = {
-        int(round_id): float(accuracy)
-        for round_id, accuracy in ROUND_VALIDATION_ACCURACY_RE.findall(text)
-    }
-    val_loss_by_round = {
-        int(round_id): float(loss)
-        for round_id, loss in ROUND_VALIDATION_LOSS_RE.findall(text)
-    }
+    evaluation_by_round = {}
+    for round_id, split_label, accuracy in ROUND_EVALUATION_ACCURACY_RE.findall(text):
+        metrics = evaluation_by_round.setdefault(int(round_id), {})
+        metrics["evaluation_split"] = "validation" if split_label == "Val" else "test"
+        metrics["evaluation_acc"] = float(accuracy)
+
+    for round_id, split_label, loss in ROUND_EVALUATION_LOSS_RE.findall(text):
+        metrics = evaluation_by_round.setdefault(int(round_id), {})
+        metrics["evaluation_split"] = "validation" if split_label == "Val" else "test"
+        metrics["evaluation_loss"] = float(loss)
+
     round_timing = {
         int(round_id): {
             "train_time_sec": float(training_time),
@@ -399,10 +415,10 @@ def parse_run_log(log_path: Path):
     }
     cumulative_time = 0.0
     round_metrics = []
-    for round_id in sorted(
-        set(round_timing) | set(val_acc_by_round) | set(val_loss_by_round)
-    ):
+    for round_id in sorted(set(round_timing) | set(evaluation_by_round)):
+        evaluation = evaluation_by_round.get(round_id, {})
         timing = round_timing.get(round_id, {})
+        is_validation = evaluation.get("evaluation_split") == "validation"
         round_time = timing.get("train_time_sec", 0.0) + timing.get(
             "comm_time_sec", 0.0
         )
@@ -410,8 +426,13 @@ def parse_run_log(log_path: Path):
         round_metrics.append(
             {
                 "round": round_id,
-                "val_acc": val_acc_by_round.get(round_id),
-                "val_loss": val_loss_by_round.get(round_id),
+                "evaluation_split": evaluation.get("evaluation_split"),
+                "evaluation_acc": evaluation.get("evaluation_acc"),
+                "evaluation_loss": evaluation.get("evaluation_loss"),
+                "val_acc": evaluation.get("evaluation_acc") if is_validation else None,
+                "val_loss": (
+                    evaluation.get("evaluation_loss") if is_validation else None
+                ),
                 "train_comm_time_sec": round_time,
                 "cum_train_comm_time_sec": cumulative_time,
                 **timing,
@@ -591,6 +612,9 @@ def write_round_metric_rows(path: Path, rows: List[dict]) -> None:
         "seed",
         "iid_beta",
         "round",
+        "evaluation_split",
+        "evaluation_acc",
+        "evaluation_loss",
         "val_acc",
         "val_loss",
         "local_steps",
@@ -708,6 +732,19 @@ def run_experiment(
     checkpoint_metrics = parsed["checkpoint_metrics"]
 
     final_round = round_metrics[-1]["round"] if round_metrics else None
+    evaluation_acc_final = round_metric_value(
+        round_metrics, final_round, "evaluation_acc"
+    )
+    evaluation_loss_final = round_metric_value(
+        round_metrics, final_round, "evaluation_loss"
+    )
+    evaluation_acc_best, evaluation_acc_best_round = best_round(
+        round_metrics, "evaluation_acc", "max"
+    )
+    evaluation_loss_best, evaluation_loss_best_round = best_round(
+        round_metrics, "evaluation_loss", "min"
+    )
+
     val_acc_final = round_metric_value(round_metrics, final_round, "val_acc")
     val_loss_final = round_metric_value(round_metrics, final_round, "val_loss")
     val_acc_best, val_acc_best_round = best_round(round_metrics, "val_acc", "max")
@@ -748,8 +785,21 @@ def run_experiment(
         "num_layers": config.num_layers,
         "num_hops": config.num_hops,
         "gpu": config.gpu,
+        "resource_monitor_mode": config.resource_monitor_mode,
+        "resource_snapshot_interval_rounds": config.resource_snapshot_interval_rounds,
+        "resource_snapshots_path": str(log_dir / "resource_snapshots.jsonl"),
+        "resource_snapshot_summary_path": str(
+            log_dir / "resource_snapshot_summary.json"
+        ),
         "status": status,
         "start_time_utc": start_timestamp,
+        "evaluation_split": config.evaluation_split,
+        "evaluation_acc_final": evaluation_acc_final,
+        "evaluation_loss_final": evaluation_loss_final,
+        "evaluation_acc_best": evaluation_acc_best,
+        "evaluation_acc_best_round": evaluation_acc_best_round,
+        "evaluation_loss_best": evaluation_loss_best,
+        "evaluation_loss_best_round": evaluation_loss_best_round,
         "end_time_utc": end_timestamp,
         "duration_sec": round(duration_sec, 3),
         "rounds_recorded": len(round_metrics),
@@ -849,6 +899,9 @@ def run_experiment(
             "seed": config.seed,
             "iid_beta": config.iid_beta,
             "round": item["round"],
+            "evaluation_split": item.get("evaluation_split"),
+            "evaluation_acc": item.get("evaluation_acc"),
+            "evaluation_loss": item.get("evaluation_loss"),
             "val_acc": item.get("val_acc"),
             "val_loss": item.get("val_loss"),
             "local_steps": item["round"] * config.local_step,
@@ -897,6 +950,10 @@ def run_experiment(
         "num_layers",
         "num_hops",
         "gpu",
+        "resource_monitor_mode",
+        "resource_snapshot_interval_rounds",
+        "resource_snapshots_path",
+        "resource_snapshot_summary_path",
         "status",
         "start_time_utc",
         "end_time_utc",
@@ -904,6 +961,13 @@ def run_experiment(
         "rounds_recorded",
         "test_acc_final",
         "test_loss_final",
+        "evaluation_split",
+        "evaluation_acc_final",
+        "evaluation_loss_final",
+        "evaluation_acc_best",
+        "evaluation_acc_best_round",
+        "evaluation_loss_best",
+        "evaluation_loss_best_round",
         "val_acc_final",
         "val_loss_final",
         "val_acc_best",
@@ -984,8 +1048,14 @@ def build_configs(args) -> List[ExperimentConfig]:
                         num_hops=args.num_hops,
                         gpu=args.gpu,
                         server_device=args.server_device,
+                        pretrain_feature_upload_mode=args.pretrain_feature_upload_mode,
+                        use_huggingface=args.use_huggingface,
+                        hf_artifact_num_hops=args.hf_artifact_num_hops,
+                        evaluation_split=args.evaluation_split,
                         num_cpus_per_trainer=args.num_cpus_per_trainer,
                         num_gpus_per_trainer=args.num_gpus_per_trainer,
+                        resource_monitor_mode=args.resource_monitor_mode,
+                        resource_snapshot_interval_rounds=args.resource_snapshot_interval_rounds,
                         use_ogb_load_patch=use_ogb_load_patch,
                         elastic_training=args.elastic_training,
                         max_rounds=args.max_rounds,
@@ -1033,8 +1103,60 @@ def parse_args():
             "the same device selected by --gpu."
         ),
     )
+    parser.add_argument(
+        "--pretrain-feature-upload-mode",
+        choices=("dense", "indexed"),
+        default="dense",
+        help=(
+            "Plaintext FedGCN feature-upload mode. Indexed sends only active "
+            "feature rows; dense preserves the historical full-row upload."
+        ),
+    )
+    parser.add_argument(
+        "--use-huggingface",
+        action="store_true",
+        help="Load one pre-split Hugging Face dataset repository per trainer.",
+    )
+    parser.add_argument(
+        "--hf-artifact-num-hops",
+        type=int,
+        default=None,
+        help=(
+            "Hop suffix of a legacy Hugging Face artifact. Defaults to --num-hops; "
+            "use 1 when running a legacy artifact with current --num-hops 2."
+        ),
+    )
+    parser.add_argument(
+        "--evaluation-split",
+        choices=("validation", "test"),
+        default="validation",
+        help=(
+            "Per-round metric split. Test is for legacy data without validation "
+            "and cannot be combined with --elastic-training."
+        ),
+    )
     parser.add_argument("--num-cpus-per-trainer", type=int, default=1)
     parser.add_argument("--num-gpus-per-trainer", type=float, default=0.0)
+    parser.add_argument(
+        "--resource-monitor-mode",
+        choices=("off", "manual", "prometheus", "hybrid"),
+        default="off",
+        help=(
+            "Resource telemetry source: off preserves the original workflow; "
+            "manual records application snapshots for manual-Ray/nvidia-smi runs; "
+            "prometheus records application snapshots alongside Prometheus; "
+            "hybrid enables both during migration validation."
+        ),
+    )
+    parser.add_argument(
+        "--resource-snapshot-interval-rounds",
+        type=int,
+        default=10,
+        help=(
+            "Capture application resource snapshots on round 1 and every Nth global "
+            "round; 0 keeps lifecycle/final snapshots only."
+        ),
+    )
     parser.add_argument(
         "--output-root",
         default="benchmark/results/nc_batch_size_convergence",
@@ -1117,6 +1239,23 @@ def main() -> int:
         args.val_acc_tolerance = args.convergence_tolerance
     if args.max_rounds is not None and args.max_rounds < args.rounds:
         raise SystemExit("--max-rounds must be greater than or equal to --rounds")
+    if args.hf_artifact_num_hops is not None and args.hf_artifact_num_hops < 0:
+        raise SystemExit("--hf-artifact-num-hops must be non-negative")
+    if (
+        args.use_huggingface
+        and args.num_hops > 0
+        and args.pretrain_feature_upload_mode != "indexed"
+    ):
+        raise SystemExit(
+            "Hugging Face FedGCN pretraining requires "
+            "--pretrain-feature-upload-mode indexed"
+        )
+    if args.evaluation_split == "test" and args.elastic_training:
+        raise SystemExit(
+            "--evaluation-split test cannot be used with --elastic-training"
+        )
+    if args.resource_snapshot_interval_rounds < 0:
+        raise SystemExit("--resource-snapshot-interval-rounds must be non-negative")
     output_dir = resolve_output_dir(args)
     configs = build_configs(args)
     ensure_output_dir_available(output_dir, args.allow_existing_output_dir)

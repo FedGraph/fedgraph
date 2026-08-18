@@ -585,6 +585,24 @@ def run_NC(args: attridict, data: Any = None) -> None:
     monitor = Monitor(use_cluster=args.use_cluster)
     monitor.init_time_start()
 
+    resource_monitor_mode = _resolve_nc_resource_monitor_mode(args)
+    resource_snapshot_interval_rounds = int(
+        getattr(args, "resource_snapshot_interval_rounds", 10)
+    )
+    if resource_snapshot_interval_rounds < 0:
+        raise ValueError("resource_snapshot_interval_rounds must be non-negative")
+    resource_snapshot_path: Optional[Path] = None
+    if resource_monitor_mode != "off":
+        if not getattr(args, "logdir", None):
+            raise ValueError("resource monitoring requires args.logdir")
+        resource_snapshot_path = Path(args.logdir) / "resource_snapshots.jsonl"
+        print(
+            "NC_RESOURCE_MONITOR, "
+            f"mode={resource_monitor_mode}, "
+            f"snapshot_interval_rounds={resource_snapshot_interval_rounds}, "
+            f"snapshot_path={resource_snapshot_path}"
+        )
+
     # Initialize Ray.  ``ray_init_kwargs`` in the config lets callers override
     # the defaults (e.g. for distributed clusters or container environments
     # with limited /dev/shm).  When unset we fall back to Ray's defaults, which
@@ -679,6 +697,39 @@ def run_NC(args: attridict, data: Any = None) -> None:
                     print(f"Trainer {self.rank} configured for OpenFHE threshold HE")
                 else:
                     raise ValueError(f"Unknown he_backend: {self.he_backend}")
+
+        def reset_resource_peaks(self) -> None:
+            reset_cuda_peak_memory(self.device)
+
+        def get_resource_snapshot(
+            self, event: str, round_id: Optional[int] = None
+        ) -> dict[str, Any]:
+            snapshot = collect_resource_snapshot(
+                source="trainer",
+                event=event,
+                round_id=round_id,
+                trainer_id=int(self.rank),
+                device=self.device,
+                tensors={
+                    "features": self.features,
+                    "adjacency": self.adj,
+                    "feature_aggregation": self.feature_aggregation,
+                    "local_node_index": self.local_node_index,
+                    "communicate_node_index": self.communicate_node_index,
+                    "train_labels": self.train_labels,
+                    "val_labels": self.val_labels,
+                    "test_labels": self.test_labels,
+                    "idx_train": self.idx_train,
+                    "idx_val": self.idx_val,
+                    "idx_test": self.idx_test,
+                },
+                model=self.model,
+                optimizer=self.optimizer,
+            )
+            snapshot["feature_aggregation_aliases_features"] = (
+                self.feature_aggregation is self.features
+            )
+            return snapshot
 
         def get_memory_usage(self):
             """Get current memory usage and local graph info"""
@@ -797,6 +848,40 @@ def run_NC(args: attridict, data: Any = None) -> None:
     # End initialization time tracking
     server.broadcast_params(-1)
     monitor.init_time_end()
+
+    def record_resource_snapshots(
+        event: str,
+        round_id: Optional[int] = None,
+        include_trainers: bool = True,
+        include_server: bool = True,
+    ) -> None:
+        if resource_snapshot_path is None:
+            return
+        snapshots: list[dict[str, Any]] = []
+        if include_trainers:
+            snapshots.extend(
+                ray.get(
+                    [
+                        trainer.get_resource_snapshot.remote(event, round_id)
+                        for trainer in trainers
+                    ]
+                )
+            )
+        if include_server:
+            snapshots.append(
+                collect_resource_snapshot(
+                    source="server",
+                    event=event,
+                    round_id=round_id,
+                    device=server.device,
+                    model=server.model,
+                )
+            )
+        _append_nc_resource_snapshots(
+            resource_snapshot_path, resource_monitor_mode, snapshots
+        )
+
+    record_resource_snapshots("initialization_complete")
 
     pretrain_start = time.time()
     monitor.pretrain_time_start()
@@ -1214,6 +1299,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
         [trainer.relabel_adj.remote() for trainer in server.trainers]
 
     monitor.pretrain_time_end()
+    record_resource_snapshots("pretrain_complete")
     monitor.add_pretrain_comm_cost(
         upload_mb=pretrain_upload,
         download_mb=pretrain_download,
@@ -1237,6 +1323,15 @@ def run_NC(args: attridict, data: Any = None) -> None:
         max_rounds = target_rounds
     if max_rounds < target_rounds:
         raise ValueError("max_rounds must be greater than or equal to global_rounds")
+
+    evaluation_split = _resolve_nc_evaluation_split(args)
+    if evaluation_split == "test" and elastic_training:
+        raise ValueError(
+            "evaluation_split='test' cannot be used with elastic_training=True"
+        )
+    evaluation_label = "Val" if evaluation_split == "validation" else "Test"
+    if evaluation_split == "test":
+        print("NC_PER_ROUND_EVALUATION, split=test, elastic_training=False")
 
     val_loss_patience = int(getattr(args, "val_loss_patience", 20))
     val_loss_min_delta = float(getattr(args, "val_loss_min_delta", 0.0))
@@ -1269,7 +1364,15 @@ def run_NC(args: attridict, data: Any = None) -> None:
     val_loss_plateau_round = None
     for i in range(max_rounds):
         round_id = i + 1
+        snapshot_due = _resource_snapshot_due(
+            round_id, resource_snapshot_interval_rounds
+        )
+        if resource_snapshot_path is not None and snapshot_due:
+            ray.get([trainer.reset_resource_peaks.remote() for trainer in trainers])
+            reset_cuda_peak_memory(server.device)
         round_stats = server.train(i)
+        if resource_snapshot_path is not None and snapshot_due:
+            record_resource_snapshots("round_train_end", round_id)
         round_training_time = round_stats["training_time"]
         round_comm_time = round_stats["communication_time"]
         total_pure_training_time += round_training_time
@@ -1327,21 +1430,34 @@ def run_NC(args: attridict, data: Any = None) -> None:
             # Broadcast updated parameters to all trainers
             server.broadcast_params(i)
 
+        if resource_snapshot_path is not None and snapshot_due:
+            record_resource_snapshots("round_aggregation_end", round_id)
+
         comm_end = time.time()
         round_comm_time = comm_end - comm_start
         total_communication_time += round_comm_time
 
-        # Validation phase (not counted in pure training or communication time).
-        # Test metrics are intentionally reserved for final evaluation.
-        results = [trainer.local_val.remote() for trainer in server.trainers]
-        results = np.array([ray.get(result) for result in results])
-        average_val_loss = _weighted_nc_metric(results, val_data_weights, 0)
-        average_val_accuracy = _weighted_nc_metric(results, val_data_weights, 1)
+        # Per-round evaluation is not counted in pure training or communication time.
+        if resource_snapshot_path is not None and snapshot_due:
+            ray.get([trainer.reset_resource_peaks.remote() for trainer in trainers])
+            reset_cuda_peak_memory(server.device)
+        average_val_loss, average_val_accuracy = _evaluate_nc_trainers(
+            server.trainers,
+            evaluation_split,
+            val_data_weights,
+            test_data_weights,
+        )
+        if resource_snapshot_path is not None and snapshot_due:
+            record_resource_snapshots("round_eval_end", round_id)
         val_losses.append(average_val_loss)
         global_acc_list.append(average_val_accuracy)
 
-        print(f"Round {round_id}: Global Val Loss = {average_val_loss:.4f}")
-        print(f"Round {round_id}: Global Val Accuracy = {average_val_accuracy:.4f}")
+        print(
+            f"Round {round_id}: Global {evaluation_label} Loss = {average_val_loss:.4f}"
+        )
+        print(
+            f"Round {round_id}: Global {evaluation_label} Accuracy = {average_val_accuracy:.4f}"
+        )
         print(
             f"Round {round_id}: Training Time = {round_training_time:.2f}s, Communication Time = {round_comm_time:.2f}s"
         )
@@ -1570,6 +1686,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
     )
     print(f"average_final_test_loss, {average_final_test_loss}")
     print(f"Average test accuracy, {average_final_test_accuracy}")
+    record_resource_snapshots("final_evaluation_complete", actual_rounds)
 
     print("\n" + "=" * 80)
     print("INDIVIDUAL TRAINER MEMORY USAGE")
@@ -1715,6 +1832,13 @@ def run_NC(args: attridict, data: Any = None) -> None:
     if args.use_encryption:
         print(f"Total Comm Cost: {total_comm_cost:.2f} MB")
     print(f"{'='*80}\n")
+    if resource_snapshot_path is not None:
+        summary_path = write_resource_snapshot_summary(resource_snapshot_path)
+        if summary_path is not None:
+            print(
+                "NC_RESOURCE_MONITOR_SUMMARY, "
+                f"snapshot_path={resource_snapshot_path}, summary_path={summary_path}"
+            )
     ray.shutdown()
 
 

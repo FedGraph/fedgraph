@@ -710,6 +710,67 @@ class TestTrainerGeneral:
         assert len(trainer.test_losses) > 0
         assert len(trainer.test_accs) > 0
 
+    def test_local_test_mini_batch_matches_full_graph_metrics(self):
+        """Mini-batch evaluation must retain split-label order across batches."""
+
+        class LogitModel(torch.nn.Module):
+            def forward(self, x, edge_index):
+                del edge_index
+                return torch.log_softmax(x, dim=-1)
+
+        args = Mock()
+        args.local_step = 1
+        args.method = "FedAvg"
+        args.num_hops = 0
+        args.num_layers = 1
+        args.learning_rate = 0.01
+        args.dataset = "cora"
+        args.batch_size = 2
+        features = torch.tensor(
+            [
+                [5.0, 0.0],
+                [0.0, 5.0],
+                [1.0, 1.0],
+                [4.0, 0.0],
+                [0.0, 4.0],
+            ]
+        )
+        idx_test = torch.tensor([4, 1, 3])
+        test_labels = torch.tensor([1, 1, 0])
+        trainer = Trainer_General(
+            rank=0,
+            args_hidden=4,
+            device=torch.device("cpu"),
+            args=args,
+            local_node_index=torch.arange(features.size(0)),
+            communicate_node_index=torch.arange(features.size(0)),
+            adj=torch.empty((2, 0), dtype=torch.long),
+            train_labels=torch.tensor([0]),
+            test_labels=test_labels,
+            features=features,
+            idx_train=torch.tensor([0]),
+            idx_test=idx_test,
+            global_node_num=features.size(0),
+            class_num=2,
+        )
+        trainer.model = LogitModel()
+
+        expected_output = trainer.model(trainer.features, trainer.adj)
+        expected_loss = torch.nn.functional.nll_loss(
+            expected_output[idx_test], test_labels
+        ).item()
+        expected_accuracy = (
+            (expected_output[idx_test].argmax(dim=-1) == test_labels)
+            .float()
+            .mean()
+            .item()
+        )
+
+        actual_loss, actual_accuracy = trainer.local_test()
+
+        assert actual_loss == pytest.approx(expected_loss)
+        assert actual_accuracy == pytest.approx(expected_accuracy)
+
     def test_get_rank(self):
         """Test get_rank method."""
         trainer = Trainer_General(

@@ -469,8 +469,8 @@ class TestRunNC:
         with patch("fedgraph.federated_methods.Server") as mock_server_class, patch(
             "fedgraph.federated_methods.torch.manual_seed"
         ):
-
             mock_server = Mock()
+
             mock_server_class.return_value = mock_server
 
             # Mock remote trainer creation
@@ -498,8 +498,8 @@ class TestRunNC:
         with patch("fedgraph.federated_methods.Server") as mock_server_class, patch(
             "fedgraph.federated_methods.Trainer_General"
         ) as mock_trainer_class, patch("fedgraph.federated_methods.torch.manual_seed"):
-
             mock_server = Mock()
+
             mock_server_class.return_value = mock_server
             mock_server.trainers = []
 
@@ -588,8 +588,8 @@ class TestRunGC:
         ) as mock_setup_server, patch(
             "fedgraph.federated_methods.setup_trainers"
         ) as mock_setup_trainers:
-
             mock_setup_server.return_value = Mock()
+
             mock_setup_trainers.return_value = [Mock(), Mock()]
 
             run_GC(self.args, self.mock_data)
@@ -624,8 +624,8 @@ class TestRunLP:
         with patch("fedgraph.federated_methods.Server_LP") as mock_server_class, patch(
             "fedgraph.federated_methods.Monitor"
         ) as mock_monitor, patch("fedgraph.federated_methods.ray"):
-
             mock_server = Mock()
+
             mock_server_class.return_value = mock_server
             mock_monitor_instance = Mock()
             mock_monitor.return_value = mock_monitor_instance
