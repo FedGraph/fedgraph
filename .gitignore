@@ -193,6 +193,9 @@ Temporary Items
 .apdisk
 
 data/
+!scripts/data/
+!scripts/data/*.py
+/dataset/
 docs/tutorials/
 runs/
 tutorials/dataset
