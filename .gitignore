@@ -201,6 +201,11 @@ runs/
 tutorials/dataset
 tutorials/figure_*
 
+# Benchmark runs can contain large raw telemetry. Archive selected outputs
+# explicitly with `git add -f` after reviewing their size and provenance.
+/benchmark/results/
+/docs/CODEX_*_HANDOFF.md
+
 # Local experiment / planning artifacts (not for upstream)
 .Rhistory
 .claude/
