@@ -1,9 +1,12 @@
+import json
 import logging
 import os
 import random
 import time
 import warnings
 from io import BytesIO
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Union
 
 logging.basicConfig(level=logging.INFO)
@@ -14,7 +17,7 @@ import tenseal as ts
 import torch
 import torch.nn.functional as F
 import torch_geometric
-from huggingface_hub import hf_hub_download
+from huggingface_hub import hf_hub_download, snapshot_download
 from huggingface_hub.errors import EntryNotFoundError
 from torch_geometric.data import Data
 from torch_geometric.loader import NeighborLoader
@@ -68,6 +71,34 @@ def _uses_legacy_huggingface_fedavg_adjacency(args: Any) -> bool:
         and getattr(args, "use_huggingface", False) is True
         and _resolve_huggingface_artifact_num_hops(args) > 0
     )
+
+
+def _uses_local_nc_artifact(args: Any) -> bool:
+    """Whether a trainer should load one validated local 0-hop shard."""
+    return bool(getattr(args, "local_artifact_dir", None))
+
+
+def _uses_huggingface_local_nc_artifact(args: Any) -> bool:
+    """Whether a trainer should download one manifest-style 0-hop Hf shard."""
+    repository = getattr(args, "hf_local_artifact_repo", None)
+    return isinstance(repository, str) and bool(repository)
+
+
+_LOCAL_ARTIFACT_SHARD_FILES = (
+    "metadata.json",
+    "local_node_index.pt",
+    "communicate_node_index.pt",
+    "adj.pt",
+    "train_labels.pt",
+    "val_labels.pt",
+    "test_labels.pt",
+    "features.pt",
+    "idx_train.pt",
+    "idx_val.pt",
+    "idx_test.pt",
+    "global_node_num.pt",
+    "class_num.pt",
+)
 
 
 def _remap_legacy_huggingface_fedavg_indexes(
@@ -179,6 +210,193 @@ def load_trainer_data_from_hugging_face(trainer_id, args):
     )
 
 
+def _load_local_artifact_tensor(shard_dir: Path, file_name: str) -> torch.Tensor:
+    path = shard_dir / file_name
+    if not path.is_file():
+        raise FileNotFoundError(f"Local artifact is missing {path}")
+    tensor = torch.load(path, weights_only=True)
+    if not isinstance(tensor, torch.Tensor):
+        raise TypeError(f"Expected a tensor in {path}, found {type(tensor).__name__}")
+    return tensor
+
+
+def load_trainer_data_from_huggingface_local_artifact(
+    trainer_id: int, args: Any
+) -> tuple[
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+]:
+    """Download one manifest-style 0-hop Hf shard, then use the local validator.
+
+    This deliberately does not change the historical one-repository-per-trainer
+    loader. The snapshot allowlist keeps a worker from downloading sibling
+    shards in a large artifact repository.
+    """
+    repository = getattr(args, "hf_local_artifact_repo", None)
+    if not isinstance(repository, str) or not repository:
+        raise ValueError("hf_local_artifact_repo is required for artifact loading")
+    if int(getattr(args, "num_hops", 0)) != 0:
+        raise ValueError("Hugging Face local artifacts currently support num_hops=0")
+
+    shard_name = f"trainer-{trainer_id:03d}"
+    allow_patterns = [
+        "manifest.json",
+        *[
+            f"shards/{shard_name}/{file_name}"
+            for file_name in _LOCAL_ARTIFACT_SHARD_FILES
+        ],
+    ]
+    download_kwargs: dict[str, Any] = {
+        "repo_id": repository,
+        "repo_type": "dataset",
+        "allow_patterns": allow_patterns,
+    }
+    revision = getattr(args, "hf_local_artifact_revision", None)
+    if revision:
+        download_kwargs["revision"] = revision
+    cache_dir = getattr(args, "hf_local_artifact_cache_dir", None)
+    if cache_dir:
+        download_kwargs["cache_dir"] = cache_dir
+
+    artifact_root = Path(snapshot_download(**download_kwargs))
+    print(
+        "Loading client data "
+        f"{trainer_id} from Hugging Face local artifact {repository}"
+    )
+    return load_trainer_data_from_local_artifact(
+        trainer_id,
+        SimpleNamespace(
+            local_artifact_dir=str(artifact_root),
+            use_huggingface=False,
+            num_hops=args.num_hops,
+            n_trainer=args.n_trainer,
+        ),
+    )
+
+
+def load_trainer_data_from_local_artifact(trainer_id: int, args: Any) -> tuple[
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+]:
+    """Load and validate one complete local 0-hop shard on its Ray worker."""
+    configured_root = getattr(args, "local_artifact_dir", None)
+    if not configured_root:
+        raise ValueError("local_artifact_dir is required for local artifact loading")
+    if getattr(args, "use_huggingface", False):
+        raise ValueError("local_artifact_dir and use_huggingface cannot be combined")
+    if int(getattr(args, "num_hops", 0)) != 0:
+        raise ValueError("local artifacts currently support only num_hops=0")
+
+    artifact_root = Path(configured_root).expanduser().resolve()
+    manifest_path = artifact_root / "manifest.json"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"Local artifact manifest is missing: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("artifact_version") != 1:
+        raise ValueError("local artifact must use artifact_version=1")
+    if manifest.get("hop_semantics") != 0:
+        raise ValueError("local artifact must declare hop_semantics=0")
+    if manifest.get("n_trainer") != int(args.n_trainer):
+        raise ValueError(
+            "local artifact n_trainer does not match the requested experiment: "
+            f"{manifest.get('n_trainer')} != {args.n_trainer}"
+        )
+    if trainer_id < 0 or trainer_id >= int(manifest["n_trainer"]):
+        raise ValueError(f"trainer_id {trainer_id} is outside the local artifact")
+
+    shard_dir = artifact_root / "shards" / f"trainer-{trainer_id:03d}"
+    metadata_path = shard_dir / "metadata.json"
+    if not metadata_path.is_file():
+        raise FileNotFoundError(f"Local artifact metadata is missing: {metadata_path}")
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    if metadata.get("trainer_id") != trainer_id:
+        raise ValueError("local artifact metadata has an unexpected trainer ID")
+
+    local_node_index = _load_local_artifact_tensor(shard_dir, "local_node_index.pt")
+    communicate_node_index = _load_local_artifact_tensor(
+        shard_dir, "communicate_node_index.pt"
+    )
+    adjacency = _load_local_artifact_tensor(shard_dir, "adj.pt")
+    train_labels = _load_local_artifact_tensor(shard_dir, "train_labels.pt")
+    val_labels = _load_local_artifact_tensor(shard_dir, "val_labels.pt")
+    test_labels = _load_local_artifact_tensor(shard_dir, "test_labels.pt")
+    features = _load_local_artifact_tensor(shard_dir, "features.pt")
+    idx_train = _load_local_artifact_tensor(shard_dir, "idx_train.pt")
+    idx_val = _load_local_artifact_tensor(shard_dir, "idx_val.pt")
+    idx_test = _load_local_artifact_tensor(shard_dir, "idx_test.pt")
+    global_node_num = _load_local_artifact_tensor(shard_dir, "global_node_num.pt")
+    class_num = _load_local_artifact_tensor(shard_dir, "class_num.pt")
+
+    node_count = local_node_index.numel()
+    if local_node_index.ndim != 1 or not torch.equal(
+        local_node_index, communicate_node_index
+    ):
+        raise ValueError("0-hop local and communicate node indexes must match")
+    if node_count != metadata.get("node_count"):
+        raise ValueError("local artifact node count does not match metadata")
+    if node_count > 1 and not bool(
+        torch.all(local_node_index[1:] >= local_node_index[:-1])
+    ):
+        raise ValueError("local_node_index must be sorted")
+    if features.ndim != 2 or features.size(0) != node_count:
+        raise ValueError("features must contain one row per local node")
+    if adjacency.ndim != 2 or adjacency.size(0) != 2:
+        raise ValueError("adjacency must be a [2, E] local edge index")
+    if adjacency.numel() and (
+        int(adjacency.min()) < 0 or int(adjacency.max()) >= node_count
+    ):
+        raise ValueError("adjacency contains an endpoint outside local feature rows")
+    if adjacency.size(1) != metadata.get("internal_edge_count"):
+        raise ValueError("local artifact edge count does not match metadata")
+    for indexes, labels, split in (
+        (idx_train, train_labels, "train"),
+        (idx_val, val_labels, "val"),
+        (idx_test, test_labels, "test"),
+    ):
+        if indexes.ndim != 1 or labels.ndim != 1 or indexes.numel() != labels.numel():
+            raise ValueError(f"local artifact {split} indexes and labels are invalid")
+        if indexes.numel() and (
+            int(indexes.min()) < 0 or int(indexes.max()) >= node_count
+        ):
+            raise ValueError(f"local artifact {split} indexes are outside local rows")
+
+    print(f"Loaded local artifact shard {trainer_id} from {shard_dir}")
+    return (
+        local_node_index,
+        communicate_node_index,
+        adjacency,
+        train_labels,
+        val_labels,
+        test_labels,
+        features,
+        idx_train,
+        idx_val,
+        idx_test,
+        global_node_num,
+        class_num,
+    )
+
+
 class Trainer_General:
     """
     A general trainer class for training GCN in a federated learning setup, which includes functionalities
@@ -281,7 +499,15 @@ class Trainer_General:
                 idx_test,
                 global_node_num,
                 class_num,
-            ) = load_trainer_data_from_hugging_face(rank, args)
+            ) = (
+                load_trainer_data_from_local_artifact(rank, args)
+                if _uses_local_nc_artifact(args)
+                else (
+                    load_trainer_data_from_huggingface_local_artifact(rank, args)
+                    if _uses_huggingface_local_nc_artifact(args)
+                    else load_trainer_data_from_hugging_face(rank, args)
+                )
+            )
         if val_labels is None:
             val_labels = torch.empty(0, dtype=train_labels.dtype)
         if idx_val is None:
@@ -1264,17 +1490,23 @@ class Trainer_General:
 
     def get_params(self) -> tuple:
         """
-        Retrieves the current parameters of the model.
+        Retrieves a CPU snapshot of the current model parameters.
 
         Returns
         -------
         (tuple) : tuple
-            A tuple containing the current parameters of the model.
+            Detached CPU tensors suitable for transfer to the server.
         """
         if self.optimizer is not None:
             self.optimizer.zero_grad(set_to_none=True)
         if self.model is not None:
-            return tuple(self.model.parameters())
+            # Ray deserializes return values on the receiving process before
+            # Server.aggregate_weights can move them to CPU. Returning CUDA
+            # Parameters therefore fails when the Ray head has no GPU.
+            return tuple(
+                parameter.detach().to(device="cpu", copy=True)
+                for parameter in self.model.parameters()
+            )
         return ()
 
     def get_all_loss_accuray(self) -> list:

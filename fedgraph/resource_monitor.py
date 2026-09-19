@@ -90,6 +90,9 @@ def _process_memory_bytes() -> dict[str, Optional[int]]:
             peak_rss_bytes *= 1024
     except (AttributeError, ValueError):
         pass
+    if rss_bytes is not None:
+        peak_rss_bytes = max(peak_rss_bytes or 0, rss_bytes)
+
     return {
         "process_rss_bytes": rss_bytes,
         "process_peak_rss_bytes": peak_rss_bytes,

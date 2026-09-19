@@ -557,7 +557,7 @@ class TestTrainerGeneral:
         assert torch.equal(trainer.feature_aggregation, new_features.to(trainer.device))
 
     def test_get_params(self):
-        """Test get_params method."""
+        """get_params returns a detached CPU snapshot for Ray transfer."""
         trainer = Trainer_General(
             rank=self.rank,
             args_hidden=self.args_hidden,
@@ -573,19 +573,18 @@ class TestTrainerGeneral:
             idx_test=self.idx_test,
         )
 
-        # Create mock model with state_dict
-        mock_model = Mock()
-        mock_state_dict = {
-            "layer1.weight": torch.randn(10, 5),
-            "layer1.bias": torch.randn(10),
-        }
-        mock_model.state_dict.return_value = mock_state_dict
-        trainer.model = mock_model
+        trainer.model = torch.nn.Linear(5, 10)
+        source_params = tuple(trainer.model.parameters())
 
         params = trainer.get_params()
 
         assert isinstance(params, tuple)
-        mock_model.state_dict.assert_called_once()
+        assert len(params) == len(source_params)
+        for source, snapshot in zip(source_params, params):
+            assert snapshot.device.type == "cpu"
+            assert not snapshot.requires_grad
+            assert snapshot.data_ptr() != source.data_ptr()
+            torch.testing.assert_close(snapshot, source.detach())
 
     @patch("fedgraph.trainer_class.test")
     @patch("fedgraph.trainer_class.train")

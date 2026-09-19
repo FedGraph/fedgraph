@@ -1,6 +1,8 @@
 import argparse
 import copy
 import datetime
+import ipaddress
+import json
 import os
 import pickle
 import random
@@ -9,7 +11,7 @@ import sys
 import time
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import attridict
 import numpy as np
@@ -17,6 +19,7 @@ import pandas as pd
 import ray
 import tenseal as ts
 import torch
+from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
 
 from fedgraph.data_process import data_loader
 from fedgraph.gnn_models import GIN
@@ -65,12 +68,141 @@ except ImportError:
     LOWRANK_AVAILABLE = False
 
 
+def _uses_external_nc_artifact(args: attridict) -> bool:
+    """Whether NC trainers load their own data instead of driver-side tensors."""
+    hf_local_artifact_repo = getattr(args, "hf_local_artifact_repo", None)
+    return bool(
+        getattr(args, "use_huggingface", False)
+        or getattr(args, "local_artifact_dir", None)
+        or (isinstance(hf_local_artifact_repo, str) and hf_local_artifact_repo)
+    )
+
+
+def _load_local_artifact_rank_hosts(
+    rank_hosts_path: Union[Path, str], n_trainer: int
+) -> dict[int, str]:
+    """Read a complete ``rank private-ipv4`` placement map."""
+    path = Path(rank_hosts_path).expanduser().resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"Local artifact rank-host file is missing: {path}")
+
+    rank_hosts: dict[int, str] = {}
+    for line_number, raw_line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(), 1
+    ):
+        line = raw_line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        fields = line.split()
+        if len(fields) != 2:
+            raise ValueError(
+                f"{path}:{line_number} must contain '<rank> <private-ipv4>'"
+            )
+        raw_rank, host = fields
+        try:
+            rank = int(raw_rank)
+        except ValueError as exc:
+            raise ValueError(
+                f"{path}:{line_number} has an invalid rank: {raw_rank}"
+            ) from exc
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError as exc:
+            raise ValueError(
+                f"{path}:{line_number} has an invalid private IPv4 address: {host}"
+            ) from exc
+        if address.version != 4 or not address.is_private:
+            raise ValueError(
+                f"{path}:{line_number} must use a private IPv4 address, got: {host}"
+            )
+        if rank in rank_hosts:
+            raise ValueError(f"{path}:{line_number} repeats trainer rank {rank}")
+        rank_hosts[rank] = host
+
+    expected_ranks = set(range(n_trainer))
+    actual_ranks = set(rank_hosts)
+    if actual_ranks != expected_ranks:
+        missing = sorted(expected_ranks - actual_ranks)
+        unexpected = sorted(actual_ranks - expected_ranks)
+        details = []
+        if missing:
+            details.append(f"missing ranks {missing}")
+        if unexpected:
+            details.append(f"unexpected ranks {unexpected}")
+        raise ValueError(
+            f"{path} must map every trainer rank exactly once: {'; '.join(details)}"
+        )
+    return rank_hosts
+
+
+def _resolve_local_artifact_rank_node_ids(
+    rank_hosts: dict[int, str],
+) -> dict[int, str]:
+    """Resolve private worker IPs in a placement map to live Ray node IDs."""
+    node_ids_by_address: dict[str, list[str]] = {}
+    for node in ray.nodes():
+        if not node.get("Alive", False):
+            continue
+        node_id = node.get("NodeID")
+        address = node.get("NodeManagerAddress")
+        if node_id and address:
+            node_ids_by_address.setdefault(str(address), []).append(str(node_id))
+
+    rank_node_ids: dict[int, str] = {}
+    for rank, host in rank_hosts.items():
+        node_ids = node_ids_by_address.get(host, [])
+        if not node_ids:
+            raise ValueError(
+                "Local artifact placement references a worker that has not joined "
+                f"the Ray cluster: rank {rank}, host {host}"
+            )
+        if len(node_ids) != 1:
+            raise ValueError(
+                "Local artifact placement found multiple live Ray nodes for "
+                f"rank {rank}, host {host}: {node_ids}"
+            )
+        rank_node_ids[rank] = node_ids[0]
+    return rank_node_ids
+
+
+def _validate_local_nc_artifact(args: attridict) -> None:
+    """Validate the opt-in local or manifest-style Hf 0-hop artifact modes."""
+    local_artifact_dir = getattr(args, "local_artifact_dir", None)
+    rank_hosts_path = getattr(args, "local_artifact_rank_hosts", None)
+    hf_local_artifact_repo = getattr(args, "hf_local_artifact_repo", None)
+    uses_hf_local_artifact = isinstance(hf_local_artifact_repo, str) and bool(
+        hf_local_artifact_repo
+    )
+    if not local_artifact_dir and not uses_hf_local_artifact:
+        if rank_hosts_path:
+            raise ValueError("local_artifact_rank_hosts requires local_artifact_dir")
+        return
+    if getattr(args, "use_huggingface", False):
+        raise ValueError(
+            "legacy use_huggingface cannot be combined with a local artifact source"
+        )
+    if local_artifact_dir and uses_hf_local_artifact:
+        raise ValueError(
+            "local_artifact_dir and hf_local_artifact_repo cannot be combined"
+        )
+    if args.num_hops != 0:
+        raise ValueError("local artifacts currently support only num_hops=0")
+    if getattr(args, "use_lowrank", False) or getattr(args, "use_dp", False):
+        raise ValueError("local artifacts currently support standard FedAvg only")
+    if rank_hosts_path:
+        if not local_artifact_dir:
+            raise ValueError(
+                "local_artifact_rank_hosts is only valid for staged local artifacts"
+            )
+        _load_local_artifact_rank_hosts(rank_hosts_path, int(args.n_trainer))
+
+
 def _resolve_nc_class_num(
-    use_huggingface: bool,
+    use_external_artifact: bool,
     trainer_information: list,
     loaded_class_num: Optional[int] = None,
 ) -> int:
-    if not use_huggingface:
+    if not use_external_artifact:
         if loaded_class_num is None:
             raise ValueError("class_num is required when NC data is loaded centrally")
         return int(loaded_class_num)
@@ -81,7 +213,9 @@ def _resolve_nc_class_num(
         if info.get("class_num") is not None
     }
     if len(metadata_values) > 1:
-        raise ValueError("Hugging Face trainers report inconsistent class_num values")
+        raise ValueError(
+            "External artifact trainers report inconsistent class_num values"
+        )
     if metadata_values:
         return metadata_values.pop()
 
@@ -92,18 +226,18 @@ def _resolve_nc_class_num(
     ]
     if not label_nums:
         raise ValueError(
-            "Cannot infer class_num from Hugging Face trainer data because all "
+            "Cannot infer class_num from external trainer data because all "
             "train and test label tensors are empty"
         )
     return max(label_nums)
 
 
 def _resolve_nc_global_node_num(
-    use_huggingface: bool,
+    use_external_artifact: bool,
     trainer_information: list,
     loaded_global_node_num: Optional[int] = None,
 ) -> int:
-    if not use_huggingface:
+    if not use_external_artifact:
         if loaded_global_node_num is None:
             raise ValueError(
                 "global_node_num is required when NC data is loaded centrally"
@@ -117,7 +251,7 @@ def _resolve_nc_global_node_num(
     }
     if len(metadata_values) > 1:
         raise ValueError(
-            "Hugging Face trainers report inconsistent global_node_num values"
+            "External artifact trainers report inconsistent global_node_num values"
         )
     if metadata_values:
         return metadata_values.pop()
@@ -249,6 +383,14 @@ def _resolve_nc_resource_monitor_mode(args: Any) -> str:
         choices = ", ".join(sorted(_NC_RESOURCE_MONITOR_MODES))
         raise ValueError(f"resource_monitor_mode must be one of: {choices}")
     return mode
+
+
+def _resource_monitor_uses_manual_snapshots(mode: str) -> bool:
+    return mode in {"manual", "hybrid"}
+
+
+def _resource_monitor_uses_prometheus(mode: str) -> bool:
+    return mode in {"prometheus", "hybrid"}
 
 
 def _resource_snapshot_due(round_id: int, interval_rounds: int) -> bool:
@@ -477,9 +619,10 @@ def run_fedgraph(args: attridict) -> None:
 
     if args.fedgraph_task == "NC":
         _validate_nc_num_hops(args)
+        _validate_local_nc_artifact(args)
 
     # Load data
-    if args.fedgraph_task != "NC" or not args.use_huggingface:
+    if args.fedgraph_task != "NC" or not _uses_external_nc_artifact(args):
         data = data_loader(args)
     else:
         data = None
@@ -543,9 +686,10 @@ def run_fedgraph_enhanced(args: attridict) -> None:
 
     if args.fedgraph_task == "NC":
         _validate_nc_num_hops(args)
+        _validate_local_nc_artifact(args)
 
     # Load data
-    if args.fedgraph_task != "NC" or not args.use_huggingface:
+    if args.fedgraph_task != "NC" or not _uses_external_nc_artifact(args):
         data = data_loader(args)
     else:
         data = None
@@ -581,27 +725,46 @@ def run_NC(args: attridict, data: Any = None) -> None:
     data: tuple
     """
     _validate_nc_num_hops(args)
-
-    monitor = Monitor(use_cluster=args.use_cluster)
-    monitor.init_time_start()
+    _validate_local_nc_artifact(args)
 
     resource_monitor_mode = _resolve_nc_resource_monitor_mode(args)
+    uses_manual_resource_monitor = _resource_monitor_uses_manual_snapshots(
+        resource_monitor_mode
+    )
+    uses_prometheus_resource_monitor = _resource_monitor_uses_prometheus(
+        resource_monitor_mode
+    )
     resource_snapshot_interval_rounds = int(
         getattr(args, "resource_snapshot_interval_rounds", 10)
     )
     if resource_snapshot_interval_rounds < 0:
         raise ValueError("resource_snapshot_interval_rounds must be non-negative")
     resource_snapshot_path: Optional[Path] = None
+    prometheus_summary_path: Optional[Path] = None
     if resource_monitor_mode != "off":
         if not getattr(args, "logdir", None):
             raise ValueError("resource monitoring requires args.logdir")
-        resource_snapshot_path = Path(args.logdir) / "resource_snapshots.jsonl"
+        if uses_manual_resource_monitor:
+            resource_snapshot_path = Path(args.logdir) / "resource_snapshots.jsonl"
+        if uses_prometheus_resource_monitor:
+            prometheus_summary_path = Path(args.logdir) / "prometheus_summary.json"
         print(
             "NC_RESOURCE_MONITOR, "
             f"mode={resource_monitor_mode}, "
             f"snapshot_interval_rounds={resource_snapshot_interval_rounds}, "
-            f"snapshot_path={resource_snapshot_path}"
+            f"snapshot_path={resource_snapshot_path}, "
+            f"prometheus_summary_path={prometheus_summary_path}"
         )
+
+    monitor = Monitor(
+        use_cluster=args.use_cluster,
+        prometheus_enabled=uses_prometheus_resource_monitor,
+        prometheus_required=resource_monitor_mode == "prometheus",
+    )
+    if uses_prometheus_resource_monitor:
+        available = monitor.validate_prometheus()
+        print(f"NC_PROMETHEUS_STATUS, available={str(available).lower()}")
+    monitor.init_time_start()
 
     # Initialize Ray.  ``ray_init_kwargs`` in the config lets callers override
     # the defaults (e.g. for distributed clusters or container environments
@@ -625,7 +788,8 @@ def run_NC(args: attridict, data: Any = None) -> None:
     if args.num_hops == 0:
         print("Changing method to FedAvg")
         args.method = "FedAvg"
-    if not args.use_huggingface:
+    uses_external_artifact = _uses_external_nc_artifact(args)
+    if not uses_external_artifact:
         nc_data = _unpack_nc_data(data)
         edge_index = nc_data["edge_index"]
         features = nc_data["features"]
@@ -732,11 +896,16 @@ def run_NC(args: attridict, data: Any = None) -> None:
             return snapshot
 
         def get_memory_usage(self):
-            """Get current memory usage and local graph info"""
-            import psutil
-
-            process = psutil.Process()
-            memory_mb = process.memory_info().rss / (1024 * 1024)
+            """Get current and peak process memory with local graph information."""
+            memory_snapshot = collect_resource_snapshot(
+                source="trainer",
+                event="legacy_memory_summary",
+                trainer_id=int(self.rank),
+            )
+            memory_mb = (memory_snapshot["process_rss_bytes"] or 0) / (1024 * 1024)
+            peak_memory_mb = (memory_snapshot["process_peak_rss_bytes"] or 0) / (
+                1024 * 1024
+            )
 
             num_nodes = (
                 len(self.local_node_index) if hasattr(self, "local_node_index") else 0
@@ -750,20 +919,45 @@ def run_NC(args: attridict, data: Any = None) -> None:
             return {
                 "trainer_id": getattr(self, "rank", "unknown"),
                 "memory_mb": memory_mb,
+                "peak_memory_mb": peak_memory_mb,
                 "num_nodes": num_nodes,
                 "num_edges": num_edges,
             }
 
-    if args.use_huggingface:
-        trainers = [
-            Trainer.remote(  # type: ignore
-                rank=i,
-                args_hidden=args_hidden,
-                device=trainer_device,
-                args=args,
+    local_artifact_rank_hosts: dict[int, str] = {}
+    local_artifact_rank_node_ids: dict[int, str] = {}
+    if getattr(args, "local_artifact_rank_hosts", None):
+        local_artifact_rank_hosts = _load_local_artifact_rank_hosts(
+            args.local_artifact_rank_hosts, int(args.n_trainer)
+        )
+        local_artifact_rank_node_ids = _resolve_local_artifact_rank_node_ids(
+            local_artifact_rank_hosts
+        )
+        for rank in sorted(local_artifact_rank_hosts):
+            print(
+                "LOCAL_ARTIFACT_RANK_AFFINITY, "
+                f"rank={rank}, host={local_artifact_rank_hosts[rank]}, "
+                f"node_id={local_artifact_rank_node_ids[rank]}"
             )
-            for i in range(args.n_trainer)
-        ]
+
+    if uses_external_artifact:
+        trainers = []
+        for i in range(args.n_trainer):
+            trainer_factory = Trainer
+            if i in local_artifact_rank_node_ids:
+                trainer_factory = Trainer.options(  # type: ignore[attr-defined,assignment]
+                    scheduling_strategy=NodeAffinitySchedulingStrategy(
+                        local_artifact_rank_node_ids[i], soft=False
+                    )
+                )
+            trainers.append(
+                trainer_factory.remote(  # type: ignore
+                    rank=i,
+                    args_hidden=args_hidden,
+                    device=trainer_device,
+                    args=args,
+                )
+            )
     else:  # load from the server
         trainers = [
             Trainer.remote(  # type: ignore
@@ -799,14 +993,14 @@ def run_NC(args: attridict, data: Any = None) -> None:
 
     # Extract necessary details from trainer information
     global_node_num = _resolve_nc_global_node_num(
-        args.use_huggingface,
+        uses_external_artifact,
         trainer_information,
-        None if args.use_huggingface else len(features),
+        None if uses_external_artifact else len(features),
     )
     class_num = _resolve_nc_class_num(
-        args.use_huggingface,
+        uses_external_artifact,
         trainer_information,
-        None if args.use_huggingface else class_num,
+        None if uses_external_artifact else class_num,
     )
     feature_shape = trainer_information[0]["feature_shape"]
 
@@ -840,7 +1034,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
     # FedGCN-v2 low-rank pretraining path, otherwise the standard Server.
     use_lowrank = getattr(args, "use_lowrank", False) and LOWRANK_AVAILABLE
     ServerClass = Server_LowRank if use_lowrank else Server
-    _feature_dim = feature_shape if args.use_huggingface else features.shape[1]
+    _feature_dim = feature_shape if uses_external_artifact else features.shape[1]
     server = ServerClass(
         _feature_dim, args_hidden, class_num, server_device, trainers, args
     )
@@ -1002,8 +1196,6 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 results = ray.get(encrypt_refs)
                 shapes = [r[0] for r in results]
                 encryption_times = [r[1] for r in results]
-
-                import json
 
                 # Read chunk metadata from first trainer
                 meta_path = os.path.join(he_dir, "ct_0_meta.json")
@@ -1312,9 +1504,9 @@ def run_NC(args: attridict, data: Any = None) -> None:
     # at every global round.
     training_start = time.time()
 
-    # Time tracking variables for pure training and communication
-    total_pure_training_time = 0.0  # forward + gradient descent
-    total_communication_time = 0.0  # parameter aggregation
+    # Server-observed trainer phase and parameter-synchronization wall times.
+    total_training_time = 0.0
+    total_communication_time = 0.0
 
     elastic_training = bool(getattr(args, "elastic_training", False))
     target_rounds = int(args.global_rounds)
@@ -1372,72 +1564,13 @@ def run_NC(args: attridict, data: Any = None) -> None:
             reset_cuda_peak_memory(server.device)
         round_stats = server.train(i)
         if resource_snapshot_path is not None and snapshot_due:
-            record_resource_snapshots("round_train_end", round_id)
+            record_resource_snapshots("round_train_and_sync_end", round_id)
         round_training_time = round_stats["training_time"]
         round_comm_time = round_stats["communication_time"]
-        total_pure_training_time += round_training_time
-
-        # Communication phase - parameter aggregation and broadcast
-        comm_start = time.time()
-
-        # Per-round encrypted parameter aggregation is implemented only for
-        # the TenSEAL backend.  The OpenFHE threshold flow encrypts the
-        # one-shot pretraining feature aggregation (see ``run_NC`` above);
-        # per-round model updates fall back to plaintext FedAvg.
-        if args.use_encryption and getattr(args, "he_backend", "tenseal") == "tenseal":
-            # Encrypted parameter aggregation
-            encrypted_params = [
-                trainer.get_encrypted_params.remote() for trainer in server.trainers
-            ]
-            params_list = ray.get(encrypted_params)
-
-            # Server-side aggregation
-            aggregated_params, metadata, _ = server.aggregate_encrypted_params(
-                params_list
-            )
-
-            # Distribute aggregated parameters
-            decrypt_refs = [
-                trainer.load_encrypted_params.remote((aggregated_params, metadata), i)
-                for trainer in server.trainers
-            ]
-            ray.get(decrypt_refs)
-        else:
-            # Regular parameter aggregation
-            # Get parameters from all trainers
-            params_refs = [trainer.get_params.remote() for trainer in server.trainers]
-            param_results = ray.get(params_refs)
-
-            # Aggregate parameters on server - avoid in-place operations
-            server.zero_params()
-
-            # Move model to CPU for aggregation
-            server.model = server.model.to("cpu")
-
-            # Aggregate parameters safely
-            for param_result in param_results:
-                for p, mp in zip(param_result, server.model.parameters()):
-                    mp.data = mp.data + p.cpu()
-
-            # Move back to device and average
-            server.model = server.model.to(server.device)
-
-            # Average the parameters
-            with torch.no_grad():
-                for p in server.model.parameters():
-                    p.data = p.data / len(server.trainers)
-
-            # Broadcast updated parameters to all trainers
-            server.broadcast_params(i)
-
-        if resource_snapshot_path is not None and snapshot_due:
-            record_resource_snapshots("round_aggregation_end", round_id)
-
-        comm_end = time.time()
-        round_comm_time = comm_end - comm_start
+        total_training_time += round_training_time
         total_communication_time += round_comm_time
 
-        # Per-round evaluation is not counted in pure training or communication time.
+        # Per-round evaluation is not counted in training or parameter synchronization.
         if resource_snapshot_path is not None and snapshot_due:
             ray.get([trainer.reset_resource_peaks.remote() for trainer in trainers])
             reset_cuda_peak_memory(server.device)
@@ -1462,13 +1595,29 @@ def run_NC(args: attridict, data: Any = None) -> None:
             f"Round {round_id}: Training Time = {round_training_time:.2f}s, Communication Time = {round_comm_time:.2f}s"
         )
 
+        round_train_sync_time = round_training_time + round_comm_time
+        cumulative_train_sync_time = total_training_time + total_communication_time
+        print(
+            "NC_ROUND_METRIC "
+            + json.dumps(
+                {
+                    "round": round_id,
+                    "training_time_sec": round_training_time,
+                    "parameter_sync_time_sec": round_comm_time,
+                    "train_sync_time_sec": round_train_sync_time,
+                    "cumulative_train_sync_time_sec": cumulative_train_sync_time,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
         monitor.add_train_comm_cost(
             upload_mb=round_stats["upload_size"] / (1024 * 1024),
             download_mb=round_stats["download_size"] / (1024 * 1024),
         )
 
         if elastic_training:
-            train_comm_time_sec = total_pure_training_time + total_communication_time
+            train_comm_time_sec = total_training_time + total_communication_time
             if round_id == target_rounds:
                 _add_nc_checkpoint(
                     checkpoints,
@@ -1558,7 +1707,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
     monitor.train_time_end()
     actual_rounds = len(global_acc_list)
     if elastic_training and actual_rounds > 0:
-        train_comm_time_sec = total_pure_training_time + total_communication_time
+        train_comm_time_sec = total_training_time + total_communication_time
         _add_nc_checkpoint(
             checkpoints,
             server,
@@ -1573,35 +1722,48 @@ def run_NC(args: attridict, data: Any = None) -> None:
             f"reason={elastic_stop_reason}, round={elastic_stop_round}, "
             f"target_rounds={target_rounds}, max_rounds={max_rounds}"
         )
-    total_time = time.time() - training_start
+    federated_loop_wall_time = time.time() - training_start
+    total_train_comm_time = total_training_time + total_communication_time
+    training_percentage = (
+        total_training_time / total_train_comm_time * 100
+        if total_train_comm_time > 0
+        else 0.0
+    )
+    communication_percentage = (
+        total_communication_time / total_train_comm_time * 100
+        if total_train_comm_time > 0
+        else 0.0
+    )
 
     # Print time breakdown
     print(f"\n{'='*80}")
     print("TIME BREAKDOWN (excluding initialization)")
     print(f"{'='*80}")
+    print(f"Total Training Time (server-observed): {total_training_time:.6f} seconds")
     print(
-        f"Total Pure Training Time (forward + gradient descent): {total_pure_training_time:.2f} seconds"
+        f"Total Communication Time (parameter synchronization): {total_communication_time:.6f} seconds"
+    )
+    print(f"Total Training + Communication Time: {total_train_comm_time:.6f} seconds")
+    print(f"Total Federated Loop Wall Time: {federated_loop_wall_time:.6f} seconds")
+    print(
+        f"Training Time Percentage (of training + communication): {training_percentage:.1f}%"
     )
     print(
-        f"Total Communication Time (parameter aggregation): {total_communication_time:.2f} seconds"
-    )
-    print(f"Total Training + Communication Time: {total_time:.2f} seconds")
-    print(f"Training Time Percentage: {(total_pure_training_time/total_time)*100:.1f}%")
-    print(
-        f"Communication Time Percentage: {(total_communication_time/total_time)*100:.1f}%"
+        "Communication Time Percentage (of training + communication): "
+        f"{communication_percentage:.1f}%"
     )
     print(
-        f"Average Training Time per Round: {total_pure_training_time/actual_rounds:.2f} seconds"
+        f"Average Training Time per Round: {total_training_time/actual_rounds:.2f} seconds"
     )
     print(
         f"Average Communication Time per Round: {total_communication_time/actual_rounds:.2f} seconds"
     )
     print(f"{'='*80}")
 
-    # Print for plotting use - now shows pure training time
+    # Print for plotting use.
     print(
-        f"[Pure Training Time] Dataset: {args.dataset}, Batch Size: {args.batch_size}, Trainers: {args.n_trainer}, "
-        f"Hops: {args.num_hops}, IID Beta: {args.iid_beta} => Pure Training Time = {total_pure_training_time:.2f} seconds"
+        f"[Training Time] Dataset: {args.dataset}, Batch Size: {args.batch_size}, Trainers: {args.n_trainer}, "
+        f"Hops: {args.num_hops}, IID Beta: {args.iid_beta} => Training Time = {total_training_time:.2f} seconds"
     )
 
     print(
@@ -1625,9 +1787,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
             training_upload = training_download = 0
         training_comm_cost = training_upload + training_download
         print("\nTraining Phase Metrics:")
-        print(
-            f"Total Training Time: {total_pure_training_time:.2f} seconds"
-        )  # Use pure training time
+        print(f"Total Training Time: {total_training_time:.2f} seconds")
         print(f"Training Upload: {training_upload:.2f} MB")
         print(f"Training Download: {training_download:.2f} MB")
         print(f"Total Training Communication Cost: {training_comm_cost:.2f} MB")
@@ -1644,7 +1804,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
         print(f"Total Download: {total_download:.2f} MB")
         print(f"Total Communication Cost: {total_comm_cost:.2f} MB")
         print(f"Pre-training Time %: {(pretrain_time/total_exec_time)*100:.1f}%")
-        print(f"Training Time %: {(total_pure_training_time/total_exec_time)*100:.1f}%")
+        print(f"Training Time %: {(total_training_time/total_exec_time)*100:.1f}%")
         print(
             f"Communication Time %: {(total_communication_time/total_exec_time)*100:.1f}%"
         )
@@ -1692,10 +1852,6 @@ def run_NC(args: attridict, data: Any = None) -> None:
     print("INDIVIDUAL TRAINER MEMORY USAGE")
     print("=" * 80)
 
-    memory_stats_refs = [trainer.get_memory_usage.remote() for trainer in trainers]
-    memory_stats = ray.get(memory_stats_refs)
-
-    # Replace the existing memory statistics section with this:
     print("\n" + "=" * 100)
     print("TRAINER MEMORY vs LOCAL GRAPH SIZE")
     print("=" * 100)
@@ -1711,13 +1867,16 @@ def run_NC(args: attridict, data: Any = None) -> None:
     total_nodes = 0
     total_edges = 0
     max_memory = 0
+    max_peak_memory = 0
     min_memory = float("inf")
     max_trainer = 0
+    max_peak_trainer = 0
     min_trainer = 0
 
     for stats in memory_stats:
         trainer_id = stats["trainer_id"]
         memory_mb = stats["memory_mb"]
+        peak_memory_mb = stats["peak_memory_mb"]
         num_nodes = stats["num_nodes"]
         num_edges = stats["num_edges"]
 
@@ -1732,6 +1891,9 @@ def run_NC(args: attridict, data: Any = None) -> None:
         if memory_mb > max_memory:
             max_memory = memory_mb
             max_trainer = trainer_id
+        if peak_memory_mb > max_peak_memory:
+            max_peak_memory = peak_memory_mb
+            max_peak_trainer = trainer_id
         if memory_mb < min_memory:
             min_memory = memory_mb
             min_trainer = trainer_id
@@ -1752,6 +1914,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
     print(f"Average Edges per Trainer: {avg_edges:.1f}")
     print(f"Max Memory: {max_memory:.1f} MB (Trainer {max_trainer})")
     print(f"Min Memory: {min_memory:.1f} MB (Trainer {min_trainer})")
+    print(f"Peak RSS: {max_peak_memory:.1f} MB (Trainer {max_peak_trainer})")
     print(f"Overall Memory/Node Ratio: {total_memory/total_nodes:.3f} MB/node")
     print(f"Overall Memory/Edge Ratio: {total_memory/total_edges:.3f} MB/edge")
     print("=" * 100)
@@ -1764,7 +1927,11 @@ def run_NC(args: attridict, data: Any = None) -> None:
 
     # Get model size - works in both cluster and local environments
     model_size_mb = 0.0
-    total_params = 0
+    total_params = (
+        sum(parameter.numel() for parameter in server.model.parameters())
+        if hasattr(server, "model")
+        else 0
+    )
     if hasattr(server, "get_model_size"):
         model_size_mb = server.get_model_size() / (1024 * 1024)
     elif len(trainers) > 0:
@@ -1778,15 +1945,15 @@ def run_NC(args: attridict, data: Any = None) -> None:
             total_params = trainer_info["model_params"]
             model_size_mb = (total_params * 4) / (1024 * 1024)  # float32 = 4 bytes
 
-    # Get peak memory from existing memory_stats (already collected above)
-    peak_memory_mb = 0.0
-    if memory_stats:
-        peak_memory_mb = max([stats["memory_mb"] for stats in memory_stats])
-
-    # Calculate average round time
-    avg_round_time = (
-        total_pure_training_time / actual_rounds if actual_rounds > 0 else 0.0
-    )
+    # Calculate average training, synchronization, and combined round times.
+    if actual_rounds > 0:
+        avg_round_train_time = total_training_time / actual_rounds
+        avg_round_comm_time = total_communication_time / actual_rounds
+        avg_round_time = total_train_comm_time / actual_rounds
+    else:
+        avg_round_train_time = 0.0
+        avg_round_comm_time = 0.0
+        avg_round_time = 0.0
 
     # Get total communication cost from monitor (works in cluster)
     total_comm_cost_mb = 0.0
@@ -1795,20 +1962,23 @@ def run_NC(args: attridict, data: Any = None) -> None:
             monitor.pretrain_theoretical_comm_MB + monitor.train_theoretical_comm_MB
         )
 
-    # Print CSV format result - compatible with cluster logging
+    # Print the compact end-of-run CSV summary.
     print(f"\n{'='*80}")
     print("CSV FORMAT RESULT:")
     print(
-        "DS,IID,BS,TotalTime[s],PureTrainingTime[s],CommTime[s],FinalAcc[%],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams"
+        "DS,IID,BS,ExecutionTime[s],TrainingTime[s],CommTime[s],TrainCommTime[s],FinalTestAcc[%],TheoreticalCommCost[MB],PeakMem[MB],AvgRoundTrainTime[s],AvgRoundCommTime[s],AvgRoundTime[s],ModelSize[MB],TotalParams"
     )
     print(
         f"{args.dataset},{args.iid_beta},{args.batch_size},"
         f"{total_exec_time:.1f},"
-        f"{total_pure_training_time:.1f},"
+        f"{total_training_time:.1f},"
         f"{total_communication_time:.1f},"
-        f"{average_final_test_accuracy:.2f},"
+        f"{total_train_comm_time:.1f},"
+        f"{average_final_test_accuracy * 100:.2f},"
         f"{total_comm_cost_mb:.1f},"
-        f"{peak_memory_mb:.1f},"
+        f"{max_peak_memory:.1f},"
+        f"{avg_round_train_time:.3f},"
+        f"{avg_round_comm_time:.3f},"
         f"{avg_round_time:.3f},"
         f"{model_size_mb:.3f},"
         f"{total_params}"
@@ -1825,7 +1995,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
     print(f"Batch Size: {args.batch_size}")
     print(f"Hops: {args.num_hops}")
     print(f"Total Execution Time: {time.time() - start_time:.2f} seconds")
-    print(f"Pure Training Time: {total_pure_training_time:.2f} seconds")
+    print(f"Training Time: {total_training_time:.2f} seconds")
     print(f"Communication Time: {total_communication_time:.2f} seconds")
     print(f"Pretrain Comm Cost: {pretrain_upload + pretrain_download:.2f} MB")
     print(f"Training Comm Cost: {monitor.train_theoretical_comm_MB:.2f} MB")
@@ -1839,6 +2009,13 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 "NC_RESOURCE_MONITOR_SUMMARY, "
                 f"snapshot_path={resource_snapshot_path}, summary_path={summary_path}"
             )
+    if prometheus_summary_path is not None:
+        summary_path = monitor.write_prometheus_summary(
+            prometheus_summary_path,
+            resource_monitor_mode=resource_monitor_mode,
+        )
+        if summary_path is not None:
+            print(f"NC_PROMETHEUS_SUMMARY, summary_path={summary_path}")
     ray.shutdown()
 
 

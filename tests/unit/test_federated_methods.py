@@ -7,15 +7,19 @@ import torch
 
 from fedgraph.federated_methods import (
     _aggregate_indexed_feature_sums,
+    _load_local_artifact_rank_hosts,
     _nc_plateau_round,
     _nc_val_loss_patience_round,
     _parse_optional_float_list,
+    _resolve_local_artifact_rank_node_ids,
     _resolve_nc_class_num,
     _resolve_nc_devices,
     _resolve_nc_evaluation_split,
     _resolve_nc_global_node_num,
     _resolve_nc_resource_monitor_mode,
     _resolve_pretrain_feature_upload_mode,
+    _resource_monitor_uses_manual_snapshots,
+    _resource_monitor_uses_prometheus,
     _resource_snapshot_due,
     _unpack_nc_data,
     _weighted_nc_metric,
@@ -55,6 +59,65 @@ class TestResolveNCDevices:
         assert trainer_device == torch.device("cpu")
         assert server_device == torch.device("cpu")
         assert gpu_count == 0
+
+
+class TestLocalArtifactRankPlacement:
+    def test_reads_complete_rank_host_map(self, tmp_path):
+        placement_map = tmp_path / "rank-hosts.txt"
+        placement_map.write_text(
+            "# rank private-ipv4\n0 10.0.0.10\n1 10.0.0.11 # worker two\n"
+        )
+
+        assert _load_local_artifact_rank_hosts(placement_map, 2) == {
+            0: "10.0.0.10",
+            1: "10.0.0.11",
+        }
+
+    def test_rejects_incomplete_rank_host_map(self, tmp_path):
+        placement_map = tmp_path / "rank-hosts.txt"
+        placement_map.write_text("0 10.0.0.10\n")
+
+        with pytest.raises(ValueError, match="missing ranks \\[1\\]"):
+            _load_local_artifact_rank_hosts(placement_map, 2)
+
+    def test_rejects_non_private_rank_host_map_address(self, tmp_path):
+        placement_map = tmp_path / "rank-hosts.txt"
+        placement_map.write_text("0 8.8.8.8\n")
+
+        with pytest.raises(ValueError, match="private IPv4"):
+            _load_local_artifact_rank_hosts(placement_map, 1)
+
+    def test_resolves_rank_hosts_to_live_ray_node_ids(self):
+        with patch(
+            "fedgraph.federated_methods.ray.nodes",
+            return_value=[
+                {
+                    "Alive": True,
+                    "NodeID": "node-a",
+                    "NodeManagerAddress": "10.0.0.10",
+                },
+                {
+                    "Alive": True,
+                    "NodeID": "node-b",
+                    "NodeManagerAddress": "10.0.0.11",
+                },
+                {
+                    "Alive": False,
+                    "NodeID": "dead-node",
+                    "NodeManagerAddress": "10.0.0.12",
+                },
+            ],
+        ):
+            assert _resolve_local_artifact_rank_node_ids(
+                {0: "10.0.0.11", 1: "10.0.0.10"}
+            ) == {0: "node-b", 1: "node-a"}
+
+    def test_rejects_rank_host_that_has_not_joined_ray(self):
+        with patch(
+            "fedgraph.federated_methods.ray.nodes",
+            return_value=[],
+        ), pytest.raises(ValueError, match="has not joined"):
+            _resolve_local_artifact_rank_node_ids({0: "10.0.0.10"})
 
 
 class TestResolveNCClassNum:
@@ -260,6 +323,21 @@ class TestNCResourceMonitor:
 
         with pytest.raises(ValueError, match="resource_monitor_mode"):
             _resolve_nc_resource_monitor_mode(args)
+
+    @pytest.mark.parametrize(
+        ("mode", "uses_manual", "uses_prometheus"),
+        [
+            ("off", False, False),
+            ("manual", True, False),
+            ("prometheus", False, True),
+            ("hybrid", True, True),
+        ],
+    )
+    def test_selects_independent_monitoring_paths(
+        self, mode, uses_manual, uses_prometheus
+    ):
+        assert _resource_monitor_uses_manual_snapshots(mode) is uses_manual
+        assert _resource_monitor_uses_prometheus(mode) is uses_prometheus
 
     def test_snapshot_schedule_is_round_bounded(self):
         assert _resource_snapshot_due(1, 10)

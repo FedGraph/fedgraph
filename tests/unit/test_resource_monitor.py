@@ -35,6 +35,8 @@ def test_collect_resource_snapshot_accounts_for_known_tensors_and_model():
     )
     assert snapshot["optimizer_state_bytes"] == 0
     assert snapshot["process_rss_bytes"] is not None
+    assert snapshot["process_peak_rss_bytes"] is not None
+    assert snapshot["process_peak_rss_bytes"] >= snapshot["process_rss_bytes"]
     assert snapshot["cuda_memory_allocated_bytes"] is None
 
 

@@ -164,9 +164,7 @@ def prepare_curves(results_dir: Path) -> List[dict]:
         config = configs.get(run_id, {})
         metrics = round_metrics.get((run_id, round_id), {})
 
-        val_acc = optional_float(
-            first_present(row, ["val_acc", "validation_accuracy"])
-        )
+        val_acc = optional_float(first_present(row, ["val_acc", "validation_accuracy"]))
         metric_name = "val_acc"
         if val_acc is None:
             val_acc = optional_float(row.get("accuracy"))
@@ -174,9 +172,7 @@ def prepare_curves(results_dir: Path) -> List[dict]:
         if val_acc is None:
             continue
 
-        val_loss = optional_float(
-            first_present(row, ["val_loss", "validation_loss"])
-        )
+        val_loss = optional_float(first_present(row, ["val_loss", "validation_loss"]))
         if val_loss is None:
             val_loss = optional_float(
                 first_present(metrics, ["val_loss", "validation_loss"])
@@ -186,6 +182,7 @@ def prepare_curves(results_dir: Path) -> List[dict]:
             first_present(
                 metrics,
                 [
+                    "cumulative_train_sync_time_sec",
                     "cum_train_comm_time_sec",
                     "cumulative_training_communication_time_sec",
                 ],
@@ -242,7 +239,9 @@ def finite_values(curve: List[dict], key: str) -> List[dict]:
     return [item for item in curve if item.get(key) is not None]
 
 
-def last_value_round(curve: List[dict], key: str) -> tuple[Optional[float], Optional[int]]:
+def last_value_round(
+    curve: List[dict], key: str
+) -> tuple[Optional[float], Optional[int]]:
     values = finite_values(curve, key)
     if not values:
         return None, None
@@ -349,9 +348,7 @@ def write_convergence_summary(
     rows = []
     for run_id, curve in grouped_runs.items():
         val_loss_final, _ = last_value_round(curve, "val_loss")
-        val_loss_best, val_loss_best_round = best_value_round(
-            curve, "val_loss", "min"
-        )
+        val_loss_best, val_loss_best_round = best_value_round(curve, "val_loss", "min")
         val_acc_final, _ = last_value_round(curve, "val_acc")
         val_acc_best, val_acc_best_round = best_value_round(curve, "val_acc", "max")
         val_loss_plateau_round = plateau_round(
@@ -380,9 +377,7 @@ def write_convergence_summary(
                 "val_acc_best_round": val_acc_best_round,
                 "val_acc_plateau_round": val_acc_plateau_round,
                 "val_convergence_round": val_loss_patience_round,
-                **end_window_stats(
-                    curve, "val_loss", window, val_loss_tolerance
-                ),
+                **end_window_stats(curve, "val_loss", window, val_loss_tolerance),
                 **end_window_stats(curve, "val_acc", window, val_acc_tolerance),
             }
         )
@@ -398,7 +393,9 @@ def plot_curves(
     aggregate: bool = False,
 ) -> bool:
     available = [
-        rows for rows in grouped_runs.values() if rows and rows[0].get(x_key) is not None
+        rows
+        for rows in grouped_runs.values()
+        if rows and rows[0].get(x_key) is not None
     ]
     if not available:
         return False
@@ -476,7 +473,7 @@ def write_batch_summary(summary_rows: List[dict], output_path: Path) -> List[dic
         "val_loss_best_mean",
         "val_convergence_round_mean",
         "val_convergence_time_sec_mean",
-        "total_pure_train_time_sec_mean",
+        "total_training_time_sec_mean",
         "total_comm_time_sec_mean",
         "total_train_comm_time_sec_mean",
         "test_acc_delta_vs_full_batch",
@@ -510,8 +507,13 @@ def write_batch_summary(summary_rows: List[dict], output_path: Path) -> List[dic
                 "validation_convergence_training_communication_time_sec",
             ],
         )
-        pure_train_time = numeric_values_any(
-            completed, ["total_pure_train_time_sec", "pure_training_time_sec"]
+        training_time = numeric_values_any(
+            completed,
+            [
+                "total_training_time_sec",
+                "total_pure_train_time_sec",
+                "pure_training_time_sec",
+            ],
         )
         comm_time = numeric_values_any(
             completed, ["total_comm_time_sec", "communication_time_sec"]
@@ -535,13 +537,9 @@ def write_batch_summary(summary_rows: List[dict], output_path: Path) -> List[dic
                 "val_acc_best_mean": mean_or_none(val_acc_best),
                 "val_acc_best_std": std_or_zero(val_acc_best),
                 "val_loss_best_mean": mean_or_none(val_loss_best),
-                "val_convergence_round_mean": mean_or_none(
-                    val_convergence_round
-                ),
-                "val_convergence_time_sec_mean": mean_or_none(
-                    val_convergence_time
-                ),
-                "total_pure_train_time_sec_mean": mean_or_none(pure_train_time),
+                "val_convergence_round_mean": mean_or_none(val_convergence_round),
+                "val_convergence_time_sec_mean": mean_or_none(val_convergence_time),
+                "total_training_time_sec_mean": mean_or_none(training_time),
                 "total_comm_time_sec_mean": mean_or_none(comm_time),
                 "total_train_comm_time_sec_mean": mean_or_none(train_comm_time),
                 "test_acc_delta_vs_full_batch": None,
@@ -636,7 +634,9 @@ def write_target_summary(rows: List[dict], output_path: Path) -> List[dict]:
         grouped.items(), key=lambda item: (item[0][0] == -1, item[0][0], item[0][2])
     ):
         reached = [
-            row for row in target_rows if optional_float(row["train_comm_time_sec"]) is not None
+            row
+            for row in target_rows
+            if optional_float(row["train_comm_time_sec"]) is not None
         ]
         rounds = numeric_values_any(reached, ["round"])
         local_steps = numeric_values_any(reached, ["local_steps"])

@@ -29,6 +29,7 @@ import numpy as np
 # FedGraph's NC runner reports experiment metrics through stdout. These patterns
 # convert those logs into structured CSV/JSON outputs without mislabelling a
 # legacy per-round test evaluation as validation.
+ROUND_METRIC_PREFIX = "NC_ROUND_METRIC "
 ROUND_EVALUATION_LOSS_RE = re.compile(
     r"Round\s+(\d+):\s+Global (Val|Test) Loss\s*=\s*([0-9.eE+-]+)"
 )
@@ -47,14 +48,21 @@ FINAL_TEST_LOSS_RES = [
     re.compile(r"average_final_test_loss,\s*([0-9.eE+-]+)"),
     re.compile(r"Final test loss:\s*([0-9.eE+-]+)"),
 ]
-PURE_TRAINING_TIME_RE = re.compile(
-    r"Total Pure Training Time .*:\s*([0-9.eE+-]+)\s*seconds"
-)
+TRAINING_TIME_RES = [
+    re.compile(
+        r"^Total Training Time \(server-observed\):\s*([0-9.eE+-]+)\s*seconds$",
+        re.MULTILINE,
+    ),
+    re.compile(r"Total Pure Training Time .*:\s*([0-9.eE+-]+)\s*seconds"),
+]
 COMMUNICATION_TIME_RE = re.compile(
     r"Total Communication Time .*:\s*([0-9.eE+-]+)\s*seconds"
 )
 TRAIN_COMM_TIME_RE = re.compile(
     r"Total Training \+ Communication Time:\s*([0-9.eE+-]+)\s*seconds"
+)
+FEDERATED_LOOP_WALL_TIME_RE = re.compile(
+    r"Total Federated Loop Wall Time:\s*([0-9.eE+-]+)\s*seconds"
 )
 CHECKPOINT_TEST_RE = re.compile(
     r"NC_CHECKPOINT_TEST,\s+reason=([^,]+),\s+round=(\d+),\s+"
@@ -85,7 +93,12 @@ class ExperimentConfig:
     server_device: Optional[str]
     pretrain_feature_upload_mode: str
     use_huggingface: bool
+    local_artifact_dir: Optional[str]
+    local_artifact_rank_hosts: Optional[str]
     hf_artifact_num_hops: Optional[int]
+    hf_local_artifact_repo: Optional[str]
+    hf_local_artifact_revision: Optional[str]
+    hf_local_artifact_cache_dir: Optional[str]
     evaluation_split: str
     num_cpus_per_trainer: int
     num_gpus_per_trainer: float
@@ -355,7 +368,12 @@ def to_fedgraph_args(
             "logdir": str(logdir),
             "use_encryption": False,
             "use_huggingface": config.use_huggingface,
+            "local_artifact_dir": config.local_artifact_dir,
+            "local_artifact_rank_hosts": config.local_artifact_rank_hosts,
             "hf_artifact_num_hops": config.hf_artifact_num_hops,
+            "hf_local_artifact_repo": config.hf_local_artifact_repo,
+            "hf_local_artifact_revision": config.hf_local_artifact_revision,
+            "hf_local_artifact_cache_dir": config.hf_local_artifact_cache_dir,
             "evaluation_split": config.evaluation_split,
             "resource_monitor_mode": config.resource_monitor_mode,
             "resource_snapshot_interval_rounds": config.resource_snapshot_interval_rounds,
@@ -391,6 +409,34 @@ def parse_optional_log_float(raw: str) -> Optional[float]:
     return float(value)
 
 
+def parse_structured_round_timings(text: str) -> dict[int, dict]:
+    """Parse precise timing records, ignoring malformed lines for old-log fallback."""
+    timings = {}
+    for line in text.splitlines():
+        if not line.startswith(ROUND_METRIC_PREFIX):
+            continue
+        try:
+            payload = json.loads(line[len(ROUND_METRIC_PREFIX) :])
+            round_id = int(payload["round"])
+            training_time = float(payload["training_time_sec"])
+            parameter_sync_time = float(payload["parameter_sync_time_sec"])
+            train_sync_time = float(
+                payload.get("train_sync_time_sec", training_time + parameter_sync_time)
+            )
+            cumulative_time = payload.get("cumulative_train_sync_time_sec")
+            if cumulative_time is not None:
+                cumulative_time = float(cumulative_time)
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            continue
+        timings[round_id] = {
+            "training_time_sec": training_time,
+            "parameter_sync_time_sec": parameter_sync_time,
+            "train_sync_time_sec": train_sync_time,
+            "cumulative_train_sync_time_sec": cumulative_time,
+        }
+    return timings
+
+
 def parse_run_log(log_path: Path):
     # Each FedGraph run gets its own stdout log; parsing here avoids changing
     # the core training API just for this benchmark.
@@ -406,12 +452,16 @@ def parse_run_log(log_path: Path):
         metrics["evaluation_split"] = "validation" if split_label == "Val" else "test"
         metrics["evaluation_loss"] = float(loss)
 
-    round_timing = {
+    legacy_round_timing = {
         int(round_id): {
-            "train_time_sec": float(training_time),
-            "comm_time_sec": float(communication_time),
+            "training_time_sec": float(training_time),
+            "parameter_sync_time_sec": float(communication_time),
         }
         for round_id, training_time, communication_time in ROUND_TIMING_RE.findall(text)
+    }
+    round_timing = {
+        **legacy_round_timing,
+        **parse_structured_round_timings(text),
     }
     cumulative_time = 0.0
     round_metrics = []
@@ -419,10 +469,16 @@ def parse_run_log(log_path: Path):
         evaluation = evaluation_by_round.get(round_id, {})
         timing = round_timing.get(round_id, {})
         is_validation = evaluation.get("evaluation_split") == "validation"
-        round_time = timing.get("train_time_sec", 0.0) + timing.get(
-            "comm_time_sec", 0.0
+        training_time = timing.get("training_time_sec", 0.0)
+        parameter_sync_time = timing.get("parameter_sync_time_sec", 0.0)
+        round_time = timing.get(
+            "train_sync_time_sec", training_time + parameter_sync_time
         )
-        cumulative_time += round_time
+        reported_cumulative_time = timing.get("cumulative_train_sync_time_sec")
+        if reported_cumulative_time is None:
+            cumulative_time += round_time
+        else:
+            cumulative_time = reported_cumulative_time
         round_metrics.append(
             {
                 "round": round_id,
@@ -433,9 +489,15 @@ def parse_run_log(log_path: Path):
                 "val_loss": (
                     evaluation.get("evaluation_loss") if is_validation else None
                 ),
+                "training_time_sec": training_time,
+                "parameter_sync_time_sec": parameter_sync_time,
+                "train_sync_time_sec": round_time,
+                "cumulative_train_sync_time_sec": cumulative_time,
+                # Backward-compatible aliases for existing result consumers.
+                "train_time_sec": training_time,
+                "comm_time_sec": parameter_sync_time,
                 "train_comm_time_sec": round_time,
                 "cum_train_comm_time_sec": cumulative_time,
-                **timing,
             }
         )
 
@@ -470,15 +532,26 @@ def parse_run_log(log_path: Path):
             "max_rounds": int(max_rounds),
         }
 
+    total_training_time = parse_metric(TRAINING_TIME_RES, text)
+    total_communication_time = parse_metric([COMMUNICATION_TIME_RE], text)
+    if total_training_time is not None and total_communication_time is not None:
+        total_train_comm_time = total_training_time + total_communication_time
+    else:
+        total_train_comm_time = parse_metric([TRAIN_COMM_TIME_RE], text)
+    federated_loop_wall_time = parse_metric([FEDERATED_LOOP_WALL_TIME_RE], text)
+
     return {
         "round_metrics": round_metrics,
         "checkpoint_metrics": checkpoint_metrics,
         "elastic_stop": elastic_stop,
         "test_acc_final": parse_metric(FINAL_TEST_ACCURACY_RES, text),
         "test_loss_final": parse_metric(FINAL_TEST_LOSS_RES, text),
-        "total_pure_train_time_sec": parse_metric([PURE_TRAINING_TIME_RE], text),
-        "total_comm_time_sec": parse_metric([COMMUNICATION_TIME_RE], text),
-        "total_train_comm_time_sec": parse_metric([TRAIN_COMM_TIME_RE], text),
+        "total_training_time_sec": total_training_time,
+        "total_comm_time_sec": total_communication_time,
+        "total_train_comm_time_sec": total_train_comm_time,
+        "federated_loop_wall_time_sec": federated_loop_wall_time,
+        # Backward-compatible alias for callers reading historical parser output.
+        "total_pure_train_time_sec": total_training_time,
     }
 
 
@@ -619,6 +692,10 @@ def write_round_metric_rows(path: Path, rows: List[dict]) -> None:
         "val_loss",
         "local_steps",
         "train_time_sec",
+        "training_time_sec",
+        "parameter_sync_time_sec",
+        "train_sync_time_sec",
+        "cumulative_train_sync_time_sec",
         "comm_time_sec",
         "train_comm_time_sec",
         "cum_train_comm_time_sec",
@@ -791,6 +868,11 @@ def run_experiment(
         "resource_snapshot_summary_path": str(
             log_dir / "resource_snapshot_summary.json"
         ),
+        "prometheus_summary_path": (
+            str(log_dir / "prometheus_summary.json")
+            if config.resource_monitor_mode in {"prometheus", "hybrid"}
+            else None
+        ),
         "status": status,
         "start_time_utc": start_timestamp,
         "evaluation_split": config.evaluation_split,
@@ -823,7 +905,7 @@ def run_experiment(
         "val_convergence_time_sec": round_metric_value(
             round_metrics,
             val_convergence_round,
-            "cum_train_comm_time_sec",
+            "cumulative_train_sync_time_sec",
         ),
         "convergence_window": convergence_window,
         "val_loss_tolerance": val_loss_tolerance,
@@ -865,9 +947,10 @@ def run_experiment(
         ),
         **val_loss_end_stats,
         **val_acc_end_stats,
-        "total_pure_train_time_sec": parsed["total_pure_train_time_sec"],
+        "total_training_time_sec": parsed["total_training_time_sec"],
         "total_comm_time_sec": parsed["total_comm_time_sec"],
         "total_train_comm_time_sec": parsed["total_train_comm_time_sec"],
+        "federated_loop_wall_time_sec": parsed["federated_loop_wall_time_sec"],
         "log_path": str(log_path),
         "config_path": str(config_path),
         "error": error,
@@ -905,6 +988,12 @@ def run_experiment(
             "val_acc": item.get("val_acc"),
             "val_loss": item.get("val_loss"),
             "local_steps": item["round"] * config.local_step,
+            "training_time_sec": item.get("training_time_sec"),
+            "parameter_sync_time_sec": item.get("parameter_sync_time_sec"),
+            "train_sync_time_sec": item.get("train_sync_time_sec"),
+            "cumulative_train_sync_time_sec": item.get(
+                "cumulative_train_sync_time_sec"
+            ),
             "train_time_sec": item.get("train_time_sec"),
             "comm_time_sec": item.get("comm_time_sec"),
             "train_comm_time_sec": item.get("train_comm_time_sec"),
@@ -954,6 +1043,7 @@ def run_experiment(
         "resource_snapshot_interval_rounds",
         "resource_snapshots_path",
         "resource_snapshot_summary_path",
+        "prometheus_summary_path",
         "status",
         "start_time_utc",
         "end_time_utc",
@@ -1002,8 +1092,9 @@ def run_experiment(
         "val_acc_end_gain",
         "val_acc_end_range",
         "val_acc_flat_at_end",
-        "total_pure_train_time_sec",
+        "total_training_time_sec",
         "total_comm_time_sec",
+        "federated_loop_wall_time_sec",
         "total_train_comm_time_sec",
         "log_path",
         "config_path",
@@ -1050,7 +1141,24 @@ def build_configs(args) -> List[ExperimentConfig]:
                         server_device=args.server_device,
                         pretrain_feature_upload_mode=args.pretrain_feature_upload_mode,
                         use_huggingface=args.use_huggingface,
+                        local_artifact_dir=(
+                            str(args.local_artifact_dir)
+                            if args.local_artifact_dir
+                            else None
+                        ),
+                        local_artifact_rank_hosts=(
+                            str(args.local_artifact_rank_hosts)
+                            if args.local_artifact_rank_hosts
+                            else None
+                        ),
                         hf_artifact_num_hops=args.hf_artifact_num_hops,
+                        hf_local_artifact_repo=args.hf_local_artifact_repo,
+                        hf_local_artifact_revision=args.hf_local_artifact_revision,
+                        hf_local_artifact_cache_dir=(
+                            str(args.hf_local_artifact_cache_dir)
+                            if args.hf_local_artifact_cache_dir
+                            else None
+                        ),
                         evaluation_split=args.evaluation_split,
                         num_cpus_per_trainer=args.num_cpus_per_trainer,
                         num_gpus_per_trainer=args.num_gpus_per_trainer,
@@ -1112,10 +1220,38 @@ def parse_args():
             "feature rows; dense preserves the historical full-row upload."
         ),
     )
-    parser.add_argument(
+    data_source = parser.add_mutually_exclusive_group()
+    data_source.add_argument(
         "--use-huggingface",
         action="store_true",
         help="Load one pre-split Hugging Face dataset repository per trainer.",
+    )
+    data_source.add_argument(
+        "--local-artifact-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Load one complete 0-hop shard per trainer from this validated local "
+            "artifact root. Every Ray worker must be able to read this path."
+        ),
+    )
+    data_source.add_argument(
+        "--hf-local-artifact-repo",
+        default=None,
+        help=(
+            "Load one 0-hop shard per trainer from a manifest-style Hugging Face "
+            "dataset repository. This is separate from the legacy per-trainer "
+            "--use-huggingface format."
+        ),
+    )
+    parser.add_argument(
+        "--local-artifact-rank-hosts",
+        type=Path,
+        default=None,
+        help=(
+            "Optional complete '<rank> <private-ipv4>' map. With staged local "
+            "shards, hard-pins each trainer rank to its artifact-hosting Ray node."
+        ),
     )
     parser.add_argument(
         "--hf-artifact-num-hops",
@@ -1124,6 +1260,20 @@ def parse_args():
         help=(
             "Hop suffix of a legacy Hugging Face artifact. Defaults to --num-hops; "
             "use 1 when running a legacy artifact with current --num-hops 2."
+        ),
+    )
+    parser.add_argument(
+        "--hf-local-artifact-revision",
+        default=None,
+        help="Optional Hugging Face revision for --hf-local-artifact-repo.",
+    )
+    parser.add_argument(
+        "--hf-local-artifact-cache-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Optional Hugging Face cache root for --hf-local-artifact-repo; "
+            "use local NVMe on distributed workers."
         ),
     )
     parser.add_argument(
@@ -1143,9 +1293,9 @@ def parse_args():
         default="off",
         help=(
             "Resource telemetry source: off preserves the original workflow; "
-            "manual records application snapshots for manual-Ray/nvidia-smi runs; "
-            "prometheus records application snapshots alongside Prometheus; "
-            "hybrid enables both during migration validation."
+            "manual records application snapshots; prometheus queries the "
+            "Prometheus API and records phase summaries; hybrid enables both "
+            "for migration validation."
         ),
     )
     parser.add_argument(
@@ -1241,6 +1391,60 @@ def main() -> int:
         raise SystemExit("--max-rounds must be greater than or equal to --rounds")
     if args.hf_artifact_num_hops is not None and args.hf_artifact_num_hops < 0:
         raise SystemExit("--hf-artifact-num-hops must be non-negative")
+    if args.local_artifact_dir is not None:
+        args.local_artifact_dir = args.local_artifact_dir.expanduser().resolve()
+        manifest_path = args.local_artifact_dir / "manifest.json"
+        if not manifest_path.is_file():
+            raise SystemExit(
+                f"--local-artifact-dir must contain manifest.json: {manifest_path}"
+            )
+        try:
+            artifact_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise SystemExit(f"Invalid local artifact manifest: {exc}") from exc
+        if args.num_hops != 0 or artifact_manifest.get("hop_semantics") != 0:
+            raise SystemExit(
+                "--local-artifact-dir currently supports only --num-hops 0"
+            )
+        if artifact_manifest.get("n_trainer") != args.n_trainer:
+            raise SystemExit(
+                "local artifact n_trainer does not match --n-trainer: "
+                f"{artifact_manifest.get('n_trainer')} != {args.n_trainer}"
+            )
+    if args.local_artifact_rank_hosts is not None:
+        if args.local_artifact_dir is None:
+            raise SystemExit(
+                "--local-artifact-rank-hosts requires --local-artifact-dir"
+            )
+        args.local_artifact_rank_hosts = (
+            args.local_artifact_rank_hosts.expanduser().resolve()
+        )
+        if not args.local_artifact_rank_hosts.is_file():
+            raise SystemExit(
+                "--local-artifact-rank-hosts must be a readable file: "
+                f"{args.local_artifact_rank_hosts}"
+            )
+    if args.hf_local_artifact_repo is not None:
+        if args.num_hops != 0:
+            raise SystemExit(
+                "--hf-local-artifact-repo currently supports only --num-hops 0"
+            )
+        if args.local_artifact_rank_hosts is not None:
+            raise SystemExit(
+                "--local-artifact-rank-hosts is only for staged local artifacts"
+            )
+    if args.hf_local_artifact_revision is not None and not args.hf_local_artifact_repo:
+        raise SystemExit(
+            "--hf-local-artifact-revision requires --hf-local-artifact-repo"
+        )
+    if args.hf_local_artifact_cache_dir is not None:
+        if not args.hf_local_artifact_repo:
+            raise SystemExit(
+                "--hf-local-artifact-cache-dir requires --hf-local-artifact-repo"
+            )
+        args.hf_local_artifact_cache_dir = (
+            args.hf_local_artifact_cache_dir.expanduser().resolve()
+        )
     if (
         args.use_huggingface
         and args.num_hops > 0

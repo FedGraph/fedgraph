@@ -1,7 +1,8 @@
 import datetime
-import re
-import threading
-import time
+import json
+import os
+import warnings
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import requests  # type: ignore
@@ -9,44 +10,81 @@ from ray.util.metrics import Gauge
 
 
 class Monitor:
-    def __init__(self, use_cluster: bool = False) -> None:
+    """Record FedGraph phase metrics and optionally query Prometheus."""
+
+    DEFAULT_PROMETHEUS_URL = (
+        "http://prometheus-kube-prometheus-prometheus."
+        "prometheus-system.svc.cluster.local:9090"
+    )
+
+    def __init__(
+        self,
+        use_cluster: bool = False,
+        *,
+        prometheus_enabled: Optional[bool] = None,
+        prometheus_required: bool = False,
+        prometheus_url: Optional[str] = None,
+        prometheus_timeout_seconds: float = 5.0,
+        prometheus_query_step_seconds: int = 5,
+    ) -> None:
         self.use_cluster = use_cluster
+        # Preserve legacy behavior for callers that only pass use_cluster. NC passes
+        # prometheus_enabled explicitly so its resource-monitor mode is authoritative.
+        self.prometheus_requested = (
+            use_cluster if prometheus_enabled is None else prometheus_enabled
+        )
+        self.prometheus_enabled = self.prometheus_requested
+        self.prometheus_required = prometheus_required
+        self.prometheus_url = (
+            prometheus_url
+            or os.environ.get("FEDGRAPH_PROMETHEUS_URL")
+            or os.environ.get("RAY_PROMETHEUS_HOST")
+            or self.DEFAULT_PROMETHEUS_URL
+        ).rstrip("/")
+        self.prometheus_timeout_seconds = prometheus_timeout_seconds
+        self.prometheus_query_step_seconds = prometheus_query_step_seconds
+        self.prometheus_error: Optional[str] = None
+        self.network_query = os.environ.get(
+            "FEDGRAPH_PROMETHEUS_NETWORK_QUERY", "ray_node_network_sent"
+        )
+        self.memory_query = os.environ.get(
+            "FEDGRAPH_PROMETHEUS_MEMORY_QUERY", "ray_node_mem_used"
+        )
 
         self.pretrain_time_cost_gauge = Gauge(
-            "pretrain_time_cost", description="Latencies of pretrain_time_cost in ms."
+            "pretrain_time_cost", description="Pretraining duration in ms."
         )
         self.train_time_cost_gauge = Gauge(
-            "train_time_cost", description="Latencies of train_time_cost in ms."
+            "train_time_cost", description="Training duration in ms."
         )
         self.pretrain_node_network_gauge = Gauge(
             "pretrain_node_network",
-            description="Network data sent during training per pod.",
+            description="Total network bytes sent during pretraining.",
         )
         self.train_node_network_gauge = Gauge(
             "train_node_network",
-            description="Network data sent during training per pod.",
+            description="Total network bytes sent during training.",
         )
         self.pretrain_memory_gauge = Gauge(
-            "pretrain_memory_usage", description="Memory usage during pretraining."
+            "pretrain_memory_usage",
+            description="Maximum observed per-pod memory in bytes during pretraining.",
         )
         self.train_memory_gauge = Gauge(
-            "train_memory_usage", description="Memory usage during training."
+            "train_memory_usage",
+            description="Maximum observed per-pod memory in bytes during training.",
         )
-
-        # initialization and total communication costs
         self.init_time_cost_gauge = Gauge(
-            "init_time_cost", description="Latencies of initialization in ms."
+            "init_time_cost", description="Initialization duration in ms."
         )
-
         self.pretrain_theoretical_comm_gauge = Gauge(
             "pretrain_theoretical_comm_MB",
-            description="Theoretical communication cost in MB during pretrain phase.",
+            description="Theoretical communication cost in MB during pretraining.",
         )
         self.train_theoretical_comm_gauge = Gauge(
             "train_theoretical_comm_MB",
-            description="Theoretical communication cost in MB during train phase.",
+            description="Theoretical communication cost in MB during training.",
         )
-        # Timestamp tracking for all phases
+
         self.init_start_time: Optional[datetime.datetime] = None
         self.init_end_time: Optional[datetime.datetime] = None
         self.pretrain_start_time: Optional[datetime.datetime] = None
@@ -56,279 +94,266 @@ class Monitor:
         self.total_comm_start_time: Optional[datetime.datetime] = None
         self.total_comm_end_time: Optional[datetime.datetime] = None
 
-        self.current_round: int = 0
+        self.current_round = 0
         self.initial_network_data: Dict[str, float] = {}
         self.final_network_data: Dict[str, float] = {}
         self.memory_usage_list: List[Any] = []
-
-        # Add large pod mapping
-        self.large_pod_mapping: Dict[str, str] = {}
+        self.phase_summaries: Dict[str, Dict[str, Any]] = {}
+        self._phase_network_start: Dict[str, Dict[str, float]] = {}
         self.pretrain_theoretical_comm_MB = 0.0
         self.train_theoretical_comm_MB = 0.0
-        if self.use_cluster:
-            self.memory_thread = threading.Thread(
-                target=self.collect_memory, daemon=True
-            )
-            self.memory_thread.start()
 
-    def add_pretrain_comm_cost(self, upload_mb: float, download_mb: float):
+    def add_pretrain_comm_cost(self, upload_mb: float, download_mb: float) -> None:
         self.pretrain_theoretical_comm_MB += upload_mb + download_mb
         self.pretrain_theoretical_comm_gauge.set(self.pretrain_theoretical_comm_MB)
 
-    def add_train_comm_cost(self, upload_mb: float, download_mb: float):
+    def add_train_comm_cost(self, upload_mb: float, download_mb: float) -> None:
         self.train_theoretical_comm_MB += upload_mb + download_mb
         self.train_theoretical_comm_gauge.set(self.train_theoretical_comm_MB)
 
-    def collect_memory(self, interval_seconds=30):
-        while True:
-            if self.use_cluster:
-                memory_data = self._fetch_memory_usage()
-                self.memory_usage_list.append(memory_data)
-            time.sleep(interval_seconds)
+    def _handle_prometheus_error(self, error: Exception) -> None:
+        message = f"Prometheus query failed for {self.prometheus_url}: {error}"
+        self.prometheus_error = message
+        if self.prometheus_required:
+            raise RuntimeError(message) from error
+        self.prometheus_enabled = False
+        warnings.warn(
+            f"{message}; continuing without Prometheus telemetry",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
+    def _prometheus_request(
+        self, endpoint: str, params: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        if not self.prometheus_enabled:
+            return []
+        try:
+            response = requests.get(
+                f"{self.prometheus_url}{endpoint}",
+                params=params,
+                timeout=self.prometheus_timeout_seconds,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            if payload.get("status") != "success":
+                raise ValueError(payload.get("error") or "non-success response")
+            result = payload.get("data", {}).get("result")
+            if not isinstance(result, list):
+                raise ValueError("response data.result is not a list")
+            return result
+        except (requests.RequestException, TypeError, ValueError) as error:
+            self._handle_prometheus_error(error)
+            return []
+
+    def validate_prometheus(self) -> bool:
+        """Verify that the Prometheus query API is reachable before training."""
+        if not self.prometheus_requested:
+            return False
+        self._prometheus_request("/api/v1/query", {"query": "up"})
+        return self.prometheus_enabled
+
+    @staticmethod
+    def _target_name(labels: Dict[str, Any]) -> str:
+        for key in ("pod", "instance", "node", "NodeAddress", "ray_io_cluster"):
+            value = labels.get(key)
+            if value:
+                return str(value)
+        return str(labels.get("job") or labels.get("__name__") or "unknown")
+
+    def _query_vector(self, query: str, *, reducer: str) -> Dict[str, float]:
+        result = self._prometheus_request("/api/v1/query", {"query": query})
+        values: Dict[str, float] = {}
+        for item in result:
+            labels = item.get("metric", {})
+            value = item.get("value", [None, None])
+            try:
+                sample = float(value[1])
+            except (IndexError, TypeError, ValueError):
+                continue
+            target = self._target_name(labels)
+            if reducer == "sum":
+                values[target] = values.get(target, 0.0) + sample
+            else:
+                values[target] = max(values.get(target, sample), sample)
+        return values
 
     def _get_network_data(self) -> Dict[str, float]:
-        if not self.use_cluster:
-            return {}
-        response = requests.get(
-            "http://prometheus-kube-prometheus-prometheus.prometheus-system.svc.cluster.local:9090/api/v1/query?query=ray_node_network_sent"
-        )
-
-        data = response.json()
-        pod_data = {}
-        large_pod_count = 1
-
-        for item in data["data"]["result"]:
-            pod_name = item["metric"]["pod"]
-
-            # Assign unique names for large pods
-            if re.search(r"large", pod_name):
-                if pod_name not in self.large_pod_mapping:
-                    self.large_pod_mapping[pod_name] = f"Large{large_pod_count}"
-                    large_pod_count += 1
-                pod_data[self.large_pod_mapping[pod_name]] = float(item["value"][1])
-            elif re.search(r"head", pod_name):
-                pod_data["Server"] = float(item["value"][1])
-            else:
-                pod_data[pod_name] = float(item["value"][1])
-
-        return pod_data
+        return self._query_vector(self.network_query, reducer="sum")
 
     def _fetch_memory_usage(self) -> Dict[str, float]:
-        if not self.use_cluster:
-            return {}
-        response = requests.get(
-            "http://prometheus-kube-prometheus-prometheus.prometheus-system.svc.cluster.local:9090/api/v1/query?query=ray_node_mem_used"
+        return self._query_vector(self.memory_query, reducer="max")
+
+    def _fetch_memory_peaks(
+        self, start: datetime.datetime, end: datetime.datetime
+    ) -> Dict[str, float]:
+        result = self._prometheus_request(
+            "/api/v1/query_range",
+            {
+                "query": self.memory_query,
+                "start": start.timestamp(),
+                "end": max(end.timestamp(), start.timestamp() + 0.001),
+                "step": self.prometheus_query_step_seconds,
+            },
         )
-        data = response.json()
-        memory_data = {}
-        large_pod_count = 1
-        for item in data["data"]["result"]:
-            pod_name = item["metric"]["pod"]
+        peaks: Dict[str, float] = {}
+        for item in result:
+            target = self._target_name(item.get("metric", {}))
+            for value in item.get("values", []):
+                try:
+                    sample = float(value[1])
+                except (IndexError, TypeError, ValueError):
+                    continue
+                peaks[target] = max(peaks.get(target, sample), sample)
+        if not peaks and self.prometheus_enabled:
+            return self._fetch_memory_usage()
+        return peaks
 
-            # Use the same large pod naming scheme
-            if re.search(r"large", pod_name):
-                if pod_name not in self.large_pod_mapping:
-                    self.large_pod_mapping[pod_name] = f"Large{large_pod_count}"
-                    large_pod_count += 1
-                memory_data[self.large_pod_mapping[pod_name]] = float(item["value"][1])
-            elif re.search(r"head", pod_name):
-                memory_data["Server"] = float(item["value"][1])
-            else:
-                memory_data["Server"] = float(item["value"][1])
+    @staticmethod
+    def _network_deltas(
+        initial: Dict[str, float], final: Dict[str, float]
+    ) -> Dict[str, float]:
+        deltas: Dict[str, float] = {}
+        for target, final_value in final.items():
+            initial_value = initial.get(target, 0.0)
+            # If a Ray process restarted, its counter starts again from zero.
+            deltas[target] = (
+                final_value - initial_value
+                if final_value >= initial_value
+                else final_value
+            )
+        return deltas
 
-        return memory_data
+    def _start_prometheus_phase(self, phase: str) -> None:
+        if not self.prometheus_enabled:
+            return
+        self._phase_network_start[phase] = self._get_network_data()
 
-    # initialization time tracking
+    def _finish_prometheus_phase(
+        self,
+        phase: str,
+        start: datetime.datetime,
+        end: datetime.datetime,
+    ) -> Dict[str, Any]:
+        if not self.prometheus_enabled:
+            return {}
+        final_network = self._get_network_data()
+        network_deltas = self._network_deltas(
+            self._phase_network_start.get(phase, {}), final_network
+        )
+        memory_peaks = self._fetch_memory_peaks(start, end)
+        summary = {
+            "start_time_utc": start.astimezone(datetime.timezone.utc).isoformat(),
+            "end_time_utc": end.astimezone(datetime.timezone.utc).isoformat(),
+            "duration_ms": (end - start).total_seconds() * 1000,
+            "network_sent_bytes_by_target": network_deltas,
+            "network_sent_bytes_total": sum(network_deltas.values()),
+            "memory_used_bytes_peak_by_target": memory_peaks,
+            "memory_used_bytes_peak_max": max(memory_peaks.values(), default=0.0),
+        }
+        self.phase_summaries[phase] = summary
+        return summary
+
+    @staticmethod
+    def _print_prometheus_phase(phase: str, summary: Dict[str, Any]) -> None:
+        if not summary:
+            return
+        for target, value in summary["memory_used_bytes_peak_by_target"].items():
+            print(f"//Log Max memory for {target}: {value} //end")
+        for target, value in summary["network_sent_bytes_by_target"].items():
+            print(f"//Log {target} {phase} network: {value} //end")
+        total_mb = summary["network_sent_bytes_total"] / (1024 * 1024)
+        print(f"//Log Total Actual {phase.title()} Comm Cost: {total_mb:.2f} MB //end")
+
     def init_time_start(self) -> None:
-        self.init_start_time = datetime.datetime.now()
-        if self.use_cluster:
-            self.initial_network_data = self._get_network_data()
-            print("Initialization start: network data collected.")
+        self.init_start_time = datetime.datetime.now(datetime.timezone.utc)
+        self._start_prometheus_phase("initialization")
+        if self.prometheus_enabled:
+            print("Initialization start: Prometheus network baseline collected.")
         else:
             print("Initialization start time recorded.")
 
     def init_time_end(self) -> None:
-        self.init_end_time = datetime.datetime.now()
-        if self.init_start_time is not None and self.init_end_time is not None:
-            elapsed = (self.init_end_time - self.init_start_time).total_seconds() * 1000
-        else:
-            elapsed = 0
+        self.init_end_time = datetime.datetime.now(datetime.timezone.utc)
+        if self.init_start_time is None:
+            return
+        elapsed = (self.init_end_time - self.init_start_time).total_seconds() * 1000
         self.init_time_cost_gauge.set(elapsed)
         print(f"//Log init_time: {elapsed} ms //end")
-        if self.use_cluster:
-            self.final_network_data = self._get_network_data()
-            total_diff = sum(
-                self.final_network_data.get(pod, 0)
-                - self.initial_network_data.get(pod, 0)
-                for pod in self.final_network_data
-            )
-            for pod_name in self.final_network_data:
-                diff = self.final_network_data[
-                    pod_name
-                ] - self.initial_network_data.get(pod_name, 0)
-                print(f"//Log {pod_name} init network: {diff} //end")
-            print(
-                f"//Log Initialization Communication Cost (MB): {total_diff / (1024 * 1024):.2f} //end"
-            )
+        summary = self._finish_prometheus_phase(
+            "initialization", self.init_start_time, self.init_end_time
+        )
+        self._print_prometheus_phase("initialization", summary)
 
     def pretrain_time_start(self) -> None:
-        self.pretrain_start_time = datetime.datetime.now()
-        if self.use_cluster:
-            self.initial_network_data = self._get_network_data()
+        self.pretrain_start_time = datetime.datetime.now(datetime.timezone.utc)
+        self._start_prometheus_phase("pretrain")
         print("Pretrain start time recorded.")
-        self.memory_usage_list = []
 
     def pretrain_time_end(self) -> None:
-        if self.pretrain_start_time is not None:
-            self.pretrain_end_time = datetime.datetime.now()
-            pretrain_duration = (
-                self.pretrain_end_time - self.pretrain_start_time
-            ).total_seconds() * 1000
-            self.pretrain_time_cost_gauge.set(pretrain_duration)
-            print(f"//pretrain_time: {pretrain_duration} ms//end")
-
-            if self.use_cluster:
-                time.sleep(30)
-                self.final_network_data = self._get_network_data()
-
-                # Output memory values for large pods
-                for pod_name in self.large_pod_mapping.values():
-                    large_memory_values = [
-                        memory_data.get(pod_name, 0)
-                        for memory_data in self.memory_usage_list
-                        if pod_name in memory_data
-                    ]
-                    if large_memory_values:
-                        print(
-                            f"//Log Max memory for {pod_name}: {max(large_memory_values)} //end"
-                        )
-                    else:
-                        print(f"No memory values found for {pod_name}.")
-
-                # Output memory value for Server pod
-                server_memory_values = [
-                    max(
-                        memory_data.get("Server", 0)
-                        for pod_name in memory_data
-                        if re.search(r"Server", pod_name)
-                    )
-                    for memory_data in self.memory_usage_list
-                    if any(re.search(r"Server", pod) for pod in memory_data)
-                ]
-                if server_memory_values:
-                    print(
-                        f"//Log Max memory for Server: {max(server_memory_values)} //end"
-                    )
-                else:
-                    print("No memory values found for Server.")
-
-                # Output network data for large pods
-                for pod_name, pod_value in self.final_network_data.items():
-                    if re.search(r"Large", pod_name):
-                        network_diff = pod_value - self.initial_network_data.get(
-                            pod_name, 0
-                        )
-                        self.pretrain_node_network_gauge.set(network_diff)
-                        print(f"//Log {pod_name} network: {network_diff} //end")
-
-                if "Server" in self.final_network_data:
-                    network_diff = self.final_network_data[
-                        "Server"
-                    ] - self.initial_network_data.get("Server", 0)
-                    self.pretrain_node_network_gauge.set(network_diff)
-                    print(f"//Log Server network: {network_diff} //end")
-                    # Calculate and print total actual communication cost
-                total_network_diff = sum(
-                    self.final_network_data.get(pod, 0)
-                    - self.initial_network_data.get(pod, 0)
-                    for pod in self.final_network_data
-                )
-                total_network_mb = total_network_diff / (1024 * 1024)
-                print(
-                    f"//Log Total Actual Pretrain Comm Cost: {total_network_mb:.2f} MB //end"
-                )
-                print("Pretrain end time recorded and duration set to gauge.")
+        self.pretrain_end_time = datetime.datetime.now(datetime.timezone.utc)
+        if self.pretrain_start_time is None:
+            return
+        duration = (
+            self.pretrain_end_time - self.pretrain_start_time
+        ).total_seconds() * 1000
+        self.pretrain_time_cost_gauge.set(duration)
+        print(f"//pretrain_time: {duration} ms//end")
+        summary = self._finish_prometheus_phase(
+            "pretrain", self.pretrain_start_time, self.pretrain_end_time
+        )
+        if summary:
+            self.pretrain_node_network_gauge.set(summary["network_sent_bytes_total"])
+            self.pretrain_memory_gauge.set(summary["memory_used_bytes_peak_max"])
+        self._print_prometheus_phase("pretrain", summary)
 
     def train_time_start(self) -> None:
         self.current_round += 1
-        self.train_start_time = datetime.datetime.now()
-        if self.use_cluster:
-            self.initial_network_data = self._get_network_data()
-            print("Train start: network data collected.")
-        else:
-            print("Train start time recorded.")
-        self.memory_usage_list = []
+        self.train_start_time = datetime.datetime.now(datetime.timezone.utc)
+        self._start_prometheus_phase("train")
+        print("Train start time recorded.")
 
     def train_time_end(self) -> None:
-        if self.train_start_time is not None:
-            self.train_end_time = datetime.datetime.now()
-            train_duration = (
-                self.train_end_time - self.train_start_time
-            ).total_seconds() * 1000
-            self.train_time_cost_gauge.set(train_duration)
-            print(f"//train_time: {train_duration} ms//end")
+        self.train_end_time = datetime.datetime.now(datetime.timezone.utc)
+        if self.train_start_time is None:
+            return
+        duration = (self.train_end_time - self.train_start_time).total_seconds() * 1000
+        self.train_time_cost_gauge.set(duration)
+        print(f"//train_time: {duration} ms//end")
+        summary = self._finish_prometheus_phase(
+            "train", self.train_start_time, self.train_end_time
+        )
+        if summary:
+            self.train_node_network_gauge.set(summary["network_sent_bytes_total"])
+            self.train_memory_gauge.set(summary["memory_used_bytes_peak_max"])
+        self._print_prometheus_phase("train", summary)
 
-            if self.use_cluster:
-                time.sleep(30)
-                self.final_network_data = self._get_network_data()
-
-                # Output memory values for large pods
-                for pod_name in self.large_pod_mapping.values():
-                    large_memory_values = [
-                        memory_data.get(pod_name, 0)
-                        for memory_data in self.memory_usage_list
-                        if pod_name in memory_data
-                    ]
-                    if large_memory_values:
-                        print(
-                            f"//Log Max memory for {pod_name}: {max(large_memory_values)} //end"
-                        )
-                    else:
-                        print(f"No memory values found for {pod_name}.")
-
-                # Output memory value for Server pod
-                server_memory_values = [
-                    max(
-                        memory_data.get("Server", 0)
-                        for pod_name in memory_data
-                        if re.search(r"Server", pod_name)
-                    )
-                    for memory_data in self.memory_usage_list
-                    if any(re.search(r"Server", pod) for pod in memory_data)
-                ]
-                if server_memory_values:
-                    print(
-                        f"//Log Max memory for Server: {max(server_memory_values)} //end"
-                    )
-                else:
-                    print("No memory values found for Server.")
-
-                # Output network data for large pods
-                for pod_name, pod_value in self.final_network_data.items():
-                    if re.search(r"Large", pod_name):
-                        network_diff = pod_value - self.initial_network_data.get(
-                            pod_name, 0
-                        )
-                        self.train_node_network_gauge.set(network_diff)
-                        print(f"//Log {pod_name} network: {network_diff} //end")
-
-                if "Server" in self.final_network_data:
-                    network_diff = self.final_network_data[
-                        "Server"
-                    ] - self.initial_network_data.get("Server", 0)
-                    self.train_node_network_gauge.set(network_diff)
-                    print(f"//Log Server network: {network_diff} //end")
-                    # Calculate and print total actual communication cost
-                total_network_diff = sum(
-                    self.final_network_data.get(pod, 0)
-                    - self.initial_network_data.get(pod, 0)
-                    for pod in self.final_network_data
-                )
-                total_network_mb = total_network_diff / (1024 * 1024)
-                print(
-                    f"//Log Total Actual Train Comm Cost: {total_network_mb:.2f} MB //end"
-                )
-                print("Train end time recorded and duration set to gauge.")
+    def write_prometheus_summary(
+        self, path: Path, *, resource_monitor_mode: Optional[str] = None
+    ) -> Optional[Path]:
+        """Persist compact phase aggregates without copying full time series."""
+        if not self.prometheus_requested:
+            return None
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "generated_at_utc": datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat(),
+            "resource_monitor_mode": resource_monitor_mode,
+            "prometheus_url": self.prometheus_url,
+            "prometheus_available": self.prometheus_error is None,
+            "prometheus_error": self.prometheus_error,
+            "network_query": self.network_query,
+            "memory_query": self.memory_query,
+            "query_step_seconds": self.prometheus_query_step_seconds,
+            "phases": self.phase_summaries,
+            "theoretical_communication_mb": {
+                "pretrain": self.pretrain_theoretical_comm_MB,
+                "train": self.train_theoretical_comm_MB,
+            },
+        }
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        return path
 
     def print_comm_cost(self) -> None:
         print(
