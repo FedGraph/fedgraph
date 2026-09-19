@@ -136,6 +136,30 @@ Inside the cluster, Ray uses Kubernetes DNS names such as
 cluster, users and the local Ray CLI use `127.0.0.1` only while the corresponding
 port-forward process is running.
 
+### FedGraph resource-monitor modes
+
+The NC benchmark selects its telemetry path with `--resource-monitor-mode`:
+
+| Mode | Application snapshots | Prometheus queries |
+| --- | --- | --- |
+| `off` | No | No |
+| `manual` | Yes | No |
+| `prometheus` | No | Yes; an unavailable API fails the run before training |
+| `hybrid` | Yes | Yes; an unavailable API warns and continues manually |
+
+The Ray head image already receives `RAY_PROMETHEUS_HOST` from the RayCluster
+manifest. `Monitor` also accepts `FEDGRAPH_PROMETHEUS_URL`, which takes
+precedence and is useful when testing against a port-forwarded or external
+Prometheus service. The optional `FEDGRAPH_PROMETHEUS_NETWORK_QUERY` and
+`FEDGRAPH_PROMETHEUS_MEMORY_QUERY` variables override the Ray metric names when
+validating a different Ray release.
+
+Prometheus-backed runs write `prometheus_summary.json` in the run's
+`fedgraph_logs` directory. It records initialization, pretraining, and training
+timestamps, per-pod network deltas, per-pod peak Ray memory, query settings, and
+any hybrid-mode fallback error. Manual or hybrid runs additionally write
+`resource_snapshots.jsonl` and `resource_snapshot_summary.json`.
+
 ## 6. Submit the Cora Smoke Job
 
 Keep the Ray port-forward running, then in another terminal:
@@ -143,6 +167,13 @@ Keep the Ray port-forward running, then in another terminal:
 ```bash
 ./scripts/kuberay/60-submit-cora-smoke.sh
 ./scripts/kuberay/60-submit-cora-smoke.sh --submit
+```
+
+The smoke helper defaults to hybrid monitoring for the first comparison. To
+require a healthy Prometheus API instead, run:
+
+```bash
+RESOURCE_MONITOR_MODE=prometheus ./scripts/kuberay/60-submit-cora-smoke.sh --submit
 ```
 
 The job runs batch sizes 32 and full-batch for 20 rounds, with five trainer

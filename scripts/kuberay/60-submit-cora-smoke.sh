@@ -13,6 +13,10 @@ esac
 RAY_CLI="${RAY_CLI:-${HOME}/miniconda3/envs/fedgraph312/bin/ray}"
 EXPERIMENT_NAME="${EXPERIMENT_NAME:-kuberay_cora_smoke_bs32_full_20r_seed42}"
 SUBMISSION_ID="${SUBMISSION_ID:-${EXPERIMENT_NAME}}"
+RESOURCE_MONITOR_MODE="${RESOURCE_MONITOR_MODE:-hybrid}"
+
+[[ "${RESOURCE_MONITOR_MODE}" =~ ^(off|manual|prometheus|hybrid)$ ]] || die \
+    "RESOURCE_MONITOR_MODE must be off, manual, prometheus, or hybrid."
 
 job_command=(
     "${RAY_CLI}" job submit
@@ -35,6 +39,7 @@ job_command=(
     --server-device cpu
     --num-gpus-per-trainer 1
     --num-cpus-per-trainer 1
+    --resource-monitor-mode "${RESOURCE_MONITOR_MODE}"
 )
 
 if [[ "${mode}" == plan ]]; then
