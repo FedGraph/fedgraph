@@ -1,0 +1,4 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,val_acc,val_loss
+nc_papers100m_10trainer_0hop_local_artifact_smoke_3,20260828_003908_ogbn-papers100M_FedAvg_bs16_seed42_beta10000p0,ogbn-papers100M,FedAvg,16,42,10000.0,1,0.0046,5.1578
+nc_papers100m_10trainer_0hop_local_artifact_smoke_3,20260828_003908_ogbn-papers100M_FedAvg_bs16_seed42_beta10000p0,ogbn-papers100M,FedAvg,16,42,10000.0,2,0.0052,5.1544
+nc_papers100m_10trainer_0hop_local_artifact_smoke_3,20260828_003908_ogbn-papers100M_FedAvg_bs16_seed42_beta10000p0,ogbn-papers100M,FedAvg,16,42,10000.0,3,0.0059,5.1508

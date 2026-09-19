@@ -1,0 +1,519 @@
+================================================================================
+Starting FedGraph NC batch-size convergence run: 20260904_021019_ogbn-papers100M_FedAvg_bs512_seed42_beta10000p0
+{
+  "batch_size": 512,
+  "dataset": "ogbn-papers100M",
+  "distribution_type": "average",
+  "elastic_training": false,
+  "evaluation_split": "validation",
+  "global_rounds": 1,
+  "gpu": true,
+  "hf_artifact_num_hops": null,
+  "hf_local_artifact_cache_dir": null,
+  "hf_local_artifact_repo": null,
+  "hf_local_artifact_revision": null,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_artifact_dir": "/mnt/fedgraph-nvme/artifacts/papers100m-195-0hop-v1",
+  "local_artifact_rank_hosts": "/home/ubuntu/fedgraph-papers100m-rank-hosts.txt",
+  "local_step": 1,
+  "max_rounds": null,
+  "method": "FedAvg",
+  "n_trainer": 195,
+  "num_cpus_per_trainer": 0,
+  "num_gpus_per_trainer": 0.05,
+  "num_hops": 0,
+  "num_layers": 2,
+  "pretrain_feature_upload_mode": "dense",
+  "resource_monitor_mode": "manual",
+  "resource_snapshot_interval_rounds": 1,
+  "seed": 42,
+  "server_device": "cpu",
+  "target_train_comm_times_sec": [],
+  "target_val_accs": [],
+  "target_val_losses": [],
+  "use_huggingface": false,
+  "use_ogb_load_patch": true,
+  "val_loss_min_delta": 0.0,
+  "val_loss_patience": 20
+}
+================================================================================
+FedGraph Differential Privacy module loaded (v1.0.0)
+✓ Differential Privacy support loaded
+Initialization start time recorded.
+NC_RESOURCE_MONITOR, mode=manual, snapshot_interval_rounds=1, snapshot_path=benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_local_artifact_smoke/runs/20260904_021019_ogbn-papers100M_FedAvg_bs512_seed42_beta10000p0/fedgraph_logs/resource_snapshots.jsonl
+2026-09-04 02:10:30,022	INFO worker.py:1683 -- Using address 10.195.25.34:6379 set in the environment variable RAY_ADDRESS
+2026-09-04 02:10:30,026	INFO worker.py:1833 -- Connecting to existing Ray cluster at address: 10.195.25.34:6379...
+2026-09-04 02:10:30,044	INFO worker.py:2015 -- Connected to Ray cluster. View the dashboard at [1m[32mhttp://127.0.0.1:8265 [39m[22m
+Changing method to FedAvg
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=0, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=1, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=2, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=3, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=4, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=5, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=6, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=7, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=8, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=9, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=10, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=11, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=12, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=13, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=14, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=15, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=16, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=17, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=18, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=19, host=10.195.25.35, node_id=d5ba3fde4b8bb6aa5c3425943de248703ad6387b58a3a3267eea4af3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=20, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=21, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=22, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=23, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=24, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=25, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=26, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=27, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=28, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=29, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=30, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=31, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=32, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=33, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=34, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=35, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=36, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=37, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=38, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=39, host=10.195.25.15, node_id=6f46f258a7f018a06020bd79aa019a0e4f2aa6737eb600416315b96c
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=40, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=41, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=42, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=43, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=44, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=45, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=46, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=47, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=48, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=49, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=50, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=51, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=52, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=53, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=54, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=55, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=56, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=57, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=58, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=59, host=10.195.25.42, node_id=4344013f33c41967eef6d509141be5644aa6611100ed42bf75700c49
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=60, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=61, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=62, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=63, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=64, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=65, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=66, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=67, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=68, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=69, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=70, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=71, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=72, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=73, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=74, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=75, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=76, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=77, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=78, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=79, host=10.195.25.38, node_id=5c8ec680d6e621261d1e7243028e6043db2e1aacd98152227082eb61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=80, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=81, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=82, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=83, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=84, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=85, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=86, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=87, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=88, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=89, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=90, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=91, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=92, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=93, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=94, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=95, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=96, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=97, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=98, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=99, host=10.195.25.16, node_id=6e4451bc0de82c39410823d3f6c1d4fc074d042e1362f16a573e8d09
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=100, host=10.195.25.33, node_id=77c0d0479b1cc578823d3c2032b3e1abad1935cae03207021360db8b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=101, host=10.195.25.33, node_id=77c0d0479b1cc578823d3c2032b3e1abad1935cae03207021360db8b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=102, host=10.195.25.33, node_id=77c0d0479b1cc578823d3c2032b3e1abad1935cae03207021360db8b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=103, host=10.195.25.33, node_id=77c0d0479b1cc578823d3c2032b3e1abad1935cae03207021360db8b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=104, host=10.195.25.33, node_id=77c0d0479b1cc578823d3c2032b3e1abad1935cae03207021360db8b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=105, host=10.195.25.33, node_id=77c0d0479b1cc578823d3c2032b3e1abad1935cae03207021360db8b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=106, host=10.195.25.33, node_id=77c0d0479b1cc578823d3c2032b3e1abad1935cae03207021360db8b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=107, host=10.195.25.33, node_id=77c0d0479b1cc578823d3c2032b3e1abad1935cae03207021360db8b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=108, host=10.195.25.33, node_id=77c0d0479b1cc578823d3c2032b3e1abad1935cae03207021360db8b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=109, host=10.195.25.33, node_id=77c0d0479b1cc578823d3c2032b3e1abad1935cae03207021360db8b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=110, host=10.195.25.33, node_id=77c0d0479b1cc578823d3c2032b3e1abad1935cae03207021360db8b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=111, host=10.195.25.33, node_id=77c0d0479b1cc578823d3c2032b3e1abad1935cae03207021360db8b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=112, host=10.195.25.33, node_id=77c0d0479b1cc578823d3c2032b3e1abad1935cae03207021360db8b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=113, host=10.195.25.33, node_id=77c0d0479b1cc578823d3c2032b3e1abad1935cae03207021360db8b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=114, host=10.195.25.33, node_id=77c0d0479b1cc578823d3c2032b3e1abad1935cae03207021360db8b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=115, host=10.195.25.33, node_id=77c0d0479b1cc578823d3c2032b3e1abad1935cae03207021360db8b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=116, host=10.195.25.33, node_id=77c0d0479b1cc578823d3c2032b3e1abad1935cae03207021360db8b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=117, host=10.195.25.33, node_id=77c0d0479b1cc578823d3c2032b3e1abad1935cae03207021360db8b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=118, host=10.195.25.33, node_id=77c0d0479b1cc578823d3c2032b3e1abad1935cae03207021360db8b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=119, host=10.195.25.12, node_id=18dc607eb90cdddaa075b52e82cbafa9a999184d13ccdb4f229954a6
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=120, host=10.195.25.12, node_id=18dc607eb90cdddaa075b52e82cbafa9a999184d13ccdb4f229954a6
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=121, host=10.195.25.12, node_id=18dc607eb90cdddaa075b52e82cbafa9a999184d13ccdb4f229954a6
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=122, host=10.195.25.12, node_id=18dc607eb90cdddaa075b52e82cbafa9a999184d13ccdb4f229954a6
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=123, host=10.195.25.12, node_id=18dc607eb90cdddaa075b52e82cbafa9a999184d13ccdb4f229954a6
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=124, host=10.195.25.12, node_id=18dc607eb90cdddaa075b52e82cbafa9a999184d13ccdb4f229954a6
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=125, host=10.195.25.12, node_id=18dc607eb90cdddaa075b52e82cbafa9a999184d13ccdb4f229954a6
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=126, host=10.195.25.12, node_id=18dc607eb90cdddaa075b52e82cbafa9a999184d13ccdb4f229954a6
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=127, host=10.195.25.12, node_id=18dc607eb90cdddaa075b52e82cbafa9a999184d13ccdb4f229954a6
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=128, host=10.195.25.12, node_id=18dc607eb90cdddaa075b52e82cbafa9a999184d13ccdb4f229954a6
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=129, host=10.195.25.12, node_id=18dc607eb90cdddaa075b52e82cbafa9a999184d13ccdb4f229954a6
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=130, host=10.195.25.12, node_id=18dc607eb90cdddaa075b52e82cbafa9a999184d13ccdb4f229954a6
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=131, host=10.195.25.12, node_id=18dc607eb90cdddaa075b52e82cbafa9a999184d13ccdb4f229954a6
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=132, host=10.195.25.12, node_id=18dc607eb90cdddaa075b52e82cbafa9a999184d13ccdb4f229954a6
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=133, host=10.195.25.12, node_id=18dc607eb90cdddaa075b52e82cbafa9a999184d13ccdb4f229954a6
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=134, host=10.195.25.12, node_id=18dc607eb90cdddaa075b52e82cbafa9a999184d13ccdb4f229954a6
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=135, host=10.195.25.12, node_id=18dc607eb90cdddaa075b52e82cbafa9a999184d13ccdb4f229954a6
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=136, host=10.195.25.12, node_id=18dc607eb90cdddaa075b52e82cbafa9a999184d13ccdb4f229954a6
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=137, host=10.195.25.12, node_id=18dc607eb90cdddaa075b52e82cbafa9a999184d13ccdb4f229954a6
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=138, host=10.195.25.28, node_id=2b5b1de0d2dd21c2bdf21be908b72bad30ad919b73c6fee5db635f2f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=139, host=10.195.25.28, node_id=2b5b1de0d2dd21c2bdf21be908b72bad30ad919b73c6fee5db635f2f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=140, host=10.195.25.28, node_id=2b5b1de0d2dd21c2bdf21be908b72bad30ad919b73c6fee5db635f2f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=141, host=10.195.25.28, node_id=2b5b1de0d2dd21c2bdf21be908b72bad30ad919b73c6fee5db635f2f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=142, host=10.195.25.28, node_id=2b5b1de0d2dd21c2bdf21be908b72bad30ad919b73c6fee5db635f2f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=143, host=10.195.25.28, node_id=2b5b1de0d2dd21c2bdf21be908b72bad30ad919b73c6fee5db635f2f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=144, host=10.195.25.28, node_id=2b5b1de0d2dd21c2bdf21be908b72bad30ad919b73c6fee5db635f2f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=145, host=10.195.25.28, node_id=2b5b1de0d2dd21c2bdf21be908b72bad30ad919b73c6fee5db635f2f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=146, host=10.195.25.28, node_id=2b5b1de0d2dd21c2bdf21be908b72bad30ad919b73c6fee5db635f2f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=147, host=10.195.25.28, node_id=2b5b1de0d2dd21c2bdf21be908b72bad30ad919b73c6fee5db635f2f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=148, host=10.195.25.28, node_id=2b5b1de0d2dd21c2bdf21be908b72bad30ad919b73c6fee5db635f2f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=149, host=10.195.25.28, node_id=2b5b1de0d2dd21c2bdf21be908b72bad30ad919b73c6fee5db635f2f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=150, host=10.195.25.28, node_id=2b5b1de0d2dd21c2bdf21be908b72bad30ad919b73c6fee5db635f2f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=151, host=10.195.25.28, node_id=2b5b1de0d2dd21c2bdf21be908b72bad30ad919b73c6fee5db635f2f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=152, host=10.195.25.28, node_id=2b5b1de0d2dd21c2bdf21be908b72bad30ad919b73c6fee5db635f2f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=153, host=10.195.25.28, node_id=2b5b1de0d2dd21c2bdf21be908b72bad30ad919b73c6fee5db635f2f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=154, host=10.195.25.28, node_id=2b5b1de0d2dd21c2bdf21be908b72bad30ad919b73c6fee5db635f2f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=155, host=10.195.25.28, node_id=2b5b1de0d2dd21c2bdf21be908b72bad30ad919b73c6fee5db635f2f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=156, host=10.195.25.28, node_id=2b5b1de0d2dd21c2bdf21be908b72bad30ad919b73c6fee5db635f2f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=157, host=10.195.25.61, node_id=b23f662b3c9902a2799cfa349031a64271b13330f1c000c8a3c700a9
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=158, host=10.195.25.61, node_id=b23f662b3c9902a2799cfa349031a64271b13330f1c000c8a3c700a9
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=159, host=10.195.25.61, node_id=b23f662b3c9902a2799cfa349031a64271b13330f1c000c8a3c700a9
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=160, host=10.195.25.61, node_id=b23f662b3c9902a2799cfa349031a64271b13330f1c000c8a3c700a9
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=161, host=10.195.25.61, node_id=b23f662b3c9902a2799cfa349031a64271b13330f1c000c8a3c700a9
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=162, host=10.195.25.61, node_id=b23f662b3c9902a2799cfa349031a64271b13330f1c000c8a3c700a9
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=163, host=10.195.25.61, node_id=b23f662b3c9902a2799cfa349031a64271b13330f1c000c8a3c700a9
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=164, host=10.195.25.61, node_id=b23f662b3c9902a2799cfa349031a64271b13330f1c000c8a3c700a9
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=165, host=10.195.25.61, node_id=b23f662b3c9902a2799cfa349031a64271b13330f1c000c8a3c700a9
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=166, host=10.195.25.61, node_id=b23f662b3c9902a2799cfa349031a64271b13330f1c000c8a3c700a9
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=167, host=10.195.25.61, node_id=b23f662b3c9902a2799cfa349031a64271b13330f1c000c8a3c700a9
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=168, host=10.195.25.61, node_id=b23f662b3c9902a2799cfa349031a64271b13330f1c000c8a3c700a9
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=169, host=10.195.25.61, node_id=b23f662b3c9902a2799cfa349031a64271b13330f1c000c8a3c700a9
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=170, host=10.195.25.61, node_id=b23f662b3c9902a2799cfa349031a64271b13330f1c000c8a3c700a9
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=171, host=10.195.25.61, node_id=b23f662b3c9902a2799cfa349031a64271b13330f1c000c8a3c700a9
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=172, host=10.195.25.61, node_id=b23f662b3c9902a2799cfa349031a64271b13330f1c000c8a3c700a9
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=173, host=10.195.25.61, node_id=b23f662b3c9902a2799cfa349031a64271b13330f1c000c8a3c700a9
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=174, host=10.195.25.61, node_id=b23f662b3c9902a2799cfa349031a64271b13330f1c000c8a3c700a9
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=175, host=10.195.25.61, node_id=b23f662b3c9902a2799cfa349031a64271b13330f1c000c8a3c700a9
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=176, host=10.195.25.14, node_id=69663abe0717d5819818a68a6dafcadb446deafd33e159f5a74d40c5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=177, host=10.195.25.14, node_id=69663abe0717d5819818a68a6dafcadb446deafd33e159f5a74d40c5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=178, host=10.195.25.14, node_id=69663abe0717d5819818a68a6dafcadb446deafd33e159f5a74d40c5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=179, host=10.195.25.14, node_id=69663abe0717d5819818a68a6dafcadb446deafd33e159f5a74d40c5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=180, host=10.195.25.14, node_id=69663abe0717d5819818a68a6dafcadb446deafd33e159f5a74d40c5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=181, host=10.195.25.14, node_id=69663abe0717d5819818a68a6dafcadb446deafd33e159f5a74d40c5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=182, host=10.195.25.14, node_id=69663abe0717d5819818a68a6dafcadb446deafd33e159f5a74d40c5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=183, host=10.195.25.14, node_id=69663abe0717d5819818a68a6dafcadb446deafd33e159f5a74d40c5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=184, host=10.195.25.14, node_id=69663abe0717d5819818a68a6dafcadb446deafd33e159f5a74d40c5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=185, host=10.195.25.14, node_id=69663abe0717d5819818a68a6dafcadb446deafd33e159f5a74d40c5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=186, host=10.195.25.14, node_id=69663abe0717d5819818a68a6dafcadb446deafd33e159f5a74d40c5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=187, host=10.195.25.14, node_id=69663abe0717d5819818a68a6dafcadb446deafd33e159f5a74d40c5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=188, host=10.195.25.14, node_id=69663abe0717d5819818a68a6dafcadb446deafd33e159f5a74d40c5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=189, host=10.195.25.14, node_id=69663abe0717d5819818a68a6dafcadb446deafd33e159f5a74d40c5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=190, host=10.195.25.14, node_id=69663abe0717d5819818a68a6dafcadb446deafd33e159f5a74d40c5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=191, host=10.195.25.14, node_id=69663abe0717d5819818a68a6dafcadb446deafd33e159f5a74d40c5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=192, host=10.195.25.14, node_id=69663abe0717d5819818a68a6dafcadb446deafd33e159f5a74d40c5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=193, host=10.195.25.14, node_id=69663abe0717d5819818a68a6dafcadb446deafd33e159f5a74d40c5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=194, host=10.195.25.14, node_id=69663abe0717d5819818a68a6dafcadb446deafd33e159f5a74d40c5
+[36m(pid=6559, ip=10.195.25.33)[0m FedGraph Differential Privacy module loaded (v1.0.0)
+[36m(pid=6559, ip=10.195.25.33)[0m ✓ Differential Privacy support loaded
+[36m(Trainer pid=6558, ip=10.195.25.33)[0m Loaded local artifact shard 101 from /mnt/fedgraph-nvme/artifacts/papers100m-195-0hop-v1/shards/trainer-101
+[36m(Trainer pid=6597, ip=10.195.25.12)[0m Running GCN_arxiv
+[36m(pid=7042, ip=10.195.25.38)[0m FedGraph Differential Privacy module loaded (v1.0.0)[32m [repeated 194x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)[0m
+[36m(pid=7042, ip=10.195.25.38)[0m ✓ Differential Privacy support loaded[32m [repeated 194x across cluster][0m
+[36m(Trainer pid=6860, ip=10.195.25.35)[0m Loaded local artifact shard 9 from /mnt/fedgraph-nvme/artifacts/papers100m-195-0hop-v1/shards/trainer-009[32m [repeated 194x across cluster][0m
+Running GCN_arxiv
+//Log init_time: 20663.124 ms //end
+Pretrain start time recorded.
+//pretrain_time: 0.098 ms//end
+Train start time recorded.
+global_rounds 1
+Round 1: Global Val Loss = 5.1562
+Round 1: Global Val Accuracy = 0.0047
+Round 1: Training Time = 1.06s, Communication Time = 0.51s
+//train_time: 2328.545 ms//end
+
+================================================================================
+TIME BREAKDOWN (excluding initialization)
+================================================================================
+Total Pure Training Time (forward + gradient descent): 1.06 seconds
+Total Communication Time (parameter aggregation): 0.51 seconds
+Total Training + Communication Time: 2.33 seconds
+Training Time Percentage: 45.3%
+Communication Time Percentage: 21.9%
+Average Training Time per Round: 1.06 seconds
+Average Communication Time per Round: 0.51 seconds
+================================================================================
+[Pure Training Time] Dataset: ogbn-papers100M, Batch Size: 512, Trainers: 195, Hops: 0, IID Beta: 10000.0 => Pure Training Time = 1.06 seconds
+[Communication Time] Dataset: ogbn-papers100M, Batch Size: 512, Trainers: 195, Hops: 0, IID Beta: 10000.0 => Communication Time = 0.51 seconds
+average_final_test_loss, 5.155434446808521
+Average test accuracy, 0.004539559041233493
+
+================================================================================
+INDIVIDUAL TRAINER MEMORY USAGE
+================================================================================
+
+====================================================================================================
+TRAINER MEMORY vs LOCAL GRAPH SIZE
+====================================================================================================
+Trainer  Memory(MB)   Nodes    Edges    Memory/Node  Memory/Edge 
+----------------------------------------------------------------------------------------------------
+0        1309.5       569539   42085    0.002        0.031       
+1        1338.8       569539   42192    0.002        0.032       
+2        1335.3       569539   42649    0.002        0.031       
+3        1310.3       569539   42566    0.002        0.031       
+4        1335.7       569539   42106    0.002        0.032       
+5        1311.3       569539   42478    0.002        0.031       
+6        1320.2       569539   41630    0.002        0.032       
+7        1319.0       569539   42632    0.002        0.031       
+8        1330.2       569539   41951    0.002        0.032       
+9        1343.4       569539   43121    0.002        0.031       
+10       1310.8       569539   42455    0.002        0.031       
+11       1311.5       569539   42613    0.002        0.031       
+12       1310.4       569539   42902    0.002        0.031       
+13       1314.0       569539   42317    0.002        0.031       
+14       1321.7       569539   42296    0.002        0.031       
+15       1310.7       569539   42146    0.002        0.031       
+16       1319.2       569539   41922    0.002        0.031       
+17       1308.6       569539   42390    0.002        0.031       
+18       1320.0       569539   41847    0.002        0.032       
+19       1320.0       569539   42582    0.002        0.031       
+20       1309.3       569539   42966    0.002        0.030       
+21       1315.9       569539   42584    0.002        0.031       
+22       1321.1       569539   42003    0.002        0.031       
+23       1322.4       569539   42415    0.002        0.031       
+24       1316.5       569539   41850    0.002        0.031       
+25       1315.5       569539   42152    0.002        0.031       
+26       1331.8       569539   42344    0.002        0.031       
+27       1331.1       569539   42322    0.002        0.031       
+28       1309.4       569539   43060    0.002        0.030       
+29       1307.1       569539   43189    0.002        0.030       
+30       1305.8       569539   42646    0.002        0.031       
+31       1315.8       569539   42757    0.002        0.031       
+32       1307.7       569539   42148    0.002        0.031       
+33       1322.8       569539   43164    0.002        0.031       
+34       1336.9       569539   42454    0.002        0.031       
+35       1326.5       569539   43289    0.002        0.031       
+36       1305.6       569539   42743    0.002        0.031       
+37       1316.8       569539   42489    0.002        0.031       
+38       1309.1       569539   43384    0.002        0.030       
+39       1317.9       569539   43634    0.002        0.030       
+40       1309.6       569539   42548    0.002        0.031       
+41       1310.3       569539   42113    0.002        0.031       
+42       1318.9       569539   42360    0.002        0.031       
+43       1336.6       569539   42194    0.002        0.032       
+44       1314.8       569539   42371    0.002        0.031       
+45       1316.1       569539   42610    0.002        0.031       
+46       1336.1       569538   42482    0.002        0.031       
+47       1315.2       569538   42568    0.002        0.031       
+48       1329.8       569538   42836    0.002        0.031       
+49       1329.6       569538   42558    0.002        0.031       
+50       1326.3       569538   42598    0.002        0.031       
+51       1304.5       569538   42423    0.002        0.031       
+52       1316.7       569538   42096    0.002        0.031       
+53       1331.0       569538   42819    0.002        0.031       
+54       1332.5       569538   41987    0.002        0.032       
+55       1315.2       569538   42945    0.002        0.031       
+56       1309.8       569538   42997    0.002        0.030       
+57       1319.5       569538   42743    0.002        0.031       
+58       1319.1       569538   43148    0.002        0.031       
+59       1326.7       569538   42756    0.002        0.031       
+60       1303.4       569538   41749    0.002        0.031       
+61       1331.7       569538   42354    0.002        0.031       
+62       1309.4       569538   43049    0.002        0.030       
+63       1306.9       569538   42524    0.002        0.031       
+64       1306.3       569538   42105    0.002        0.031       
+65       1318.2       569538   42707    0.002        0.031       
+66       1316.0       569538   42115    0.002        0.031       
+67       1309.3       569538   42991    0.002        0.030       
+68       1316.6       569538   42019    0.002        0.031       
+69       1344.9       569538   42344    0.002        0.032       
+70       1315.6       569538   42297    0.002        0.031       
+71       1317.6       569538   42864    0.002        0.031       
+72       1315.3       569538   42513    0.002        0.031       
+73       1340.0       569538   41910    0.002        0.032       
+74       1340.0       569538   42845    0.002        0.031       
+75       1315.4       569538   42471    0.002        0.031       
+76       1308.8       569538   42738    0.002        0.031       
+77       1309.9       569538   42424    0.002        0.031       
+78       1319.8       569538   42456    0.002        0.031       
+79       1314.4       569538   42850    0.002        0.031       
+80       1335.1       569538   42105    0.002        0.032       
+81       1339.7       569538   43104    0.002        0.031       
+82       1309.4       569538   42245    0.002        0.031       
+83       1322.7       569538   42180    0.002        0.031       
+84       1316.8       569538   42400    0.002        0.031       
+85       1306.7       569538   42420    0.002        0.031       
+86       1332.1       569538   42300    0.002        0.031       
+87       1314.3       569538   42097    0.002        0.031       
+88       1316.6       569538   43090    0.002        0.031       
+89       1325.5       569538   42182    0.002        0.031       
+90       1332.3       569538   42803    0.002        0.031       
+91       1305.7       569538   42567    0.002        0.031       
+92       1305.1       569538   42263    0.002        0.031       
+93       1316.6       569538   41896    0.002        0.031       
+94       1336.1       569538   42067    0.002        0.032       
+95       1315.2       569538   41918    0.002        0.031       
+96       1317.5       569538   42003    0.002        0.031       
+97       1313.4       569538   42810    0.002        0.031       
+98       1315.9       569538   42584    0.002        0.031       
+99       1340.5       569538   42216    0.002        0.032       
+100      1305.2       569538   42148    0.002        0.031       
+101      1308.9       569538   41381    0.002        0.032       
+102      1317.5       569538   42621    0.002        0.031       
+103      1315.5       569538   42422    0.002        0.031       
+104      1315.3       569538   42519    0.002        0.031       
+105      1317.0       569538   42552    0.002        0.031       
+106      1330.2       569538   42631    0.002        0.031       
+107      1312.5       569538   42612    0.002        0.031       
+108      1314.3       569538   42490    0.002        0.031       
+109      1304.9       569538   42260    0.002        0.031       
+110      1301.1       569538   42979    0.002        0.030       
+111      1308.1       569538   41990    0.002        0.031       
+112      1312.3       569538   41881    0.002        0.031       
+113      1313.7       569538   42543    0.002        0.031       
+114      1317.8       569538   42145    0.002        0.031       
+115      1305.6       569538   42653    0.002        0.031       
+116      1338.3       569538   42140    0.002        0.032       
+117      1308.5       569538   42206    0.002        0.031       
+118      1317.1       569538   41664    0.002        0.032       
+119      1308.2       569538   42642    0.002        0.031       
+120      1316.6       569538   43040    0.002        0.031       
+121      1306.1       569538   41451    0.002        0.032       
+122      1309.3       569538   42278    0.002        0.031       
+123      1309.4       569538   42105    0.002        0.031       
+124      1318.8       569538   43578    0.002        0.030       
+125      1318.8       569538   42832    0.002        0.031       
+126      1313.9       569538   42506    0.002        0.031       
+127      1331.9       569538   42021    0.002        0.032       
+128      1315.5       569538   42892    0.002        0.031       
+129      1331.7       569538   42089    0.002        0.032       
+130      1309.6       569538   42978    0.002        0.030       
+131      1304.4       569538   42644    0.002        0.031       
+132      1314.6       569538   42241    0.002        0.031       
+133      1313.8       569538   42714    0.002        0.031       
+134      1308.0       569538   44260    0.002        0.030       
+135      1315.4       569538   42984    0.002        0.031       
+136      1326.6       569538   43648    0.002        0.030       
+137      1307.0       569538   43556    0.002        0.030       
+138      1306.9       569538   42964    0.002        0.030       
+139      1306.6       569538   42537    0.002        0.031       
+140      1321.1       569538   42870    0.002        0.031       
+141      1330.9       569538   42495    0.002        0.031       
+142      1317.1       569538   42349    0.002        0.031       
+143      1316.4       569538   41728    0.002        0.032       
+144      1313.8       569538   42912    0.002        0.031       
+145      1307.0       569538   43085    0.002        0.030       
+146      1336.7       569538   43108    0.002        0.031       
+147      1330.3       569538   43269    0.002        0.031       
+148      1319.5       569538   42626    0.002        0.031       
+149      1314.7       569538   42342    0.002        0.031       
+150      1315.6       569538   41834    0.002        0.031       
+151      1314.8       569538   42539    0.002        0.031       
+152      1316.1       569538   41816    0.002        0.031       
+153      1319.3       569538   42146    0.002        0.031       
+154      1319.1       569538   42176    0.002        0.031       
+155      1345.5       569538   42579    0.002        0.032       
+156      1345.6       569538   42692    0.002        0.032       
+157      1303.4       569538   42495    0.002        0.031       
+158      1339.2       569538   42523    0.002        0.031       
+159      1318.0       569538   42420    0.002        0.031       
+160      1326.4       569538   43253    0.002        0.031       
+161      1313.2       569538   42194    0.002        0.031       
+162      1313.9       569538   42360    0.002        0.031       
+163      1308.7       569538   42567    0.002        0.031       
+164      1313.7       569538   41939    0.002        0.031       
+165      1316.8       569538   43107    0.002        0.031       
+166      1316.6       569538   42220    0.002        0.031       
+167      1304.9       569538   41828    0.002        0.031       
+168      1303.2       569538   42494    0.002        0.031       
+169      1314.5       569538   42483    0.002        0.031       
+170      1319.1       569538   42465    0.002        0.031       
+171      1318.8       569538   42399    0.002        0.031       
+172      1314.9       569538   42341    0.002        0.031       
+173      1316.7       569538   42635    0.002        0.031       
+174      1314.8       569538   42816    0.002        0.031       
+175      1315.3       569538   42144    0.002        0.031       
+176      1305.9       569538   42031    0.002        0.031       
+177      1316.0       569538   42925    0.002        0.031       
+178      1305.2       569538   42505    0.002        0.031       
+179      1306.3       569538   42742    0.002        0.031       
+180      1330.9       569538   42844    0.002        0.031       
+181      1315.2       569538   42424    0.002        0.031       
+182      1318.4       569538   42304    0.002        0.031       
+183      1320.9       569538   41650    0.002        0.032       
+184      1316.7       569538   42971    0.002        0.031       
+185      1304.4       569538   41887    0.002        0.031       
+186      1321.3       569538   42308    0.002        0.031       
+187      1339.3       569538   42395    0.002        0.032       
+188      1326.3       569538   42504    0.002        0.031       
+189      1333.1       569538   41857    0.002        0.032       
+190      1316.1       569538   42537    0.002        0.031       
+191      1310.3       569538   42364    0.002        0.031       
+192      1306.5       569538   42279    0.002        0.031       
+193      1316.4       569538   42402    0.002        0.031       
+194      1316.5       569538   42488    0.002        0.031       
+====================================================================================================
+Total Memory Usage: 256999.6 MB (250.98 GB)
+Total Nodes: 111059956, Total Edges: 8284663
+Average Memory per Trainer: 1317.9 MB
+Average Nodes per Trainer: 569538.2
+Average Edges per Trainer: 42485.5
+Max Memory: 1345.6 MB (Trainer 156)
+Min Memory: 1301.1 MB (Trainer 110)
+Overall Memory/Node Ratio: 0.002 MB/node
+Overall Memory/Edge Ratio: 0.031 MB/edge
+====================================================================================================
+//Log Theoretical Pretrain Comm Cost: 0.00 MB //end
+//Log Theoretical Train Comm Cost: 115.66 MB //end
+
+================================================================================
+CSV FORMAT RESULT:
+DS,IID,BS,TotalTime[s],PureTrainingTime[s],CommTime[s],FinalAcc[%],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
+ogbn-papers100M,10000.0,512,22.7,1.1,0.5,0.00,115.7,1345.6,1.055,0.297,0
+================================================================================
+
+================================================================================
+EXPERIMENT SUMMARY
+================================================================================
+Dataset: ogbn-papers100M
+Method: FedAvg
+Trainers: 195
+IID Beta: 10000.0
+Batch Size: 512
+Hops: 0
+Total Execution Time: 22.70 seconds
+Pure Training Time: 1.06 seconds
+Communication Time: 0.51 seconds
+Pretrain Comm Cost: 0.00 MB
+Training Comm Cost: 115.66 MB
+================================================================================
+
+NC_RESOURCE_MONITOR_SUMMARY, snapshot_path=benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_local_artifact_smoke/runs/20260904_021019_ogbn-papers100M_FedAvg_bs512_seed42_beta10000p0/fedgraph_logs/resource_snapshots.jsonl, summary_path=benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_local_artifact_smoke/runs/20260904_021019_ogbn-papers100M_FedAvg_bs512_seed42_beta10000p0/fedgraph_logs/resource_snapshot_summary.json
+[36m(Trainer pid=7074, ip=10.195.25.14)[0m Running GCN_arxiv[32m [repeated 194x across cluster][0m

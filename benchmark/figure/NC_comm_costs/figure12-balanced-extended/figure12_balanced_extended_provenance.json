@@ -1,0 +1,414 @@
+{
+  "artifact_manifest_sha256": "bbd566314c49c6ec69c2e192ae2275f928dd48097b781c816662737bb3f9c9e6",
+  "batch_sizes": [
+    16,
+    32,
+    64,
+    128,
+    256,
+    512,
+    1024,
+    2048,
+    4096
+  ],
+  "dataset": "ogbn-papers100M",
+  "expected_iid_beta": 10000.0,
+  "expected_rounds": 800,
+  "expected_seed": 42,
+  "expected_trainers": 195,
+  "figure": "FedGraph Figure 12 balanced-partition redraw",
+  "fits": {
+    "edges": {
+      "1024": {
+        "method": "linear",
+        "outliers_removed": 33,
+        "r_squared": 0.0013765245366771373,
+        "reason": null
+      },
+      "128": {
+        "method": "logarithmic",
+        "outliers_removed": 29,
+        "r_squared": 0.0016028954271563034,
+        "reason": null
+      },
+      "16": {
+        "method": "logarithmic",
+        "outliers_removed": 30,
+        "r_squared": 0.02956776343302414,
+        "reason": null
+      },
+      "2048": {
+        "method": "linear",
+        "outliers_removed": 31,
+        "r_squared": 0.003075457669193926,
+        "reason": null
+      },
+      "256": {
+        "method": "linear",
+        "outliers_removed": 30,
+        "r_squared": 0.003841931036932311,
+        "reason": null
+      },
+      "32": {
+        "method": "linear",
+        "outliers_removed": 25,
+        "r_squared": 0.011664419560575068,
+        "reason": null
+      },
+      "4096": {
+        "method": "logarithmic",
+        "outliers_removed": 28,
+        "r_squared": 0.006756388936013935,
+        "reason": null
+      },
+      "512": {
+        "method": "logarithmic",
+        "outliers_removed": 30,
+        "r_squared": 0.00013450705574014066,
+        "reason": null
+      },
+      "64": {
+        "method": "logarithmic",
+        "outliers_removed": 24,
+        "r_squared": 1.583283121753265e-05,
+        "reason": null
+      }
+    },
+    "nodes": {
+      "1024": {
+        "method": null,
+        "outliers_removed": 0,
+        "r_squared": null,
+        "reason": "insufficient meaningful variation in x values"
+      },
+      "128": {
+        "method": null,
+        "outliers_removed": 0,
+        "r_squared": null,
+        "reason": "insufficient meaningful variation in x values"
+      },
+      "16": {
+        "method": null,
+        "outliers_removed": 0,
+        "r_squared": null,
+        "reason": "insufficient meaningful variation in x values"
+      },
+      "2048": {
+        "method": null,
+        "outliers_removed": 0,
+        "r_squared": null,
+        "reason": "insufficient meaningful variation in x values"
+      },
+      "256": {
+        "method": null,
+        "outliers_removed": 0,
+        "r_squared": null,
+        "reason": "insufficient meaningful variation in x values"
+      },
+      "32": {
+        "method": null,
+        "outliers_removed": 0,
+        "r_squared": null,
+        "reason": "insufficient meaningful variation in x values"
+      },
+      "4096": {
+        "method": null,
+        "outliers_removed": 0,
+        "r_squared": null,
+        "reason": "insufficient meaningful variation in x values"
+      },
+      "512": {
+        "method": null,
+        "outliers_removed": 0,
+        "r_squared": null,
+        "reason": "insufficient meaningful variation in x values"
+      },
+      "64": {
+        "method": null,
+        "outliers_removed": 0,
+        "r_squared": null,
+        "reason": "insufficient meaningful variation in x values"
+      }
+    }
+  },
+  "generated_at_utc": "2026-09-14T23:53:19.650802+00:00",
+  "git": {
+    "commit": "198a492d5e206257912e8ce69452beeb1338f526",
+    "dirty": true,
+    "status": [
+      "M .gitignore",
+      " M benchmark/benchmark_NC_batch_size_convergence.py",
+      " M benchmark/plot_NC_batch_size_convergence.py",
+      " M docs/index.rst",
+      " M docs/kuberay_gpu_first_run.md",
+      " M docs/manual_ray_papers100m_runbook.md",
+      " M fedgraph/federated_methods.py",
+      " M fedgraph/monitor_class.py",
+      " M fedgraph/resource_monitor.py",
+      " M fedgraph/trainer_class.py",
+      " M scripts/kuberay/60-submit-cora-smoke.sh",
+      " M tests/unit/test_benchmark_nc_batch_size_convergence.py",
+      " M tests/unit/test_federated_methods.py",
+      " M tests/unit/test_resource_monitor.py",
+      " M tests/unit/test_trainer_class.py",
+      "?? benchmark/figure/NC_comm_costs/figure12-balanced-extended/",
+      "?? benchmark/figure/NC_comm_costs/figure12-balanced/",
+      "?? benchmark/figure/NC_comm_costs/plot_papers100m_figure12.py",
+      "?? benchmark/results/",
+      "?? dataset/",
+      "?? docs/CODEX_CHAT_HISTORY_HANDOFF.md",
+      "?? docs/CODEX_GPU_HANDOFF.md",
+      "?? docs/node_classification_0hop_partitioner.md",
+      "?? scripts/__init__.py",
+      "?? scripts/data/",
+      "?? scripts/manual_ray/generate-rank-hosts.sh",
+      "?? scripts/manual_ray/stage-local-artifact-shards.sh",
+      "?? scripts/manual_ray/submit-local-artifact-0hop.sh",
+      "?? scripts/manual_ray/sync-local-artifact.sh",
+      "?? tests/unit/test_monitor_class.py",
+      "?? tests/unit/test_node_classification_partitioning.py",
+      "?? tests/unit/test_plot_papers100m_figure12.py"
+    ]
+  },
+  "hf_artifact_repositories": [],
+  "hf_artifact_revisions": [],
+  "inputs": [
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/figure/NC_comm_costs/figure12-balanced-extended/manifest.json",
+      "sha256": "bbd566314c49c6ec69c2e192ae2275f928dd48097b781c816662737bb3f9c9e6",
+      "size_bytes": 342939
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs1024_800r/manifest.json",
+      "sha256": "2a3d3b6a3dccc7aaf2f0bda76920c96788475a979a4b27f27610d04168d21ecc",
+      "size_bytes": 6792
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs1024_800r/runs/20260914_204924_ogbn-papers100M_FedAvg_bs1024_seed42_beta10000p0/config.json",
+      "sha256": "ec140df68441ff7d406458b41a02cfed438a19e626a7dcdfc35c65415b68de21",
+      "size_bytes": 1092
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs1024_800r/runs/20260914_204924_ogbn-papers100M_FedAvg_bs1024_seed42_beta10000p0/fedgraph_logs/resource_snapshot_summary.json",
+      "sha256": "849d64353261c235cbc16c6a3c92423bb980bd959629f2a5f942389dea71db0f",
+      "size_bytes": 140901
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs1024_800r/summary.jsonl",
+      "sha256": "dda732b89d3b7d8fa54ffea685056d69bec0ab403623ed4e00dae9c4c50f4a57",
+      "size_bytes": 3127
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs128_800r/manifest.json",
+      "sha256": "778ec07bf6bf92c39641e01aca0b4787abe5500ca30ff8ecfec84ba9d6bcc4d6",
+      "size_bytes": 6778
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs128_800r/runs/20260914_201408_ogbn-papers100M_FedAvg_bs128_seed42_beta10000p0/config.json",
+      "sha256": "bdfc6f940b3f8aa3ec83dec6c2216ea6c1875b8bf64a2de83df30f74bee0bd6b",
+      "size_bytes": 1091
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs128_800r/runs/20260914_201408_ogbn-papers100M_FedAvg_bs128_seed42_beta10000p0/fedgraph_logs/resource_snapshot_summary.json",
+      "sha256": "a8fc88b119993be9e08ddf1007d1f668f216fb5df9de1326bc9ef99158afe0f1",
+      "size_bytes": 140901
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs128_800r/summary.jsonl",
+      "sha256": "3756f0f3f77afa2340232d4db3d4d6f77c8212be45ae9202ae143df34404173c",
+      "size_bytes": 3109
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs16_800r_2/manifest.json",
+      "sha256": "1f953d1367064238c86cadb9ab136a4e2a0fe0b6f6aeb73cc58313bd3fd3bef0",
+      "size_bytes": 6786
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs16_800r_2/runs/20260914_192750_ogbn-papers100M_FedAvg_bs16_seed42_beta10000p0/config.json",
+      "sha256": "d6bae7e1a24710a22ac25146e0741523508deebd249440d43d43513be0ea8c34",
+      "size_bytes": 1090
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs16_800r_2/runs/20260914_192750_ogbn-papers100M_FedAvg_bs16_seed42_beta10000p0/fedgraph_logs/resource_snapshot_summary.json",
+      "sha256": "fc679df6f584519c0dbd8211bf7af07fb30100c90fc04fae94b438890ac85bc8",
+      "size_bytes": 140902
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs16_800r_2/summary.jsonl",
+      "sha256": "89aee5f812010e66a2e9da205e0e4fd196187fb8d8b0e25bd1d283c478e7bca7",
+      "size_bytes": 3116
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs2048_800r/manifest.json",
+      "sha256": "fbec5fea349b47a033c332ebfbbf057bbd2e40560dbeb727fa9546a3ec1cc242",
+      "size_bytes": 6792
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs2048_800r/runs/20260914_211623_ogbn-papers100M_FedAvg_bs2048_seed42_beta10000p0/config.json",
+      "sha256": "f38b7da94c142fb347b533d764cab11064b9fc2edc13c27c6665b0dacf05c4ad",
+      "size_bytes": 1092
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs2048_800r/runs/20260914_211623_ogbn-papers100M_FedAvg_bs2048_seed42_beta10000p0/fedgraph_logs/resource_snapshot_summary.json",
+      "sha256": "4a43214f63030a6729875fffe3458327817b2a1f0225eeea1cc87ebff070a6bb",
+      "size_bytes": 140901
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs2048_800r/summary.jsonl",
+      "sha256": "e261d059d11cc784e25127196f92b0cb8c26a9896744692b2f0bd954452f6e61",
+      "size_bytes": 3121
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs256_800r/manifest.json",
+      "sha256": "6c3b555bcd45a4476102769e7198aa817e50a1645e579828302ac0da41bacc94",
+      "size_bytes": 6778
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs256_800r/runs/20260914_202556_ogbn-papers100M_FedAvg_bs256_seed42_beta10000p0/config.json",
+      "sha256": "5de06157569ca4f41c70a3db948b3d4db656f419ccf88b78754c94f35fa8f995",
+      "size_bytes": 1091
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs256_800r/runs/20260914_202556_ogbn-papers100M_FedAvg_bs256_seed42_beta10000p0/fedgraph_logs/resource_snapshot_summary.json",
+      "sha256": "95751a56c792b3b39404753dab3a2781142224776e1d1a76123cac29f6dd1ec3",
+      "size_bytes": 140901
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs256_800r/summary.jsonl",
+      "sha256": "898cff8b32453b42fb4bab737c88ca1deaa15ed0bfa2633357589c9aa88b4fb4",
+      "size_bytes": 3118
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs32_800r/manifest.json",
+      "sha256": "51097bb33159ae1b90d1e01d5a4225744ed385908acd3d9f0cf668899d9f1fcf",
+      "size_bytes": 6764
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs32_800r/runs/20260914_194714_ogbn-papers100M_FedAvg_bs32_seed42_beta10000p0/config.json",
+      "sha256": "38bae43bb9ca8a2415cbb48cfd4a9948f4c0616271bcf8bdaff8f86344b75df9",
+      "size_bytes": 1090
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs32_800r/runs/20260914_194714_ogbn-papers100M_FedAvg_bs32_seed42_beta10000p0/fedgraph_logs/resource_snapshot_summary.json",
+      "sha256": "fc51f35c35cec34e64feae9920df996eb992a41d1ec3cb47a96f6c691331b8f0",
+      "size_bytes": 140902
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs32_800r/summary.jsonl",
+      "sha256": "ebaa8209dc81bcb0d0887071cdfa1ce7c6a20fa55450d82c7982a21fb4a1256c",
+      "size_bytes": 3102
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs4096_800r/manifest.json",
+      "sha256": "4a871679aeca503f4bec18c02038e139beadca0fb8a1cd3f0bd439c9d4f8c5c3",
+      "size_bytes": 6792
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs4096_800r/runs/20260914_212747_ogbn-papers100M_FedAvg_bs4096_seed42_beta10000p0/config.json",
+      "sha256": "878b2438203bd53d25bcd4cc05f972d355fc66921536423971860ce4092022dd",
+      "size_bytes": 1092
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs4096_800r/runs/20260914_212747_ogbn-papers100M_FedAvg_bs4096_seed42_beta10000p0/fedgraph_logs/resource_snapshot_summary.json",
+      "sha256": "56317fd8fe8f5e31ac05a92313c9f17b86cc74fcca1792775618d158dd649687",
+      "size_bytes": 140901
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs4096_800r/summary.jsonl",
+      "sha256": "b241bb6bf8fd8af229dfa47e65eb26f5efb6a8a78f4751fb1fdf9d138a20488e",
+      "size_bytes": 3117
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs512_800r/manifest.json",
+      "sha256": "3608e2a9cf27fd4b3b5dba9f7269ac666f90b6cbff23c6c28a8a36f5de1ae88f",
+      "size_bytes": 6778
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs512_800r/runs/20260914_203749_ogbn-papers100M_FedAvg_bs512_seed42_beta10000p0/config.json",
+      "sha256": "3bb49e413b3dbab40aa2b453a38c994fd787173b8da47650df28ea4740b2524a",
+      "size_bytes": 1091
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs512_800r/runs/20260914_203749_ogbn-papers100M_FedAvg_bs512_seed42_beta10000p0/fedgraph_logs/resource_snapshot_summary.json",
+      "sha256": "6c26e23595d68eba0c08524195a3faf14950b630679c4d0f2f3b043cd560705c",
+      "size_bytes": 140901
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs512_800r/summary.jsonl",
+      "sha256": "50951252c0af03d2bcc2f97a6e229f16c2cff93f3b99d2ff3ec3a3c59d779ebb",
+      "size_bytes": 3105
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs64_800r/manifest.json",
+      "sha256": "b6334da44562f30e9f6a703bb104e27da952a354050ed2f23a165e8ce176ea95",
+      "size_bytes": 6764
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs64_800r/runs/20260914_200157_ogbn-papers100M_FedAvg_bs64_seed42_beta10000p0/config.json",
+      "sha256": "bb3827610d28108ca47968fedef07cddc4a714eccf3fb21dbc996aab15b1a906",
+      "size_bytes": 1090
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs64_800r/runs/20260914_200157_ogbn-papers100M_FedAvg_bs64_seed42_beta10000p0/fedgraph_logs/resource_snapshot_summary.json",
+      "sha256": "463e824361b7bdec29ddd4992619251a8eae755743ac5c0170c3b631164ba971",
+      "size_bytes": 140902
+    },
+    {
+      "path": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/nc_papers100m_195trainer_0hop_balanced_local_bs64_800r/summary.jsonl",
+      "sha256": "26df69a0b6540e7778d240cbf24df2a341e90744c4403f885cafeb222c3de35f",
+      "size_bytes": 3095
+    }
+  ],
+  "memory_metric": "process_peak_rss_bytes",
+  "memory_unit": "MiB",
+  "outlier_threshold_std": 1.5,
+  "outputs": {
+    "artifact_manifest": {
+      "path": "/home/ubuntu/fedgraph/benchmark/figure/NC_comm_costs/figure12-balanced-extended/figure12_balanced_extended_artifact_manifest.json",
+      "sha256": "bbd566314c49c6ec69c2e192ae2275f928dd48097b781c816662737bb3f9c9e6",
+      "size_bytes": 342939
+    },
+    "batch_metrics": {
+      "path": "/home/ubuntu/fedgraph/benchmark/figure/NC_comm_costs/figure12-balanced-extended/figure12_balanced_extended_batch_metrics.csv",
+      "sha256": "2d040dcb7339cb893a0f4a9cee7482616adaea7a3cbb1b9af6c8bfc5cd88146f",
+      "size_bytes": 1018
+    },
+    "pdf": {
+      "path": "/home/ubuntu/fedgraph/benchmark/figure/NC_comm_costs/figure12-balanced-extended/figure12_balanced_extended.pdf",
+      "sha256": "9012054b352443bfd776fe853d86fbbf2d4ea9a168cd2cfbf51041fc5d8d0793",
+      "size_bytes": 77312
+    },
+    "png": {
+      "path": "/home/ubuntu/fedgraph/benchmark/figure/NC_comm_costs/figure12-balanced-extended/figure12_balanced_extended.png",
+      "sha256": "f7512d71907850e76c1b7d75923b8fb9d1d8946c82286afc9771cb6d7b938b2c",
+      "size_bytes": 1160444
+    },
+    "selected_runs": {
+      "path": "/home/ubuntu/fedgraph/benchmark/figure/NC_comm_costs/figure12-balanced-extended/figure12_balanced_extended_selected_runs.json",
+      "sha256": "71882b4a49e097ba5b6a50792bb7e31abc5d2d258d362506a7e43d23ccdb24f4",
+      "size_bytes": 30776
+    },
+    "trainer_memory": {
+      "path": "/home/ubuntu/fedgraph/benchmark/figure/NC_comm_costs/figure12-balanced-extended/figure12_balanced_extended_trainer_memory.csv",
+      "sha256": "4f505677d78ab31d04f988aa6274f6af477f71badf73b20cb9cd6f58e802fabc",
+      "size_bytes": 257301
+    }
+  },
+  "partition_policy": "label_dirichlet_balanced_unlabeled",
+  "plot_script": {
+    "path": "/home/ubuntu/fedgraph/benchmark/figure/NC_comm_costs/plot_papers100m_figure12.py",
+    "sha256": "2182e874673d891d1965da0e7aa3873dae3bf1362ae1929f191caed627c98b5b",
+    "size_bytes": 30457
+  },
+  "schema_version": 1,
+  "software": {
+    "matplotlib": "3.11.0",
+    "numpy": "2.4.4",
+    "python": "3.12.13 | packaged by Anaconda, Inc. | (main, Mar 19 2026, 20:20:58) [GCC 14.3.0]"
+  },
+  "test_accuracy_field": "test_acc_final",
+  "training_time_field": "total_training_time_sec",
+  "warnings": [
+    "Balanced shard node counts differ by at most one; node-memory regression is not scientifically informative."
+  ]
+}

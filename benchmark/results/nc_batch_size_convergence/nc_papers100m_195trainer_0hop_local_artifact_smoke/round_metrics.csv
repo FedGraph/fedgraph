@@ -1,0 +1,2 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,evaluation_split,evaluation_acc,evaluation_loss,val_acc,val_loss,local_steps,train_time_sec,comm_time_sec,train_comm_time_sec,cum_train_comm_time_sec
+nc_papers100m_195trainer_0hop_local_artifact_smoke,20260904_021019_ogbn-papers100M_FedAvg_bs512_seed42_beta10000p0,ogbn-papers100M,FedAvg,512,42,10000.0,1,validation,0.0047,5.1562,0.0047,5.1562,1,1.06,0.51,1.57,1.57
