@@ -9,6 +9,7 @@ from huggingface_hub.errors import EntryNotFoundError
 from fedgraph.trainer_class import (
     Trainer_GC,
     Trainer_General,
+    _load_artifact_tensor,
     _resolve_huggingface_artifact_num_hops,
     load_trainer_data_from_hugging_face,
 )
@@ -21,14 +22,13 @@ class TestLoadTrainerDataFromHuggingFace:
     @patch("builtins.open")
     @patch("torch.load")
     def test_load_trainer_data_success(
-        self, mock_torch_load, mock_open, mock_hf_download
+        self, mock_torch_load, mock_open, mock_hf_download, tmp_path
     ):
         """Test successful loading of trainer data from Hugging Face."""
         # Setup mocks
-        mock_hf_download.return_value = "/tmp/test_file.pt"
-        mock_file = Mock()
-        mock_file.read.return_value = b"test_tensor_data"
-        mock_open.return_value.__enter__.return_value = mock_file
+        tensor_path = tmp_path / "test_file.pt"
+        tensor_path.touch()
+        mock_hf_download.return_value = str(tensor_path)
 
         # Mock tensor data
         mock_tensors = [
@@ -65,22 +65,25 @@ class TestLoadTrainerDataFromHuggingFace:
         mock_hf_download.assert_any_call(
             repo_id=expected_repo, repo_type="dataset", filename="local_node_index.pt"
         )
+        mock_torch_load.assert_any_call(
+            tensor_path, map_location="cpu", weights_only=True
+        )
+        mock_open.assert_not_called()
 
     @patch("fedgraph.trainer_class.hf_hub_download")
     @patch("builtins.open")
     @patch("torch.load")
     def test_load_existing_repo_without_global_metadata(
-        self, mock_torch_load, mock_open, mock_hf_download
+        self, mock_torch_load, mock_open, mock_hf_download, tmp_path
     ):
-        mock_file = Mock()
-        mock_file.read.return_value = b"test_tensor_data"
-        mock_open.return_value.__enter__.return_value = mock_file
+        tensor_path = tmp_path / "test_file.pt"
+        tensor_path.touch()
         mock_torch_load.side_effect = [torch.tensor([i]) for i in range(10)]
 
         def download_side_effect(*, filename, **kwargs):
             if filename in {"global_node_num.pt", "class_num.pt"}:
                 raise EntryNotFoundError("missing optional metadata")
-            return "/tmp/test_file.pt"
+            return str(tensor_path)
 
         mock_hf_download.side_effect = download_side_effect
         args = Mock(dataset="cora", n_trainer=5, num_hops=2, iid_beta=0.5)
@@ -90,6 +93,56 @@ class TestLoadTrainerDataFromHuggingFace:
 
         assert len(result) == 12
         assert result[-2:] == (None, None)
+        mock_open.assert_not_called()
+
+    def test_load_artifact_tensor_from_path_on_cpu(self, tmp_path):
+        tensor_path = tmp_path / "features.pt"
+        expected = torch.arange(12, dtype=torch.float32).reshape(3, 4)
+        torch.save(expected, tensor_path)
+
+        loaded = _load_artifact_tensor(tensor_path)
+
+        assert loaded.device.type == "cpu"
+        torch.testing.assert_close(loaded, expected)
+
+    @patch("torch.load")
+    def test_load_artifact_tensor_enables_mmap_only_when_requested(
+        self, mock_torch_load, tmp_path
+    ):
+        tensor_path = tmp_path / "features.pt"
+        tensor_path.touch()
+        mock_torch_load.return_value = torch.ones(2, 3)
+
+        _load_artifact_tensor(tensor_path, memory_map=True)
+
+        mock_torch_load.assert_called_once_with(
+            tensor_path,
+            map_location="cpu",
+            weights_only=True,
+            mmap=True,
+        )
+
+    def test_load_artifact_tensor_reads_memory_mapped_storage(self, tmp_path):
+        tensor_path = tmp_path / "features.pt"
+        expected = torch.arange(12, dtype=torch.float32).reshape(3, 4)
+        torch.save(expected, tensor_path)
+
+        loaded = _load_artifact_tensor(tensor_path, memory_map=True)
+
+        assert loaded.device.type == "cpu"
+        assert loaded.to("cpu") is loaded
+        torch.testing.assert_close(loaded, expected)
+
+    def test_load_artifact_tensor_rejects_non_tensor_payload(self, tmp_path):
+        payload_path = tmp_path / "metadata.pt"
+        torch.save({"value": 1}, payload_path)
+
+        with pytest.raises(TypeError, match="Expected a tensor"):
+            _load_artifact_tensor(payload_path)
+
+    def test_load_artifact_tensor_requires_existing_path(self, tmp_path):
+        with pytest.raises(FileNotFoundError, match="Artifact tensor is missing"):
+            _load_artifact_tensor(tmp_path / "missing.pt")
 
     def test_resolves_legacy_huggingface_hop_suffix(self):
         args = Mock()
@@ -133,6 +186,78 @@ class TestTrainerGeneral:
         self.args.learning_rate = 0.01
         self.args.dataset = "cora"
         self.args.batch_size = 0  # No batching for simplicity
+
+    def test_cpu_graph_storage_keeps_full_graph_off_cuda(self):
+        self.args.graph_storage_mode = "cpu"
+        self.args.num_hops = 0
+        self.args.batch_size = 2
+        trainer = Trainer_General(
+            rank=self.rank,
+            args_hidden=self.args_hidden,
+            device=torch.device("cuda"),
+            args=self.args,
+            local_node_index=self.local_node_index,
+            communicate_node_index=self.communicate_node_index,
+            adj=self.adj,
+            train_labels=self.train_labels,
+            test_labels=self.test_labels,
+            features=self.features,
+            idx_train=self.idx_train,
+            idx_test=self.idx_test,
+        )
+
+        assert trainer.device.type == "cuda"
+        assert trainer.graph_device.type == "cpu"
+        assert trainer.graph_storage_mode == "cpu"
+        assert trainer.features.device.type == "cpu"
+        assert trainer.adj.device.type == "cpu"
+        assert trainer.idx_train.device.type == "cpu"
+        assert trainer.train_labels.device.type == "cpu"
+        assert trainer.feature_aggregation is trainer.features
+        trainer._require_supported_graph_execution(True)
+        with pytest.raises(ValueError, match="requires a positive batch_size"):
+            trainer._require_supported_graph_execution(False)
+
+    def test_cpu_graph_storage_rejects_two_hop_until_chunking(self):
+        self.args.graph_storage_mode = "cpu"
+        self.args.num_hops = 2
+
+        with pytest.raises(ValueError, match="supports only num_hops=0"):
+            Trainer_General(
+                rank=self.rank,
+                args_hidden=self.args_hidden,
+                device=self.device,
+                args=self.args,
+                local_node_index=self.local_node_index,
+                communicate_node_index=self.communicate_node_index,
+                adj=self.adj,
+                train_labels=self.train_labels,
+                test_labels=self.test_labels,
+                features=self.features,
+                idx_train=self.idx_train,
+                idx_test=self.idx_test,
+            )
+
+    def test_mmap_graph_storage_requires_file_backed_artifacts(self):
+        self.args.graph_storage_mode = "mmap"
+        self.args.num_hops = 0
+        self.args.batch_size = 2
+
+        with pytest.raises(ValueError, match="requires file-backed trainer artifacts"):
+            Trainer_General(
+                rank=self.rank,
+                args_hidden=self.args_hidden,
+                device=self.device,
+                args=self.args,
+                local_node_index=self.local_node_index,
+                communicate_node_index=self.communicate_node_index,
+                adj=self.adj,
+                train_labels=self.train_labels,
+                test_labels=self.test_labels,
+                features=self.features,
+                idx_train=self.idx_train,
+                idx_test=self.idx_test,
+            )
 
     @patch("fedgraph.trainer_class.load_trainer_data_from_hugging_face")
     def test_trainer_init_with_data(self, mock_load_data):
@@ -632,6 +757,9 @@ class TestTrainerGeneral:
         self, mock_train_func, mock_neighbor_loader
     ):
         """Mini-batch NC training should use one seed batch per local step."""
+        self.args.graph_storage_mode = "cpu"
+        self.args.num_hops = 0
+        self.args.batch_size = 2
         trainer = Trainer_General(
             rank=self.rank,
             args_hidden=self.args_hidden,
@@ -650,13 +778,12 @@ class TestTrainerGeneral:
         trainer.model = Mock()
         trainer.optimizer = Mock()
         trainer.class_num = 7
-        self.args.batch_size = 2
 
         batch = Mock()
         batch.batch_size = self.args.batch_size
         batch.x = torch.randn(5, self.features.shape[1])
         batch.edge_index = torch.tensor([[0, 1, 2], [1, 2, 3]])
-        batch.y = torch.tensor([0, 1, 2, -1, -1])
+        batch.input_id = torch.tensor([1, 0])
         mock_neighbor_loader.return_value = [batch]
         mock_train_func.return_value = (0.5, 0.85)
 
@@ -671,10 +798,12 @@ class TestTrainerGeneral:
             assert call.kwargs["batch_size"] == self.args.batch_size
             assert call.kwargs["shuffle"] is True
             assert torch.equal(call.kwargs["input_nodes"], trainer.idx_train)
+            assert call.args[0].y is None
 
         expected_seed_index = torch.arange(self.args.batch_size)
+        expected_seed_labels = trainer.train_labels[batch.input_id]
         for call in mock_train_func.call_args_list:
-            assert torch.equal(call.args[5], batch.y[: self.args.batch_size])
+            assert torch.equal(call.args[5], expected_seed_labels)
             assert torch.equal(call.args[6].cpu(), expected_seed_index)
 
     @patch("fedgraph.trainer_class.test")
@@ -725,6 +854,7 @@ class TestTrainerGeneral:
         args.learning_rate = 0.01
         args.dataset = "cora"
         args.batch_size = 2
+        args.graph_storage_mode = "cpu"
         features = torch.tensor(
             [
                 [5.0, 0.0],

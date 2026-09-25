@@ -9,6 +9,8 @@ import numpy as np
 import torch
 
 from fedgraph.trainer_class import (
+    Trainer_General,
+    _load_artifact_tensor,
     load_trainer_data_from_huggingface_local_artifact,
     load_trainer_data_from_local_artifact,
 )
@@ -247,6 +249,64 @@ def test_local_artifact_loader_reads_a_complete_0hop_shard(tmp_path):
     assert class_num.item() == 2
 
 
+def test_local_artifact_mmap_maps_only_large_graph_tensors(tmp_path):
+    dataset_root = tmp_path / "synthetic"
+    output_dir = tmp_path / "artifact"
+    _make_raw_dataset(dataset_root)
+    partition_raw_ogb_0hop(
+        dataset_root=dataset_root,
+        output_dir=output_dir,
+        n_trainer=2,
+        iid_beta=10000.0,
+        seed=42,
+        checksums=False,
+        chunk_rows=2,
+    )
+    args = SimpleNamespace(
+        local_artifact_dir=str(output_dir),
+        use_huggingface=False,
+        num_hops=0,
+        n_trainer=2,
+        graph_storage_mode="mmap",
+    )
+
+    with patch(
+        "fedgraph.trainer_class._load_artifact_tensor",
+        wraps=_load_artifact_tensor,
+    ) as load_tensor:
+        loaded = load_trainer_data_from_local_artifact(0, args)
+
+    mmap_by_name = {
+        Path(call.args[0]).name: call.kwargs["memory_map"]
+        for call in load_tensor.call_args_list
+    }
+    assert mmap_by_name["features.pt"] is True
+    assert mmap_by_name["adj.pt"] is True
+    assert mmap_by_name["train_labels.pt"] is False
+    assert mmap_by_name["idx_train.pt"] is False
+    assert loaded[2].device.type == "cpu"
+    assert loaded[6].device.type == "cpu"
+
+    trainer_args = SimpleNamespace(
+        **vars(args),
+        seed=42,
+        local_step=1,
+        method="FedAvg",
+    )
+    trainer = Trainer_General(
+        rank=0,
+        args_hidden=8,
+        device=torch.device("cpu"),
+        args=trainer_args,
+    )
+
+    assert trainer.graph_storage_mode == "mmap"
+    assert trainer.graph_device.type == "cpu"
+    assert trainer.features_memory_mapped is True
+    assert trainer.adjacency_memory_mapped is True
+    assert trainer.feature_aggregation is trainer.features
+
+
 @patch("fedgraph.trainer_class.snapshot_download")
 def test_huggingface_local_artifact_loader_downloads_only_its_shard(
     mock_snapshot_download, tmp_path
@@ -273,6 +333,7 @@ def test_huggingface_local_artifact_loader_downloads_only_its_shard(
             hf_local_artifact_cache_dir=str(tmp_path / "hf-cache"),
             num_hops=0,
             n_trainer=2,
+            graph_storage_mode="mmap",
         ),
     )
 

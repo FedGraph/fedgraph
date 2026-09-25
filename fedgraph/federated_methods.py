@@ -32,7 +32,12 @@ from fedgraph.resource_monitor import (
 )
 from fedgraph.server_class import Server, Server_GC, Server_LP
 from fedgraph.train_func import gc_avg_accuracy
-from fedgraph.trainer_class import Trainer_GC, Trainer_General, Trainer_LP
+from fedgraph.trainer_class import (
+    Trainer_GC,
+    Trainer_General,
+    Trainer_LP,
+    _resolve_graph_storage_mode,
+)
 from fedgraph.utils_gc import setup_server, setup_trainers
 from fedgraph.utils_lp import (
     check_data_files_existance,
@@ -726,6 +731,17 @@ def run_NC(args: attridict, data: Any = None) -> None:
     """
     _validate_nc_num_hops(args)
     _validate_local_nc_artifact(args)
+    graph_storage_mode = _resolve_graph_storage_mode(args)
+    if (
+        graph_storage_mode in {"cpu", "mmap"}
+        and bool(getattr(args, "gpu", False))
+        and int(getattr(args, "batch_size", 0)) <= 0
+    ):
+        raise ValueError(
+            f"graph_storage_mode='{graph_storage_mode}' with GPU training requires "
+            "a positive batch_size"
+        )
+    print(f"NC_GRAPH_STORAGE, mode={graph_storage_mode}")
 
     resource_monitor_mode = _resolve_nc_resource_monitor_mode(args)
     uses_manual_resource_monitor = _resource_monitor_uses_manual_snapshots(
@@ -892,6 +908,48 @@ def run_NC(args: attridict, data: Any = None) -> None:
             )
             snapshot["feature_aggregation_aliases_features"] = (
                 self.feature_aggregation is self.features
+            )
+            snapshot.update(
+                {
+                    "graph_storage_mode": self.graph_storage_mode,
+                    "graph_device": str(self.graph_device),
+                    "features_device": str(self.features.device),
+                    "adjacency_device": str(self.adj.device),
+                    "features_memory_mapped": self.features_memory_mapped,
+                    "adjacency_memory_mapped": self.adjacency_memory_mapped,
+                    "adjacency_relabel_time_sec": self.adjacency_relabel_time_sec,
+                    "adjacency_relabel_cache_path": (self.adjacency_relabel_cache_path),
+                    "adjacency_relabel_cache_hit": self.adjacency_relabel_cache_hit,
+                    "adjacency_relabel_source_edge_count": (
+                        self.adjacency_relabel_source_edge_count
+                    ),
+                    "adjacency_relabel_output_edge_count": (
+                        self.adjacency_relabel_output_edge_count
+                    ),
+                    "adjacency_relabel_dropped_edge_count": (
+                        self.adjacency_relabel_dropped_edge_count
+                    ),
+                    "feature_aggregation_device": (
+                        str(self.feature_aggregation.device)
+                        if isinstance(self.feature_aggregation, torch.Tensor)
+                        else None
+                    ),
+                    "artifact_load_time_sec": self.artifact_load_time_sec,
+                    "artifact_load_process_rss_bytes": (
+                        self.artifact_load_process_rss_bytes
+                    ),
+                    "artifact_load_process_peak_rss_bytes": (
+                        self.artifact_load_process_peak_rss_bytes
+                    ),
+                    "last_sampled_batch_phase": self.last_sampled_batch_phase,
+                    "last_sampled_batch_node_count": (
+                        self.last_sampled_batch_node_count
+                    ),
+                    "last_sampled_batch_edge_count": (
+                        self.last_sampled_batch_edge_count
+                    ),
+                    "last_sampled_batch_bytes": self.last_sampled_batch_bytes,
+                }
             )
             return snapshot
 

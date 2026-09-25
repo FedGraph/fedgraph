@@ -92,6 +92,9 @@ class ExperimentConfig:
     gpu: bool
     server_device: Optional[str]
     pretrain_feature_upload_mode: str
+    graph_storage_mode: str
+    graph_relabel_cache_dir: Optional[str]
+    graph_relabel_chunk_edges: int
     use_huggingface: bool
     local_artifact_dir: Optional[str]
     local_artifact_rank_hosts: Optional[str]
@@ -363,6 +366,9 @@ def to_fedgraph_args(
             "gpu": config.gpu,
             "server_device": config.server_device,
             "pretrain_feature_upload_mode": config.pretrain_feature_upload_mode,
+            "graph_storage_mode": config.graph_storage_mode,
+            "graph_relabel_cache_dir": config.graph_relabel_cache_dir,
+            "graph_relabel_chunk_edges": config.graph_relabel_chunk_edges,
             "num_cpus_per_trainer": config.num_cpus_per_trainer,
             "num_gpus_per_trainer": config.num_gpus_per_trainer,
             "logdir": str(logdir),
@@ -862,6 +868,9 @@ def run_experiment(
         "num_layers": config.num_layers,
         "num_hops": config.num_hops,
         "gpu": config.gpu,
+        "graph_storage_mode": config.graph_storage_mode,
+        "graph_relabel_cache_dir": config.graph_relabel_cache_dir,
+        "graph_relabel_chunk_edges": config.graph_relabel_chunk_edges,
         "resource_monitor_mode": config.resource_monitor_mode,
         "resource_snapshot_interval_rounds": config.resource_snapshot_interval_rounds,
         "resource_snapshots_path": str(log_dir / "resource_snapshots.jsonl"),
@@ -1039,6 +1048,9 @@ def run_experiment(
         "num_layers",
         "num_hops",
         "gpu",
+        "graph_storage_mode",
+        "graph_relabel_cache_dir",
+        "graph_relabel_chunk_edges",
         "resource_monitor_mode",
         "resource_snapshot_interval_rounds",
         "resource_snapshots_path",
@@ -1140,6 +1152,13 @@ def build_configs(args) -> List[ExperimentConfig]:
                         gpu=args.gpu,
                         server_device=args.server_device,
                         pretrain_feature_upload_mode=args.pretrain_feature_upload_mode,
+                        graph_storage_mode=args.graph_storage_mode,
+                        graph_relabel_cache_dir=(
+                            str(args.graph_relabel_cache_dir)
+                            if args.graph_relabel_cache_dir
+                            else None
+                        ),
+                        graph_relabel_chunk_edges=args.graph_relabel_chunk_edges,
                         use_huggingface=args.use_huggingface,
                         local_artifact_dir=(
                             str(args.local_artifact_dir)
@@ -1219,6 +1238,32 @@ def parse_args():
             "Plaintext FedGCN feature-upload mode. Indexed sends only active "
             "feature rows; dense preserves the historical full-row upload."
         ),
+    )
+    parser.add_argument(
+        "--graph-storage-mode",
+        choices=("device", "cpu", "mmap"),
+        default="device",
+        help=(
+            "Trainer graph placement. Device preserves the existing behavior; "
+            "cpu keeps complete 0-hop graph tensors in host RAM; mmap leaves "
+            "features and adjacency file-backed. Both host modes transfer only "
+            "NeighborLoader batches to the training device."
+        ),
+    )
+    parser.add_argument(
+        "--graph-relabel-cache-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Absolute worker-local directory for bounded relabeled adjacency "
+            "caches used by mmap graph storage."
+        ),
+    )
+    parser.add_argument(
+        "--graph-relabel-chunk-edges",
+        type=int,
+        default=1_000_000,
+        help="Maximum number of source edges processed per relabel batch.",
     )
     data_source = parser.add_mutually_exclusive_group()
     data_source.add_argument(
@@ -1391,6 +1436,12 @@ def main() -> int:
         raise SystemExit("--max-rounds must be greater than or equal to --rounds")
     if args.hf_artifact_num_hops is not None and args.hf_artifact_num_hops < 0:
         raise SystemExit("--hf-artifact-num-hops must be non-negative")
+    if args.graph_relabel_chunk_edges <= 0:
+        raise SystemExit("--graph-relabel-chunk-edges must be positive")
+    if args.graph_relabel_cache_dir is not None:
+        args.graph_relabel_cache_dir = args.graph_relabel_cache_dir.expanduser()
+        if not args.graph_relabel_cache_dir.is_absolute():
+            raise SystemExit("--graph-relabel-cache-dir must be an absolute path")
     if args.local_artifact_dir is not None:
         args.local_artifact_dir = args.local_artifact_dir.expanduser().resolve()
         manifest_path = args.local_artifact_dir / "manifest.json"

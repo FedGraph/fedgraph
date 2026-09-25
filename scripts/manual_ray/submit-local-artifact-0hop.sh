@@ -25,6 +25,11 @@ Options:
   --local-step N               Updates per trainer per global round. Default: 1.
   --num-cpus-per-trainer N     Ray CPU request per trainer. Default: 1.
   --num-gpus-per-trainer N     Ray GPU request per trainer. Default: 1.
+  --graph-storage-mode MODE    device, cpu, or mmap. Default: device.
+  --graph-relabel-cache-dir PATH
+                               Optional absolute worker-local relabel cache path.
+  --graph-relabel-chunk-edges N
+                               Edges per bounded relabel batch. Default: 1000000.
   --evaluation-split NAME      validation or test. Default: validation.
   --resource-monitor-mode MODE off, manual, prometheus, or hybrid. Default: manual.
   --resource-snapshot-interval-rounds N
@@ -52,6 +57,9 @@ dataset="ogbn-papers100M"
 n_trainer=10
 batch_size=16
 local_step=1
+graph_storage_mode=device
+graph_relabel_cache_dir=""
+graph_relabel_chunk_edges=1000000
 num_cpus_per_trainer=1
 num_gpus_per_trainer=1
 evaluation_split=validation
@@ -78,6 +86,9 @@ while (( $# > 0 )); do
         --num-cpus-per-trainer) num_cpus_per_trainer="$2"; shift 2 ;;
         --num-gpus-per-trainer) num_gpus_per_trainer="$2"; shift 2 ;;
         --evaluation-split) evaluation_split="$2"; shift 2 ;;
+        --graph-storage-mode) graph_storage_mode="$2"; shift 2 ;;
+        --graph-relabel-cache-dir) graph_relabel_cache_dir="$2"; shift 2 ;;
+        --graph-relabel-chunk-edges) graph_relabel_chunk_edges="$2"; shift 2 ;;
         --resource-monitor-mode) resource_monitor_mode="$2"; shift 2 ;;
         --resource-snapshot-interval-rounds) resource_snapshot_interval_rounds="$2"; shift 2 ;;
         --gpu-monitor-detail) gpu_monitor_detail="$2"; shift 2 ;;
@@ -100,9 +111,12 @@ require_ipv4 "$head_ip"
 require_file "${artifact_dir}/manifest.json"
 require_file "$rank_hosts_file"
 for value in "$n_trainer" "$rounds" "$batch_size" "$local_step" \
-    "$num_cpus_per_trainer" "$resource_snapshot_interval_rounds"; do
+    "$num_cpus_per_trainer" "$resource_snapshot_interval_rounds" \
+    "$graph_relabel_chunk_edges"; do
     [[ "$value" =~ ^[0-9]+$ ]] || die "Expected an integer, got: $value"
 done
+(( graph_relabel_chunk_edges > 0 )) || die "--graph-relabel-chunk-edges must be positive"
+[[ "$graph_storage_mode" =~ ^(device|cpu|mmap)$ ]] || die "--graph-storage-mode must be device, cpu, or mmap"
 [[ "$gpu_sample_interval_seconds" =~ ^[1-9][0-9]*$ ]] || \
     die "--gpu-sample-interval-seconds must be a positive integer"
 [[ "$num_gpus_per_trainer" =~ ^[0-9]+([.][0-9]+)?$ ]] || \
@@ -225,6 +239,8 @@ command=(
     --server-device cpu
     --num-gpus-per-trainer "$num_gpus_per_trainer"
     --num-cpus-per-trainer "$num_cpus_per_trainer"
+    --graph-storage-mode "$graph_storage_mode"
+    --graph-relabel-chunk-edges "$graph_relabel_chunk_edges"
     --evaluation-split "$evaluation_split"
     --resource-monitor-mode "$resource_monitor_mode"
     --resource-snapshot-interval-rounds "$resource_snapshot_interval_rounds"
@@ -232,6 +248,9 @@ command=(
     --output-root "$output_root"
 )
 
+if [[ -n "$graph_relabel_cache_dir" ]]; then
+    command+=(--graph-relabel-cache-dir "$graph_relabel_cache_dir")
+fi
 printf 'Submitting local-artifact 0-hop run to %s\n' "$RAY_ADDRESS"
 printf 'Command:'
 printf ' %q' "${command[@]}"

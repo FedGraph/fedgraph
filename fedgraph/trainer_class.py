@@ -4,7 +4,6 @@ import os
 import random
 import time
 import warnings
-from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Union
@@ -33,6 +32,8 @@ from fedgraph.gnn_models import (
     GCN_arxiv,
     SAGE_products,
 )
+from fedgraph.graph_storage import relabel_adjacency_to_mmap_cache
+from fedgraph.resource_monitor import collect_resource_snapshot
 
 # Threshold-HE backend is optional. We delay-import OpenFHE bindings here so the
 # rest of fedgraph stays importable on systems without the OpenFHE wheel.
@@ -75,7 +76,8 @@ def _uses_legacy_huggingface_fedavg_adjacency(args: Any) -> bool:
 
 def _uses_local_nc_artifact(args: Any) -> bool:
     """Whether a trainer should load one validated local 0-hop shard."""
-    return bool(getattr(args, "local_artifact_dir", None))
+    artifact_root = getattr(args, "local_artifact_dir", None)
+    return isinstance(artifact_root, (str, Path)) and bool(str(artifact_root))
 
 
 def _uses_huggingface_local_nc_artifact(args: Any) -> bool:
@@ -99,6 +101,69 @@ _LOCAL_ARTIFACT_SHARD_FILES = (
     "global_node_num.pt",
     "class_num.pt",
 )
+
+_GRAPH_STORAGE_MODES = {"device", "cpu", "mmap"}
+_HOST_GRAPH_STORAGE_MODES = {"cpu", "mmap"}
+_MMAP_GRAPH_ARTIFACT_FILES = {"adj.pt", "features.pt"}
+
+
+def _record_artifact_tensor_path(
+    args: Any, file_name: str, path: Union[str, Path]
+) -> None:
+    artifact_paths = getattr(args, "_artifact_tensor_paths", None)
+    if not isinstance(artifact_paths, dict):
+        artifact_paths = {}
+        setattr(args, "_artifact_tensor_paths", artifact_paths)
+    artifact_paths[file_name] = str(Path(path).expanduser().resolve())
+
+
+def _artifact_tensor_paths(args: Any) -> dict[str, str]:
+    paths = getattr(args, "_artifact_tensor_paths", None)
+    return paths if isinstance(paths, dict) else {}
+
+
+def _resolve_graph_storage_mode(args: Any) -> str:
+    """Return the graph tensor placement policy implemented by this trainer."""
+    configured_mode = getattr(args, "graph_storage_mode", "device")
+    mode = configured_mode.lower() if isinstance(configured_mode, str) else "device"
+    if mode not in _GRAPH_STORAGE_MODES:
+        choices = ", ".join(sorted(_GRAPH_STORAGE_MODES))
+        raise ValueError(f"graph_storage_mode must be one of: {choices}")
+    if mode in _HOST_GRAPH_STORAGE_MODES and int(getattr(args, "num_hops", 0)) != 0:
+        raise ValueError(
+            f"graph_storage_mode='{mode}' currently supports only num_hops=0; "
+            "bounded 1/2-hop preprocessing is deferred to the chunking stage"
+        )
+    return mode
+
+
+def _load_artifact_tensor(
+    path: Union[str, Path], *, memory_map: bool = False
+) -> torch.Tensor:
+    """Load one artifact tensor into CPU memory or a file-backed CPU storage."""
+    tensor_path = Path(path)
+    if not tensor_path.is_file():
+        raise FileNotFoundError(f"Artifact tensor is missing: {tensor_path}")
+    load_options: dict[str, Any] = {
+        "map_location": "cpu",
+        "weights_only": True,
+    }
+    if memory_map:
+        load_options["mmap"] = True
+    try:
+        tensor = torch.load(tensor_path, **load_options)
+    except RuntimeError as error:
+        if not memory_map:
+            raise
+        raise RuntimeError(
+            f"Unable to memory-map artifact tensor {tensor_path}. The file must "
+            "use the zip-based format produced by the current torch.save."
+        ) from error
+    if not isinstance(tensor, torch.Tensor):
+        raise TypeError(
+            f"Expected a tensor in {tensor_path}, found {type(tensor).__name__}"
+        )
+    return tensor
 
 
 def _remap_legacy_huggingface_fedavg_indexes(
@@ -146,6 +211,7 @@ def _remap_legacy_huggingface_fedavg_indexes(
 
 def load_trainer_data_from_hugging_face(trainer_id, args):
     artifact_num_hops = _resolve_huggingface_artifact_num_hops(args)
+    memory_map_graph = _resolve_graph_storage_mode(args) == "mmap"
     repo_name = f"FedGraph/fedgraph_{args.dataset}_{args.n_trainer}trainer_{artifact_num_hops}hop_iid_beta_{args.iid_beta}_trainer_id_{trainer_id}"
 
     def download_and_load_tensor(file_name, optional=False):
@@ -157,9 +223,11 @@ def load_trainer_data_from_hugging_face(trainer_id, args):
             if optional:
                 return None
             raise
-        with open(file_path, "rb") as f:
-            buffer = BytesIO(f.read())
-            tensor = torch.load(buffer, weights_only=False)
+        _record_artifact_tensor_path(args, file_name, file_path)
+        tensor = _load_artifact_tensor(
+            file_path,
+            memory_map=memory_map_graph and file_name in _MMAP_GRAPH_ARTIFACT_FILES,
+        )
         print(f"Loaded {file_name}, size: {tensor.size()}")
         return tensor
 
@@ -208,16 +276,6 @@ def load_trainer_data_from_hugging_face(trainer_id, args):
         global_node_num,
         class_num,
     )
-
-
-def _load_local_artifact_tensor(shard_dir: Path, file_name: str) -> torch.Tensor:
-    path = shard_dir / file_name
-    if not path.is_file():
-        raise FileNotFoundError(f"Local artifact is missing {path}")
-    tensor = torch.load(path, weights_only=True)
-    if not isinstance(tensor, torch.Tensor):
-        raise TypeError(f"Expected a tensor in {path}, found {type(tensor).__name__}")
-    return tensor
 
 
 def load_trainer_data_from_huggingface_local_artifact(
@@ -273,15 +331,18 @@ def load_trainer_data_from_huggingface_local_artifact(
         "Loading client data "
         f"{trainer_id} from Hugging Face local artifact {repository}"
     )
-    return load_trainer_data_from_local_artifact(
-        trainer_id,
-        SimpleNamespace(
-            local_artifact_dir=str(artifact_root),
-            use_huggingface=False,
-            num_hops=args.num_hops,
-            n_trainer=args.n_trainer,
-        ),
+    local_args = SimpleNamespace(
+        local_artifact_dir=str(artifact_root),
+        use_huggingface=False,
+        num_hops=args.num_hops,
+        n_trainer=args.n_trainer,
+        graph_storage_mode=getattr(args, "graph_storage_mode", "device"),
     )
+    loaded_data = load_trainer_data_from_local_artifact(trainer_id, local_args)
+    local_paths = _artifact_tensor_paths(local_args)
+    if local_paths:
+        setattr(args, "_artifact_tensor_paths", local_paths)
+    return loaded_data
 
 
 def load_trainer_data_from_local_artifact(trainer_id: int, args: Any) -> tuple[
@@ -332,20 +393,27 @@ def load_trainer_data_from_local_artifact(trainer_id: int, args: Any) -> tuple[
     if metadata.get("trainer_id") != trainer_id:
         raise ValueError("local artifact metadata has an unexpected trainer ID")
 
-    local_node_index = _load_local_artifact_tensor(shard_dir, "local_node_index.pt")
-    communicate_node_index = _load_local_artifact_tensor(
-        shard_dir, "communicate_node_index.pt"
-    )
-    adjacency = _load_local_artifact_tensor(shard_dir, "adj.pt")
-    train_labels = _load_local_artifact_tensor(shard_dir, "train_labels.pt")
-    val_labels = _load_local_artifact_tensor(shard_dir, "val_labels.pt")
-    test_labels = _load_local_artifact_tensor(shard_dir, "test_labels.pt")
-    features = _load_local_artifact_tensor(shard_dir, "features.pt")
-    idx_train = _load_local_artifact_tensor(shard_dir, "idx_train.pt")
-    idx_val = _load_local_artifact_tensor(shard_dir, "idx_val.pt")
-    idx_test = _load_local_artifact_tensor(shard_dir, "idx_test.pt")
-    global_node_num = _load_local_artifact_tensor(shard_dir, "global_node_num.pt")
-    class_num = _load_local_artifact_tensor(shard_dir, "class_num.pt")
+    memory_map_graph = _resolve_graph_storage_mode(args) == "mmap"
+
+    def load_shard_tensor(file_name: str) -> torch.Tensor:
+        _record_artifact_tensor_path(args, file_name, shard_dir / file_name)
+        return _load_artifact_tensor(
+            shard_dir / file_name,
+            memory_map=(memory_map_graph and file_name in _MMAP_GRAPH_ARTIFACT_FILES),
+        )
+
+    local_node_index = load_shard_tensor("local_node_index.pt")
+    communicate_node_index = load_shard_tensor("communicate_node_index.pt")
+    adjacency = load_shard_tensor("adj.pt")
+    train_labels = load_shard_tensor("train_labels.pt")
+    val_labels = load_shard_tensor("val_labels.pt")
+    test_labels = load_shard_tensor("test_labels.pt")
+    features = load_shard_tensor("features.pt")
+    idx_train = load_shard_tensor("idx_train.pt")
+    idx_val = load_shard_tensor("idx_val.pt")
+    idx_test = load_shard_tensor("idx_test.pt")
+    global_node_num = load_shard_tensor("global_node_num.pt")
+    class_num = load_shard_tensor("class_num.pt")
 
     node_count = local_node_index.numel()
     if local_node_index.ndim != 1 or not torch.equal(
@@ -476,7 +544,11 @@ class Trainer_General:
             torch.manual_seed(_global_seed * 1000 + rank)
         except (TypeError, ValueError):
             torch.manual_seed(rank)
-        if (
+        graph_storage_mode = _resolve_graph_storage_mode(args)
+        adjacency_artifact_path: Optional[Path] = None
+        if graph_storage_mode == "mmap":
+            setattr(args, "_artifact_tensor_paths", {})
+        loads_artifact_data = (
             local_node_index is None
             or communicate_node_index is None
             or adj is None
@@ -485,7 +557,17 @@ class Trainer_General:
             or features is None
             or idx_train is None
             or idx_test is None
-        ):
+        )
+        if graph_storage_mode == "mmap" and not loads_artifact_data:
+            raise ValueError(
+                "graph_storage_mode='mmap' requires file-backed trainer artifacts; "
+                "directly supplied tensors have no artifact files to memory-map"
+            )
+        self.artifact_load_time_sec: Optional[float] = None
+        self.artifact_load_process_rss_bytes: Optional[int] = None
+        self.artifact_load_process_peak_rss_bytes: Optional[int] = None
+        if loads_artifact_data:
+            artifact_load_start = time.perf_counter()
             (
                 local_node_index,
                 communicate_node_index,
@@ -508,11 +590,42 @@ class Trainer_General:
                     else load_trainer_data_from_hugging_face(rank, args)
                 )
             )
+            recorded_adjacency_path = _artifact_tensor_paths(args).get("adj.pt")
+            if recorded_adjacency_path:
+                adjacency_artifact_path = Path(recorded_adjacency_path)
+            self.artifact_load_time_sec = time.perf_counter() - artifact_load_start
+            artifact_load_snapshot = collect_resource_snapshot(
+                source="trainer",
+                event="artifact_load_complete",
+                trainer_id=rank,
+            )
+            self.artifact_load_process_rss_bytes = artifact_load_snapshot[
+                "process_rss_bytes"
+            ]
+            self.artifact_load_process_peak_rss_bytes = artifact_load_snapshot[
+                "process_peak_rss_bytes"
+            ]
+            print(
+                f"Trainer {rank} artifact load completed in "
+                f"{self.artifact_load_time_sec:.3f}s; "
+                "process RSS="
+                f"{self.artifact_load_process_rss_bytes}; "
+                "process peak RSS="
+                f"{self.artifact_load_process_peak_rss_bytes} bytes"
+            )
         if val_labels is None:
             val_labels = torch.empty(0, dtype=train_labels.dtype)
         if idx_val is None:
             idx_val = torch.empty(0, dtype=idx_train.dtype)
         self.rank = rank  # rank = trainer ID
+        self.args = args
+        self.adjacency_artifact_path = adjacency_artifact_path
+        self.adjacency_relabel_time_sec: Optional[float] = None
+        self.adjacency_relabel_cache_path: Optional[str] = None
+        self.adjacency_relabel_cache_hit: Optional[bool] = None
+        self.adjacency_relabel_source_edge_count: Optional[int] = None
+        self.adjacency_relabel_output_edge_count: Optional[int] = None
+        self.adjacency_relabel_dropped_edge_count: Optional[int] = None
         uses_legacy_huggingface_fedavg = _uses_legacy_huggingface_fedavg_adjacency(args)
         if uses_legacy_huggingface_fedavg:
             idx_train = _remap_legacy_huggingface_fedavg_indexes(
@@ -526,6 +639,14 @@ class Trainer_General:
             )
 
         self.device = device
+        self.graph_storage_mode = graph_storage_mode
+        self.graph_device = (
+            torch.device("cpu")
+            if self.graph_storage_mode in _HOST_GRAPH_STORAGE_MODES
+            else self.device
+        )
+        self.features_memory_mapped = self.graph_storage_mode == "mmap"
+        self.adjacency_memory_mapped = self.graph_storage_mode == "mmap"
 
         self.criterion = torch.nn.CrossEntropyLoss()
 
@@ -537,36 +658,39 @@ class Trainer_General:
         self.val_losses: list = []
         self.val_accs: list = []
 
-        self.local_node_index = local_node_index.to(device)
+        self.local_node_index = local_node_index.to(self.graph_device)
         self.communicate_node_index = (
             self.local_node_index
             if uses_legacy_huggingface_fedavg
-            else communicate_node_index.to(device)
+            else communicate_node_index.to(self.graph_device)
         )
 
         if uses_legacy_huggingface_fedavg:
             # k_hop_subgraph allocates several edge-sized masks and a global-ID
-            # mapping. Relabel before moving the large legacy edge index to VRAM.
+            # mapping. Relabel before applying the graph placement policy.
             self.adj = adj
             self.relabel_adj(local_node_index)
-            self.adj = self.adj.to(device)
+            self.adj = self.adj.to(self.graph_device)
         else:
-            self.adj = adj.to(device)
-        self.train_labels = train_labels.to(device)
-        self.val_labels = val_labels.to(device)
-        self.test_labels = test_labels.to(device)
-        self.features = features.to(device)
-        self.idx_train = idx_train.to(device)
-        self.idx_val = idx_val.to(device)
-        self.idx_test = idx_test.to(device)
+            self.adj = adj.to(self.graph_device)
+        self.train_labels = train_labels.to(self.graph_device)
+        self.val_labels = val_labels.to(self.graph_device)
+        self.test_labels = test_labels.to(self.graph_device)
+        self.features = features.to(self.graph_device)
+        self.idx_train = idx_train.to(self.graph_device)
+        self.idx_val = idx_val.to(self.graph_device)
+        self.idx_test = idx_test.to(self.graph_device)
 
         self.local_step = args.local_step
         self.args_hidden = args_hidden
         # self.global_node_num = global_node_num
         # self.class_num = class_num
-        self.args = args
         self.model = None
         self.optimizer = None
+        self.last_sampled_batch_phase: Optional[str] = None
+        self.last_sampled_batch_node_count: Optional[int] = None
+        self.last_sampled_batch_edge_count: Optional[int] = None
+        self.last_sampled_batch_bytes: Optional[int] = None
         self.global_node_num = (
             int(global_node_num.item())
             if isinstance(global_node_num, torch.Tensor)
@@ -900,7 +1024,7 @@ class Trainer_General:
             The aggregated features to be loaded.
         """
         # load_start = time.time()
-        self.feature_aggregation = feature_aggregation.float().to(self.device)
+        self.feature_aggregation = feature_aggregation.float().to(self.graph_device)
         # load_time = time.time() - load_start
         # data_size = (
         #     self.feature_aggregation.element_size()
@@ -1237,9 +1361,51 @@ class Trainer_General:
         """
         Relabel the adjacency matrix against communication or explicitly supplied IDs.
         """
+        started_at = time.perf_counter()
         relabel_node_index = (
             self.communicate_node_index if node_index is None else node_index
         )
+        source_edge_count = int(self.adj.size(1))
+        if self.graph_storage_mode == "mmap":
+            cache_dir = getattr(self.args, "graph_relabel_cache_dir", None)
+            if not cache_dir:
+                raise ValueError(
+                    "graph_storage_mode='mmap' requires graph_relabel_cache_dir "
+                    "when adjacency relabeling is needed"
+                )
+            if self.adjacency_artifact_path is None:
+                raise ValueError(
+                    "memory-mapped adjacency relabeling requires the source "
+                    "artifact path"
+                )
+            result = relabel_adjacency_to_mmap_cache(
+                self.adj,
+                relabel_node_index,
+                source_path=self.adjacency_artifact_path,
+                cache_dir=Path(cache_dir),
+                trainer_id=int(self.rank),
+                chunk_edges=int(
+                    getattr(self.args, "graph_relabel_chunk_edges", 1_000_000)
+                ),
+            )
+            self.adj = result.edge_index
+            self.adjacency_memory_mapped = True
+            self.adjacency_relabel_time_sec = result.elapsed_sec
+            self.adjacency_relabel_cache_path = str(result.cache_path)
+            self.adjacency_relabel_cache_hit = result.cache_hit
+            self.adjacency_relabel_source_edge_count = result.source_edge_count
+            self.adjacency_relabel_output_edge_count = result.edge_count
+            self.adjacency_relabel_dropped_edge_count = result.dropped_edge_count
+            print(
+                "NC_ADJ_RELABEL, "
+                f"trainer={self.rank}, mode=mmap, cache_hit={result.cache_hit}, "
+                f"source_edges={result.source_edge_count}, "
+                f"output_edges={result.edge_count}, "
+                f"dropped_edges={result.dropped_edge_count}, "
+                f"time_sec={result.elapsed_sec:.6f}, cache={result.cache_path}"
+            )
+            return
+
         max_node_id = -1
         if relabel_node_index.numel() > 0:
             max_node_id = max(max_node_id, int(relabel_node_index.max().item()))
@@ -1267,6 +1433,13 @@ class Trainer_General:
             relabel_nodes=True,
             num_nodes=num_nodes,
         )
+        self.adjacency_relabel_time_sec = time.perf_counter() - started_at
+        self.adjacency_relabel_cache_hit = False
+        self.adjacency_relabel_source_edge_count = source_edge_count
+        self.adjacency_relabel_output_edge_count = int(self.adj.size(1))
+        self.adjacency_relabel_dropped_edge_count = (
+            source_edge_count - self.adjacency_relabel_output_edge_count
+        )
         # print(f"Max value in adj: {self.adj.max()}")
         # print(
         #     f"Max value in communicate_node_index: {self.communicate_node_index.max()}"
@@ -1274,6 +1447,61 @@ class Trainer_General:
         # distinct_values = torch.unique(self.adj.flatten())
         # print(f"Number of distinct values in adj: {distinct_values.numel()}")
         # print(f"distinct communic: {len(self.communicate_node_index)}")
+
+    def _uses_mini_batch(self) -> bool:
+        batch_size = getattr(self.args, "batch_size", 0)
+        return isinstance(batch_size, int) and batch_size > 0
+
+    def _require_supported_graph_execution(self, use_mini_batch: bool) -> None:
+        if (
+            self.graph_storage_mode in _HOST_GRAPH_STORAGE_MODES
+            and self.device.type == "cuda"
+            and not use_mini_batch
+        ):
+            raise ValueError(
+                f"graph_storage_mode='{self.graph_storage_mode}' with CUDA requires "
+                "a positive batch_size; "
+                "full-batch execution would move the complete graph to VRAM"
+            )
+
+    def _make_neighbor_loader(
+        self, data: Data, indexes: torch.Tensor, *, shuffle: bool
+    ) -> NeighborLoader:
+        return NeighborLoader(
+            data,
+            num_neighbors=[-1] * self.args.num_layers,
+            batch_size=self.args.batch_size,
+            input_nodes=indexes,
+            shuffle=shuffle,
+            num_workers=0,
+            pin_memory=(
+                self.graph_storage_mode in _HOST_GRAPH_STORAGE_MODES
+                and self.device.type == "cuda"
+            ),
+        )
+
+    def _sampled_batch_to_device(
+        self,
+        batch: Data,
+        labels: torch.Tensor,
+        *,
+        phase: str,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        seed_node_count = int(batch.batch_size)
+        input_ids = batch.input_id.to(labels.device)
+        seed_labels = labels[input_ids].to(self.device, non_blocking=True)
+        batch_features = batch.x.to(self.device, non_blocking=True)
+        batch_adjacency = batch.edge_index.to(self.device, non_blocking=True)
+        seed_node_index = torch.arange(seed_node_count, device=self.device)
+
+        self.last_sampled_batch_phase = phase
+        self.last_sampled_batch_node_count = int(batch.x.size(0))
+        self.last_sampled_batch_edge_count = int(batch.edge_index.size(1))
+        self.last_sampled_batch_bytes = sum(
+            int(tensor.numel() * tensor.element_size())
+            for tensor in (batch.x, batch.edge_index, seed_labels)
+        )
+        return batch_features, batch_adjacency, seed_labels, seed_node_index
 
     def train(self, current_global_round: int) -> None:
         """
@@ -1285,108 +1513,86 @@ class Trainer_General:
         current_global_round : int
             The current global training round.
         """
-        # clean cache
         torch.cuda.empty_cache()
         assert self.model is not None
-        self.model.to(self.device)
         if self.feature_aggregation is None:
             raise ValueError(
-                "feature_aggregation has not been set. Ensure pre-training communication is completed."
+                "feature_aggregation has not been set. Ensure pre-training "
+                "communication is completed."
             )
 
-        self.feature_aggregation = self.feature_aggregation.to(self.device)
-        data = None
-        use_mini_batch = hasattr(self.args, "batch_size") and self.args.batch_size > 0
-        if use_mini_batch:
-            # batch preparation
-            train_mask = torch.zeros(
-                self.feature_aggregation.size(0), dtype=torch.bool
-            ).to(self.device)
-            train_mask[self.idx_train] = True
+        use_mini_batch = self._uses_mini_batch()
+        self._require_supported_graph_execution(use_mini_batch)
+        self.model.to(self.device)
 
-            node_labels = torch.full(
-                (self.feature_aggregation.size(0),), -1, dtype=torch.long
-            ).to(self.device)
+        data = (
+            Data(x=self.feature_aggregation, edge_index=self.adj)
+            if use_mini_batch
+            else None
+        )
+        full_batch_features = None
+        full_batch_adjacency = None
+        full_batch_labels = None
+        full_batch_indexes = None
+        if not use_mini_batch:
+            full_batch_features = self.feature_aggregation.to(self.device)
+            full_batch_adjacency = self.adj.to(self.device)
+            full_batch_labels = self.train_labels.to(self.device)
+            full_batch_indexes = self.idx_train.to(self.device)
 
-            mask_indices = train_mask.nonzero(as_tuple=True)[0].to(self.device)
-            node_labels[train_mask] = self.train_labels[: len(mask_indices)]
-            data = Data(
-                x=self.feature_aggregation,
-                edge_index=self.adj,
-                train_mask=train_mask,
-                y=node_labels,
-            )
         loss_train = 0.0
         acc_train = 0.0
         for iteration in range(self.local_step):
             self.model.train()
             if use_mini_batch:
-                # print(f"Training with batch size {self.args.batch_size}")
-                loader = NeighborLoader(
-                    data,
-                    num_neighbors=[-1] * self.args.num_layers,
-                    batch_size=self.args.batch_size,
-                    input_nodes=self.idx_train,
-                    shuffle=True,
-                    num_workers=0,
-                )
+                assert data is not None
+                loader = self._make_neighbor_loader(data, self.idx_train, shuffle=True)
                 batch = next(iter(loader), None)
                 if batch is None:
                     loss_train, acc_train = 0.0, 0.0
                 else:
-                    batch_feature_aggregation = batch.x
-                    batch_adj_matrix = batch.edge_index
-                    seed_node_count = int(batch.batch_size)
-                    seed_node_index = torch.arange(
-                        seed_node_count, device=batch_feature_aggregation.device
+                    (
+                        batch_features,
+                        batch_adjacency,
+                        seed_labels,
+                        seed_node_index,
+                    ) = self._sampled_batch_to_device(
+                        batch, self.train_labels, phase="train"
                     )
-                    seed_labels = batch.y[:seed_node_count].to(
-                        batch_feature_aggregation.device
-                    )
-
-                    # NeighborLoader puts the sampled seed nodes first. Use
-                    # only those nodes for supervised loss; remaining nodes
-                    # provide GCN message-passing context.
                     loss_train, acc_train = train(
                         iteration,
                         self.model,
                         self.optimizer,
-                        batch_feature_aggregation,
-                        batch_adj_matrix,
+                        batch_features,
+                        batch_adjacency,
                         seed_labels,
                         seed_node_index,
                     )
-                    # print(f"acc_train: {acc_train}")
             else:
-                # print("Training with full batch")
-                # print(f"feature_aggregation size: {self.feature_aggregation.size()}")
-                # print(f"adj shape: {self.adj.size()}")
-                # print(f"Max value in adj: {self.adj.max()}")
-                # print(f"Max value in communicate_node_index: {self.communicate_node_index.max()}")
-                # Assuming class_num is the number of classes
-                train_labels = self.train_labels
+                assert full_batch_features is not None
+                assert full_batch_adjacency is not None
+                assert full_batch_labels is not None
+                assert full_batch_indexes is not None
                 class_num = self.class_num
                 assert (
-                    train_labels.min() >= 0
-                ), f"train_labels contains negative values: {train_labels.min()}"
-                assert (
-                    train_labels.max() < class_num
-                ), f"train_labels contains a value out of range: {train_labels.max()} (number of classes: {class_num})"
-
-                # time.sleep(30)
+                    full_batch_labels.min() >= 0
+                ), f"train_labels contains negative values: {full_batch_labels.min()}"
+                assert full_batch_labels.max() < class_num, (
+                    "train_labels contains a value out of range: "
+                    f"{full_batch_labels.max()} (number of classes: {class_num})"
+                )
                 loss_train, acc_train = train(
                     iteration,
                     self.model,
                     self.optimizer,
-                    self.feature_aggregation,
-                    self.adj,
-                    self.train_labels,
-                    self.idx_train,
+                    full_batch_features,
+                    full_batch_adjacency,
+                    full_batch_labels,
+                    full_batch_indexes,
                 )
 
             self.train_losses.append(loss_train)
             self.train_accs.append(acc_train)
-            # print(f"acc_train: {acc_train}")
 
     def _local_eval(
         self,
@@ -1405,24 +1611,12 @@ class Trainer_General:
         ):
             return [0.0, 0.0]
 
-        # Ensure everything is on the trainer's device (model may have been
-        # moved to CPU during aggregation).
+        use_mini_batch = self._uses_mini_batch()
+        self._require_supported_graph_execution(use_mini_batch)
         self.model = self.model.to(self.device)
-        feats = self.feature_aggregation.to(self.device)
-        adj = self.adj.to(self.device)
-        labels = labels.to(self.device)
-        indexes = indexes.to(self.device)
-        use_mini_batch = hasattr(self.args, "batch_size") and self.args.batch_size > 0
         if use_mini_batch:
-            data = Data(x=feats, edge_index=adj)
-            loader = NeighborLoader(
-                data,
-                num_neighbors=[-1] * self.args.num_layers,
-                batch_size=self.args.batch_size,
-                input_nodes=indexes,
-                shuffle=False,
-                num_workers=0,
-            )
+            data = Data(x=self.feature_aggregation, edge_index=self.adj)
+            loader = self._make_neighbor_loader(data, indexes, shuffle=False)
             total_loss = torch.zeros((), device=self.device)
             total_correct = torch.zeros((), device=self.device, dtype=torch.long)
             total_examples = 0
@@ -1433,11 +1627,13 @@ class Trainer_General:
                     seed_node_count = int(batch.batch_size)
                     if seed_node_count == 0:
                         continue
-
-                    # ``input_id`` is each seed's position in ``indexes``. It
-                    # lets us keep labels as a compact split-aligned tensor.
-                    seed_labels = labels[batch.input_id.to(labels.device)]
-                    seed_output = self.model(batch.x, batch.edge_index)[
+                    (
+                        batch_features,
+                        batch_adjacency,
+                        seed_labels,
+                        _,
+                    ) = self._sampled_batch_to_device(batch, labels, phase="evaluation")
+                    seed_output = self.model(batch_features, batch_adjacency)[
                         :seed_node_count
                     ]
                     total_loss += F.nll_loss(seed_output, seed_labels, reduction="sum")
@@ -1450,7 +1646,13 @@ class Trainer_General:
                 local_loss = (total_loss / total_examples).item()
                 local_acc = (total_correct.float() / total_examples).item()
         else:
-            local_loss, local_acc = test(self.model, feats, adj, labels, indexes)
+            feats = self.feature_aggregation.to(self.device)
+            adj = self.adj.to(self.device)
+            device_labels = labels.to(self.device)
+            device_indexes = indexes.to(self.device)
+            local_loss, local_acc = test(
+                self.model, feats, adj, device_labels, device_indexes
+            )
         losses.append(local_loss)
         accuracies.append(local_acc)
         return [local_loss, local_acc]

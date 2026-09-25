@@ -21,6 +21,11 @@ Options:
   --batch-size N               Seed nodes per local update. Default: 16.
   --local-step N               Updates per trainer per global round. Default: 3.
   --num-cpus-per-trainer N     Ray CPU request for each trainer. Default: 8.
+  --graph-storage-mode MODE    device, cpu, or mmap. Default: device.
+  --graph-relabel-cache-dir PATH
+                               Absolute worker-local cache path required by mmap.
+  --graph-relabel-chunk-edges N
+                               Edges per bounded relabel batch. Default: 1000000.
   --hf-home PATH               Head-local cache path. Default: ~/fedgraph-hf-cache.
   --log-dir PATH               Driver log directory. Default: ~/fedgraph-logs/papers100m-0hop.
   --resource-monitor-mode MODE Application resource mode: off, manual, prometheus, or hybrid.
@@ -46,6 +51,9 @@ experiment_name=""
 batch_size=16
 local_step=3
 num_cpus_per_trainer=8
+graph_storage_mode=device
+graph_relabel_cache_dir=""
+graph_relabel_chunk_edges=1000000
 hf_home="${HF_HOME:-${HOME}/fedgraph-hf-cache}"
 log_dir="${FEDGRAPH_LOG_DIR:-${HOME}/fedgraph-logs/papers100m-0hop}"
 output_root="benchmark/results/nc_batch_size_convergence"
@@ -66,6 +74,9 @@ while (( $# > 0 )); do
         --batch-size) batch_size="$2"; shift 2 ;;
         --local-step) local_step="$2"; shift 2 ;;
         --num-cpus-per-trainer) num_cpus_per_trainer="$2"; shift 2 ;;
+        --graph-storage-mode) graph_storage_mode="$2"; shift 2 ;;
+        --graph-relabel-cache-dir) graph_relabel_cache_dir="$2"; shift 2 ;;
+        --graph-relabel-chunk-edges) graph_relabel_chunk_edges="$2"; shift 2 ;;
         --hf-home) hf_home="$2"; shift 2 ;;
         --log-dir) log_dir="$2"; shift 2 ;;
         --output-root) output_root="$2"; shift 2 ;;
@@ -87,9 +98,15 @@ done
 [[ -n "$experiment_name" ]] || die "--experiment-name is required"
 require_ipv4 "$head_ip"
 for value in "$rounds" "$batch_size" "$local_step" "$num_cpus_per_trainer" \
-    "$resource_snapshot_interval_rounds" "$gpu_sample_interval_seconds"; do
+    "$resource_snapshot_interval_rounds" "$gpu_sample_interval_seconds" \
+    "$graph_relabel_chunk_edges"; do
     [[ "$value" =~ ^[0-9]+$ ]] || die "Expected an integer, got: $value"
 done
+(( graph_relabel_chunk_edges > 0 )) || die "--graph-relabel-chunk-edges must be positive"
+[[ "$graph_storage_mode" =~ ^(device|cpu|mmap)$ ]] || die "--graph-storage-mode must be device, cpu, or mmap"
+if [[ "$graph_storage_mode" == "mmap" && -z "$graph_relabel_cache_dir" ]]; then
+    die "--graph-relabel-cache-dir is required with --graph-storage-mode mmap"
+fi
 [[ "$resource_monitor_mode" =~ ^(off|manual|prometheus|hybrid)$ ]] || die "Invalid --resource-monitor-mode: $resource_monitor_mode"
 [[ "$gpu_monitor_detail" =~ ^(off|raw)$ ]] || die "--gpu-monitor-detail must be off or raw"
 if [[ "$gpu_monitor_detail" == "raw" ]]; then
@@ -187,12 +204,17 @@ command=(
     --server-device cpu
     --num-gpus-per-trainer 1
     --num-cpus-per-trainer "$num_cpus_per_trainer"
+    --graph-storage-mode "$graph_storage_mode"
+    --graph-relabel-chunk-edges "$graph_relabel_chunk_edges"
     --experiment-name "$experiment_name"
     --resource-monitor-mode "$resource_monitor_mode"
     --resource-snapshot-interval-rounds "$resource_snapshot_interval_rounds"
     --output-root "$output_root"
 )
 
+if [[ -n "$graph_relabel_cache_dir" ]]; then
+    command+=(--graph-relabel-cache-dir "$graph_relabel_cache_dir")
+fi
 printf 'Submitting Papers100M 0-hop run to %s\n' "$RAY_ADDRESS"
 printf 'Driver log: %s\n' "$driver_log"
 printf 'Command:'
