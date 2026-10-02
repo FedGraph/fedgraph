@@ -18,6 +18,7 @@ from scripts.data.node_classification_partitioning import (
     build_label_balanced_owner_plan,
     discover_ogb_source,
     partition_raw_ogb_0hop,
+    partition_raw_ogb_2hop,
 )
 from scripts.data.upload_nc_artifact_to_hf import validate_nc_artifact_for_upload
 
@@ -196,6 +197,145 @@ def test_partition_raw_ogb_0hop_reads_ogb_binary_arrays_in_chunks(tmp_path):
         assert not adjacency.numel() or int(adjacency.max()) < local_nodes.numel()
         all_local_nodes.extend(local_nodes.tolist())
     assert sorted(all_local_nodes) == list(range(6))
+
+
+def test_partition_raw_ogb_2hop_writes_sorted_dual_coordinate_shards(tmp_path):
+    dataset_root = tmp_path / "synthetic"
+    output_dir = tmp_path / "artifact-2hop"
+    _make_raw_dataset(dataset_root)
+
+    manifest = partition_raw_ogb_2hop(
+        dataset_root=dataset_root,
+        output_dir=output_dir,
+        n_trainer=2,
+        iid_beta=10000.0,
+        seed=42,
+        checksums=False,
+        chunk_rows=2,
+    )
+
+    assert manifest["artifact_version"] == 2
+    assert manifest["hop_semantics"] == 2
+    assert manifest["neighborhood_hops"] == 1
+    assert manifest["adjacency_contract"]["pretrain_adjacency"]["sorted_by"] == (
+        "source_then_input_order"
+    )
+
+    raw_edges = [
+        (0, 1),
+        (1, 0),
+        (0, 2),
+        (2, 0),
+        (3, 4),
+        (4, 3),
+        (4, 5),
+        (5, 4),
+    ]
+    all_owned_nodes = []
+    total_edges = 0
+    for trainer_id in range(2):
+        shard_dir = output_dir / "shards" / f"trainer-{trainer_id:03d}"
+        owned = torch.load(shard_dir / "local_node_index.pt", weights_only=True)
+        communicate = torch.load(
+            shard_dir / "communicate_node_index.pt", weights_only=True
+        )
+        global_adjacency = torch.load(shard_dir / "adj_global.pt", weights_only=True)
+        local_adjacency = torch.load(shard_dir / "adj.pt", weights_only=True)
+        source_degree = torch.load(shard_dir / "source_degree.pt", weights_only=True)
+        source_offsets = torch.load(shard_dir / "source_offsets.pt", weights_only=True)
+
+        owned_set = set(owned.tolist())
+        expected_communicate = sorted(
+            owned_set | {source for source, target in raw_edges if target in owned_set}
+        )
+        expected_edges = sorted(
+            [
+                edge
+                for edge in raw_edges
+                if edge[0] in expected_communicate and edge[1] in expected_communicate
+            ],
+            key=lambda edge: edge[0],
+        )
+        expected_global = torch.tensor(expected_edges, dtype=torch.long).T
+        expected_positions = {
+            node_id: position for position, node_id in enumerate(expected_communicate)
+        }
+        expected_local = torch.tensor(
+            [
+                (expected_positions[source], expected_positions[target])
+                for source, target in expected_edges
+            ],
+            dtype=torch.long,
+        ).T
+
+        assert communicate.tolist() == expected_communicate
+        assert torch.equal(global_adjacency, expected_global)
+        assert torch.equal(local_adjacency, expected_local)
+        assert torch.equal(communicate[local_adjacency], global_adjacency)
+        assert torch.equal(source_offsets[1:] - source_offsets[:-1], source_degree)
+        assert source_offsets[-1].item() == global_adjacency.shape[1]
+        all_owned_nodes.extend(owned.tolist())
+        total_edges += global_adjacency.shape[1]
+
+    assert sorted(all_owned_nodes) == list(range(6))
+    assert manifest["total_induced_edge_num"] == total_edges
+
+
+def test_partition_raw_ogb_2hop_binary_matches_csv_artifact(tmp_path):
+    csv_root = tmp_path / "synthetic-csv"
+    binary_root = tmp_path / "synthetic-binary"
+    csv_output = tmp_path / "csv-artifact"
+    binary_output = tmp_path / "binary-artifact"
+    cache_dir = tmp_path / "binary-cache"
+    _make_raw_dataset(csv_root)
+    _make_binary_raw_dataset(binary_root)
+
+    csv_manifest = partition_raw_ogb_2hop(
+        dataset_root=csv_root,
+        output_dir=csv_output,
+        n_trainer=2,
+        iid_beta=10000.0,
+        seed=42,
+        checksums=False,
+        chunk_rows=2,
+    )
+    binary_manifest = partition_raw_ogb_2hop(
+        dataset_root=binary_root,
+        output_dir=binary_output,
+        n_trainer=2,
+        iid_beta=10000.0,
+        seed=42,
+        checksums=False,
+        chunk_rows=2,
+        input_format="ogb-binary",
+        binary_cache_dir=cache_dir,
+    )
+
+    assert (
+        csv_manifest["total_induced_edge_num"]
+        == binary_manifest["total_induced_edge_num"]
+    )
+    assert binary_manifest["input_format"] == "ogb-binary"
+    tensor_files = (
+        "local_node_index.pt",
+        "communicate_node_index.pt",
+        "features.pt",
+        "adj_global.pt",
+        "adj.pt",
+        "source_degree.pt",
+        "source_offsets.pt",
+        "idx_train.pt",
+        "idx_val.pt",
+        "idx_test.pt",
+    )
+    for trainer_id in range(2):
+        csv_shard = csv_output / "shards" / f"trainer-{trainer_id:03d}"
+        binary_shard = binary_output / "shards" / f"trainer-{trainer_id:03d}"
+        for file_name in tensor_files:
+            assert torch.equal(
+                torch.load(csv_shard / file_name, weights_only=True),
+                torch.load(binary_shard / file_name, weights_only=True),
+            )
 
 
 def test_local_artifact_loader_reads_a_complete_0hop_shard(tmp_path):

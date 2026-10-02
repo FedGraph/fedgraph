@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create a complete label-balanced 0-hop OGB node-classification artifact."""
+"""Create complete label-balanced OGB node-classification artifacts."""
 
 from __future__ import annotations
 
@@ -7,14 +7,17 @@ import argparse
 import json
 from pathlib import Path
 
-from node_classification_partitioning import partition_raw_ogb_0hop
+from node_classification_partitioning import (
+    partition_raw_ogb_0hop,
+    partition_raw_ogb_2hop,
+)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Stream raw OGB CSV or binary files into complete, local-coordinate FedGraph "
-            "0-hop shards. The input is never sent through Ray."
+            "Stream raw OGB CSV or binary files into complete FedGraph "
+            "0-hop or 2-hop shards. The input is never sent through Ray."
         )
     )
     parser.add_argument(
@@ -30,6 +33,13 @@ def parse_args() -> argparse.Namespace:
         help="New artifact directory. It is published only after validation.",
     )
     parser.add_argument("--n-trainer", type=int, required=True)
+    parser.add_argument(
+        "--num-hops",
+        type=int,
+        choices=(0, 2),
+        default=0,
+        help="0 writes FedAvg shards; 2 writes source-sorted FedGCN shards.",
+    )
     parser.add_argument("--iid-beta", type=float, default=10000.0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--split-name", default="time")
@@ -70,7 +80,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    manifest = partition_raw_ogb_0hop(
+    partition = partition_raw_ogb_0hop if args.num_hops == 0 else partition_raw_ogb_2hop
+    manifest = partition(
         dataset_root=args.dataset_root,
         output_dir=args.output_dir,
         n_trainer=args.n_trainer,

@@ -1,8 +1,8 @@
-"""Streaming writers for 0-hop node-classification shard artifacts.
+"""Streaming writers for node-classification shard artifacts.
 
 The normal FedGraph loader partitions small graphs in memory.  This module is
-deliberately separate: it writes versioned, local 0-hop artifacts from the raw
-OGB CSV layout without involving Ray or materializing a global PyG graph.
+deliberately separate: it writes versioned artifacts from the raw OGB layout
+without involving Ray or materializing a global PyG graph.
 """
 
 from __future__ import annotations
@@ -838,10 +838,451 @@ def _write_binary_internal_edges(
     return total_edges, internal_edges
 
 
+def _iter_edge_chunks(
+    source: OGBNodeClassificationSource, chunk_rows: int
+) -> Iterator[tuple[np.ndarray, np.ndarray]]:
+    """Yield validated global source/target arrays from either OGB layout."""
+    if source.input_format == "csv":
+        frames = pd.read_csv(
+            source.edges, header=None, chunksize=chunk_rows, dtype=np.int64
+        )
+        for frame in frames:
+            values = frame.to_numpy(dtype=np.int64, copy=False)
+            if values.ndim != 2 or values.shape[1] != 2:
+                raise ValueError(
+                    f"Edge chunk has shape {values.shape}; expected (*, 2)"
+                )
+            sources = values[:, 0]
+            targets = values[:, 1]
+            _validate_edge_endpoints(sources, targets, source.num_nodes)
+            yield sources, targets
+        return
+
+    edges = np.load(source.edges, mmap_mode="r", allow_pickle=False)
+    if edges.ndim != 2 or edges.shape != (2, source.num_edges):
+        raise ValueError(
+            f"Binary edge index {source.edges} must have shape "
+            f"(2, {source.num_edges})"
+        )
+    if not np.issubdtype(edges.dtype, np.integer):
+        raise ValueError(f"Binary edge index {source.edges} must use an integer dtype")
+    for start in range(0, source.num_edges, chunk_rows):
+        stop = min(start + chunk_rows, source.num_edges)
+        sources = np.asarray(edges[0, start:stop], dtype=np.int64)
+        targets = np.asarray(edges[1, start:stop], dtype=np.int64)
+        _validate_edge_endpoints(sources, targets, source.num_nodes)
+        yield sources, targets
+
+
+def _validate_edge_endpoints(
+    sources: np.ndarray, targets: np.ndarray, num_nodes: int
+) -> None:
+    if (
+        np.any(sources < 0)
+        or np.any(targets < 0)
+        or np.any(sources >= num_nodes)
+        or np.any(targets >= num_nodes)
+    ):
+        raise ValueError("Edge source contains an endpoint outside the node-ID range")
+
+
+def _build_source_sorted_edge_cache(
+    source: OGBNodeClassificationSource,
+    work_dir: Path,
+    chunk_rows: int,
+) -> tuple[np.memmap, np.memmap]:
+    """Build a bounded CSR-like global edge cache sorted by source ID."""
+    cache_dir = work_dir / "source_sorted_edges"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    offsets_path = cache_dir / "source_offsets.u64"
+    targets_path = cache_dir / "targets.i64"
+    metadata_path = cache_dir / "metadata.json"
+    source_stat = source.edges.stat()
+    expected_metadata = {
+        "cache_version": 1,
+        "num_nodes": source.num_nodes,
+        "num_edges": source.num_edges,
+        "source": str(source.edges),
+        "source_size": source_stat.st_size,
+        "source_mtime_ns": source_stat.st_mtime_ns,
+    }
+    expected_sizes = {
+        offsets_path: (source.num_nodes + 1) * np.dtype(np.uint64).itemsize,
+        targets_path: source.num_edges * np.dtype(np.int64).itemsize,
+    }
+    if metadata_path.is_file() and all(
+        path.is_file() and path.stat().st_size == size
+        for path, size in expected_sizes.items()
+    ):
+        existing = json.loads(metadata_path.read_text(encoding="utf-8"))
+        if existing == expected_metadata:
+            return (
+                np.memmap(
+                    offsets_path,
+                    dtype=np.uint64,
+                    mode="r",
+                    shape=(source.num_nodes + 1,),
+                ),
+                np.memmap(
+                    targets_path,
+                    dtype=np.int64,
+                    mode="r",
+                    shape=(source.num_edges,),
+                ),
+            )
+
+    for path in (offsets_path, targets_path, metadata_path):
+        path.unlink(missing_ok=True)
+    degrees_path = cache_dir / "degrees.u64"
+    cursors_path = cache_dir / "cursors.u64"
+    degrees_path.unlink(missing_ok=True)
+    cursors_path.unlink(missing_ok=True)
+
+    degrees = np.memmap(
+        degrees_path, dtype=np.uint64, mode="w+", shape=(source.num_nodes,)
+    )
+    degrees[:] = 0
+    counted_edges = 0
+    for sources, _ in _iter_edge_chunks(source, chunk_rows):
+        unique_sources, counts = np.unique(sources, return_counts=True)
+        degrees[unique_sources] += counts.astype(np.uint64, copy=False)
+        counted_edges += int(sources.size)
+    if counted_edges != source.num_edges:
+        raise ValueError(
+            f"Edge source has {counted_edges} rows; expected {source.num_edges}"
+        )
+    degrees.flush()
+
+    offsets = np.memmap(
+        offsets_path,
+        dtype=np.uint64,
+        mode="w+",
+        shape=(source.num_nodes + 1,),
+    )
+    offsets[0] = 0
+    running = 0
+    for start in range(0, source.num_nodes, chunk_rows):
+        stop = min(start + chunk_rows, source.num_nodes)
+        cumulative = np.cumsum(degrees[start:stop], dtype=np.uint64)
+        offsets[start + 1 : stop + 1] = cumulative + np.uint64(running)
+        if cumulative.size:
+            running += int(cumulative[-1])
+    if running != source.num_edges:
+        raise RuntimeError("CSR offsets do not cover every source edge")
+    offsets.flush()
+
+    cursors = np.memmap(
+        cursors_path, dtype=np.uint64, mode="w+", shape=(source.num_nodes,)
+    )
+    for start in range(0, source.num_nodes, chunk_rows):
+        stop = min(start + chunk_rows, source.num_nodes)
+        cursors[start:stop] = offsets[start:stop]
+    targets = np.memmap(
+        targets_path, dtype=np.int64, mode="w+", shape=(source.num_edges,)
+    )
+    written_edges = 0
+    for sources, edge_targets in _iter_edge_chunks(source, chunk_rows):
+        order = np.argsort(sources, kind="stable")
+        sorted_sources = sources[order]
+        sorted_targets = edge_targets[order]
+        unique_sources, first_indexes, counts = np.unique(
+            sorted_sources, return_index=True, return_counts=True
+        )
+        repeated_first = np.repeat(first_indexes, counts)
+        within_source = np.arange(sorted_sources.size, dtype=np.uint64) - repeated_first
+        write_positions = np.repeat(cursors[unique_sources], counts) + within_source
+        targets[write_positions.astype(np.int64, copy=False)] = sorted_targets
+        cursors[unique_sources] += counts.astype(np.uint64, copy=False)
+        written_edges += int(sources.size)
+    if written_edges != source.num_edges or not np.array_equal(
+        np.asarray(cursors), np.asarray(offsets[1:])
+    ):
+        raise RuntimeError("Source-sorted edge cache was not filled exactly once")
+    targets.flush()
+    cursors.flush()
+    metadata_path.write_text(
+        json.dumps(expected_metadata, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    del degrees
+    del cursors
+    degrees_path.unlink()
+    cursors_path.unlink()
+    return offsets, targets
+
+
+def _build_communication_membership(
+    source: OGBNodeClassificationSource,
+    owner: np.memmap,
+    work_dir: Path,
+    n_trainer: int,
+    chunk_rows: int,
+) -> np.memmap:
+    """Return a file-backed node-by-trainer membership bitset.
+
+    A node belongs to trainer i when it is owned by i or has an edge into a
+    node owned by i. This matches PyG's one-hop source-to-target neighborhood
+    used by FedGraph's two-layer path.
+    """
+    word_count = (n_trainer + 63) // 64
+    path = work_dir / "communication_membership.u64"
+    metadata_path = work_dir / "communication_membership.json"
+    source_stat = source.edges.stat()
+    owner_path = Path(owner.filename)
+    owner_stat = owner_path.stat()
+
+    expected_metadata = {
+        "membership_version": 1,
+        "num_nodes": source.num_nodes,
+        "num_edges": source.num_edges,
+        "n_trainer": n_trainer,
+        "word_count": word_count,
+        "source": str(source.edges),
+        "source_size": source_stat.st_size,
+        "source_mtime_ns": source_stat.st_mtime_ns,
+        "owner": str(owner_path),
+        "owner_size": owner_stat.st_size,
+        "owner_mtime_ns": owner_stat.st_mtime_ns,
+    }
+    expected_size = source.num_nodes * word_count * np.dtype(np.uint64).itemsize
+    if (
+        path.is_file()
+        and path.stat().st_size == expected_size
+        and metadata_path.is_file()
+        and json.loads(metadata_path.read_text(encoding="utf-8")) == expected_metadata
+    ):
+        return np.memmap(
+            path,
+            dtype=np.uint64,
+            mode="r",
+            shape=(source.num_nodes, word_count),
+        )
+
+    path.unlink(missing_ok=True)
+    membership = np.memmap(
+        path,
+        dtype=np.uint64,
+        mode="w+",
+        shape=(source.num_nodes, word_count),
+    )
+    membership[:] = 0
+    for start in range(0, source.num_nodes, chunk_rows):
+        stop = min(start + chunk_rows, source.num_nodes)
+        owners = np.asarray(owner[start:stop], dtype=np.uint64)
+        rows = np.arange(stop - start, dtype=np.int64)
+        values = np.zeros((stop - start, word_count), dtype=np.uint64)
+        words = (owners // 64).astype(np.int64, copy=False)
+        bits = np.left_shift(np.uint64(1), owners % 64)
+        values[rows, words] = bits
+        membership[start:stop] = values
+
+    flattened = membership.reshape(-1)
+    for sources, targets in _iter_edge_chunks(source, chunk_rows):
+        target_owners = np.asarray(owner[targets], dtype=np.uint64)
+        words = target_owners // 64
+        flattened_indexes = (
+            sources.astype(np.uint64, copy=False) * np.uint64(word_count) + words
+        )
+        masks = np.left_shift(np.uint64(1), target_owners % 64)
+        order = np.argsort(flattened_indexes, kind="stable")
+        sorted_indexes = flattened_indexes[order]
+        sorted_masks = masks[order]
+        unique_indexes, first_indexes = np.unique(sorted_indexes, return_index=True)
+        combined_masks = np.bitwise_or.reduceat(sorted_masks, first_indexes)
+        integer_indexes = unique_indexes.astype(np.int64, copy=False)
+        flattened[integer_indexes] = flattened[integer_indexes] | combined_masks
+    membership.flush()
+    metadata_path.write_text(
+        json.dumps(expected_metadata, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return membership
+
+
+def _write_communicate_node_indexes(
+    shard_root: Path,
+    membership: np.memmap,
+    n_trainer: int,
+    chunk_rows: int,
+) -> list[int]:
+    counts = np.zeros(n_trainer, dtype=np.int64)
+    with ExitStack() as stack:
+        handles = [
+            stack.enter_context(
+                (
+                    shard_root
+                    / f"trainer-{trainer_id:03d}"
+                    / "communicate_node_index.i64"
+                ).open("wb")
+            )
+            for trainer_id in range(n_trainer)
+        ]
+        for start in range(0, membership.shape[0], chunk_rows):
+            stop = min(start + chunk_rows, membership.shape[0])
+            values = np.asarray(membership[start:stop], dtype=np.uint64)
+            node_ids = np.arange(start, stop, dtype=np.int64)
+            for trainer_id in range(n_trainer):
+                word = trainer_id // 64
+                mask = np.left_shift(np.uint64(1), np.uint64(trainer_id % 64))
+                selected = node_ids[(values[:, word] & mask) != 0]
+                selected.tofile(handles[trainer_id])
+                counts[trainer_id] += selected.size
+    return [int(value) for value in counts]
+
+
+def _source_batches(
+    communicate_nodes: np.memmap,
+    source_offsets: np.memmap,
+    chunk_rows: int,
+) -> Iterator[tuple[int, int, np.ndarray]]:
+    """Yield communication-node ranges with bounded outgoing edge counts."""
+    start = 0
+    max_sources = max(1, chunk_rows)
+    max_edges = max(1, chunk_rows * 16)
+    while start < communicate_nodes.size:
+        stop = min(start + max_sources, communicate_nodes.size)
+        nodes = np.asarray(communicate_nodes[start:stop], dtype=np.int64)
+        counts = (source_offsets[nodes + 1] - source_offsets[nodes]).astype(
+            np.int64, copy=False
+        )
+        total = int(counts.sum())
+        if total > max_edges and nodes.size > 1:
+            cumulative = np.cumsum(counts, dtype=np.int64)
+            bounded_size = int(np.searchsorted(cumulative, max_edges, side="right"))
+            stop = start + max(1, bounded_size)
+            nodes = np.asarray(communicate_nodes[start:stop], dtype=np.int64)
+        yield start, stop, nodes
+        start = stop
+
+
+def _gather_csr_targets(
+    sources: np.ndarray,
+    source_offsets: np.memmap,
+    sorted_targets: np.memmap,
+) -> tuple[np.ndarray, np.ndarray]:
+    starts = np.asarray(source_offsets[sources], dtype=np.uint64)
+    counts = np.asarray(
+        source_offsets[sources + 1] - source_offsets[sources], dtype=np.int64
+    )
+    total = int(counts.sum())
+    if total == 0:
+        return np.empty(0, dtype=np.int64), np.empty(0, dtype=np.int64)
+    repeated_starts = np.repeat(starts, counts)
+    group_starts = np.cumsum(counts, dtype=np.int64) - counts
+    within_group = np.arange(total, dtype=np.uint64) - np.repeat(
+        group_starts.astype(np.uint64, copy=False), counts
+    )
+    positions = repeated_starts + within_group
+    targets = np.asarray(
+        sorted_targets[positions.astype(np.int64, copy=False)], dtype=np.int64
+    )
+    source_positions = np.repeat(np.arange(sources.size, dtype=np.int64), counts)
+    return source_positions, targets
+
+
+def _write_2hop_adjacencies(
+    shard_root: Path,
+    communicate_node_counts: list[int],
+    membership: np.memmap,
+    source_offsets: np.memmap,
+    sorted_targets: np.memmap,
+    n_trainer: int,
+    chunk_rows: int,
+) -> list[int]:
+    """Write source-sorted global and pre-relabeled induced adjacency files."""
+    edge_counts: list[int] = []
+    for trainer_id in range(n_trainer):
+        shard_dir = shard_root / f"trainer-{trainer_id:03d}"
+        communicate_count = communicate_node_counts[trainer_id]
+        communicate_nodes = np.memmap(
+            shard_dir / "communicate_node_index.i64",
+            dtype=np.int64,
+            mode="r",
+            shape=(communicate_count,),
+        )
+        degree_path = shard_dir / "source_degree.i64"
+        degrees = np.memmap(
+            degree_path,
+            dtype=np.int64,
+            mode="w+",
+            shape=(communicate_count,),
+        )
+        degrees[:] = 0
+        global_path = shard_dir / "adj_global.i64"
+        local_path = shard_dir / "adj_local.i64"
+        edge_count = 0
+        word = trainer_id // 64
+        mask = np.left_shift(np.uint64(1), np.uint64(trainer_id % 64))
+        with global_path.open("wb") as global_output, local_path.open(
+            "wb"
+        ) as local_output:
+            for local_start, local_stop, global_sources in _source_batches(
+                communicate_nodes, source_offsets, chunk_rows
+            ):
+                source_offsets_in_batch, global_targets = _gather_csr_targets(
+                    global_sources, source_offsets, sorted_targets
+                )
+                if global_targets.size == 0:
+                    continue
+                retained = (membership[global_targets, word] & mask) != 0
+                if not np.any(retained):
+                    continue
+                source_positions = source_offsets_in_batch[retained] + local_start
+                retained_targets = global_targets[retained]
+                target_positions = np.searchsorted(
+                    communicate_nodes, retained_targets
+                ).astype(np.int64, copy=False)
+                if np.any(target_positions >= communicate_count) or not np.array_equal(
+                    np.asarray(communicate_nodes[target_positions]), retained_targets
+                ):
+                    raise RuntimeError(
+                        f"Trainer {trainer_id} adjacency target is absent from its "
+                        "communication index"
+                    )
+                retained_sources = np.asarray(
+                    communicate_nodes[source_positions], dtype=np.int64
+                )
+                np.column_stack((retained_sources, retained_targets)).astype(
+                    np.int64, copy=False
+                ).tofile(global_output)
+                np.column_stack((source_positions, target_positions)).astype(
+                    np.int64, copy=False
+                ).tofile(local_output)
+                batch_degrees = np.bincount(
+                    source_positions - local_start,
+                    minlength=local_stop - local_start,
+                )
+                degrees[local_start:local_stop] = batch_degrees
+                edge_count += int(retained_targets.size)
+        degrees.flush()
+        offset_path = shard_dir / "source_offsets.i64"
+        offsets = np.memmap(
+            offset_path,
+            dtype=np.int64,
+            mode="w+",
+            shape=(communicate_count + 1,),
+        )
+        offsets[0] = 0
+        running = 0
+        for start in range(0, communicate_count, chunk_rows):
+            stop = min(start + chunk_rows, communicate_count)
+            cumulative = np.cumsum(degrees[start:stop], dtype=np.int64)
+            offsets[start + 1 : stop + 1] = cumulative + running
+            if cumulative.size:
+                running += int(cumulative[-1])
+        offsets.flush()
+        if running != edge_count:
+            raise RuntimeError(
+                f"Trainer {trainer_id} source offsets do not cover its adjacency"
+            )
+        edge_counts.append(edge_count)
+    return edge_counts
+
+
 def _tensor_from_memmap(
     path: Path, dtype: np.dtype, shape: tuple[int, ...]
 ) -> torch.Tensor:
-    values = np.memmap(path, dtype=dtype, mode="r", shape=shape)
+    values = np.memmap(path, dtype=dtype, mode="r+", shape=shape)
     return torch.from_numpy(values)
 
 
@@ -991,6 +1432,328 @@ def _validate_final_shards(stage_dir: Path, plan: PartitionPlan) -> None:
         total_nodes += expected_nodes
     if total_nodes != plan.num_nodes:
         raise RuntimeError("shard node counts do not cover the source node count")
+
+
+def _split_payloads_for_communicate_nodes(
+    split_indexes: Mapping[str, np.ndarray],
+    labels: np.memmap,
+    owner: np.memmap,
+    shard_root: Path,
+    communicate_node_counts: list[int],
+    n_trainer: int,
+) -> dict[int, dict[str, tuple[torch.Tensor, torch.Tensor]]]:
+    payloads: dict[int, dict[str, tuple[torch.Tensor, torch.Tensor]]] = {
+        trainer_id: {} for trainer_id in range(n_trainer)
+    }
+    communicate_nodes = [
+        np.memmap(
+            shard_root / f"trainer-{trainer_id:03d}" / "communicate_node_index.i64",
+            dtype=np.int64,
+            mode="r",
+            shape=(communicate_node_counts[trainer_id],),
+        )
+        for trainer_id in range(n_trainer)
+    ]
+    for split, node_ids in split_indexes.items():
+        split_labels = np.asarray(labels[node_ids], dtype=np.int64)
+        if np.any(split_labels < 0):
+            raise ValueError(f"Official {split} split includes unlabeled nodes")
+        split_owners = np.asarray(owner[node_ids], dtype=np.uint8)
+        for trainer_id in range(n_trainer):
+            mask = split_owners == trainer_id
+            trainer_node_ids = node_ids[mask]
+            positions = np.searchsorted(
+                communicate_nodes[trainer_id], trainer_node_ids
+            ).astype(np.int64, copy=False)
+            if np.any(
+                positions >= communicate_node_counts[trainer_id]
+            ) or not np.array_equal(
+                np.asarray(communicate_nodes[trainer_id][positions]),
+                trainer_node_ids,
+            ):
+                raise RuntimeError(
+                    f"Trainer {trainer_id} {split} node is absent from its "
+                    "communication index"
+                )
+            order = np.argsort(positions, kind="stable")
+            payloads[trainer_id][split] = (
+                torch.from_numpy(positions[order]),
+                torch.from_numpy(split_labels[mask][order]),
+            )
+    return payloads
+
+
+def _edge_tensor_from_memmap(path: Path, edge_count: int) -> torch.Tensor:
+    if edge_count == 0:
+        return torch.empty((2, 0), dtype=torch.long)
+    values = np.memmap(path, dtype=np.int64, mode="r", shape=(edge_count, 2))
+    return torch.from_numpy(values).T
+
+
+def _finalize_2hop_shards(
+    stage_dir: Path,
+    plan: PartitionPlan,
+    labels: np.memmap,
+    owner: np.memmap,
+    split_indexes: Mapping[str, np.ndarray],
+    communicate_node_counts: list[int],
+    edge_counts: list[int],
+    checksums: bool,
+) -> tuple[list[dict[str, object]], int]:
+    shard_root = stage_dir / "shards"
+    split_payloads = _split_payloads_for_communicate_nodes(
+        split_indexes,
+        labels,
+        owner,
+        shard_root,
+        communicate_node_counts,
+        plan.n_trainer,
+    )
+    shard_metadata: list[dict[str, object]] = []
+    total_induced_edges = 0
+    for trainer_id, owned_node_count in enumerate(plan.shard_node_counts):
+        shard_dir = shard_root / f"trainer-{trainer_id:03d}"
+        communicate_node_count = communicate_node_counts[trainer_id]
+        edge_count = edge_counts[trainer_id]
+        local_nodes = _tensor_from_memmap(
+            shard_dir / "local_node_index.i64",
+            np.int64,
+            (owned_node_count,),
+        )
+        communicate_nodes = _tensor_from_memmap(
+            shard_dir / "communicate_node_index.i64",
+            np.int64,
+            (communicate_node_count,),
+        )
+        features = _tensor_from_memmap(
+            shard_dir / "features.f32",
+            np.float32,
+            (owned_node_count, plan.feature_dim),
+        )
+        global_adjacency = _edge_tensor_from_memmap(
+            shard_dir / "adj_global.i64", edge_count
+        )
+        local_adjacency = _edge_tensor_from_memmap(
+            shard_dir / "adj_local.i64", edge_count
+        )
+        source_degree = _tensor_from_memmap(
+            shard_dir / "source_degree.i64",
+            np.int64,
+            (communicate_node_count,),
+        )
+        source_offsets = _tensor_from_memmap(
+            shard_dir / "source_offsets.i64",
+            np.int64,
+            (communicate_node_count + 1,),
+        )
+
+        torch.save(local_nodes, shard_dir / "local_node_index.pt")
+        torch.save(communicate_nodes, shard_dir / "communicate_node_index.pt")
+        torch.save(global_adjacency, shard_dir / "adj_global.pt")
+        torch.save(local_adjacency, shard_dir / "adj.pt")
+        torch.save(source_degree, shard_dir / "source_degree.pt")
+        torch.save(source_offsets, shard_dir / "source_offsets.pt")
+        torch.save(features, shard_dir / "features.pt")
+        for split in _SPLIT_CODES:
+            indexes, split_labels = split_payloads[trainer_id][split]
+            torch.save(indexes, shard_dir / f"idx_{split}.pt")
+            torch.save(split_labels, shard_dir / f"{split}_labels.pt")
+        torch.save(torch.tensor(plan.num_nodes), shard_dir / "global_node_num.pt")
+        torch.save(torch.tensor(plan.class_num), shard_dir / "class_num.pt")
+
+        temporary_files = [
+            shard_dir / "features.f32",
+            shard_dir / "local_node_index.i64",
+            shard_dir / "communicate_node_index.i64",
+            shard_dir / "adj_global.i64",
+            shard_dir / "adj_local.i64",
+            shard_dir / "source_degree.i64",
+            shard_dir / "source_offsets.i64",
+        ]
+        for temporary_file in temporary_files:
+            temporary_file.unlink()
+
+        files = sorted(path for path in shard_dir.glob("*.pt") if path.is_file())
+        metadata: dict[str, object] = {
+            "trainer_id": trainer_id,
+            "owned_node_count": owned_node_count,
+            "communicate_node_count": communicate_node_count,
+            "induced_edge_count": edge_count,
+            "train_count": int(split_payloads[trainer_id]["train"][0].numel()),
+            "val_count": int(split_payloads[trainer_id]["val"][0].numel()),
+            "test_count": int(split_payloads[trainer_id]["test"][0].numel()),
+            "files": {path.name: path.stat().st_size for path in files},
+        }
+        if checksums:
+            metadata["sha256"] = {path.name: _sha256(path) for path in files}
+        (shard_dir / "metadata.json").write_text(
+            json.dumps(metadata, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        shard_metadata.append(metadata)
+        total_induced_edges += edge_count
+    return shard_metadata, total_induced_edges
+
+
+def _is_strictly_increasing(values: torch.Tensor, chunk_rows: int) -> bool:
+    previous: Optional[int] = None
+    for start in range(0, values.numel(), chunk_rows):
+        stop = min(start + chunk_rows, values.numel())
+        chunk = values[start:stop]
+        if chunk.numel() == 0:
+            continue
+        if previous is not None and int(chunk[0]) <= previous:
+            return False
+        if chunk.numel() > 1 and not bool(torch.all(chunk[1:] > chunk[:-1])):
+            return False
+        previous = int(chunk[-1])
+    return True
+
+
+def _validate_2hop_adjacency_contract(
+    *,
+    trainer_id: int,
+    communicate_nodes: torch.Tensor,
+    global_adjacency: torch.Tensor,
+    local_adjacency: torch.Tensor,
+    source_degree: torch.Tensor,
+    source_offsets: torch.Tensor,
+    chunk_rows: int,
+) -> None:
+    if global_adjacency.shape != local_adjacency.shape or (
+        global_adjacency.ndim != 2 or global_adjacency.shape[0] != 2
+    ):
+        raise RuntimeError(f"Shard {trainer_id} adjacency shapes are invalid")
+    edge_count = int(global_adjacency.shape[1])
+    if source_degree.shape != communicate_nodes.shape:
+        raise RuntimeError(f"Shard {trainer_id} source-degree shape is invalid")
+    if source_offsets.shape != (communicate_nodes.numel() + 1,):
+        raise RuntimeError(f"Shard {trainer_id} source-offset shape is invalid")
+    if int(source_offsets[0]) != 0 or int(source_offsets[-1]) != edge_count:
+        raise RuntimeError(f"Shard {trainer_id} source offsets are invalid")
+
+    for start in range(0, source_degree.numel(), chunk_rows):
+        stop = min(start + chunk_rows, source_degree.numel())
+        if not torch.equal(
+            source_offsets[start + 1 : stop + 1] - source_offsets[start:stop],
+            source_degree[start:stop],
+        ):
+            raise RuntimeError(f"Shard {trainer_id} source degree and offsets disagree")
+
+    previous_global_source: Optional[int] = None
+    previous_local_source: Optional[int] = None
+    for start in range(0, edge_count, chunk_rows):
+        stop = min(start + chunk_rows, edge_count)
+        global_chunk = global_adjacency[:, start:stop]
+        local_chunk = local_adjacency[:, start:stop]
+        if local_chunk.numel() and (
+            int(local_chunk.min()) < 0
+            or int(local_chunk.max()) >= communicate_nodes.numel()
+        ):
+            raise RuntimeError(
+                f"Shard {trainer_id} local adjacency endpoint is out of range"
+            )
+        if not torch.equal(communicate_nodes[local_chunk], global_chunk):
+            raise RuntimeError(
+                f"Shard {trainer_id} global and local adjacency views disagree"
+            )
+        global_sources = global_chunk[0]
+        local_sources = local_chunk[0]
+        if global_sources.numel():
+            if (
+                previous_global_source is not None
+                and int(global_sources[0]) < previous_global_source
+            ) or (
+                global_sources.numel() > 1
+                and not bool(torch.all(global_sources[1:] >= global_sources[:-1]))
+            ):
+                raise RuntimeError(
+                    f"Shard {trainer_id} global adjacency is not source-sorted"
+                )
+            if (
+                previous_local_source is not None
+                and int(local_sources[0]) < previous_local_source
+            ) or (
+                local_sources.numel() > 1
+                and not bool(torch.all(local_sources[1:] >= local_sources[:-1]))
+            ):
+                raise RuntimeError(
+                    f"Shard {trainer_id} local adjacency is not source-sorted"
+                )
+            previous_global_source = int(global_sources[-1])
+            previous_local_source = int(local_sources[-1])
+
+
+def _validate_final_2hop_shards(
+    stage_dir: Path,
+    plan: PartitionPlan,
+    chunk_rows: int,
+) -> None:
+    total_owned_nodes = 0
+    total_split_counts = {split: 0 for split in _SPLIT_CODES}
+    for trainer_id, expected_owned_nodes in enumerate(plan.shard_node_counts):
+        shard_dir = stage_dir / "shards" / f"trainer-{trainer_id:03d}"
+        local_nodes = torch.load(
+            shard_dir / "local_node_index.pt", weights_only=True, mmap=True
+        )
+        communicate_nodes = torch.load(
+            shard_dir / "communicate_node_index.pt", weights_only=True, mmap=True
+        )
+        features = torch.load(shard_dir / "features.pt", weights_only=True, mmap=True)
+        global_adjacency = torch.load(
+            shard_dir / "adj_global.pt", weights_only=True, mmap=True
+        )
+        local_adjacency = torch.load(shard_dir / "adj.pt", weights_only=True, mmap=True)
+        source_degree = torch.load(
+            shard_dir / "source_degree.pt", weights_only=True, mmap=True
+        )
+        source_offsets = torch.load(
+            shard_dir / "source_offsets.pt", weights_only=True, mmap=True
+        )
+        if local_nodes.numel() != expected_owned_nodes:
+            raise RuntimeError(f"Shard {trainer_id} owned-node count is invalid")
+        if not _is_strictly_increasing(local_nodes, chunk_rows) or not (
+            _is_strictly_increasing(communicate_nodes, chunk_rows)
+        ):
+            raise RuntimeError(f"Shard {trainer_id} node indexes are not sorted/unique")
+        for start in range(0, local_nodes.numel(), chunk_rows):
+            stop = min(start + chunk_rows, local_nodes.numel())
+            owned_chunk = local_nodes[start:stop]
+            positions = torch.searchsorted(communicate_nodes, owned_chunk)
+            if torch.any(positions >= communicate_nodes.numel()) or not torch.equal(
+                communicate_nodes[positions], owned_chunk
+            ):
+                raise RuntimeError(
+                    f"Shard {trainer_id} communication index omits an owned node"
+                )
+        if features.shape != (expected_owned_nodes, plan.feature_dim):
+            raise RuntimeError(f"Shard {trainer_id} feature shape is invalid")
+        _validate_2hop_adjacency_contract(
+            trainer_id=trainer_id,
+            communicate_nodes=communicate_nodes,
+            global_adjacency=global_adjacency,
+            local_adjacency=local_adjacency,
+            source_degree=source_degree,
+            source_offsets=source_offsets,
+            chunk_rows=chunk_rows,
+        )
+        for split in _SPLIT_CODES:
+            indexes = torch.load(shard_dir / f"idx_{split}.pt", weights_only=True)
+            split_labels = torch.load(
+                shard_dir / f"{split}_labels.pt", weights_only=True
+            )
+            if indexes.numel() != split_labels.numel() or (
+                indexes.numel()
+                and (
+                    int(indexes.min()) < 0
+                    or int(indexes.max()) >= communicate_nodes.numel()
+                )
+            ):
+                raise RuntimeError(f"Shard {trainer_id} has an invalid {split} split")
+            total_split_counts[split] += int(indexes.numel())
+        total_owned_nodes += expected_owned_nodes
+    if total_owned_nodes != plan.num_nodes:
+        raise RuntimeError("2-hop owned-node counts do not cover the source graph")
 
 
 def partition_raw_ogb_0hop(
@@ -1190,6 +1953,251 @@ def partition_raw_ogb_0hop(
     (stage_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
+    shutil.rmtree(work_dir)
+    os.replace(stage_dir, output)
+    return manifest
+
+
+def partition_raw_ogb_2hop(
+    *,
+    dataset_root: Path | str,
+    output_dir: Path | str,
+    n_trainer: int,
+    iid_beta: float,
+    seed: int,
+    split_name: str = "time",
+    chunk_rows: int = 100_000,
+    checksums: bool = True,
+    resume: bool = False,
+    input_format: str = "auto",
+    binary_cache_dir: Path | str | None = None,
+) -> dict[str, object]:
+    """Write a label-balanced artifact for FedGraph's two-layer NC path.
+
+    The communication set is the one-hop source-to-target neighborhood of each
+    trainer's owned nodes. Each shard contains the same induced edge set in two
+    coordinate systems: source-sorted global IDs for the unchunked baseline and
+    source-sorted communication-row positions for training and chunked access.
+    """
+    if chunk_rows < 1:
+        raise ValueError("chunk_rows must be positive")
+    source = discover_ogb_source(
+        dataset_root,
+        split_name,
+        input_format=input_format,
+        binary_cache_dir=binary_cache_dir,
+    )
+    output = Path(output_dir).expanduser().resolve()
+    if output.exists():
+        raise FileExistsError(f"Refusing to overwrite existing artifact: {output}")
+    stage_dir = output.with_name(f"{output.name}.incomplete")
+    work_dir = stage_dir / "_work"
+    plan_path = work_dir / "plan.json"
+    labels_path = work_dir / "labels.i32"
+    owner_path = work_dir / "owner.u8"
+    local_position_path = work_dir / "local_position.u32"
+
+    if stage_dir.exists() and not resume:
+        raise FileExistsError(
+            f"Found incomplete artifact at {stage_dir}; rerun with resume=True or remove it"
+        )
+    if not stage_dir.exists():
+        work_dir.mkdir(parents=True)
+
+    num_nodes = source.num_nodes
+    feature_dim = source.feature_dim
+    if resume:
+        if not all(
+            path.exists()
+            for path in (plan_path, labels_path, owner_path, local_position_path)
+        ):
+            raise FileNotFoundError(
+                f"Cannot resume {stage_dir}: the persistent assignment plan is incomplete"
+            )
+        plan = _read_plan(plan_path)
+        if (
+            plan.num_nodes != num_nodes
+            or plan.feature_dim != feature_dim
+            or plan.n_trainer != n_trainer
+            or plan.iid_beta != float(iid_beta)
+            or plan.seed != seed
+        ):
+            raise ValueError(
+                "resume arguments do not match the incomplete partition plan"
+            )
+        labels = np.memmap(labels_path, dtype=np.int32, mode="r", shape=(num_nodes,))
+        owner = np.memmap(owner_path, dtype=np.uint8, mode="r", shape=(num_nodes,))
+        local_position = np.memmap(
+            local_position_path, dtype=np.uint32, mode="r", shape=(num_nodes,)
+        )
+    else:
+        labels = (
+            _load_labels(source.labels, num_nodes, labels_path)
+            if source.input_format == "csv"
+            else _load_binary_labels(source.labels, num_nodes, labels_path)
+        )
+        plan = build_label_balanced_owner_plan(
+            labels,
+            n_trainer=n_trainer,
+            iid_beta=iid_beta,
+            seed=seed,
+            owner_path=owner_path,
+            local_position_path=local_position_path,
+        )
+        plan = PartitionPlan(**{**asdict(plan), "feature_dim": feature_dim})
+        _write_plan(plan_path, plan)
+        owner = np.memmap(owner_path, dtype=np.uint8, mode="r", shape=(num_nodes,))
+        local_position = np.memmap(
+            local_position_path, dtype=np.uint32, mode="r", shape=(num_nodes,)
+        )
+
+    split_indexes = {
+        split: _read_split_indexes(path, num_nodes)
+        for split, path in source.split_files.items()
+    }
+    split_codes = np.zeros(num_nodes, dtype=np.uint8)
+    for split, node_ids in split_indexes.items():
+        if np.any(split_codes[node_ids]):
+            raise ValueError("Official train/validation/test splits overlap")
+        split_codes[node_ids] = _SPLIT_CODES[split]
+
+    shard_root = stage_dir / "shards"
+    if shard_root.exists():
+        shutil.rmtree(shard_root)
+    shard_root.mkdir()
+    feature_maps, node_maps = _create_shard_memmaps(
+        shard_root, plan.shard_node_counts, plan.feature_dim
+    )
+    _write_local_node_indexes(node_maps, owner, local_position)
+    if source.input_format == "csv":
+        _write_features(
+            source.features,
+            feature_maps,
+            owner,
+            local_position,
+            plan.feature_dim,
+            chunk_rows,
+        )
+    else:
+        _write_binary_features(
+            source.features,
+            feature_maps,
+            owner,
+            local_position,
+            plan.feature_dim,
+            chunk_rows,
+        )
+    del feature_maps
+    del node_maps
+
+    global_source_offsets, global_sorted_targets = _build_source_sorted_edge_cache(
+        source, work_dir, chunk_rows
+    )
+    membership = _build_communication_membership(
+        source,
+        owner,
+        work_dir,
+        plan.n_trainer,
+        chunk_rows,
+    )
+    communicate_node_counts = _write_communicate_node_indexes(
+        shard_root,
+        membership,
+        plan.n_trainer,
+        chunk_rows,
+    )
+    edge_counts = _write_2hop_adjacencies(
+        shard_root,
+        communicate_node_counts,
+        membership,
+        global_source_offsets,
+        global_sorted_targets,
+        plan.n_trainer,
+        chunk_rows,
+    )
+    shard_metadata, total_induced_edges = _finalize_2hop_shards(
+        stage_dir,
+        plan,
+        labels,
+        owner,
+        split_indexes,
+        communicate_node_counts,
+        edge_counts,
+        checksums,
+    )
+    if total_induced_edges != sum(edge_counts):
+        raise RuntimeError("final shard edge counts do not match streamed edge counts")
+    _validate_final_2hop_shards(stage_dir, plan, chunk_rows)
+
+    adjacency_contract = {
+        "communicate_node_index": {
+            "file": "communicate_node_index.pt",
+            "coordinate_system": "global_node_id",
+            "sorted": True,
+            "unique": True,
+            "contains_all_owned_nodes": True,
+        },
+        "pretrain_adjacency": {
+            "file": "adj_global.pt",
+            "coordinate_system": "global_node_id",
+            "sorted_by": "source_then_input_order",
+            "edge_semantics": "induced_on_communication_nodes",
+        },
+        "training_adjacency": {
+            "file": "adj.pt",
+            "coordinate_system": "communicate_node_position",
+            "mapping_file": "communicate_node_index.pt",
+            "sorted_by": "source_then_input_order",
+            "edge_semantics": "same_edges_as_pretrain_adjacency",
+        },
+        "source_degree": {
+            "file": "source_degree.pt",
+            "alignment": "communicate_node_position",
+            "includes_self_loop": False,
+        },
+        "source_offsets": {
+            "file": "source_offsets.pt",
+            "alignment": "communicate_node_position_plus_terminal",
+            "indexes": "training_adjacency_columns",
+        },
+    }
+    manifest: dict[str, object] = {
+        "artifact_version": 2,
+        "hop_semantics": 2,
+        "neighborhood_hops": 1,
+        "message_flow": "source_to_target",
+        "partition_policy": "label_dirichlet_balanced_unlabeled",
+        "dataset_root": str(source.dataset_root),
+        "input_format": source.input_format,
+        "raw_files": source.raw_files,
+        "global_node_num": plan.num_nodes,
+        "global_edge_num": source.num_edges,
+        "total_induced_edge_num": total_induced_edges,
+        "edge_replication_factor": (
+            total_induced_edges / source.num_edges if source.num_edges else 0.0
+        ),
+        "feature_dtype": "float32",
+        "feature_dim": plan.feature_dim,
+        "feature_alignment": "local_node_index",
+        "class_num": plan.class_num,
+        "n_trainer": plan.n_trainer,
+        "iid_beta": plan.iid_beta,
+        "seed": plan.seed,
+        "labelled_node_count": plan.labelled_node_count,
+        "unlabelled_node_count": plan.unlabelled_node_count,
+        "official_split_counts": {
+            split: int(indexes.size) for split, indexes in split_indexes.items()
+        },
+        "adjacency_contract": adjacency_contract,
+        "shards": shard_metadata,
+    }
+    (stage_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    del membership
+    del global_source_offsets
+    del global_sorted_targets
     shutil.rmtree(work_dir)
     os.replace(stage_dir, output)
     return manifest
