@@ -6,6 +6,7 @@ import pytest
 import torch
 
 from fedgraph.federated_methods import (
+    _accumulate_chunked_feature_payload,
     _aggregate_indexed_feature_sums,
     _load_local_artifact_rank_hosts,
     _nc_plateau_round,
@@ -22,6 +23,7 @@ from fedgraph.federated_methods import (
     _resource_monitor_uses_manual_snapshots,
     _resource_monitor_uses_prometheus,
     _resource_snapshot_due,
+    _run_chunked_feature_pretraining,
     _unpack_nc_data,
     _weighted_nc_metric,
     run_fedgraph,
@@ -203,7 +205,7 @@ class TestIndexedFeatureAggregation:
                 attridict.AttriDict(pretrain_feature_aggregation_mode="stream")
             )
 
-    def test_chunked_mode_fails_before_ray_until_server_stages(self, tmp_path):
+    def test_chunked_mode_requires_output_dir_before_ray(self, tmp_path):
         (tmp_path / "manifest.json").write_text(
             '{"artifact_version": 2, "hop_semantics": 2, "n_trainer": 1}',
             encoding="utf-8",
@@ -223,7 +225,7 @@ class TestIndexedFeatureAggregation:
             graph_storage_mode="cpu",
         )
 
-        with pytest.raises(NotImplementedError, match="server orchestration"):
+        with pytest.raises(ValueError, match="pretrain_feature_output_dir"):
             run_NC(args)
 
     def test_chunked_mode_rejects_device_graph_storage(self, tmp_path):
@@ -243,6 +245,7 @@ class TestIndexedFeatureAggregation:
             use_encryption=False,
             pretrain_feature_upload_mode="indexed",
             pretrain_feature_aggregation_mode="chunked",
+            pretrain_feature_output_dir=str(tmp_path / "feature-output"),
             graph_storage_mode="device",
         )
 
@@ -278,6 +281,151 @@ class TestIndexedFeatureAggregation:
         )
         torch.testing.assert_close(
             aggregations[1], torch.tensor([[4.0, 40.0], [4.0, 40.0]])
+        )
+
+
+class _ImmediateResult:
+    def __init__(self, value=None, error=None):
+        self.value = value
+        self.error = error
+
+
+class _RemoteMethod:
+    def __init__(self, function):
+        self.function = function
+
+    def remote(self, *args):
+        try:
+            return _ImmediateResult(value=self.function(*args))
+        except Exception as error:
+            return _ImmediateResult(error=error)
+
+
+class _FakeChunkTrainer:
+    def __init__(self, local_values, requested_rows):
+        self.local_values = local_values
+        self.requested_rows = requested_rows
+        self.received_rows = []
+        self.received_values = []
+        self.initialized = False
+        self.finalized = False
+        self.aborted = False
+        self.initialize_chunked_feature_aggregation = _RemoteMethod(self._initialize)
+        self.get_chunked_local_feature_payload = _RemoteMethod(self._payload)
+        self.append_chunked_feature_aggregation_range = _RemoteMethod(self._append)
+        self.finalize_chunked_feature_aggregation = _RemoteMethod(self._finalize)
+        self.abort_chunked_feature_aggregation = _RemoteMethod(self._abort)
+
+    def _initialize(self):
+        self.initialized = True
+        return {"row_count": self.requested_rows.numel()}
+
+    def _payload(self, start, stop):
+        rows = torch.arange(start, stop)
+        values = self.local_values[start:stop]
+        active = torch.any(values != 0, dim=1)
+        requested = self.requested_rows[
+            (self.requested_rows >= start) & (self.requested_rows < stop)
+        ]
+        return rows[active], values[active], requested
+
+    def _append(self, start, stop, values):
+        requested = self.requested_rows[
+            (self.requested_rows >= start) & (self.requested_rows < stop)
+        ]
+        if values.size(0) != requested.numel():
+            raise ValueError("unexpected requested feature rows")
+        self.received_rows.append(requested.clone())
+        self.received_values.append(values.clone())
+        return {"chunk_rows": requested.numel()}
+
+    def _finalize(self):
+        self.finalized = True
+        return {"row_count": self.requested_rows.numel()}
+
+    def _abort(self):
+        self.aborted = True
+        return {"aborted": True}
+
+
+def test_chunked_feature_pretraining_aggregates_and_distributes_bounded_chunks(
+    monkeypatch,
+):
+    trainer_0 = _FakeChunkTrainer(
+        torch.tensor(
+            [
+                [1.0, 10.0],
+                [0.0, 0.0],
+                [2.0, 20.0],
+                [0.0, 0.0],
+                [3.0, 30.0],
+            ]
+        ),
+        torch.tensor([0, 1, 4]),
+    )
+    trainer_1 = _FakeChunkTrainer(
+        torch.tensor(
+            [
+                [0.0, 0.0],
+                [4.0, 40.0],
+                [5.0, 50.0],
+                [6.0, 60.0],
+                [0.0, 0.0],
+            ]
+        ),
+        torch.tensor([1, 2, 3, 4]),
+    )
+    observed_wait_widths = []
+
+    def fake_wait(refs, num_returns, timeout):
+        del timeout
+        observed_wait_widths.append(len(refs))
+        return refs[:num_returns], refs[num_returns:]
+
+    def fake_get(ref_or_refs):
+        if isinstance(ref_or_refs, list):
+            return [fake_get(ref) for ref in ref_or_refs]
+        if ref_or_refs.error is not None:
+            raise ref_or_refs.error
+        return ref_or_refs.value
+
+    monkeypatch.setattr("fedgraph.federated_methods.ray.wait", fake_wait)
+    monkeypatch.setattr("fedgraph.federated_methods.ray.get", fake_get)
+
+    upload_mib, download_mib = _run_chunked_feature_pretraining(
+        [trainer_0, trainer_1],
+        global_node_num=5,
+        feature_dim=2,
+        chunk_rows=2,
+        max_inflight_trainers=1,
+    )
+
+    assert upload_mib == pytest.approx(152 / (1024 * 1024))
+    assert download_mib == pytest.approx(56 / (1024 * 1024))
+    assert max(observed_wait_widths) == 1
+    assert trainer_0.initialized and trainer_0.finalized and not trainer_0.aborted
+    assert trainer_1.initialized and trainer_1.finalized and not trainer_1.aborted
+    torch.testing.assert_close(
+        torch.cat(trainer_0.received_values),
+        torch.tensor([[1.0, 10.0], [4.0, 40.0], [3.0, 30.0]]),
+    )
+    torch.testing.assert_close(
+        torch.cat(trainer_1.received_values),
+        torch.tensor([[4.0, 40.0], [7.0, 70.0], [6.0, 60.0], [3.0, 30.0]]),
+    )
+
+
+def test_chunked_feature_payload_rejects_rows_outside_server_range():
+    with pytest.raises(ValueError, match="outside the global range"):
+        _accumulate_chunked_feature_payload(
+            torch.zeros((2, 1)),
+            0,
+            2,
+            (
+                torch.tensor([2]),
+                torch.tensor([[1.0]]),
+                torch.tensor([], dtype=torch.long),
+            ),
         )
 
 

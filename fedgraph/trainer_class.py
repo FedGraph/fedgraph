@@ -32,7 +32,10 @@ from fedgraph.gnn_models import (
     GCN_arxiv,
     SAGE_products,
 )
-from fedgraph.graph_storage import relabel_adjacency_to_mmap_cache
+from fedgraph.graph_storage import (
+    FeatureAggregationStore,
+    relabel_adjacency_to_mmap_cache,
+)
 from fedgraph.resource_monitor import collect_resource_snapshot
 
 # Threshold-HE backend is optional. We delay-import OpenFHE bindings here so the
@@ -116,6 +119,13 @@ _HOST_GRAPH_STORAGE_MODES = {"cpu", "mmap"}
 _MMAP_GRAPH_ARTIFACT_FILES = {"adj.pt", "adj_global.pt", "features.pt"}
 _DEFAULT_PRETRAIN_FEATURE_CHUNK_ROWS = 65_536
 _DEFAULT_PRETRAIN_FEATURE_CHUNK_EDGES = 1_000_000
+_INTEGER_DTYPES = {
+    torch.uint8,
+    torch.int8,
+    torch.int16,
+    torch.int32,
+    torch.int64,
+}
 
 
 def _record_local_artifact_manifest(args: Any, manifest: dict[str, Any]) -> None:
@@ -834,6 +844,12 @@ class Trainer_General:
         self.source_offsets_artifact_path = artifact_paths.get("source_offsets.pt")
         self._chunk_source_degree: Optional[torch.Tensor] = None
         self._chunk_source_offsets: Optional[torch.Tensor] = None
+        self._chunked_feature_store: Optional[FeatureAggregationStore] = None
+        self.feature_aggregation_cache_path: Optional[str] = None
+        self.feature_aggregation_memory_mapped = False
+        self.feature_aggregation_rows_written = 0
+        self.feature_aggregation_finalized = False
+        self.raw_features_released = False
         artifact_manifest = getattr(args, "_local_artifact_manifest", {})
         self.artifact_version = (
             artifact_manifest.get("artifact_version")
@@ -923,6 +939,9 @@ class Trainer_General:
         self.feature_aggregation = None
         if self.args.method == "FedAvg":
             self.feature_aggregation = self.features
+            self.feature_aggregation_memory_mapped = self.features_memory_mapped
+            self.feature_aggregation_rows_written = int(self.features.size(0))
+            self.feature_aggregation_finalized = True
 
     def get_info(self):
         label_nums = [
@@ -941,7 +960,11 @@ class Trainer_General:
             "len_in_com_test_node_local_indexes": len(self.idx_test),
             "artifact_version": self.artifact_version,
         }
-        if self.args.method != "FedAvg":
+        if (
+            self.args.method != "FedAvg"
+            and getattr(self.args, "pretrain_feature_aggregation_mode", "full")
+            != "chunked"
+        ):
             info["communicate_node_global_index"] = (
                 self.communicate_node_index.detach().cpu()
             )
@@ -1246,6 +1269,10 @@ class Trainer_General:
                 "chunked feature aggregation requires graph_storage_mode='cpu' "
                 "or 'mmap'"
             )
+        if self.raw_features_released:
+            raise RuntimeError(
+                "raw features were released after pretraining aggregation finalized"
+            )
         if self.adj.device.type != "cpu" or self.features.device.type != "cpu":
             raise ValueError("chunked feature aggregation requires CPU graph tensors")
         if not isinstance(requested_row_ids, torch.Tensor):
@@ -1416,6 +1443,50 @@ class Trainer_General:
             row_values[active_rows].contiguous(),
         )
 
+    def get_chunked_local_feature_payload(
+        self, global_start_row: int, global_stop_row: int
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Return one bounded contribution and the local rows needed in its range."""
+        max_rows = int(
+            getattr(
+                self.args,
+                "pretrain_feature_chunk_rows",
+                _DEFAULT_PRETRAIN_FEATURE_CHUNK_ROWS,
+            )
+        )
+        if (
+            global_start_row < 0
+            or global_stop_row <= global_start_row
+            or (
+                self.global_node_num is not None
+                and global_stop_row > int(self.global_node_num)
+            )
+        ):
+            raise ValueError("invalid global feature chunk range")
+        if global_stop_row - global_start_row > max_rows:
+            raise ValueError("global feature chunk range exceeds the row limit")
+
+        requested_rows = torch.arange(
+            global_start_row,
+            global_stop_row,
+            dtype=torch.long,
+            device="cpu",
+        )
+        contribution_rows, contribution_values = self.get_chunked_local_feature_sum(
+            requested_rows
+        )
+        communicate_rows = self.communicate_node_index.long()
+        start_position = int(
+            torch.searchsorted(communicate_rows, global_start_row).item()
+        )
+        stop_position = int(
+            torch.searchsorted(communicate_rows, global_stop_row).item()
+        )
+        # Clone the slice so Ray serializes only this chunk instead of retaining
+        # the complete communicate_node_index storage behind a tensor view.
+        trainer_requested_rows = communicate_rows[start_position:stop_position].clone()
+        return contribution_rows, contribution_values, trainer_requested_rows
+
     def get_local_feature_sum_og(self) -> torch.Tensor:
         """
         Computes the sum of features of all 1-hop neighbors for each node, used for plain text version.
@@ -1467,6 +1538,10 @@ class Trainer_General:
         """
         # load_start = time.time()
         self.feature_aggregation = feature_aggregation.float().to(self.graph_device)
+        self.feature_aggregation_cache_path = None
+        self.feature_aggregation_memory_mapped = False
+        self.feature_aggregation_rows_written = int(self.feature_aggregation.size(0))
+        self.feature_aggregation_finalized = True
         # load_time = time.time() - load_start
         # data_size = (
         #     self.feature_aggregation.element_size()
@@ -1476,6 +1551,179 @@ class Trainer_General:
         # print(f"Trainer {self.rank} - Data size: {data_size / 1024:.2f} KB")
 
         # return load_time
+
+    def initialize_chunked_feature_aggregation(self) -> dict[str, Any]:
+        """Create the ordered file-backed destination for server result chunks."""
+        if self.artifact_version != 2:
+            raise ValueError("chunked feature output requires a v2 artifact")
+        if self.graph_storage_mode not in _HOST_GRAPH_STORAGE_MODES:
+            raise ValueError(
+                "chunked feature output requires graph_storage_mode='cpu' or 'mmap'"
+            )
+        if getattr(self.args, "pretrain_feature_aggregation_mode", "full") != "chunked":
+            raise ValueError(
+                "chunked feature output requires "
+                "pretrain_feature_aggregation_mode='chunked'"
+            )
+        if self._chunked_feature_store is not None:
+            raise RuntimeError("chunked feature output is already initialized")
+        if self.feature_aggregation_finalized:
+            raise RuntimeError("feature aggregation is already finalized")
+
+        configured_output_dir = getattr(self.args, "pretrain_feature_output_dir", None)
+        if not configured_output_dir:
+            raise ValueError(
+                "chunked feature output requires pretrain_feature_output_dir"
+            )
+        output_dir = Path(configured_output_dir).expanduser()
+        if not output_dir.is_absolute():
+            raise ValueError("pretrain_feature_output_dir must be an absolute path")
+
+        self._chunked_feature_store = FeatureAggregationStore(
+            output_dir,
+            trainer_id=int(self.rank),
+            row_count=int(self.communicate_node_index.numel()),
+            feature_dim=int(self.features.size(1)),
+        )
+        self.feature_aggregation_cache_path = str(self._chunked_feature_store.data_path)
+        self.feature_aggregation_rows_written = 0
+        return {
+            "trainer_id": int(self.rank),
+            "row_count": self._chunked_feature_store.row_count,
+            "feature_dim": self._chunked_feature_store.feature_dim,
+            "output_path": self.feature_aggregation_cache_path,
+        }
+
+    def append_chunked_feature_aggregation(
+        self, row_ids: torch.Tensor, row_values: torch.Tensor
+    ) -> dict[str, int]:
+        """Append the next server-aggregated slice in communication-row order."""
+        store = self._chunked_feature_store
+        if store is None:
+            raise RuntimeError("chunked feature output has not been initialized")
+        if not isinstance(row_ids, torch.Tensor) or not isinstance(
+            row_values, torch.Tensor
+        ):
+            raise TypeError("row_ids and row_values must be torch.Tensor instances")
+        if row_ids.ndim != 1:
+            raise ValueError("row_ids must be one-dimensional")
+        if row_ids.dtype not in _INTEGER_DTYPES:
+            raise ValueError("row_ids must use an integer dtype")
+        if row_ids.device.type != "cpu" or row_values.device.type != "cpu":
+            raise ValueError("aggregated feature chunks must be CPU tensors")
+        if row_values.ndim != 2 or row_values.size(0) != row_ids.numel():
+            raise ValueError("row_values must contain one row for every row ID")
+
+        max_rows = int(
+            getattr(
+                self.args,
+                "pretrain_feature_chunk_rows",
+                _DEFAULT_PRETRAIN_FEATURE_CHUNK_ROWS,
+            )
+        )
+        if row_ids.numel() > max_rows:
+            raise ValueError(
+                "aggregated feature rows exceed the configured chunk limit: "
+                f"{row_ids.numel()} > {max_rows}"
+            )
+
+        received_ids = row_ids.detach().to(device="cpu", dtype=torch.long)
+        start_row = store.written_rows
+        stop_row = start_row + received_ids.numel()
+        expected_ids = self.communicate_node_index[start_row:stop_row].long()
+        if expected_ids.numel() != received_ids.numel() or not torch.equal(
+            expected_ids, received_ids
+        ):
+            raise ValueError(
+                "aggregated feature rows must match the next ordered slice of "
+                "communicate_node_index"
+            )
+
+        cpu_values = row_values.detach().to(device="cpu", dtype=torch.float32)
+        store.write(start_row, cpu_values)
+        self.feature_aggregation_rows_written = store.written_rows
+        return {
+            "trainer_id": int(self.rank),
+            "rows_written": store.written_rows,
+            "row_count": store.row_count,
+            "chunk_rows": int(received_ids.numel()),
+            "chunk_bytes": int(cpu_values.numel() * cpu_values.element_size()),
+        }
+
+    def append_chunked_feature_aggregation_range(
+        self,
+        global_start_row: int,
+        global_stop_row: int,
+        row_values: torch.Tensor,
+    ) -> dict[str, int]:
+        """Append this trainer's requested rows from one ordered global range."""
+        if (
+            global_start_row < 0
+            or global_stop_row <= global_start_row
+            or (
+                self.global_node_num is not None
+                and global_stop_row > int(self.global_node_num)
+            )
+        ):
+            raise ValueError("invalid global feature chunk range")
+        communicate_rows = self.communicate_node_index.long()
+        start_position = int(
+            torch.searchsorted(communicate_rows, global_start_row).item()
+        )
+        stop_position = int(
+            torch.searchsorted(communicate_rows, global_stop_row).item()
+        )
+        expected_rows = communicate_rows[start_position:stop_position]
+        return self.append_chunked_feature_aggregation(expected_rows, row_values)
+
+    def finalize_chunked_feature_aggregation(self) -> dict[str, Any]:
+        """Publish the feature file and release pretraining-only graph tensors."""
+        store = self._chunked_feature_store
+        if store is None:
+            raise RuntimeError("chunked feature output has not been initialized")
+
+        feature_aggregation = store.finalize()
+        self.feature_aggregation = feature_aggregation
+        self.feature_aggregation_cache_path = str(store.data_path)
+        self.feature_aggregation_memory_mapped = feature_aggregation.numel() > 0
+        self.feature_aggregation_rows_written = store.written_rows
+        self.feature_aggregation_finalized = True
+        self._chunked_feature_store = None
+
+        # The v2 artifact provides the same edges in local row coordinates for
+        # NeighborLoader. relabel_adj releases the global-ID view before loading it.
+        self.relabel_adj()
+
+        feature_dim = int(self.features.size(1))
+        feature_dtype = self.features.dtype
+        self.features = torch.empty((0, feature_dim), dtype=feature_dtype)
+        self.features_memory_mapped = False
+        self.raw_features_released = True
+        self._chunk_source_degree = None
+        self._chunk_source_offsets = None
+
+        return {
+            "trainer_id": int(self.rank),
+            "row_count": int(feature_aggregation.size(0)),
+            "feature_dim": int(feature_aggregation.size(1)),
+            "size_bytes": int(
+                feature_aggregation.numel() * feature_aggregation.element_size()
+            ),
+            "output_path": self.feature_aggregation_cache_path,
+            "adjacency_relabel_strategy": self.adjacency_relabel_strategy,
+            "raw_features_released": self.raw_features_released,
+        }
+
+    def abort_chunked_feature_aggregation(self) -> dict[str, Any]:
+        """Remove one incomplete output while leaving source artifacts intact."""
+        store = self._chunked_feature_store
+        if store is None:
+            return {"trainer_id": int(self.rank), "aborted": False}
+        store.abort()
+        self._chunked_feature_store = None
+        self.feature_aggregation_cache_path = None
+        self.feature_aggregation_rows_written = 0
+        return {"trainer_id": int(self.rank), "aborted": True}
 
     def encrypt_feature_sum(self, feature_sum):
         feature_sum = self.get_local_feature_sum()
@@ -1809,6 +2057,13 @@ class Trainer_General:
         )
         source_edge_count = int(self.adj.size(1))
         if node_index is None and self.pre_relabelled_adjacency_path is not None:
+            # Release the pretraining global-ID view before opening the local-ID
+            # training view. This avoids holding two edge tensors in host RAM or
+            # VRAM at the lifecycle transition.
+            adjacency_was_cuda = self.adj.device.type == "cuda"
+            self.adj = torch.empty((2, 0), dtype=torch.long, device="cpu")
+            if adjacency_was_cuda:
+                torch.cuda.empty_cache()
             local_adjacency = _load_artifact_tensor(
                 self.pre_relabelled_adjacency_path,
                 memory_map=(
@@ -1826,11 +2081,6 @@ class Trainer_General:
                     "pretraining and training artifact adjacency edge counts differ"
                 )
 
-            # Drop the global-ID GPU view before copying the local-coordinate
-            # view so both edge tensors never occupy VRAM simultaneously.
-            if self.adj.device.type == "cuda":
-                self.adj = torch.empty((2, 0), dtype=torch.long, device="cpu")
-                torch.cuda.empty_cache()
             self.adj = local_adjacency.to(self.graph_device)
             self.adjacency_artifact_path = self.pre_relabelled_adjacency_path
             self.adjacency_memory_mapped = self.graph_storage_mode == "mmap"

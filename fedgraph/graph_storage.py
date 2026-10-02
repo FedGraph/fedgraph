@@ -13,6 +13,7 @@ import numpy as np
 import torch
 
 _RELABEL_CACHE_VERSION = 1
+_FEATURE_AGGREGATION_STORE_VERSION = 1
 _INTEGER_DTYPES = {
     torch.uint8,
     torch.int8,
@@ -33,6 +34,123 @@ class RelabeledAdjacency:
     edge_count: int
     dropped_edge_count: int
     elapsed_sec: float
+
+
+class FeatureAggregationStore:
+    """Ordered, atomic file-backed storage for one trainer's feature matrix."""
+
+    def __init__(
+        self,
+        output_dir: Path,
+        *,
+        trainer_id: int,
+        row_count: int,
+        feature_dim: int,
+    ) -> None:
+        if trainer_id < 0:
+            raise ValueError("trainer_id must be non-negative")
+        if row_count < 0 or feature_dim < 1:
+            raise ValueError("feature aggregation shape is invalid")
+
+        trainer_dir = output_dir.expanduser().resolve() / f"trainer-{trainer_id:03d}"
+        trainer_dir.mkdir(parents=True, exist_ok=True)
+        self.row_count = row_count
+        self.feature_dim = feature_dim
+        self.written_rows = 0
+        self.data_path = trainer_dir / "feature-aggregation.f32"
+        self.metadata_path = trainer_dir / "feature-aggregation.json"
+        temporary_suffix = f"tmp-{os.getpid()}-{time.time_ns()}"
+        self.temporary_data_path = trainer_dir / (
+            f"feature-aggregation.f32.{temporary_suffix}"
+        )
+        self.temporary_metadata_path = trainer_dir / (
+            f"feature-aggregation.json.{temporary_suffix}"
+        )
+        self._storage: np.memmap | None = None
+        self._finalized = False
+        if row_count == 0:
+            self.temporary_data_path.touch()
+        else:
+            self._storage = np.memmap(
+                self.temporary_data_path,
+                dtype=np.float32,
+                mode="w+",
+                shape=(row_count, feature_dim),
+            )
+
+    def write(self, start_row: int, values: torch.Tensor) -> None:
+        """Append one contiguous row block at the expected output position."""
+        if self._finalized:
+            raise RuntimeError("feature aggregation store is already finalized")
+        if start_row != self.written_rows:
+            raise ValueError(
+                "feature aggregation chunks must be written once in row order: "
+                f"expected start {self.written_rows}, got {start_row}"
+            )
+        if values.device.type != "cpu":
+            raise ValueError("feature aggregation chunks must be CPU tensors")
+        if values.ndim != 2 or values.size(1) != self.feature_dim:
+            raise ValueError("feature aggregation chunk has an invalid shape")
+        stop_row = start_row + values.size(0)
+        if stop_row > self.row_count:
+            raise ValueError("feature aggregation chunk exceeds the output shape")
+        if values.numel():
+            if self._storage is None:
+                raise RuntimeError("feature aggregation storage is unavailable")
+            self._storage[start_row:stop_row] = (
+                values.detach().float().contiguous().numpy()
+            )
+        self.written_rows = stop_row
+
+    def finalize(self) -> torch.Tensor:
+        """Atomically publish and reopen the complete feature matrix."""
+        if self._finalized:
+            raise RuntimeError("feature aggregation store is already finalized")
+        if self.written_rows != self.row_count:
+            raise RuntimeError(
+                "feature aggregation store is incomplete: "
+                f"{self.written_rows}/{self.row_count} rows"
+            )
+        if self._storage is not None:
+            self._storage.flush()
+            del self._storage
+            self._storage = None
+
+        metadata = {
+            "store_version": _FEATURE_AGGREGATION_STORE_VERSION,
+            "dtype": "float32",
+            "layout": "row_major",
+            "row_count": self.row_count,
+            "feature_dim": self.feature_dim,
+            "size_bytes": self.row_count
+            * self.feature_dim
+            * np.dtype(np.float32).itemsize,
+        }
+        self.temporary_metadata_path.write_text(
+            json.dumps(metadata, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        os.replace(self.temporary_data_path, self.data_path)
+        os.replace(self.temporary_metadata_path, self.metadata_path)
+        self._finalized = True
+
+        if self.row_count == 0:
+            return torch.empty((0, self.feature_dim), dtype=torch.float32)
+        return torch.from_file(
+            str(self.data_path),
+            shared=False,
+            size=self.row_count * self.feature_dim,
+            dtype=torch.float32,
+        ).view(self.row_count, self.feature_dim)
+
+    def abort(self) -> None:
+        """Discard an unfinished temporary output without touching published data."""
+        if self._storage is not None:
+            self._storage.flush()
+            del self._storage
+            self._storage = None
+        self.temporary_data_path.unlink(missing_ok=True)
+        self.temporary_metadata_path.unlink(missing_ok=True)
 
 
 def _hash_index_tensor(indexes: torch.Tensor, chunk_elements: int = 1_000_000) -> str:

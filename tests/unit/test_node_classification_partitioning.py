@@ -494,6 +494,23 @@ def test_chunked_v2_feature_sum_matches_full_indexed_aggregation(
             norm_type=norm_type,
         ),
     )
+    assert "communicate_node_global_index" not in trainer.get_info()
+
+    payload_rows, payload_values, trainer_requested_rows = (
+        trainer.get_chunked_local_feature_payload(0, 2)
+    )
+    direct_rows, direct_values = trainer.get_chunked_local_feature_sum(
+        torch.arange(0, 2)
+    )
+    torch.testing.assert_close(payload_rows, direct_rows)
+    torch.testing.assert_close(payload_values, direct_values)
+    expected_requested_rows = trainer.communicate_node_index[
+        trainer.communicate_node_index < 2
+    ]
+    torch.testing.assert_close(trainer_requested_rows, expected_requested_rows)
+    assert trainer_requested_rows.untyped_storage().nbytes() == (
+        trainer_requested_rows.numel() * trainer_requested_rows.element_size()
+    )
 
     full_row_ids, full_row_values = trainer.get_indexed_local_feature_sum()
     chunk_row_ids = []
@@ -552,6 +569,95 @@ def test_chunked_v2_feature_sum_rejects_unbounded_or_unsorted_requests(tmp_path)
         trainer.get_chunked_local_feature_sum(torch.tensor([0, 1, 2]))
     with pytest.raises(ValueError, match="sorted and unique"):
         trainer.get_chunked_local_feature_sum(torch.tensor([1, 0]))
+
+
+@pytest.mark.parametrize("graph_storage_mode", ["cpu", "mmap"])
+def test_chunked_v2_feature_output_finalizes_to_file_and_releases_sources(
+    tmp_path, graph_storage_mode
+):
+    dataset_root = tmp_path / "synthetic"
+    artifact_dir = tmp_path / "artifact-2hop"
+    feature_output_dir = tmp_path / "feature-output"
+    _make_raw_dataset(dataset_root)
+    partition_raw_ogb_2hop(
+        dataset_root=dataset_root,
+        output_dir=artifact_dir,
+        n_trainer=2,
+        iid_beta=10000.0,
+        seed=42,
+        checksums=False,
+        chunk_rows=2,
+    )
+    trainer = Trainer_General(
+        rank=0,
+        args_hidden=8,
+        device=torch.device("cpu"),
+        args=SimpleNamespace(
+            local_artifact_dir=str(artifact_dir),
+            use_huggingface=False,
+            num_hops=2,
+            n_trainer=2,
+            graph_storage_mode=graph_storage_mode,
+            graph_relabel_chunk_edges=2,
+            pretrain_feature_aggregation_mode="chunked",
+            pretrain_feature_chunk_rows=2,
+            pretrain_feature_chunk_edges=1,
+            pretrain_feature_output_dir=str(feature_output_dir),
+            seed=42,
+            local_step=1,
+            method="FedGCN",
+            norm_type="none",
+        ),
+    )
+    local_adjacency = torch.load(
+        artifact_dir / "shards" / "trainer-000" / "adj.pt",
+        weights_only=True,
+    )
+    trainer.get_chunked_local_feature_sum(trainer.communicate_node_index[:2])
+    assert trainer._chunk_source_degree is not None
+    assert trainer._chunk_source_offsets is not None
+
+    initialization = trainer.initialize_chunked_feature_aggregation()
+    expected = torch.arange(
+        trainer.communicate_node_index.numel() * trainer.features.size(1),
+        dtype=torch.float32,
+    ).view(trainer.communicate_node_index.numel(), trainer.features.size(1))
+    with pytest.raises(ValueError, match="next ordered slice"):
+        trainer.append_chunked_feature_aggregation(
+            trainer.communicate_node_index[1:2], expected[1:2]
+        )
+
+    for global_start in range(0, trainer.global_node_num, 2):
+        global_stop = min(global_start + 2, trainer.global_node_num)
+        start_position = int(
+            torch.searchsorted(trainer.communicate_node_index, global_start)
+        )
+        stop_position = int(
+            torch.searchsorted(trainer.communicate_node_index, global_stop)
+        )
+        status = trainer.append_chunked_feature_aggregation_range(
+            global_start,
+            global_stop,
+            expected[start_position:stop_position],
+        )
+        assert status["rows_written"] == stop_position
+
+    finalized = trainer.finalize_chunked_feature_aggregation()
+
+    assert initialization["row_count"] == trainer.communicate_node_index.numel()
+    assert finalized["raw_features_released"] is True
+    assert finalized["adjacency_relabel_strategy"] == "artifact-precomputed"
+    assert Path(finalized["output_path"]).is_file()
+    assert trainer.feature_aggregation_memory_mapped is True
+    assert trainer.feature_aggregation_finalized is True
+    assert trainer.raw_features_released is True
+    assert trainer.features.shape == (0, expected.size(1))
+    assert trainer._chunk_source_degree is None
+    assert trainer._chunk_source_offsets is None
+    torch.testing.assert_close(trainer.feature_aggregation, expected)
+    torch.testing.assert_close(trainer.adj, local_adjacency)
+    with pytest.raises(RuntimeError, match="raw features were released"):
+        trainer.get_chunked_local_feature_sum(torch.tensor([0]))
 
 
 def test_local_artifact_mmap_maps_only_large_graph_tensors(tmp_path):

@@ -95,6 +95,8 @@ class ExperimentConfig:
     pretrain_feature_aggregation_mode: str
     pretrain_feature_chunk_rows: int
     pretrain_feature_chunk_edges: int
+    pretrain_feature_max_inflight_trainers: int
+    pretrain_feature_output_dir: Optional[str]
     graph_storage_mode: str
     graph_relabel_cache_dir: Optional[str]
     graph_relabel_chunk_edges: int
@@ -352,6 +354,13 @@ def to_fedgraph_args(
     # where training dependencies have not been installed yet.
     import attridict
 
+    pretrain_feature_output_dir = None
+    if config.pretrain_feature_output_dir:
+        run_id = logdir.parent.name
+        pretrain_feature_output_dir = str(
+            Path(config.pretrain_feature_output_dir) / run_id
+        )
+
     return attridict.AttriDict(
         {
             "fedgraph_task": "NC",
@@ -374,6 +383,10 @@ def to_fedgraph_args(
             ),
             "pretrain_feature_chunk_rows": config.pretrain_feature_chunk_rows,
             "pretrain_feature_chunk_edges": config.pretrain_feature_chunk_edges,
+            "pretrain_feature_max_inflight_trainers": (
+                config.pretrain_feature_max_inflight_trainers
+            ),
+            "pretrain_feature_output_dir": pretrain_feature_output_dir,
             "graph_storage_mode": config.graph_storage_mode,
             "graph_relabel_cache_dir": config.graph_relabel_cache_dir,
             "graph_relabel_chunk_edges": config.graph_relabel_chunk_edges,
@@ -878,6 +891,10 @@ def run_experiment(
         "gpu": config.gpu,
         "pretrain_feature_chunk_rows": config.pretrain_feature_chunk_rows,
         "pretrain_feature_chunk_edges": config.pretrain_feature_chunk_edges,
+        "pretrain_feature_max_inflight_trainers": (
+            config.pretrain_feature_max_inflight_trainers
+        ),
+        "pretrain_feature_output_dir": config.pretrain_feature_output_dir,
         "graph_storage_mode": config.graph_storage_mode,
         "graph_relabel_cache_dir": config.graph_relabel_cache_dir,
         "graph_relabel_chunk_edges": config.graph_relabel_chunk_edges,
@@ -1060,6 +1077,8 @@ def run_experiment(
         "gpu",
         "pretrain_feature_chunk_rows",
         "pretrain_feature_chunk_edges",
+        "pretrain_feature_max_inflight_trainers",
+        "pretrain_feature_output_dir",
         "graph_storage_mode",
         "graph_relabel_cache_dir",
         "graph_relabel_chunk_edges",
@@ -1171,6 +1190,14 @@ def build_configs(args) -> List[ExperimentConfig]:
                         pretrain_feature_chunk_edges=(
                             args.pretrain_feature_chunk_edges
                         ),
+                        pretrain_feature_max_inflight_trainers=(
+                            args.pretrain_feature_max_inflight_trainers
+                        ),
+                        pretrain_feature_output_dir=(
+                            str(args.pretrain_feature_output_dir)
+                            if args.pretrain_feature_output_dir
+                            else None
+                        ),
                         graph_storage_mode=args.graph_storage_mode,
                         graph_relabel_cache_dir=(
                             str(args.graph_relabel_cache_dir)
@@ -1265,8 +1292,7 @@ def parse_args():
         help=(
             "Plaintext FedGCN pretraining protocol. Full preserves complete "
             "indexed trainer uploads and server aggregation. Chunked selects "
-            "the bounded Component 2 protocol. Its trainer kernel is available, "
-            "while end-to-end orchestration remains guarded."
+            "the bounded Component 2 trainer/server streaming protocol."
         ),
     )
     parser.add_argument(
@@ -1280,6 +1306,24 @@ def parse_args():
         type=int,
         default=1_000_000,
         help="Maximum number of adjacency edges processed per trainer sub-batch.",
+    )
+    parser.add_argument(
+        "--pretrain-feature-output-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Absolute worker-local root for file-backed aggregated feature "
+            "outputs used by chunked pretraining. Each run gets a subdirectory."
+        ),
+    )
+    parser.add_argument(
+        "--pretrain-feature-max-inflight-trainers",
+        type=int,
+        default=4,
+        help=(
+            "Maximum number of trainer contribution or finalization calls in "
+            "flight during chunked pretraining."
+        ),
     )
     parser.add_argument(
         "--graph-storage-mode",
@@ -1484,6 +1528,12 @@ def main() -> int:
         raise SystemExit("--pretrain-feature-chunk-rows must be positive")
     if args.pretrain_feature_chunk_edges <= 0:
         raise SystemExit("--pretrain-feature-chunk-edges must be positive")
+    if args.pretrain_feature_max_inflight_trainers <= 0:
+        raise SystemExit("--pretrain-feature-max-inflight-trainers must be positive")
+    if args.pretrain_feature_output_dir is not None:
+        args.pretrain_feature_output_dir = args.pretrain_feature_output_dir.expanduser()
+        if not args.pretrain_feature_output_dir.is_absolute():
+            raise SystemExit("--pretrain-feature-output-dir must be an absolute path")
     if args.graph_relabel_cache_dir is not None:
         args.graph_relabel_cache_dir = args.graph_relabel_cache_dir.expanduser()
         if not args.graph_relabel_cache_dir.is_absolute():
@@ -1570,6 +1620,14 @@ def main() -> int:
         raise SystemExit(
             "--pretrain-feature-aggregation-mode chunked requires "
             "--graph-storage-mode cpu or mmap"
+        )
+    if (
+        args.pretrain_feature_aggregation_mode == "chunked"
+        and args.pretrain_feature_output_dir is None
+    ):
+        raise SystemExit(
+            "--pretrain-feature-aggregation-mode chunked requires "
+            "--pretrain-feature-output-dir"
         )
     if args.evaluation_split == "test" and args.elastic_training:
         raise SystemExit(

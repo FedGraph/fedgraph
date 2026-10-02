@@ -537,6 +537,231 @@ def _aggregate_indexed_feature_sums(
     ]
 
 
+def _accumulate_chunked_feature_payload(
+    aggregated_chunk: torch.Tensor,
+    global_start_row: int,
+    global_stop_row: int,
+    payload: tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+) -> tuple[torch.Tensor, int]:
+    """Validate and add one trainer payload to a bounded server accumulator."""
+    if not isinstance(payload, tuple) or len(payload) != 3:
+        raise ValueError("chunked feature payload must contain three tensors")
+    contribution_rows, contribution_values, requested_rows = payload
+    if not all(
+        isinstance(tensor, torch.Tensor)
+        for tensor in (contribution_rows, contribution_values, requested_rows)
+    ):
+        raise TypeError("chunked feature payload entries must be tensors")
+    if any(
+        tensor.device.type != "cpu"
+        for tensor in (contribution_rows, contribution_values, requested_rows)
+    ):
+        raise ValueError("chunked feature payload tensors must reside on CPU")
+    if contribution_rows.ndim != 1 or requested_rows.ndim != 1:
+        raise ValueError("chunked feature row IDs must be one-dimensional")
+    if contribution_values.ndim != 2 or contribution_values.size(0) != len(
+        contribution_rows
+    ):
+        raise ValueError("chunked contribution values do not match their row IDs")
+    if contribution_values.size(1) != aggregated_chunk.size(1):
+        raise ValueError("chunked contribution feature width is inconsistent")
+
+    contribution_rows = contribution_rows.long()
+    requested_rows = requested_rows.long()
+    for name, row_ids in (
+        ("contribution", contribution_rows),
+        ("requested", requested_rows),
+    ):
+        if row_ids.numel() > 1 and not bool(torch.all(row_ids[1:] > row_ids[:-1])):
+            raise ValueError(f"chunked {name} row IDs must be sorted and unique")
+        if row_ids.numel() and (
+            int(row_ids[0]) < global_start_row or int(row_ids[-1]) >= global_stop_row
+        ):
+            raise ValueError(f"chunked {name} row IDs are outside the global range")
+
+    if contribution_rows.numel():
+        positions = contribution_rows - global_start_row
+        aggregated_chunk.index_add_(
+            0,
+            positions,
+            contribution_values.to(dtype=aggregated_chunk.dtype),
+        )
+
+    upload_bytes = sum(
+        tensor.numel() * tensor.element_size()
+        for tensor in (contribution_rows, contribution_values, requested_rows)
+    )
+    return requested_rows.contiguous(), int(upload_bytes)
+
+
+def _run_bounded_trainer_calls(
+    trainers: list,
+    method_name: str,
+    max_inflight: int,
+) -> list[Any]:
+    """Invoke a no-argument actor method without unbounded result fan-in."""
+    results: list[Any] = [None] * len(trainers)
+    pending: dict[Any, int] = {}
+    next_rank = 0
+
+    while next_rank < len(trainers) and len(pending) < max_inflight:
+        result_ref = getattr(trainers[next_rank], method_name).remote()
+        pending[result_ref] = next_rank
+        next_rank += 1
+
+    while pending:
+        ready_refs, _ = ray.wait(list(pending), num_returns=1, timeout=None)
+        ready_ref = ready_refs[0]
+        rank = pending.pop(ready_ref)
+        results[rank] = ray.get(ready_ref)
+        if next_rank < len(trainers):
+            result_ref = getattr(trainers[next_rank], method_name).remote()
+            pending[result_ref] = next_rank
+            next_rank += 1
+    return results
+
+
+def _run_chunked_feature_pretraining(
+    trainers: list,
+    *,
+    global_node_num: int,
+    feature_dim: int,
+    chunk_rows: int,
+    max_inflight_trainers: int,
+) -> tuple[float, float]:
+    """Orchestrate bounded plaintext feature aggregation across Ray trainers."""
+    if not trainers:
+        raise ValueError("chunked feature aggregation requires at least one trainer")
+    if global_node_num < 1 or feature_dim < 1 or chunk_rows < 1:
+        raise ValueError("chunked feature aggregation dimensions must be positive")
+    if max_inflight_trainers < 1:
+        raise ValueError("max_inflight_trainers must be positive")
+    max_inflight = min(max_inflight_trainers, len(trainers))
+
+    total_upload_bytes = 0
+    total_download_bytes = 0
+    chunk_count = (global_node_num + chunk_rows - 1) // chunk_rows
+    progress_interval = max(1, chunk_count // 100)
+
+    try:
+        _run_bounded_trainer_calls(
+            trainers,
+            "initialize_chunked_feature_aggregation",
+            max_inflight,
+        )
+        for chunk_index, global_start_row in enumerate(
+            range(0, global_node_num, chunk_rows), start=1
+        ):
+            chunk_started_at = time.perf_counter()
+            global_stop_row = min(global_start_row + chunk_rows, global_node_num)
+            aggregated_chunk = torch.zeros(
+                (global_stop_row - global_start_row, feature_dim),
+                dtype=torch.float32,
+                device="cpu",
+            )
+            trainer_requested_rows: list[Optional[torch.Tensor]] = [None] * len(
+                trainers
+            )
+
+            pending: dict[Any, int] = {}
+            next_rank = 0
+            while next_rank < len(trainers) and len(pending) < max_inflight:
+                result_ref = trainers[
+                    next_rank
+                ].get_chunked_local_feature_payload.remote(
+                    global_start_row, global_stop_row
+                )
+                pending[result_ref] = next_rank
+                next_rank += 1
+
+            chunk_upload_bytes = 0
+            while pending:
+                ready_refs, _ = ray.wait(list(pending), num_returns=1, timeout=None)
+                ready_ref = ready_refs[0]
+                rank = pending.pop(ready_ref)
+                requested_rows, payload_bytes = _accumulate_chunked_feature_payload(
+                    aggregated_chunk,
+                    global_start_row,
+                    global_stop_row,
+                    ray.get(ready_ref),
+                )
+                trainer_requested_rows[rank] = requested_rows
+                chunk_upload_bytes += payload_bytes
+
+                if next_rank < len(trainers):
+                    result_ref = trainers[
+                        next_rank
+                    ].get_chunked_local_feature_payload.remote(
+                        global_start_row, global_stop_row
+                    )
+                    pending[result_ref] = next_rank
+                    next_rank += 1
+
+            chunk_download_bytes = 0
+            for rank, trainer in enumerate(trainers):
+                requested_rows = trainer_requested_rows[rank]
+                if requested_rows is None:
+                    raise RuntimeError(f"trainer {rank} did not return requested rows")
+                requested_values = aggregated_chunk[
+                    requested_rows - global_start_row
+                ].contiguous()
+                status = ray.get(
+                    trainer.append_chunked_feature_aggregation_range.remote(
+                        global_start_row,
+                        global_stop_row,
+                        requested_values,
+                    )
+                )
+                if int(status["chunk_rows"]) != requested_rows.numel():
+                    raise RuntimeError(
+                        f"trainer {rank} wrote an unexpected number of feature rows"
+                    )
+                chunk_download_bytes += (
+                    requested_values.numel() * requested_values.element_size()
+                )
+
+            total_upload_bytes += chunk_upload_bytes
+            total_download_bytes += chunk_download_bytes
+            if (
+                chunk_index == 1
+                or chunk_index == chunk_count
+                or chunk_index % progress_interval == 0
+            ):
+                print(
+                    "NC_PRETRAIN_CHUNK, "
+                    f"chunk={chunk_index}/{chunk_count}, "
+                    f"global_start={global_start_row}, "
+                    f"global_stop={global_stop_row}, "
+                    f"upload_bytes={chunk_upload_bytes}, "
+                    f"download_bytes={chunk_download_bytes}, "
+                    f"time_sec={time.perf_counter() - chunk_started_at:.6f}"
+                )
+
+        _run_bounded_trainer_calls(
+            trainers,
+            "finalize_chunked_feature_aggregation",
+            max_inflight,
+        )
+    except Exception:
+        abort_refs = [
+            trainer.abort_chunked_feature_aggregation.remote() for trainer in trainers
+        ]
+        try:
+            ray.get(abort_refs)
+        except Exception as abort_error:
+            print(f"NC_PRETRAIN_CHUNK_ABORT_ERROR, error={abort_error!r}")
+        raise
+
+    mib = 1024 * 1024
+    print(
+        "NC_PRETRAIN_CHUNK_SUMMARY, "
+        f"chunks={chunk_count}, upload_bytes={total_upload_bytes}, "
+        f"download_bytes={total_download_bytes}, "
+        f"max_inflight_trainers={max_inflight}"
+    )
+    return total_upload_bytes / mib, total_download_bytes / mib
+
+
 def _parse_optional_float_list(raw: Any) -> list:
     if raw in (None, ""):
         return []
@@ -800,11 +1025,24 @@ def run_NC(args: attridict, data: Any = None) -> None:
         chunk_edges = int(getattr(args, "pretrain_feature_chunk_edges", 1_000_000))
         if chunk_rows < 1 or chunk_edges < 1:
             raise ValueError("feature chunk row and edge limits must be positive")
-        raise NotImplementedError(
-            "the chunked trainer aggregation kernel is available, but the "
-            "server orchestration and file-backed result lifecycle are introduced "
-            "in later Component 2 stages"
+        if _resolve_pretrain_feature_upload_mode(args) != "indexed":
+            raise ValueError(
+                "chunked pretraining feature aggregation requires "
+                "pretrain_feature_upload_mode='indexed'"
+            )
+        max_inflight_trainers = int(
+            getattr(args, "pretrain_feature_max_inflight_trainers", 4)
         )
+        if max_inflight_trainers < 1:
+            raise ValueError("pretrain_feature_max_inflight_trainers must be positive")
+        feature_output_dir = getattr(args, "pretrain_feature_output_dir", None)
+        if not feature_output_dir:
+            raise ValueError(
+                "chunked pretraining feature aggregation requires "
+                "pretrain_feature_output_dir"
+            )
+        if not Path(feature_output_dir).expanduser().is_absolute():
+            raise ValueError("pretrain_feature_output_dir must be an absolute path")
     if (
         graph_storage_mode in {"cpu", "mmap"}
         and bool(getattr(args, "gpu", False))
@@ -998,6 +1236,19 @@ def run_NC(args: attridict, data: Any = None) -> None:
                     "adjacency_relabel_strategy": self.adjacency_relabel_strategy,
                     "source_degree_artifact_path": self.source_degree_artifact_path,
                     "source_offsets_artifact_path": self.source_offsets_artifact_path,
+                    "feature_aggregation_cache_path": (
+                        self.feature_aggregation_cache_path
+                    ),
+                    "feature_aggregation_memory_mapped": (
+                        self.feature_aggregation_memory_mapped
+                    ),
+                    "feature_aggregation_rows_written": (
+                        self.feature_aggregation_rows_written
+                    ),
+                    "feature_aggregation_finalized": (
+                        self.feature_aggregation_finalized
+                    ),
+                    "raw_features_released": self.raw_features_released,
                     "adjacency_relabel_source_edge_count": (
                         self.adjacency_relabel_source_edge_count
                     ),
@@ -1150,7 +1401,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
         info["len_in_com_test_node_local_indexes"] for info in trainer_information
     ]
     trainer_communicate_node_global_indexes: list[torch.Tensor] = []
-    if args.method != "FedAvg":
+    if args.method != "FedAvg" and pretrain_aggregation_mode != "chunked":
         trainer_communicate_node_global_indexes = [
             info["communicate_node_global_index"] for info in trainer_information
         ]
@@ -1535,96 +1786,102 @@ def run_NC(args: attridict, data: Any = None) -> None:
         else:
             pretrain_upload = 0
             pretrain_download = 0
-            upload_mode = _resolve_pretrain_feature_upload_mode(args)
-            indexed_trainer_aggregations = []
-            indexed_upload_sizes = []
-            if upload_mode == "indexed":
-                indexed_feature_sum_refs = [
-                    trainer.get_indexed_local_feature_sum.remote()
-                    for trainer in server.trainers
-                ]
-                indexed_feature_sums: list[tuple[torch.Tensor, torch.Tensor]] = []
-                while indexed_feature_sum_refs:
-                    ready, indexed_feature_sum_refs = ray.wait(
-                        indexed_feature_sum_refs, num_returns=1, timeout=None
-                    )
-                    indexed_feature_sums.extend(
-                        ray.get(feature_sum_ref) for feature_sum_ref in ready
-                    )
-
-                indexed_upload_sizes = [
-                    row_ids.element_size() * row_ids.nelement()
-                    + row_values.element_size() * row_values.nelement()
-                    for row_ids, row_values in indexed_feature_sums
-                ]
-                indexed_trainer_aggregations = _aggregate_indexed_feature_sums(
-                    indexed_feature_sums, trainer_communicate_node_global_indexes
+            if pretrain_aggregation_mode == "chunked":
+                print("Starting bounded chunked plaintext feature aggregation...")
+                pretrain_upload, pretrain_download = _run_chunked_feature_pretraining(
+                    server.trainers,
+                    global_node_num=int(global_node_num),
+                    feature_dim=int(feature_shape),
+                    chunk_rows=chunk_rows,
+                    max_inflight_trainers=max_inflight_trainers,
                 )
-
-            local_neighbor_feature_sums = (
-                [trainer.get_local_feature_sum.remote() for trainer in server.trainers]
-                if upload_mode == "dense"
-                else []
-            )
-            # Dense uploads aggregate on the server CPU because Ray actors may
-            # return tensors from different devices.
-            upload_sizes = indexed_upload_sizes
-            if upload_mode == "dense":
-                if args.use_huggingface:
-                    raise ValueError(
-                        "Hugging Face FedGCN pretraining requires "
-                        "pretrain_feature_upload_mode='indexed'"
-                    )
-                global_feature_sum = torch.zeros_like(features).cpu()
+                print("clients finalized file-backed feature aggregations")
             else:
-                global_feature_sum = None
-            while local_neighbor_feature_sums:
-                ready, left = ray.wait(
-                    local_neighbor_feature_sums, num_returns=1, timeout=None
-                )
-                if ready:
-                    for t in ready:
-                        local_sum = ray.get(t).cpu()
-                        global_feature_sum += local_sum
-                        # Calculate size of uploaded data
-                        upload_sizes.append(
-                            local_sum.element_size() * local_sum.nelement()
+                upload_mode = _resolve_pretrain_feature_upload_mode(args)
+                indexed_trainer_aggregations = []
+                indexed_upload_sizes = []
+                if upload_mode == "indexed":
+                    indexed_feature_sum_refs = [
+                        trainer.get_indexed_local_feature_sum.remote()
+                        for trainer in server.trainers
+                    ]
+                    indexed_feature_sums: list[tuple[torch.Tensor, torch.Tensor]] = []
+                    while indexed_feature_sum_refs:
+                        ready, indexed_feature_sum_refs = ray.wait(
+                            indexed_feature_sum_refs, num_returns=1, timeout=None
                         )
-                local_neighbor_feature_sums = left
-                if not local_neighbor_feature_sums:
-                    break
-            # Calculate total upload size
-            pretrain_upload = sum(upload_sizes) / (1024 * 1024)  # MB
-            print("server aggregates all local neighbor feature sums")
-            # TODO: Verify that the aggregated global feature sum matches the true 1-hop feature sum for correctness checking.
-            # test if aggregation is correct
-            # if not args.use_huggingface and args.num_hops != 0:
-            # assert (
-            #     global_feature_sum
-            #     != get_1hop_feature_sum(features, edge_index, device)
-            # ).sum() == 0
-            # Calculate and record download sizes (done on CPU to match global_feature_sum)
-            download_sizes = []
-            for i in range(args.n_trainer):
-                if upload_mode == "dense":
-                    communicate_nodes = (
-                        trainer_communicate_node_global_indexes[i]
-                        .clone()
-                        .detach()
-                        .cpu()
+                        indexed_feature_sums.extend(
+                            ray.get(feature_sum_ref) for feature_sum_ref in ready
+                        )
+
+                    indexed_upload_sizes = [
+                        row_ids.element_size() * row_ids.nelement()
+                        + row_values.element_size() * row_values.nelement()
+                        for row_ids, row_values in indexed_feature_sums
+                    ]
+                    indexed_trainer_aggregations = _aggregate_indexed_feature_sums(
+                        indexed_feature_sums, trainer_communicate_node_global_indexes
                     )
-                    trainer_aggregation = global_feature_sum[communicate_nodes]
-                else:
-                    trainer_aggregation = indexed_trainer_aggregations[i]
-                # Calculate download size for each trainer
-                download_sizes.append(
-                    trainer_aggregation.element_size() * trainer_aggregation.nelement()
+
+                local_neighbor_feature_sums = (
+                    [
+                        trainer.get_local_feature_sum.remote()
+                        for trainer in server.trainers
+                    ]
+                    if upload_mode == "dense"
+                    else []
                 )
-                server.trainers[i].load_feature_aggregation.remote(trainer_aggregation)
-            # Calculate total download size
-            pretrain_download = sum(download_sizes) / (1024 * 1024)  # MB
-            print("clients received feature aggregation from server")
-        [trainer.relabel_adj.remote() for trainer in server.trainers]
+                # Dense uploads aggregate on the server CPU because Ray actors may
+                # return tensors from different devices.
+                upload_sizes = indexed_upload_sizes
+                if upload_mode == "dense":
+                    if args.use_huggingface:
+                        raise ValueError(
+                            "Hugging Face FedGCN pretraining requires "
+                            "pretrain_feature_upload_mode='indexed'"
+                        )
+                    global_feature_sum = torch.zeros_like(features).cpu()
+                else:
+                    global_feature_sum = None
+                while local_neighbor_feature_sums:
+                    ready, left = ray.wait(
+                        local_neighbor_feature_sums, num_returns=1, timeout=None
+                    )
+                    if ready:
+                        for result_ref in ready:
+                            local_sum = ray.get(result_ref).cpu()
+                            global_feature_sum += local_sum
+                            upload_sizes.append(
+                                local_sum.element_size() * local_sum.nelement()
+                            )
+                    local_neighbor_feature_sums = left
+                    if not local_neighbor_feature_sums:
+                        break
+                pretrain_upload = sum(upload_sizes) / (1024 * 1024)
+                print("server aggregates all local neighbor feature sums")
+                download_sizes = []
+                for i in range(args.n_trainer):
+                    if upload_mode == "dense":
+                        communicate_nodes = (
+                            trainer_communicate_node_global_indexes[i]
+                            .clone()
+                            .detach()
+                            .cpu()
+                        )
+                        trainer_aggregation = global_feature_sum[communicate_nodes]
+                    else:
+                        trainer_aggregation = indexed_trainer_aggregations[i]
+                    download_sizes.append(
+                        trainer_aggregation.element_size()
+                        * trainer_aggregation.nelement()
+                    )
+                    server.trainers[i].load_feature_aggregation.remote(
+                        trainer_aggregation
+                    )
+                pretrain_download = sum(download_sizes) / (1024 * 1024)
+                print("clients received feature aggregation from server")
+        if pretrain_aggregation_mode != "chunked":
+            [trainer.relabel_adj.remote() for trainer in server.trainers]
 
     monitor.pretrain_time_end()
     record_resource_snapshots("pretrain_complete")

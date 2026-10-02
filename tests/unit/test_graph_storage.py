@@ -1,9 +1,61 @@
+import json
 from types import SimpleNamespace
 
+import pytest
 import torch
 
-from fedgraph.graph_storage import relabel_adjacency_to_mmap_cache
+from fedgraph.graph_storage import (
+    FeatureAggregationStore,
+    relabel_adjacency_to_mmap_cache,
+)
 from fedgraph.trainer_class import Trainer_General
+
+
+def test_feature_aggregation_store_publishes_ordered_mmap_tensor(tmp_path):
+    store = FeatureAggregationStore(
+        tmp_path,
+        trainer_id=2,
+        row_count=3,
+        feature_dim=2,
+    )
+
+    store.write(0, torch.tensor([[1.0, 2.0], [3.0, 4.0]]))
+    store.write(2, torch.tensor([[5.0, 6.0]]))
+    result = store.finalize()
+
+    torch.testing.assert_close(
+        result,
+        torch.tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]),
+    )
+    assert store.data_path.stat().st_size == 3 * 2 * torch.float32.itemsize
+    assert json.loads(store.metadata_path.read_text(encoding="utf-8")) == {
+        "dtype": "float32",
+        "feature_dim": 2,
+        "layout": "row_major",
+        "row_count": 3,
+        "size_bytes": 24,
+        "store_version": 1,
+    }
+
+
+def test_feature_aggregation_store_rejects_gaps_and_cleans_up_abort(tmp_path):
+    store = FeatureAggregationStore(
+        tmp_path,
+        trainer_id=0,
+        row_count=2,
+        feature_dim=1,
+    )
+
+    with pytest.raises(ValueError, match="expected start 0"):
+        store.write(1, torch.ones((1, 1)))
+    store.write(0, torch.ones((1, 1)))
+    with pytest.raises(RuntimeError, match="incomplete"):
+        store.finalize()
+
+    temporary_data_path = store.temporary_data_path
+    store.abort()
+    assert not temporary_data_path.exists()
+    assert not store.data_path.exists()
 
 
 def test_bounded_relabel_builds_and_reuses_mmap_cache(tmp_path):
