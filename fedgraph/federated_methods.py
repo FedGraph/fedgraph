@@ -772,6 +772,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
     _validate_nc_num_hops(args)
     _validate_local_nc_artifact(args)
     pretrain_aggregation_mode = _resolve_pretrain_feature_aggregation_mode(args)
+    graph_storage_mode = _resolve_graph_storage_mode(args)
     if pretrain_aggregation_mode == "chunked":
         if int(args.num_hops) != 2:
             raise ValueError(
@@ -790,11 +791,20 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 "chunked pretraining feature aggregation requires a v2 "
                 "manifest-style artifact"
             )
+        if graph_storage_mode not in {"cpu", "mmap"}:
+            raise ValueError(
+                "chunked pretraining feature aggregation requires "
+                "graph_storage_mode='cpu' or 'mmap'"
+            )
+        chunk_rows = int(getattr(args, "pretrain_feature_chunk_rows", 65_536))
+        chunk_edges = int(getattr(args, "pretrain_feature_chunk_edges", 1_000_000))
+        if chunk_rows < 1 or chunk_edges < 1:
+            raise ValueError("feature chunk row and edge limits must be positive")
         raise NotImplementedError(
-            "chunked pretraining feature aggregation was selected successfully, "
-            "but its trainer/server kernel is introduced in Component 2 Stage 3"
+            "the chunked trainer aggregation kernel is available, but the "
+            "server orchestration and file-backed result lifecycle are introduced "
+            "in later Component 2 stages"
         )
-    graph_storage_mode = _resolve_graph_storage_mode(args)
     if (
         graph_storage_mode in {"cpu", "mmap"}
         and bool(getattr(args, "gpu", False))

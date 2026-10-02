@@ -93,6 +93,8 @@ class ExperimentConfig:
     server_device: Optional[str]
     pretrain_feature_upload_mode: str
     pretrain_feature_aggregation_mode: str
+    pretrain_feature_chunk_rows: int
+    pretrain_feature_chunk_edges: int
     graph_storage_mode: str
     graph_relabel_cache_dir: Optional[str]
     graph_relabel_chunk_edges: int
@@ -370,6 +372,8 @@ def to_fedgraph_args(
             "pretrain_feature_aggregation_mode": (
                 config.pretrain_feature_aggregation_mode
             ),
+            "pretrain_feature_chunk_rows": config.pretrain_feature_chunk_rows,
+            "pretrain_feature_chunk_edges": config.pretrain_feature_chunk_edges,
             "graph_storage_mode": config.graph_storage_mode,
             "graph_relabel_cache_dir": config.graph_relabel_cache_dir,
             "graph_relabel_chunk_edges": config.graph_relabel_chunk_edges,
@@ -872,6 +876,8 @@ def run_experiment(
         "num_layers": config.num_layers,
         "num_hops": config.num_hops,
         "gpu": config.gpu,
+        "pretrain_feature_chunk_rows": config.pretrain_feature_chunk_rows,
+        "pretrain_feature_chunk_edges": config.pretrain_feature_chunk_edges,
         "graph_storage_mode": config.graph_storage_mode,
         "graph_relabel_cache_dir": config.graph_relabel_cache_dir,
         "graph_relabel_chunk_edges": config.graph_relabel_chunk_edges,
@@ -1052,6 +1058,8 @@ def run_experiment(
         "num_layers",
         "num_hops",
         "gpu",
+        "pretrain_feature_chunk_rows",
+        "pretrain_feature_chunk_edges",
         "graph_storage_mode",
         "graph_relabel_cache_dir",
         "graph_relabel_chunk_edges",
@@ -1159,6 +1167,10 @@ def build_configs(args) -> List[ExperimentConfig]:
                         pretrain_feature_aggregation_mode=(
                             args.pretrain_feature_aggregation_mode
                         ),
+                        pretrain_feature_chunk_rows=(args.pretrain_feature_chunk_rows),
+                        pretrain_feature_chunk_edges=(
+                            args.pretrain_feature_chunk_edges
+                        ),
                         graph_storage_mode=args.graph_storage_mode,
                         graph_relabel_cache_dir=(
                             str(args.graph_relabel_cache_dir)
@@ -1253,8 +1265,21 @@ def parse_args():
         help=(
             "Plaintext FedGCN pretraining protocol. Full preserves complete "
             "indexed trainer uploads and server aggregation. Chunked selects "
-            "the bounded Component 2 protocol, whose kernel is added in Stage 3."
+            "the bounded Component 2 protocol. Its trainer kernel is available, "
+            "while end-to-end orchestration remains guarded."
         ),
+    )
+    parser.add_argument(
+        "--pretrain-feature-chunk-rows",
+        type=int,
+        default=65_536,
+        help="Maximum number of global output rows in one trainer chunk request.",
+    )
+    parser.add_argument(
+        "--pretrain-feature-chunk-edges",
+        type=int,
+        default=1_000_000,
+        help="Maximum number of adjacency edges processed per trainer sub-batch.",
     )
     parser.add_argument(
         "--graph-storage-mode",
@@ -1262,9 +1287,9 @@ def parse_args():
         default="device",
         help=(
             "Trainer graph placement. Device preserves the existing behavior; "
-            "cpu keeps complete 0-hop graph tensors in host RAM; mmap leaves "
-            "features and adjacency file-backed. Both host modes transfer only "
-            "NeighborLoader batches to the training device."
+            "cpu keeps graph tensors in host RAM; mmap leaves features and "
+            "adjacency file-backed. For 2-hop, host modes require the v2 chunked "
+            "pretraining path."
         ),
     )
     parser.add_argument(
@@ -1455,6 +1480,10 @@ def main() -> int:
         raise SystemExit("--hf-artifact-num-hops must be non-negative")
     if args.graph_relabel_chunk_edges <= 0:
         raise SystemExit("--graph-relabel-chunk-edges must be positive")
+    if args.pretrain_feature_chunk_rows <= 0:
+        raise SystemExit("--pretrain-feature-chunk-rows must be positive")
+    if args.pretrain_feature_chunk_edges <= 0:
+        raise SystemExit("--pretrain-feature-chunk-edges must be positive")
     if args.graph_relabel_cache_dir is not None:
         args.graph_relabel_cache_dir = args.graph_relabel_cache_dir.expanduser()
         if not args.graph_relabel_cache_dir.is_absolute():
@@ -1533,6 +1562,14 @@ def main() -> int:
         raise SystemExit(
             "--pretrain-feature-aggregation-mode chunked requires --num-hops 2 "
             "and a manifest-style local or Hugging Face artifact"
+        )
+    if (
+        args.pretrain_feature_aggregation_mode == "chunked"
+        and args.graph_storage_mode not in {"cpu", "mmap"}
+    ):
+        raise SystemExit(
+            "--pretrain-feature-aggregation-mode chunked requires "
+            "--graph-storage-mode cpu or mmap"
         )
     if args.evaluation_split == "test" and args.elastic_training:
         raise SystemExit(

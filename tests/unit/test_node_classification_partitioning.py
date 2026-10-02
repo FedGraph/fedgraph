@@ -457,6 +457,103 @@ def test_local_artifact_loader_uses_v2_global_then_prelabelled_adjacency(tmp_pat
         load_trainer_data_from_local_artifact(0, args)
 
 
+@pytest.mark.parametrize("graph_storage_mode", ["cpu", "mmap"])
+@pytest.mark.parametrize("norm_type", ["none", "row", "sym"])
+def test_chunked_v2_feature_sum_matches_full_indexed_aggregation(
+    tmp_path, graph_storage_mode, norm_type
+):
+    dataset_root = tmp_path / "synthetic"
+    output_dir = tmp_path / "artifact-2hop"
+    _make_raw_dataset(dataset_root)
+    partition_raw_ogb_2hop(
+        dataset_root=dataset_root,
+        output_dir=output_dir,
+        n_trainer=2,
+        iid_beta=10000.0,
+        seed=42,
+        checksums=False,
+        chunk_rows=2,
+    )
+    trainer = Trainer_General(
+        rank=0,
+        args_hidden=8,
+        device=torch.device("cpu"),
+        args=SimpleNamespace(
+            local_artifact_dir=str(output_dir),
+            use_huggingface=False,
+            num_hops=2,
+            n_trainer=2,
+            graph_storage_mode=graph_storage_mode,
+            graph_relabel_chunk_edges=2,
+            pretrain_feature_aggregation_mode="chunked",
+            pretrain_feature_chunk_rows=2,
+            pretrain_feature_chunk_edges=1,
+            seed=42,
+            local_step=1,
+            method="FedGCN",
+            norm_type=norm_type,
+        ),
+    )
+
+    full_row_ids, full_row_values = trainer.get_indexed_local_feature_sum()
+    chunk_row_ids = []
+    chunk_row_values = []
+    for start in range(0, trainer.global_node_num, 2):
+        row_ids, row_values = trainer.get_chunked_local_feature_sum(
+            torch.arange(start, min(start + 2, trainer.global_node_num))
+        )
+        assert row_ids.device.type == "cpu"
+        assert row_values.device.type == "cpu"
+        assert row_ids.numel() <= 2
+        chunk_row_ids.append(row_ids)
+        chunk_row_values.append(row_values)
+
+    torch.testing.assert_close(torch.cat(chunk_row_ids), full_row_ids)
+    torch.testing.assert_close(torch.cat(chunk_row_values), full_row_values)
+    assert trainer._chunk_source_degree is not None
+    assert trainer._chunk_source_offsets is not None
+
+
+def test_chunked_v2_feature_sum_rejects_unbounded_or_unsorted_requests(tmp_path):
+    dataset_root = tmp_path / "synthetic"
+    output_dir = tmp_path / "artifact-2hop"
+    _make_raw_dataset(dataset_root)
+    partition_raw_ogb_2hop(
+        dataset_root=dataset_root,
+        output_dir=output_dir,
+        n_trainer=2,
+        iid_beta=10000.0,
+        seed=42,
+        checksums=False,
+        chunk_rows=2,
+    )
+    trainer = Trainer_General(
+        rank=0,
+        args_hidden=8,
+        device=torch.device("cpu"),
+        args=SimpleNamespace(
+            local_artifact_dir=str(output_dir),
+            use_huggingface=False,
+            num_hops=2,
+            n_trainer=2,
+            graph_storage_mode="cpu",
+            graph_relabel_chunk_edges=2,
+            pretrain_feature_aggregation_mode="chunked",
+            pretrain_feature_chunk_rows=2,
+            pretrain_feature_chunk_edges=1,
+            seed=42,
+            local_step=1,
+            method="FedGCN",
+            norm_type="none",
+        ),
+    )
+
+    with pytest.raises(ValueError, match="exceed.*chunk limit"):
+        trainer.get_chunked_local_feature_sum(torch.tensor([0, 1, 2]))
+    with pytest.raises(ValueError, match="sorted and unique"):
+        trainer.get_chunked_local_feature_sum(torch.tensor([1, 0]))
+
+
 def test_local_artifact_mmap_maps_only_large_graph_tensors(tmp_path):
     dataset_root = tmp_path / "synthetic"
     output_dir = tmp_path / "artifact"

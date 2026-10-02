@@ -114,6 +114,8 @@ _LOCAL_ARTIFACT_SHARD_FILES = (
 _GRAPH_STORAGE_MODES = {"device", "cpu", "mmap"}
 _HOST_GRAPH_STORAGE_MODES = {"cpu", "mmap"}
 _MMAP_GRAPH_ARTIFACT_FILES = {"adj.pt", "adj_global.pt", "features.pt"}
+_DEFAULT_PRETRAIN_FEATURE_CHUNK_ROWS = 65_536
+_DEFAULT_PRETRAIN_FEATURE_CHUNK_EDGES = 1_000_000
 
 
 def _record_local_artifact_manifest(args: Any, manifest: dict[str, Any]) -> None:
@@ -151,10 +153,21 @@ def _resolve_graph_storage_mode(args: Any) -> str:
     if mode not in _GRAPH_STORAGE_MODES:
         choices = ", ".join(sorted(_GRAPH_STORAGE_MODES))
         raise ValueError(f"graph_storage_mode must be one of: {choices}")
-    if mode in _HOST_GRAPH_STORAGE_MODES and int(getattr(args, "num_hops", 0)) != 0:
+    num_hops = int(getattr(args, "num_hops", 0))
+    uses_chunked_v2_artifact = (
+        num_hops == 2
+        and getattr(args, "pretrain_feature_aggregation_mode", "full") == "chunked"
+        and (_uses_local_nc_artifact(args) or _uses_huggingface_local_nc_artifact(args))
+    )
+    if (
+        mode in _HOST_GRAPH_STORAGE_MODES
+        and num_hops != 0
+        and not uses_chunked_v2_artifact
+    ):
         raise ValueError(
             f"graph_storage_mode='{mode}' currently supports only num_hops=0; "
-            "bounded 1/2-hop preprocessing is deferred to the chunking stage"
+            "host-backed num_hops=2 requires a manifest-style artifact and "
+            "pretrain_feature_aggregation_mode='chunked'"
         )
     return mode
 
@@ -819,6 +832,8 @@ class Trainer_General:
         artifact_paths = _artifact_tensor_paths(args)
         self.source_degree_artifact_path = artifact_paths.get("source_degree.pt")
         self.source_offsets_artifact_path = artifact_paths.get("source_offsets.pt")
+        self._chunk_source_degree: Optional[torch.Tensor] = None
+        self._chunk_source_offsets: Optional[torch.Tensor] = None
         artifact_manifest = getattr(args, "_local_artifact_manifest", {})
         self.artifact_version = (
             artifact_manifest.get("artifact_version")
@@ -1182,6 +1197,224 @@ class Trainer_General:
             self.features * self_weights.unsqueeze(1),
         )
         return row_ids.detach().cpu(), row_values.detach().cpu()
+
+    def _load_chunked_feature_indexes(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """Lazily memory-map the v2 source degree and offset sidecars."""
+        if self.artifact_version != 2:
+            raise ValueError("chunked feature aggregation requires a v2 artifact")
+        if (
+            not self.source_degree_artifact_path
+            or not self.source_offsets_artifact_path
+        ):
+            raise ValueError(
+                "chunked feature aggregation requires source degree and offset files"
+            )
+        if self._chunk_source_degree is None:
+            self._chunk_source_degree = _load_artifact_tensor(
+                self.source_degree_artifact_path, memory_map=True
+            )
+        if self._chunk_source_offsets is None:
+            self._chunk_source_offsets = _load_artifact_tensor(
+                self.source_offsets_artifact_path, memory_map=True
+            )
+
+        expected_rows = self.communicate_node_index.numel()
+        if self._chunk_source_degree.shape != (expected_rows,) or (
+            self._chunk_source_offsets.shape != (expected_rows + 1,)
+        ):
+            raise ValueError("chunked feature aggregation indexes have invalid shapes")
+        if (
+            self._chunk_source_degree.device.type != "cpu"
+            or self._chunk_source_offsets.device.type != "cpu"
+        ):
+            raise ValueError("chunked feature aggregation indexes must be CPU tensors")
+        return self._chunk_source_degree, self._chunk_source_offsets
+
+    @torch.no_grad()
+    def get_chunked_local_feature_sum(
+        self, requested_row_ids: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Aggregate one bounded global-row request using host-backed v2 data.
+
+        Only features owned by this trainer contribute. Adjacency rows are read
+        from the source-sorted global-ID view in edge-bounded slices. The result
+        contains only requested rows with a local edge or self contribution and
+        is always returned on CPU for Ray transport.
+        """
+        if self.graph_storage_mode not in _HOST_GRAPH_STORAGE_MODES:
+            raise ValueError(
+                "chunked feature aggregation requires graph_storage_mode='cpu' "
+                "or 'mmap'"
+            )
+        if self.adj.device.type != "cpu" or self.features.device.type != "cpu":
+            raise ValueError("chunked feature aggregation requires CPU graph tensors")
+        if not isinstance(requested_row_ids, torch.Tensor):
+            raise TypeError("requested_row_ids must be a torch.Tensor")
+        if requested_row_ids.ndim != 1:
+            raise ValueError("requested_row_ids must be one-dimensional")
+        if requested_row_ids.dtype not in {
+            torch.int8,
+            torch.int16,
+            torch.int32,
+            torch.int64,
+            torch.uint8,
+        }:
+            raise ValueError("requested_row_ids must use an integer dtype")
+
+        max_rows = int(
+            getattr(
+                self.args,
+                "pretrain_feature_chunk_rows",
+                _DEFAULT_PRETRAIN_FEATURE_CHUNK_ROWS,
+            )
+        )
+        max_edges = int(
+            getattr(
+                self.args,
+                "pretrain_feature_chunk_edges",
+                _DEFAULT_PRETRAIN_FEATURE_CHUNK_EDGES,
+            )
+        )
+        if max_rows < 1 or max_edges < 1:
+            raise ValueError("feature chunk row and edge limits must be positive")
+
+        requested_rows = requested_row_ids.detach().to(device="cpu", dtype=torch.long)
+        if requested_rows.numel() > max_rows:
+            raise ValueError(
+                f"requested feature rows exceed the configured chunk limit: "
+                f"{requested_rows.numel()} > {max_rows}"
+            )
+        if requested_rows.numel() > 1 and not bool(
+            torch.all(requested_rows[1:] > requested_rows[:-1])
+        ):
+            raise ValueError("requested_row_ids must be sorted and unique")
+        if requested_rows.numel() and (
+            int(requested_rows[0]) < 0
+            or (
+                self.global_node_num is not None
+                and int(requested_rows[-1]) >= int(self.global_node_num)
+            )
+        ):
+            raise ValueError("requested_row_ids contains an invalid global node ID")
+
+        feature_dim = int(self.features.size(1))
+        row_values = torch.zeros(
+            (requested_rows.numel(), feature_dim), dtype=self.features.dtype
+        )
+        active_rows = torch.zeros(requested_rows.numel(), dtype=torch.bool)
+        if requested_rows.numel() == 0:
+            return requested_rows, row_values
+
+        norm_type = getattr(self.args, "norm_type", "none")
+        if norm_type not in {"none", "row", "sym"}:
+            raise ValueError(
+                f"Unknown norm_type: {norm_type}. Use 'sym', 'row', or 'none'."
+            )
+
+        source_degree, source_offsets = self._load_chunked_feature_indexes()
+        communicate_rows = self.communicate_node_index.long()
+        local_rows = self.local_node_index.long()
+
+        communicate_positions = torch.searchsorted(communicate_rows, requested_rows)
+        requested_in_communicate = communicate_positions < communicate_rows.numel()
+        requested_in_communicate[requested_in_communicate.clone()] = (
+            communicate_rows[communicate_positions[requested_in_communicate]]
+            == requested_rows[requested_in_communicate]
+        )
+
+        local_positions = torch.searchsorted(local_rows, requested_rows)
+        requested_is_local = local_positions < local_rows.numel()
+        requested_is_local[requested_is_local.clone()] = (
+            local_rows[local_positions[requested_is_local]]
+            == requested_rows[requested_is_local]
+        )
+        self_request_positions = torch.nonzero(
+            requested_is_local, as_tuple=False
+        ).flatten()
+        if self_request_positions.numel():
+            self_features = self.features[local_positions[self_request_positions]].to(
+                dtype=self.features.dtype
+            )
+            if norm_type != "none":
+                self_degrees = (
+                    source_degree[communicate_positions[self_request_positions]] + 1
+                ).to(dtype=self.features.dtype)
+                self_features = self_features * self_degrees.reciprocal().unsqueeze(1)
+            row_values.index_add_(0, self_request_positions, self_features)
+            active_rows[self_request_positions] = True
+
+        matched_communicate_positions = communicate_positions[requested_in_communicate]
+        if matched_communicate_positions.numel():
+            run_breaks = torch.nonzero(
+                matched_communicate_positions[1:]
+                != matched_communicate_positions[:-1] + 1,
+                as_tuple=False,
+            ).flatten()
+            run_boundaries = [0, *(run_breaks + 1).tolist()]
+            run_boundaries.append(matched_communicate_positions.numel())
+
+            for run_index in range(len(run_boundaries) - 1):
+                run_start = run_boundaries[run_index]
+                run_stop = run_boundaries[run_index + 1]
+                first_source_position = int(matched_communicate_positions[run_start])
+                last_source_position = int(matched_communicate_positions[run_stop - 1])
+                first_edge = int(source_offsets[first_source_position])
+                last_edge = int(source_offsets[last_source_position + 1])
+
+                for edge_start in range(first_edge, last_edge, max_edges):
+                    edge_stop = min(edge_start + max_edges, last_edge)
+                    source_nodes = self.adj[0, edge_start:edge_stop].long()
+                    target_nodes = self.adj[1, edge_start:edge_stop].long()
+                    target_positions = torch.searchsorted(local_rows, target_nodes)
+                    target_is_local = target_positions < local_rows.numel()
+                    target_is_local[target_is_local.clone()] = (
+                        local_rows[target_positions[target_is_local]]
+                        == target_nodes[target_is_local]
+                    )
+                    if not bool(torch.any(target_is_local)):
+                        continue
+
+                    contributing_sources = source_nodes[target_is_local]
+                    contributing_targets = target_nodes[target_is_local]
+                    output_positions = torch.searchsorted(
+                        requested_rows, contributing_sources
+                    )
+                    if torch.any(output_positions >= requested_rows.numel()) or not (
+                        torch.equal(
+                            requested_rows[output_positions], contributing_sources
+                        )
+                    ):
+                        raise ValueError(
+                            "source offsets selected an edge outside requested rows"
+                        )
+
+                    contributions = self.features[target_positions[target_is_local]]
+                    if norm_type != "none":
+                        source_positions = torch.searchsorted(
+                            communicate_rows, contributing_sources
+                        )
+                        source_degrees = (source_degree[source_positions] + 1).to(
+                            dtype=self.features.dtype
+                        )
+                        if norm_type == "row":
+                            weights = source_degrees.reciprocal()
+                        else:
+                            target_communicate_positions = torch.searchsorted(
+                                communicate_rows, contributing_targets
+                            )
+                            target_degrees = (
+                                source_degree[target_communicate_positions] + 1
+                            ).to(dtype=self.features.dtype)
+                            weights = source_degrees.rsqrt() * target_degrees.rsqrt()
+                        contributions = contributions * weights.unsqueeze(1)
+
+                    row_values.index_add_(0, output_positions, contributions)
+                    active_rows[output_positions] = True
+
+        return (
+            requested_rows[active_rows].contiguous(),
+            row_values[active_rows].contiguous(),
+        )
 
     def get_local_feature_sum_og(self) -> torch.Tensor:
         """

@@ -203,7 +203,7 @@ class TestIndexedFeatureAggregation:
                 attridict.AttriDict(pretrain_feature_aggregation_mode="stream")
             )
 
-    def test_chunked_mode_fails_before_ray_until_stage3(self, tmp_path):
+    def test_chunked_mode_fails_before_ray_until_server_stages(self, tmp_path):
         (tmp_path / "manifest.json").write_text(
             '{"artifact_version": 2, "hop_semantics": 2, "n_trainer": 1}',
             encoding="utf-8",
@@ -220,9 +220,33 @@ class TestIndexedFeatureAggregation:
             use_encryption=False,
             pretrain_feature_upload_mode="indexed",
             pretrain_feature_aggregation_mode="chunked",
+            graph_storage_mode="cpu",
         )
 
-        with pytest.raises(NotImplementedError, match="Stage 3"):
+        with pytest.raises(NotImplementedError, match="server orchestration"):
+            run_NC(args)
+
+    def test_chunked_mode_rejects_device_graph_storage(self, tmp_path):
+        (tmp_path / "manifest.json").write_text(
+            '{"artifact_version": 2, "hop_semantics": 2, "n_trainer": 1}',
+            encoding="utf-8",
+        )
+        args = attridict.AttriDict(
+            num_hops=2,
+            n_trainer=1,
+            local_artifact_dir=str(tmp_path),
+            local_artifact_rank_hosts=None,
+            hf_local_artifact_repo=None,
+            use_huggingface=False,
+            use_lowrank=False,
+            use_dp=False,
+            use_encryption=False,
+            pretrain_feature_upload_mode="indexed",
+            pretrain_feature_aggregation_mode="chunked",
+            graph_storage_mode="device",
+        )
+
+        with pytest.raises(ValueError, match="graph_storage_mode"):
             run_NC(args)
 
     def test_rejects_unknown_upload_mode(self):
