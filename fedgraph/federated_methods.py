@@ -171,7 +171,7 @@ def _resolve_local_artifact_rank_node_ids(
 
 
 def _validate_local_nc_artifact(args: attridict) -> None:
-    """Validate the opt-in local or manifest-style Hf 0-hop artifact modes."""
+    """Validate the opt-in local or manifest-style Hf artifact modes."""
     local_artifact_dir = getattr(args, "local_artifact_dir", None)
     rank_hosts_path = getattr(args, "local_artifact_rank_hosts", None)
     hf_local_artifact_repo = getattr(args, "hf_local_artifact_repo", None)
@@ -190,10 +190,40 @@ def _validate_local_nc_artifact(args: attridict) -> None:
         raise ValueError(
             "local_artifact_dir and hf_local_artifact_repo cannot be combined"
         )
-    if args.num_hops != 0:
-        raise ValueError("local artifacts currently support only num_hops=0")
+    if int(args.num_hops) not in {0, 2}:
+        raise ValueError("manifest-style local artifacts support num_hops 0 or 2")
     if getattr(args, "use_lowrank", False) or getattr(args, "use_dp", False):
-        raise ValueError("local artifacts currently support standard FedAvg only")
+        raise ValueError(
+            "manifest-style local artifacts currently support the standard NC path"
+        )
+    if int(args.num_hops) == 2:
+        if getattr(args, "use_encryption", False):
+            raise ValueError("2-hop v2 artifacts currently support plaintext only")
+        if _resolve_pretrain_feature_upload_mode(args) != "indexed":
+            raise ValueError(
+                "2-hop v2 artifacts require pretrain_feature_upload_mode='indexed'"
+            )
+    if local_artifact_dir:
+        manifest_path = (
+            Path(local_artifact_dir).expanduser().resolve() / "manifest.json"
+        )
+        if not manifest_path.is_file():
+            raise FileNotFoundError(
+                f"Local artifact manifest is missing: {manifest_path}"
+            )
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        expected_contract = (1, 0) if int(args.num_hops) == 0 else (2, 2)
+        actual_contract = (
+            manifest.get("artifact_version"),
+            manifest.get("hop_semantics"),
+        )
+        if actual_contract != expected_contract:
+            raise ValueError(
+                "local artifact version/hop contract does not match the experiment: "
+                f"{actual_contract} != {expected_contract}"
+            )
+        if manifest.get("n_trainer") != int(args.n_trainer):
+            raise ValueError("local artifact n_trainer does not match the experiment")
     if rank_hosts_path:
         if not local_artifact_dir:
             raise ValueError(
@@ -440,6 +470,16 @@ def _resolve_pretrain_feature_upload_mode(args: Any) -> str:
     if mode not in {"dense", "indexed"}:
         raise ValueError(
             "pretrain_feature_upload_mode must be either 'dense' or 'indexed'"
+        )
+    return mode
+
+
+def _resolve_pretrain_feature_aggregation_mode(args: Any) -> str:
+    """Select the server/trainer protocol for plaintext feature aggregation."""
+    mode = getattr(args, "pretrain_feature_aggregation_mode", "full")
+    if mode not in {"full", "chunked"}:
+        raise ValueError(
+            "pretrain_feature_aggregation_mode must be either 'full' or 'chunked'"
         )
     return mode
 
@@ -731,6 +771,29 @@ def run_NC(args: attridict, data: Any = None) -> None:
     """
     _validate_nc_num_hops(args)
     _validate_local_nc_artifact(args)
+    pretrain_aggregation_mode = _resolve_pretrain_feature_aggregation_mode(args)
+    if pretrain_aggregation_mode == "chunked":
+        if int(args.num_hops) != 2:
+            raise ValueError(
+                "chunked pretraining feature aggregation requires num_hops=2"
+            )
+        if getattr(args, "use_encryption", False):
+            raise ValueError(
+                "chunked pretraining feature aggregation currently supports "
+                "plaintext only"
+            )
+        if not (
+            getattr(args, "local_artifact_dir", None)
+            or getattr(args, "hf_local_artifact_repo", None)
+        ):
+            raise ValueError(
+                "chunked pretraining feature aggregation requires a v2 "
+                "manifest-style artifact"
+            )
+        raise NotImplementedError(
+            "chunked pretraining feature aggregation was selected successfully, "
+            "but its trainer/server kernel is introduced in Component 2 Stage 3"
+        )
     graph_storage_mode = _resolve_graph_storage_mode(args)
     if (
         graph_storage_mode in {"cpu", "mmap"}
@@ -742,6 +805,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
             "a positive batch_size"
         )
     print(f"NC_GRAPH_STORAGE, mode={graph_storage_mode}")
+    print("NC_PRETRAIN_FEATURE_AGGREGATION, " f"mode={pretrain_aggregation_mode}")
 
     resource_monitor_mode = _resolve_nc_resource_monitor_mode(args)
     uses_manual_resource_monitor = _resource_monitor_uses_manual_snapshots(
@@ -911,6 +975,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
             )
             snapshot.update(
                 {
+                    "artifact_version": self.artifact_version,
                     "graph_storage_mode": self.graph_storage_mode,
                     "graph_device": str(self.graph_device),
                     "features_device": str(self.features.device),
@@ -920,6 +985,9 @@ def run_NC(args: attridict, data: Any = None) -> None:
                     "adjacency_relabel_time_sec": self.adjacency_relabel_time_sec,
                     "adjacency_relabel_cache_path": (self.adjacency_relabel_cache_path),
                     "adjacency_relabel_cache_hit": self.adjacency_relabel_cache_hit,
+                    "adjacency_relabel_strategy": self.adjacency_relabel_strategy,
+                    "source_degree_artifact_path": self.source_degree_artifact_path,
+                    "source_offsets_artifact_path": self.source_offsets_artifact_path,
                     "adjacency_relabel_source_edge_count": (
                         self.adjacency_relabel_source_edge_count
                     ),

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 import torch
 
 from fedgraph.trainer_class import (
@@ -337,6 +338,9 @@ def test_partition_raw_ogb_2hop_binary_matches_csv_artifact(tmp_path):
                 torch.load(binary_shard / file_name, weights_only=True),
             )
 
+    validated = validate_nc_artifact_for_upload(csv_output, verify_checksums=False)
+    assert validated["artifact_version"] == 2
+
 
 def test_local_artifact_loader_reads_a_complete_0hop_shard(tmp_path):
     dataset_root = tmp_path / "synthetic"
@@ -387,6 +391,70 @@ def test_local_artifact_loader_reads_a_complete_0hop_shard(tmp_path):
     assert idx_test.numel() == test_labels.numel()
     assert global_node_num.item() == 6
     assert class_num.item() == 2
+
+
+def test_local_artifact_loader_uses_v2_global_then_prelabelled_adjacency(tmp_path):
+    dataset_root = tmp_path / "synthetic"
+    output_dir = tmp_path / "artifact-2hop"
+    _make_raw_dataset(dataset_root)
+    partition_raw_ogb_2hop(
+        dataset_root=dataset_root,
+        output_dir=output_dir,
+        n_trainer=2,
+        iid_beta=10000.0,
+        seed=42,
+        checksums=False,
+        chunk_rows=2,
+    )
+    args = SimpleNamespace(
+        local_artifact_dir=str(output_dir),
+        use_huggingface=False,
+        num_hops=2,
+        n_trainer=2,
+        graph_storage_mode="device",
+        graph_relabel_chunk_edges=2,
+    )
+
+    loaded = load_trainer_data_from_local_artifact(0, args)
+    shard_dir = output_dir / "shards" / "trainer-000"
+    global_adjacency = torch.load(shard_dir / "adj_global.pt", weights_only=True)
+    local_adjacency = torch.load(shard_dir / "adj.pt", weights_only=True)
+
+    assert torch.equal(loaded[2], global_adjacency)
+    assert args._local_artifact_manifest["artifact_version"] == 2
+    assert Path(args._artifact_tensor_paths["adj.pt"]) == shard_dir / "adj.pt"
+    assert Path(args._artifact_tensor_paths["source_degree.pt"]) == (
+        shard_dir / "source_degree.pt"
+    )
+
+    trainer = Trainer_General(
+        rank=0,
+        args_hidden=8,
+        device=torch.device("cpu"),
+        args=SimpleNamespace(
+            **vars(args),
+            seed=42,
+            local_step=1,
+            method="FedGCN",
+        ),
+    )
+
+    assert trainer.artifact_version == 2
+    assert torch.equal(trainer.adj, global_adjacency)
+    assert trainer.get_info()["communicate_node_global_index"].device.type == "cpu"
+
+    trainer.relabel_adj()
+
+    assert torch.equal(trainer.adj, local_adjacency)
+    assert trainer.adjacency_relabel_strategy == "artifact-precomputed"
+    assert trainer.adjacency_relabel_dropped_edge_count == 0
+
+    manifest_path = output_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["adjacency_contract"]["source_offsets"]["indexes"] = "wrong-columns"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ValueError, match="invalid adjacency contract"):
+        load_trainer_data_from_local_artifact(0, args)
 
 
 def test_local_artifact_mmap_maps_only_large_graph_tensors(tmp_path):
@@ -496,10 +564,54 @@ def test_huggingface_local_artifact_loader_downloads_only_its_shard(
             "shards/trainer-001/idx_test.pt",
             "shards/trainer-001/global_node_num.pt",
             "shards/trainer-001/class_num.pt",
+            "shards/trainer-001/adj_global.pt",
+            "shards/trainer-001/source_degree.pt",
+            "shards/trainer-001/source_offsets.pt",
         ],
         revision="candidate",
         cache_dir=str(tmp_path / "hf-cache"),
     )
+
+
+@patch("fedgraph.trainer_class.snapshot_download")
+def test_huggingface_local_artifact_loader_supports_v2_shards(
+    mock_snapshot_download, tmp_path
+):
+    dataset_root = tmp_path / "synthetic"
+    output_dir = tmp_path / "artifact-2hop"
+    _make_raw_dataset(dataset_root)
+    partition_raw_ogb_2hop(
+        dataset_root=dataset_root,
+        output_dir=output_dir,
+        n_trainer=2,
+        iid_beta=10000.0,
+        seed=42,
+        checksums=True,
+        chunk_rows=2,
+    )
+    mock_snapshot_download.return_value = str(output_dir)
+    args = SimpleNamespace(
+        hf_local_artifact_repo="FedGraph/ogbn-arxiv-2-2hop-v2",
+        hf_local_artifact_revision="candidate",
+        hf_local_artifact_cache_dir=str(tmp_path / "hf-cache"),
+        num_hops=2,
+        n_trainer=2,
+        graph_storage_mode="device",
+        graph_relabel_chunk_edges=2,
+    )
+
+    loaded = load_trainer_data_from_huggingface_local_artifact(1, args)
+
+    expected_global_adjacency = torch.load(
+        output_dir / "shards" / "trainer-001" / "adj_global.pt",
+        weights_only=True,
+    )
+    assert torch.equal(loaded[2], expected_global_adjacency)
+    assert args._local_artifact_manifest["artifact_version"] == 2
+    assert args._artifact_tensor_paths["source_offsets.pt"].endswith(
+        "trainer-001/source_offsets.pt"
+    )
+    assert validate_nc_artifact_for_upload(output_dir)["artifact_version"] == 2
 
 
 def test_upload_validation_checks_complete_artifact_without_loading_tensors(tmp_path):

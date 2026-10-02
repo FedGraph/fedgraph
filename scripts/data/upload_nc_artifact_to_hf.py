@@ -17,7 +17,7 @@ from typing import Any
 
 from huggingface_hub import HfApi
 
-_SHARD_FILES = {
+_COMMON_SHARD_FILES = {
     "local_node_index.pt",
     "communicate_node_index.pt",
     "adj.pt",
@@ -30,6 +30,15 @@ _SHARD_FILES = {
     "idx_test.pt",
     "global_node_num.pt",
     "class_num.pt",
+}
+_SHARD_FILES_BY_CONTRACT = {
+    (1, 0): _COMMON_SHARD_FILES,
+    (2, 2): _COMMON_SHARD_FILES
+    | {
+        "adj_global.pt",
+        "source_degree.pt",
+        "source_offsets.pt",
+    },
 }
 
 
@@ -44,16 +53,16 @@ def _sha256(path: Path) -> str:
 def validate_nc_artifact_for_upload(
     artifact_dir: Path | str, *, verify_checksums: bool = True
 ) -> dict[str, Any]:
-    """Validate a completed 0-hop artifact without materializing tensors in RAM."""
+    """Validate a completed v1/v2 artifact without materializing its tensors."""
     artifact_root = Path(artifact_dir).expanduser().resolve()
     manifest_path = artifact_root / "manifest.json"
     if not manifest_path.is_file():
         raise FileNotFoundError(f"Artifact manifest is missing: {manifest_path}")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if manifest.get("artifact_version") != 1:
-        raise ValueError("Artifact must use artifact_version=1")
-    if manifest.get("hop_semantics") != 0:
-        raise ValueError("Only complete 0-hop artifacts can be published")
+    contract = (manifest.get("artifact_version"), manifest.get("hop_semantics"))
+    if contract not in _SHARD_FILES_BY_CONTRACT:
+        raise ValueError("Artifact must use the version/hop contract (1, 0) or (2, 2)")
+    expected_shard_files = _SHARD_FILES_BY_CONTRACT[contract]
     n_trainer = manifest.get("n_trainer")
     shards = manifest.get("shards")
     if not isinstance(n_trainer, int) or n_trainer < 1:
@@ -76,11 +85,11 @@ def validate_nc_artifact_for_upload(
                 f"Artifact metadata has an invalid trainer ID: {trainer_id}"
             )
         files = metadata.get("files")
-        if not isinstance(files, dict) or set(files) != _SHARD_FILES:
+        if not isinstance(files, dict) or set(files) != expected_shard_files:
             raise ValueError(f"Artifact shard {trainer_id} has an unexpected file list")
         checksums = metadata.get("sha256")
         if verify_checksums and (
-            not isinstance(checksums, dict) or set(checksums) != _SHARD_FILES
+            not isinstance(checksums, dict) or set(checksums) != expected_shard_files
         ):
             raise ValueError(
                 f"Artifact shard {trainer_id} has no complete SHA-256 metadata; "

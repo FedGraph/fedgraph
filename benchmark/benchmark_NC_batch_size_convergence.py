@@ -92,6 +92,7 @@ class ExperimentConfig:
     gpu: bool
     server_device: Optional[str]
     pretrain_feature_upload_mode: str
+    pretrain_feature_aggregation_mode: str
     graph_storage_mode: str
     graph_relabel_cache_dir: Optional[str]
     graph_relabel_chunk_edges: int
@@ -366,6 +367,9 @@ def to_fedgraph_args(
             "gpu": config.gpu,
             "server_device": config.server_device,
             "pretrain_feature_upload_mode": config.pretrain_feature_upload_mode,
+            "pretrain_feature_aggregation_mode": (
+                config.pretrain_feature_aggregation_mode
+            ),
             "graph_storage_mode": config.graph_storage_mode,
             "graph_relabel_cache_dir": config.graph_relabel_cache_dir,
             "graph_relabel_chunk_edges": config.graph_relabel_chunk_edges,
@@ -1152,6 +1156,9 @@ def build_configs(args) -> List[ExperimentConfig]:
                         gpu=args.gpu,
                         server_device=args.server_device,
                         pretrain_feature_upload_mode=args.pretrain_feature_upload_mode,
+                        pretrain_feature_aggregation_mode=(
+                            args.pretrain_feature_aggregation_mode
+                        ),
                         graph_storage_mode=args.graph_storage_mode,
                         graph_relabel_cache_dir=(
                             str(args.graph_relabel_cache_dir)
@@ -1240,6 +1247,16 @@ def parse_args():
         ),
     )
     parser.add_argument(
+        "--pretrain-feature-aggregation-mode",
+        choices=("full", "chunked"),
+        default="full",
+        help=(
+            "Plaintext FedGCN pretraining protocol. Full preserves complete "
+            "indexed trainer uploads and server aggregation. Chunked selects "
+            "the bounded Component 2 protocol, whose kernel is added in Stage 3."
+        ),
+    )
+    parser.add_argument(
         "--graph-storage-mode",
         choices=("device", "cpu", "mmap"),
         default="device",
@@ -1276,17 +1293,17 @@ def parse_args():
         type=Path,
         default=None,
         help=(
-            "Load one complete 0-hop shard per trainer from this validated local "
-            "artifact root. Every Ray worker must be able to read this path."
+            "Load one complete 0-hop v1 or 2-hop v2 shard per trainer from this "
+            "validated local artifact root. Every Ray worker must read this path."
         ),
     )
     data_source.add_argument(
         "--hf-local-artifact-repo",
         default=None,
         help=(
-            "Load one 0-hop shard per trainer from a manifest-style Hugging Face "
-            "dataset repository. This is separate from the legacy per-trainer "
-            "--use-huggingface format."
+            "Load one v1/v2 shard per trainer from a manifest-style Hugging Face "
+            "dataset repository. This remains separate from the legacy "
+            "one-repository-per-trainer --use-huggingface format."
         ),
     )
     parser.add_argument(
@@ -1453,9 +1470,15 @@ def main() -> int:
             artifact_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             raise SystemExit(f"Invalid local artifact manifest: {exc}") from exc
-        if args.num_hops != 0 or artifact_manifest.get("hop_semantics") != 0:
+        expected_contract = (1, 0) if args.num_hops == 0 else (2, 2)
+        artifact_contract = (
+            artifact_manifest.get("artifact_version"),
+            artifact_manifest.get("hop_semantics"),
+        )
+        if args.num_hops not in {0, 2} or artifact_contract != expected_contract:
             raise SystemExit(
-                "--local-artifact-dir currently supports only --num-hops 0"
+                "--local-artifact-dir requires artifact v1 for --num-hops 0 or "
+                "artifact v2 for --num-hops 2"
             )
         if artifact_manifest.get("n_trainer") != args.n_trainer:
             raise SystemExit(
@@ -1476,10 +1499,8 @@ def main() -> int:
                 f"{args.local_artifact_rank_hosts}"
             )
     if args.hf_local_artifact_repo is not None:
-        if args.num_hops != 0:
-            raise SystemExit(
-                "--hf-local-artifact-repo currently supports only --num-hops 0"
-            )
+        if args.num_hops not in {0, 2}:
+            raise SystemExit("--hf-local-artifact-repo supports --num-hops 0 or 2")
         if args.local_artifact_rank_hosts is not None:
             raise SystemExit(
                 "--local-artifact-rank-hosts is only for staged local artifacts"
@@ -1497,13 +1518,21 @@ def main() -> int:
             args.hf_local_artifact_cache_dir.expanduser().resolve()
         )
     if (
-        args.use_huggingface
+        (args.use_huggingface or args.local_artifact_dir or args.hf_local_artifact_repo)
         and args.num_hops > 0
         and args.pretrain_feature_upload_mode != "indexed"
     ):
         raise SystemExit(
-            "Hugging Face FedGCN pretraining requires "
+            "External-artifact FedGCN pretraining requires "
             "--pretrain-feature-upload-mode indexed"
+        )
+    if args.pretrain_feature_aggregation_mode == "chunked" and (
+        args.num_hops != 2
+        or not (args.local_artifact_dir or args.hf_local_artifact_repo)
+    ):
+        raise SystemExit(
+            "--pretrain-feature-aggregation-mode chunked requires --num-hops 2 "
+            "and a manifest-style local or Hugging Face artifact"
         )
     if args.evaluation_split == "test" and args.elastic_training:
         raise SystemExit(

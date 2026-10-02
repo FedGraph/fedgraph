@@ -75,18 +75,18 @@ def _uses_legacy_huggingface_fedavg_adjacency(args: Any) -> bool:
 
 
 def _uses_local_nc_artifact(args: Any) -> bool:
-    """Whether a trainer should load one validated local 0-hop shard."""
+    """Whether a trainer should load one validated local NC shard."""
     artifact_root = getattr(args, "local_artifact_dir", None)
     return isinstance(artifact_root, (str, Path)) and bool(str(artifact_root))
 
 
 def _uses_huggingface_local_nc_artifact(args: Any) -> bool:
-    """Whether a trainer should download one manifest-style 0-hop Hf shard."""
+    """Whether a trainer should download one manifest-style NC Hf shard."""
     repository = getattr(args, "hf_local_artifact_repo", None)
     return isinstance(repository, str) and bool(repository)
 
 
-_LOCAL_ARTIFACT_SHARD_FILES = (
+_LOCAL_ARTIFACT_COMMON_SHARD_FILES = (
     "metadata.json",
     "local_node_index.pt",
     "communicate_node_index.pt",
@@ -101,10 +101,32 @@ _LOCAL_ARTIFACT_SHARD_FILES = (
     "global_node_num.pt",
     "class_num.pt",
 )
+_LOCAL_ARTIFACT_V2_EXTRA_SHARD_FILES = (
+    "adj_global.pt",
+    "source_degree.pt",
+    "source_offsets.pt",
+)
+_LOCAL_ARTIFACT_SHARD_FILES = (
+    *_LOCAL_ARTIFACT_COMMON_SHARD_FILES,
+    *_LOCAL_ARTIFACT_V2_EXTRA_SHARD_FILES,
+)
 
 _GRAPH_STORAGE_MODES = {"device", "cpu", "mmap"}
 _HOST_GRAPH_STORAGE_MODES = {"cpu", "mmap"}
-_MMAP_GRAPH_ARTIFACT_FILES = {"adj.pt", "features.pt"}
+_MMAP_GRAPH_ARTIFACT_FILES = {"adj.pt", "adj_global.pt", "features.pt"}
+
+
+def _record_local_artifact_manifest(args: Any, manifest: dict[str, Any]) -> None:
+    """Keep only the small runtime contract needed by the trainer."""
+    setattr(
+        args,
+        "_local_artifact_manifest",
+        {
+            "artifact_version": manifest.get("artifact_version"),
+            "hop_semantics": manifest.get("hop_semantics"),
+            "adjacency_contract": manifest.get("adjacency_contract"),
+        },
+    )
 
 
 def _record_artifact_tensor_path(
@@ -294,7 +316,7 @@ def load_trainer_data_from_huggingface_local_artifact(
     torch.Tensor,
     torch.Tensor,
 ]:
-    """Download one manifest-style 0-hop Hf shard, then use the local validator.
+    """Download one manifest-style Hf shard, then use the local validator.
 
     This deliberately does not change the historical one-repository-per-trainer
     loader. The snapshot allowlist keeps a worker from downloading sibling
@@ -303,8 +325,6 @@ def load_trainer_data_from_huggingface_local_artifact(
     repository = getattr(args, "hf_local_artifact_repo", None)
     if not isinstance(repository, str) or not repository:
         raise ValueError("hf_local_artifact_repo is required for artifact loading")
-    if int(getattr(args, "num_hops", 0)) != 0:
-        raise ValueError("Hugging Face local artifacts currently support num_hops=0")
 
     shard_name = f"trainer-{trainer_id:03d}"
     allow_patterns = [
@@ -337,11 +357,15 @@ def load_trainer_data_from_huggingface_local_artifact(
         num_hops=args.num_hops,
         n_trainer=args.n_trainer,
         graph_storage_mode=getattr(args, "graph_storage_mode", "device"),
+        graph_relabel_chunk_edges=getattr(args, "graph_relabel_chunk_edges", 1_000_000),
     )
     loaded_data = load_trainer_data_from_local_artifact(trainer_id, local_args)
     local_paths = _artifact_tensor_paths(local_args)
     if local_paths:
         setattr(args, "_artifact_tensor_paths", local_paths)
+    local_manifest = getattr(local_args, "_local_artifact_manifest", None)
+    if isinstance(local_manifest, dict):
+        setattr(args, "_local_artifact_manifest", local_manifest)
     return loaded_data
 
 
@@ -359,24 +383,31 @@ def load_trainer_data_from_local_artifact(trainer_id: int, args: Any) -> tuple[
     torch.Tensor,
     torch.Tensor,
 ]:
-    """Load and validate one complete local 0-hop shard on its Ray worker."""
+    """Load and validate one complete manifest-style shard on its Ray worker."""
     configured_root = getattr(args, "local_artifact_dir", None)
     if not configured_root:
         raise ValueError("local_artifact_dir is required for local artifact loading")
     if getattr(args, "use_huggingface", False):
         raise ValueError("local_artifact_dir and use_huggingface cannot be combined")
-    if int(getattr(args, "num_hops", 0)) != 0:
-        raise ValueError("local artifacts currently support only num_hops=0")
 
     artifact_root = Path(configured_root).expanduser().resolve()
     manifest_path = artifact_root / "manifest.json"
     if not manifest_path.is_file():
         raise FileNotFoundError(f"Local artifact manifest is missing: {manifest_path}")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if manifest.get("artifact_version") != 1:
-        raise ValueError("local artifact must use artifact_version=1")
-    if manifest.get("hop_semantics") != 0:
-        raise ValueError("local artifact must declare hop_semantics=0")
+    artifact_version = manifest.get("artifact_version")
+    hop_semantics = manifest.get("hop_semantics")
+    runtime_hops = int(getattr(args, "num_hops", 0))
+    if (artifact_version, hop_semantics) not in {(1, 0), (2, 2)}:
+        raise ValueError(
+            "local artifact must use the version/hop contract (1, 0) or (2, 2)"
+        )
+    if hop_semantics != runtime_hops:
+        raise ValueError(
+            "local artifact hop_semantics does not match the requested experiment: "
+            f"{hop_semantics} != {runtime_hops}"
+        )
+    _record_local_artifact_manifest(args, manifest)
     if manifest.get("n_trainer") != int(args.n_trainer):
         raise ValueError(
             "local artifact n_trainer does not match the requested experiment: "
@@ -393,6 +424,51 @@ def load_trainer_data_from_local_artifact(trainer_id: int, args: Any) -> tuple[
     if metadata.get("trainer_id") != trainer_id:
         raise ValueError("local artifact metadata has an unexpected trainer ID")
 
+    expected_tensor_files = set(_LOCAL_ARTIFACT_COMMON_SHARD_FILES[1:])
+    if artifact_version == 2:
+        expected_tensor_files.update(_LOCAL_ARTIFACT_V2_EXTRA_SHARD_FILES)
+        if (
+            manifest.get("neighborhood_hops") != 1
+            or manifest.get("message_flow") != "source_to_target"
+            or manifest.get("feature_alignment") != "local_node_index"
+        ):
+            raise ValueError("2-hop artifact has incompatible graph semantics")
+        contract = manifest.get("adjacency_contract")
+        required_contract: dict[str, dict[str, object]] = {
+            "pretrain_adjacency": {
+                "file": "adj_global.pt",
+                "coordinate_system": "global_node_id",
+                "sorted_by": "source_then_input_order",
+            },
+            "training_adjacency": {
+                "file": "adj.pt",
+                "coordinate_system": "communicate_node_position",
+                "mapping_file": "communicate_node_index.pt",
+                "sorted_by": "source_then_input_order",
+            },
+            "source_degree": {
+                "file": "source_degree.pt",
+                "alignment": "communicate_node_position",
+                "includes_self_loop": False,
+            },
+            "source_offsets": {
+                "file": "source_offsets.pt",
+                "alignment": "communicate_node_position_plus_terminal",
+                "indexes": "training_adjacency_columns",
+            },
+        }
+        if not isinstance(contract, dict) or any(
+            not isinstance(contract.get(section), dict)
+            or any(contract[section].get(key) != value for key, value in fields.items())
+            for section, fields in required_contract.items()
+        ):
+            raise ValueError("2-hop artifact has an invalid adjacency contract")
+    metadata_files = metadata.get("files")
+    if not isinstance(metadata_files, dict) or set(metadata_files) != (
+        expected_tensor_files
+    ):
+        raise ValueError("local artifact metadata has an unexpected tensor file list")
+
     memory_map_graph = _resolve_graph_storage_mode(args) == "mmap"
 
     def load_shard_tensor(file_name: str) -> torch.Tensor:
@@ -404,7 +480,9 @@ def load_trainer_data_from_local_artifact(trainer_id: int, args: Any) -> tuple[
 
     local_node_index = load_shard_tensor("local_node_index.pt")
     communicate_node_index = load_shard_tensor("communicate_node_index.pt")
-    adjacency = load_shard_tensor("adj.pt")
+    adjacency = load_shard_tensor(
+        "adj_global.pt" if artifact_version == 2 else "adj.pt"
+    )
     train_labels = load_shard_tensor("train_labels.pt")
     val_labels = load_shard_tensor("val_labels.pt")
     test_labels = load_shard_tensor("test_labels.pt")
@@ -415,27 +493,135 @@ def load_trainer_data_from_local_artifact(trainer_id: int, args: Any) -> tuple[
     global_node_num = load_shard_tensor("global_node_num.pt")
     class_num = load_shard_tensor("class_num.pt")
 
-    node_count = local_node_index.numel()
-    if local_node_index.ndim != 1 or not torch.equal(
-        local_node_index, communicate_node_index
-    ):
-        raise ValueError("0-hop local and communicate node indexes must match")
-    if node_count != metadata.get("node_count"):
-        raise ValueError("local artifact node count does not match metadata")
-    if node_count > 1 and not bool(
-        torch.all(local_node_index[1:] >= local_node_index[:-1])
-    ):
-        raise ValueError("local_node_index must be sorted")
-    if features.ndim != 2 or features.size(0) != node_count:
+    owned_node_count = local_node_index.numel()
+    communicate_node_count = communicate_node_index.numel()
+    validation_chunk_size = int(getattr(args, "graph_relabel_chunk_edges", 1_000_000))
+    if validation_chunk_size < 1:
+        raise ValueError("graph_relabel_chunk_edges must be positive")
+
+    def is_strictly_increasing(values: torch.Tensor) -> bool:
+        previous: Optional[int] = None
+        for start in range(0, values.numel(), validation_chunk_size):
+            stop = min(start + validation_chunk_size, values.numel())
+            chunk = values[start:stop]
+            if chunk.numel() == 0:
+                continue
+            if previous is not None and int(chunk[0]) <= previous:
+                return False
+            if chunk.numel() > 1 and not bool(torch.all(chunk[1:] > chunk[:-1])):
+                return False
+            previous = int(chunk[-1])
+        return True
+
+    if local_node_index.ndim != 1 or communicate_node_index.ndim != 1:
+        raise ValueError("local and communicate node indexes must be one-dimensional")
+    if not is_strictly_increasing(local_node_index):
+        raise ValueError("local_node_index must be sorted and unique")
+    if not is_strictly_increasing(communicate_node_index):
+        raise ValueError("communicate_node_index must be sorted and unique")
+    if features.ndim != 2 or features.size(0) != owned_node_count:
         raise ValueError("features must contain one row per local node")
     if adjacency.ndim != 2 or adjacency.size(0) != 2:
-        raise ValueError("adjacency must be a [2, E] local edge index")
-    if adjacency.numel() and (
-        int(adjacency.min()) < 0 or int(adjacency.max()) >= node_count
-    ):
-        raise ValueError("adjacency contains an endpoint outside local feature rows")
-    if adjacency.size(1) != metadata.get("internal_edge_count"):
-        raise ValueError("local artifact edge count does not match metadata")
+        raise ValueError("adjacency must be an edge-index tensor with shape [2, E]")
+
+    split_row_count = owned_node_count
+    if artifact_version == 1:
+        if not torch.equal(local_node_index, communicate_node_index):
+            raise ValueError("0-hop local and communicate node indexes must match")
+        if owned_node_count != metadata.get("node_count"):
+            raise ValueError("local artifact node count does not match metadata")
+        if adjacency.numel() and (
+            int(adjacency.min()) < 0 or int(adjacency.max()) >= owned_node_count
+        ):
+            raise ValueError(
+                "adjacency contains an endpoint outside local feature rows"
+            )
+        if adjacency.size(1) != metadata.get("internal_edge_count"):
+            raise ValueError("local artifact edge count does not match metadata")
+    else:
+        if owned_node_count != metadata.get("owned_node_count") or (
+            communicate_node_count != metadata.get("communicate_node_count")
+        ):
+            raise ValueError("2-hop artifact node counts do not match metadata")
+        for start in range(0, owned_node_count, validation_chunk_size):
+            owned_chunk = local_node_index[
+                start : min(start + validation_chunk_size, owned_node_count)
+            ]
+            positions = torch.searchsorted(communicate_node_index, owned_chunk)
+            if torch.any(positions >= communicate_node_count) or not torch.equal(
+                communicate_node_index[positions], owned_chunk
+            ):
+                raise ValueError(
+                    "2-hop communication index must contain every local node"
+                )
+
+        edge_count = int(adjacency.size(1))
+        if edge_count != metadata.get("induced_edge_count"):
+            raise ValueError("2-hop artifact edge count does not match metadata")
+
+        # The baseline returns adj_global.pt for pretraining. Inspect the
+        # pre-relabeled training view and chunk indexes without retaining them.
+        for file_name in ("adj.pt", "source_degree.pt", "source_offsets.pt"):
+            _record_artifact_tensor_path(args, file_name, shard_dir / file_name)
+        training_adjacency = _load_artifact_tensor(
+            shard_dir / "adj.pt", memory_map=True
+        )
+        source_degree = _load_artifact_tensor(
+            shard_dir / "source_degree.pt", memory_map=True
+        )
+        source_offsets = _load_artifact_tensor(
+            shard_dir / "source_offsets.pt", memory_map=True
+        )
+        if training_adjacency.shape != adjacency.shape:
+            raise ValueError("2-hop global and local adjacency shapes must match")
+        if source_degree.shape != (communicate_node_count,) or (
+            source_offsets.shape != (communicate_node_count + 1,)
+        ):
+            raise ValueError("2-hop source degree or offset shape is invalid")
+        if int(source_offsets[0]) != 0 or int(source_offsets[-1]) != edge_count:
+            raise ValueError("2-hop source offsets do not cover the adjacency")
+        for start in range(0, communicate_node_count, validation_chunk_size):
+            stop = min(start + validation_chunk_size, communicate_node_count)
+            degree_chunk = source_degree[start:stop]
+            if torch.any(degree_chunk < 0) or not torch.equal(
+                source_offsets[start + 1 : stop + 1] - source_offsets[start:stop],
+                degree_chunk,
+            ):
+                raise ValueError("2-hop source degrees and offsets disagree")
+
+        previous_source: Optional[int] = None
+        for start in range(0, edge_count, validation_chunk_size):
+            stop = min(start + validation_chunk_size, edge_count)
+            global_chunk = adjacency[:, start:stop]
+            local_chunk = training_adjacency[:, start:stop]
+            if local_chunk.numel() and (
+                int(local_chunk.min()) < 0
+                or int(local_chunk.max()) >= communicate_node_count
+            ):
+                raise ValueError("2-hop local adjacency endpoint is out of range")
+            if not torch.equal(communicate_node_index[local_chunk], global_chunk):
+                raise ValueError("2-hop global and local adjacency views disagree")
+            edge_positions = torch.arange(
+                start, stop, dtype=source_offsets.dtype, device=source_offsets.device
+            )
+            expected_local_sources = (
+                torch.searchsorted(source_offsets, edge_positions, right=True) - 1
+            )
+            if not torch.equal(local_chunk[0], expected_local_sources):
+                raise ValueError("2-hop source offsets do not index adjacency rows")
+            sources = global_chunk[0]
+            if sources.numel() and (
+                (previous_source is not None and int(sources[0]) < previous_source)
+                or (
+                    sources.numel() > 1
+                    and not bool(torch.all(sources[1:] >= sources[:-1]))
+                )
+            ):
+                raise ValueError("2-hop pretraining adjacency must be source-sorted")
+            if sources.numel():
+                previous_source = int(sources[-1])
+        split_row_count = communicate_node_count
+
     for indexes, labels, split in (
         (idx_train, train_labels, "train"),
         (idx_val, val_labels, "val"),
@@ -444,11 +630,14 @@ def load_trainer_data_from_local_artifact(trainer_id: int, args: Any) -> tuple[
         if indexes.ndim != 1 or labels.ndim != 1 or indexes.numel() != labels.numel():
             raise ValueError(f"local artifact {split} indexes and labels are invalid")
         if indexes.numel() and (
-            int(indexes.min()) < 0 or int(indexes.max()) >= node_count
+            int(indexes.min()) < 0 or int(indexes.max()) >= split_row_count
         ):
             raise ValueError(f"local artifact {split} indexes are outside local rows")
 
-    print(f"Loaded local artifact shard {trainer_id} from {shard_dir}")
+    print(
+        f"Loaded local artifact v{artifact_version} shard {trainer_id} "
+        f"({hop_semantics}-hop) from {shard_dir}"
+    )
     return (
         local_node_index,
         communicate_node_index,
@@ -546,8 +735,7 @@ class Trainer_General:
             torch.manual_seed(rank)
         graph_storage_mode = _resolve_graph_storage_mode(args)
         adjacency_artifact_path: Optional[Path] = None
-        if graph_storage_mode == "mmap":
-            setattr(args, "_artifact_tensor_paths", {})
+        pre_relabelled_adjacency_path: Optional[Path] = None
         loads_artifact_data = (
             local_node_index is None
             or communicate_node_index is None
@@ -558,6 +746,8 @@ class Trainer_General:
             or idx_train is None
             or idx_test is None
         )
+        if loads_artifact_data:
+            setattr(args, "_artifact_tensor_paths", {})
         if graph_storage_mode == "mmap" and not loads_artifact_data:
             raise ValueError(
                 "graph_storage_mode='mmap' requires file-backed trainer artifacts; "
@@ -590,9 +780,14 @@ class Trainer_General:
                     else load_trainer_data_from_hugging_face(rank, args)
                 )
             )
-            recorded_adjacency_path = _artifact_tensor_paths(args).get("adj.pt")
+            artifact_paths = _artifact_tensor_paths(args)
+            recorded_adjacency_path = artifact_paths.get(
+                "adj_global.pt", artifact_paths.get("adj.pt")
+            )
             if recorded_adjacency_path:
                 adjacency_artifact_path = Path(recorded_adjacency_path)
+            if artifact_paths.get("adj_global.pt") and artifact_paths.get("adj.pt"):
+                pre_relabelled_adjacency_path = Path(artifact_paths["adj.pt"])
             self.artifact_load_time_sec = time.perf_counter() - artifact_load_start
             artifact_load_snapshot = collect_resource_snapshot(
                 source="trainer",
@@ -620,9 +815,20 @@ class Trainer_General:
         self.rank = rank  # rank = trainer ID
         self.args = args
         self.adjacency_artifact_path = adjacency_artifact_path
+        self.pre_relabelled_adjacency_path = pre_relabelled_adjacency_path
+        artifact_paths = _artifact_tensor_paths(args)
+        self.source_degree_artifact_path = artifact_paths.get("source_degree.pt")
+        self.source_offsets_artifact_path = artifact_paths.get("source_offsets.pt")
+        artifact_manifest = getattr(args, "_local_artifact_manifest", {})
+        self.artifact_version = (
+            artifact_manifest.get("artifact_version")
+            if isinstance(artifact_manifest, dict)
+            else None
+        )
         self.adjacency_relabel_time_sec: Optional[float] = None
         self.adjacency_relabel_cache_path: Optional[str] = None
         self.adjacency_relabel_cache_hit: Optional[bool] = None
+        self.adjacency_relabel_strategy: Optional[str] = None
         self.adjacency_relabel_source_edge_count: Optional[int] = None
         self.adjacency_relabel_output_edge_count: Optional[int] = None
         self.adjacency_relabel_dropped_edge_count: Optional[int] = None
@@ -718,9 +924,12 @@ class Trainer_General:
             "len_in_com_train_node_local_indexes": len(self.idx_train),
             "len_in_com_val_node_local_indexes": len(self.idx_val),
             "len_in_com_test_node_local_indexes": len(self.idx_test),
+            "artifact_version": self.artifact_version,
         }
         if self.args.method != "FedAvg":
-            info["communicate_node_global_index"] = self.communicate_node_index
+            info["communicate_node_global_index"] = (
+                self.communicate_node_index.detach().cpu()
+            )
         return info
 
     def init_model(self, global_node_num, class_num):
@@ -1366,6 +1575,47 @@ class Trainer_General:
             self.communicate_node_index if node_index is None else node_index
         )
         source_edge_count = int(self.adj.size(1))
+        if node_index is None and self.pre_relabelled_adjacency_path is not None:
+            local_adjacency = _load_artifact_tensor(
+                self.pre_relabelled_adjacency_path,
+                memory_map=(
+                    self.graph_storage_mode == "mmap"
+                    or self.graph_device.type == "cuda"
+                ),
+            )
+            if local_adjacency.ndim != 2 or local_adjacency.size(0) != 2:
+                raise ValueError(
+                    "pre-relabeled artifact adjacency must have shape [2, E]"
+                )
+            output_edge_count = int(local_adjacency.size(1))
+            if output_edge_count != source_edge_count:
+                raise ValueError(
+                    "pretraining and training artifact adjacency edge counts differ"
+                )
+
+            # Drop the global-ID GPU view before copying the local-coordinate
+            # view so both edge tensors never occupy VRAM simultaneously.
+            if self.adj.device.type == "cuda":
+                self.adj = torch.empty((2, 0), dtype=torch.long, device="cpu")
+                torch.cuda.empty_cache()
+            self.adj = local_adjacency.to(self.graph_device)
+            self.adjacency_artifact_path = self.pre_relabelled_adjacency_path
+            self.adjacency_memory_mapped = self.graph_storage_mode == "mmap"
+            self.adjacency_relabel_time_sec = time.perf_counter() - started_at
+            self.adjacency_relabel_cache_path = str(self.pre_relabelled_adjacency_path)
+            self.adjacency_relabel_strategy = "artifact-precomputed"
+            self.adjacency_relabel_source_edge_count = source_edge_count
+            self.adjacency_relabel_output_edge_count = output_edge_count
+            self.adjacency_relabel_dropped_edge_count = 0
+            print(
+                "NC_ADJ_RELABEL, "
+                f"trainer={self.rank}, mode=artifact-precomputed, "
+                f"source_edges={source_edge_count}, output_edges={output_edge_count}, "
+                f"dropped_edges=0, time_sec={self.adjacency_relabel_time_sec:.6f}, "
+                f"source={self.pre_relabelled_adjacency_path}"
+            )
+            return
+
         if self.graph_storage_mode == "mmap":
             cache_dir = getattr(self.args, "graph_relabel_cache_dir", None)
             if not cache_dir:
@@ -1393,6 +1643,7 @@ class Trainer_General:
             self.adjacency_relabel_time_sec = result.elapsed_sec
             self.adjacency_relabel_cache_path = str(result.cache_path)
             self.adjacency_relabel_cache_hit = result.cache_hit
+            self.adjacency_relabel_strategy = "mmap-cache"
             self.adjacency_relabel_source_edge_count = result.source_edge_count
             self.adjacency_relabel_output_edge_count = result.edge_count
             self.adjacency_relabel_dropped_edge_count = result.dropped_edge_count
@@ -1435,6 +1686,7 @@ class Trainer_General:
         )
         self.adjacency_relabel_time_sec = time.perf_counter() - started_at
         self.adjacency_relabel_cache_hit = False
+        self.adjacency_relabel_strategy = "computed"
         self.adjacency_relabel_source_edge_count = source_edge_count
         self.adjacency_relabel_output_edge_count = int(self.adj.size(1))
         self.adjacency_relabel_dropped_edge_count = (

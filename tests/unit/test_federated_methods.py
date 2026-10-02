@@ -17,6 +17,7 @@ from fedgraph.federated_methods import (
     _resolve_nc_evaluation_split,
     _resolve_nc_global_node_num,
     _resolve_nc_resource_monitor_mode,
+    _resolve_pretrain_feature_aggregation_mode,
     _resolve_pretrain_feature_upload_mode,
     _resource_monitor_uses_manual_snapshots,
     _resource_monitor_uses_prometheus,
@@ -190,6 +191,39 @@ class TestResolveNCGlobalNodeNum:
 class TestIndexedFeatureAggregation:
     def test_defaults_to_dense_uploads(self):
         assert _resolve_pretrain_feature_upload_mode(attridict.AttriDict()) == "dense"
+
+    def test_defaults_to_full_aggregation(self):
+        assert (
+            _resolve_pretrain_feature_aggregation_mode(attridict.AttriDict()) == "full"
+        )
+
+    def test_rejects_unknown_aggregation_mode(self):
+        with pytest.raises(ValueError, match="full.*chunked"):
+            _resolve_pretrain_feature_aggregation_mode(
+                attridict.AttriDict(pretrain_feature_aggregation_mode="stream")
+            )
+
+    def test_chunked_mode_fails_before_ray_until_stage3(self, tmp_path):
+        (tmp_path / "manifest.json").write_text(
+            '{"artifact_version": 2, "hop_semantics": 2, "n_trainer": 1}',
+            encoding="utf-8",
+        )
+        args = attridict.AttriDict(
+            num_hops=2,
+            n_trainer=1,
+            local_artifact_dir=str(tmp_path),
+            local_artifact_rank_hosts=None,
+            hf_local_artifact_repo=None,
+            use_huggingface=False,
+            use_lowrank=False,
+            use_dp=False,
+            use_encryption=False,
+            pretrain_feature_upload_mode="indexed",
+            pretrain_feature_aggregation_mode="chunked",
+        )
+
+        with pytest.raises(NotImplementedError, match="Stage 3"):
+            run_NC(args)
 
     def test_rejects_unknown_upload_mode(self):
         with pytest.raises(ValueError, match="dense.*indexed"):
