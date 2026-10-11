@@ -1180,6 +1180,13 @@ def _gather_csr_targets(
     return source_positions, targets
 
 
+def _append_file_and_remove(source_path: Path, destination_path: Path) -> None:
+    """Append one bounded-memory tensor plane and remove its temporary file."""
+    with source_path.open("rb") as source, destination_path.open("ab") as destination:
+        shutil.copyfileobj(source, destination, length=8 * 1024 * 1024)
+    source_path.unlink()
+
+
 def _write_2hop_adjacencies(
     shard_root: Path,
     communicate_node_counts: list[int],
@@ -1210,12 +1217,17 @@ def _write_2hop_adjacencies(
         degrees[:] = 0
         global_path = shard_dir / "adj_global.i64"
         local_path = shard_dir / "adj_local.i64"
+        global_target_path = shard_dir / "adj_global_targets.i64"
+        local_target_path = shard_dir / "adj_local_targets.i64"
         edge_count = 0
         word = trainer_id // 64
         mask = np.left_shift(np.uint64(1), np.uint64(trainer_id % 64))
-        with global_path.open("wb") as global_output, local_path.open(
-            "wb"
-        ) as local_output:
+        with (
+            global_path.open("wb") as global_source_output,
+            global_target_path.open("wb") as global_target_output,
+            local_path.open("wb") as local_source_output,
+            local_target_path.open("wb") as local_target_output,
+        ):
             for local_start, local_stop, global_sources in _source_batches(
                 communicate_nodes, source_offsets, chunk_rows
             ):
@@ -1242,18 +1254,22 @@ def _write_2hop_adjacencies(
                 retained_sources = np.asarray(
                     communicate_nodes[source_positions], dtype=np.int64
                 )
-                np.column_stack((retained_sources, retained_targets)).astype(
-                    np.int64, copy=False
-                ).tofile(global_output)
-                np.column_stack((source_positions, target_positions)).astype(
-                    np.int64, copy=False
-                ).tofile(local_output)
+                retained_sources.tofile(global_source_output)
+                retained_targets.astype(np.int64, copy=False).tofile(
+                    global_target_output
+                )
+                source_positions.astype(np.int64, copy=False).tofile(
+                    local_source_output
+                )
+                target_positions.tofile(local_target_output)
                 batch_degrees = np.bincount(
                     source_positions - local_start,
                     minlength=local_stop - local_start,
                 )
                 degrees[local_start:local_stop] = batch_degrees
                 edge_count += int(retained_targets.size)
+        _append_file_and_remove(global_target_path, global_path)
+        _append_file_and_remove(local_target_path, local_path)
         degrees.flush()
         offset_path = shard_dir / "source_offsets.i64"
         offsets = np.memmap(
@@ -1486,8 +1502,8 @@ def _split_payloads_for_communicate_nodes(
 def _edge_tensor_from_memmap(path: Path, edge_count: int) -> torch.Tensor:
     if edge_count == 0:
         return torch.empty((2, 0), dtype=torch.long)
-    values = np.memmap(path, dtype=np.int64, mode="r", shape=(edge_count, 2))
-    return torch.from_numpy(values).T
+    values = np.memmap(path, dtype=np.int64, mode="r+", shape=(2, edge_count))
+    return torch.from_numpy(values)
 
 
 def _finalize_2hop_shards(
@@ -1624,6 +1640,8 @@ def _validate_2hop_adjacency_contract(
         global_adjacency.ndim != 2 or global_adjacency.shape[0] != 2
     ):
         raise RuntimeError(f"Shard {trainer_id} adjacency shapes are invalid")
+    if not global_adjacency.is_contiguous() or not local_adjacency.is_contiguous():
+        raise RuntimeError(f"Shard {trainer_id} adjacency tensors are not contiguous")
     edge_count = int(global_adjacency.shape[1])
     if source_degree.shape != communicate_nodes.shape:
         raise RuntimeError(f"Shard {trainer_id} source-degree shape is invalid")
@@ -2142,6 +2160,7 @@ def partition_raw_ogb_2hop(
             "coordinate_system": "global_node_id",
             "sorted_by": "source_then_input_order",
             "edge_semantics": "induced_on_communication_nodes",
+            "contiguous": True,
         },
         "training_adjacency": {
             "file": "adj.pt",
@@ -2149,6 +2168,7 @@ def partition_raw_ogb_2hop(
             "mapping_file": "communicate_node_index.pt",
             "sorted_by": "source_then_input_order",
             "edge_semantics": "same_edges_as_pretrain_adjacency",
+            "contiguous": True,
         },
         "source_degree": {
             "file": "source_degree.pt",

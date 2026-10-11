@@ -164,20 +164,28 @@ def _resolve_graph_storage_mode(args: Any) -> str:
         choices = ", ".join(sorted(_GRAPH_STORAGE_MODES))
         raise ValueError(f"graph_storage_mode must be one of: {choices}")
     num_hops = int(getattr(args, "num_hops", 0))
-    uses_chunked_v2_artifact = (
-        num_hops == 2
-        and getattr(args, "pretrain_feature_aggregation_mode", "full") == "chunked"
-        and (_uses_local_nc_artifact(args) or _uses_huggingface_local_nc_artifact(args))
+    aggregation_mode = getattr(args, "pretrain_feature_aggregation_mode", "full")
+    uses_manifest_v2_artifact = num_hops == 2 and (
+        _uses_local_nc_artifact(args) or _uses_huggingface_local_nc_artifact(args)
+    )
+    uses_supported_host_v2_path = uses_manifest_v2_artifact and (
+        aggregation_mode == "chunked"
+        or (
+            mode == "cpu"
+            and aggregation_mode == "full"
+            and getattr(args, "pretrain_feature_upload_mode", "dense") == "indexed"
+        )
     )
     if (
         mode in _HOST_GRAPH_STORAGE_MODES
         and num_hops != 0
-        and not uses_chunked_v2_artifact
+        and not uses_supported_host_v2_path
     ):
         raise ValueError(
-            f"graph_storage_mode='{mode}' currently supports only num_hops=0; "
-            "host-backed num_hops=2 requires a manifest-style artifact and "
-            "pretrain_feature_aggregation_mode='chunked'"
+            f"graph_storage_mode='{mode}' is not supported for this 2-hop "
+            "configuration; host-backed num_hops=2 requires a manifest-style artifact with "
+            "chunked aggregation, or full indexed aggregation with "
+            "graph_storage_mode='cpu'"
         )
     return mode
 
@@ -462,12 +470,14 @@ def load_trainer_data_from_local_artifact(trainer_id: int, args: Any) -> tuple[
                 "file": "adj_global.pt",
                 "coordinate_system": "global_node_id",
                 "sorted_by": "source_then_input_order",
+                "contiguous": True,
             },
             "training_adjacency": {
                 "file": "adj.pt",
                 "coordinate_system": "communicate_node_position",
                 "mapping_file": "communicate_node_index.pt",
                 "sorted_by": "source_then_input_order",
+                "contiguous": True,
             },
             "source_degree": {
                 "file": "source_degree.pt",
@@ -597,6 +607,10 @@ def load_trainer_data_from_local_artifact(trainer_id: int, args: Any) -> tuple[
         )
         if training_adjacency.shape != adjacency.shape:
             raise ValueError("2-hop global and local adjacency shapes must match")
+        if not adjacency.is_contiguous() or not training_adjacency.is_contiguous():
+            raise ValueError(
+                "2-hop adjacency tensors must use contiguous [2, E] storage"
+            )
         if source_degree.shape != (communicate_node_count,) or (
             source_offsets.shape != (communicate_node_count + 1,)
         ):
@@ -1129,6 +1143,16 @@ class Trainer_General:
                 "adj must be an edge-index tensor with shape [2, num_edges]"
             )
 
+        aggregation_device = self.features.device
+        if (
+            self.local_node_index.device != aggregation_device
+            or self.adj.device != aggregation_device
+        ):
+            raise RuntimeError(
+                "indexed feature aggregation requires features, node indexes, and "
+                "adjacency on the same graph device"
+            )
+
         local_node_ids = self.local_node_index.long()
         if local_node_ids.numel() != self.features.size(0):
             raise ValueError(
@@ -1157,7 +1181,7 @@ class Trainer_General:
         row_values = torch.zeros(
             (row_ids.numel(), self.features.size(1)),
             dtype=self.features.dtype,
-            device=self.device,
+            device=aggregation_device,
         )
 
         norm_type = getattr(self.args, "norm_type", "none")
@@ -1170,12 +1194,12 @@ class Trainer_General:
             edge_weights = torch.ones(
                 contributing_sources.numel(),
                 dtype=self.features.dtype,
-                device=self.device,
+                device=aggregation_device,
             )
             self_weights = torch.ones(
                 local_node_ids.numel(),
                 dtype=self.features.dtype,
-                device=self.device,
+                device=aggregation_device,
             )
         else:
             degree_nodes, edge_counts = torch.unique(
@@ -1188,7 +1212,9 @@ class Trainer_General:
                 matches = torch.zeros_like(valid)
                 matches[valid] = degree_nodes[positions[valid]] == node_ids[valid]
                 degrees = torch.ones(
-                    node_ids.numel(), dtype=self.features.dtype, device=self.device
+                    node_ids.numel(),
+                    dtype=self.features.dtype,
+                    device=aggregation_device,
                 )
                 degrees[matches] = (
                     edge_counts[positions[matches]].to(self.features.dtype) + 1

@@ -218,11 +218,11 @@ class TestTrainerGeneral:
         with pytest.raises(ValueError, match="requires a positive batch_size"):
             trainer._require_supported_graph_execution(False)
 
-    def test_cpu_graph_storage_rejects_two_hop_until_chunking(self):
+    def test_cpu_graph_storage_rejects_two_hop_without_manifest_artifact(self):
         self.args.graph_storage_mode = "cpu"
         self.args.num_hops = 2
 
-        with pytest.raises(ValueError, match="supports only num_hops=0"):
+        with pytest.raises(ValueError, match="manifest-style artifact"):
             Trainer_General(
                 rank=self.rank,
                 args_hidden=self.args_hidden,

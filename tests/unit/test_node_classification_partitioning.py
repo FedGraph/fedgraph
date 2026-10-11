@@ -221,6 +221,8 @@ def test_partition_raw_ogb_2hop_writes_sorted_dual_coordinate_shards(tmp_path):
     assert manifest["adjacency_contract"]["pretrain_adjacency"]["sorted_by"] == (
         "source_then_input_order"
     )
+    assert manifest["adjacency_contract"]["pretrain_adjacency"]["contiguous"]
+    assert manifest["adjacency_contract"]["training_adjacency"]["contiguous"]
 
     raw_edges = [
         (0, 1),
@@ -270,6 +272,8 @@ def test_partition_raw_ogb_2hop_writes_sorted_dual_coordinate_shards(tmp_path):
         ).T
 
         assert communicate.tolist() == expected_communicate
+        assert global_adjacency.is_contiguous()
+        assert local_adjacency.is_contiguous()
         assert torch.equal(global_adjacency, expected_global)
         assert torch.equal(local_adjacency, expected_local)
         assert torch.equal(communicate[local_adjacency], global_adjacency)
@@ -529,6 +533,100 @@ def test_chunked_v2_feature_sum_matches_full_indexed_aggregation(
     torch.testing.assert_close(torch.cat(chunk_row_values), full_row_values)
     assert trainer._chunk_source_degree is not None
     assert trainer._chunk_source_offsets is not None
+
+
+@pytest.mark.parametrize("norm_type", ["none", "row", "sym"])
+def test_full_cpu_v2_feature_sum_stays_on_graph_device(tmp_path, norm_type):
+    dataset_root = tmp_path / "synthetic"
+    output_dir = tmp_path / "artifact-2hop"
+    _make_raw_dataset(dataset_root)
+    partition_raw_ogb_2hop(
+        dataset_root=dataset_root,
+        output_dir=output_dir,
+        n_trainer=2,
+        iid_beta=10000.0,
+        seed=42,
+        checksums=False,
+        chunk_rows=2,
+    )
+    trainer = Trainer_General(
+        rank=0,
+        args_hidden=8,
+        device=torch.device("cuda"),
+        args=SimpleNamespace(
+            local_artifact_dir=str(output_dir),
+            use_huggingface=False,
+            num_hops=2,
+            n_trainer=2,
+            graph_storage_mode="cpu",
+            graph_relabel_chunk_edges=2,
+            pretrain_feature_upload_mode="indexed",
+            pretrain_feature_aggregation_mode="full",
+            seed=42,
+            local_step=1,
+            method="FedGCN",
+            norm_type=norm_type,
+        ),
+    )
+
+    assert trainer.device.type == "cuda"
+    assert trainer.graph_device.type == "cpu"
+    assert trainer.features.device.type == "cpu"
+    assert trainer.adj.device.type == "cpu"
+    assert "communicate_node_global_index" in trainer.get_info()
+
+    row_ids, row_values = trainer.get_indexed_local_feature_sum()
+
+    assert row_ids.device.type == "cpu"
+    assert row_values.device.type == "cpu"
+
+    trainer.load_feature_aggregation(
+        torch.zeros(
+            (trainer.communicate_node_index.numel(), trainer.features.size(1)),
+            dtype=trainer.features.dtype,
+        )
+    )
+    trainer.relabel_adj()
+
+    assert trainer.feature_aggregation.device.type == "cpu"
+    assert trainer.adj.device.type == "cpu"
+    assert trainer.adjacency_relabel_strategy == "artifact-precomputed"
+
+
+def test_full_mmap_v2_feature_sum_remains_unsupported(tmp_path):
+    dataset_root = tmp_path / "synthetic"
+    output_dir = tmp_path / "artifact-2hop"
+    _make_raw_dataset(dataset_root)
+    partition_raw_ogb_2hop(
+        dataset_root=dataset_root,
+        output_dir=output_dir,
+        n_trainer=2,
+        iid_beta=10000.0,
+        seed=42,
+        checksums=False,
+        chunk_rows=2,
+    )
+
+    with pytest.raises(ValueError, match="full indexed aggregation.*cpu"):
+        Trainer_General(
+            rank=0,
+            args_hidden=8,
+            device=torch.device("cpu"),
+            args=SimpleNamespace(
+                local_artifact_dir=str(output_dir),
+                use_huggingface=False,
+                num_hops=2,
+                n_trainer=2,
+                graph_storage_mode="mmap",
+                graph_relabel_chunk_edges=2,
+                pretrain_feature_upload_mode="indexed",
+                pretrain_feature_aggregation_mode="full",
+                seed=42,
+                local_step=1,
+                method="FedGCN",
+                norm_type="none",
+            ),
+        )
 
 
 def test_chunked_v2_feature_sum_rejects_unbounded_or_unsorted_requests(tmp_path):
