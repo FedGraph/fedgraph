@@ -50,6 +50,7 @@ setup(
         "twine==5.0.0",
         "scikit-learn",
         "tenseal",
+        "cryptography",
         "huggingface_hub",
         "ogb",
     ],

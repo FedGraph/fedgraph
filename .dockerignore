@@ -1,0 +1,7 @@
+backup_ec2
+.git
+runs
+*.pdf
+*.zip
+figures_src
+overleaf*

@@ -110,3 +110,33 @@ def auto_select_rank(
     rank_from_energy = min(rank_from_energy, max_rank)
 
     return min(rank_from_ratio, rank_from_energy)
+
+
+# ---------------------------------------------------------------------------
+# Shared-basis (federated PCA) variant of low-rank pretraining.
+#
+# Every client projects its pretraining aggregate Z_k onto ONE basis W shared by
+# all clients, so the projections Z_k W sum under encryption like the standard
+# mode (Proposition 1 of the paper).  W is the top-r left singular subspace of a
+# randomized sketch of the pooled covariance sum_k Z_k^T Z_k: each client
+# contributes Y_k = Z_k^T (Z_k Omega) for a common Gaussian test matrix Omega
+# (d x ell, ell = 4r by default), the server sums the Y_k (under encryption in the HE path)
+# and takes the top-r left singular vectors of the sum.  Only the aggregate
+# sketch is ever decrypted.
+# ---------------------------------------------------------------------------
+def make_omega(d: int, ell: int, seed: int = 0) -> torch.Tensor:
+    """Common Gaussian test matrix Omega (d x ell), reproducible from ``seed``."""
+    g = torch.Generator().manual_seed(int(seed))
+    return torch.randn(d, ell, generator=g, dtype=torch.float32)
+
+
+def basis_sketch(Z: torch.Tensor, omega: torch.Tensor) -> torch.Tensor:
+    """Client-side sketch Y_k = Z_k^T (Z_k Omega), shape d x ell."""
+    Z = Z.float()
+    return Z.t() @ (Z @ omega)
+
+
+def shared_basis_from_sketch(Y: torch.Tensor, rank: int) -> torch.Tensor:
+    """Top-r left singular vectors of the aggregated sketch Y (d x ell) -> W (d x r)."""
+    U, _, _ = torch.linalg.svd(Y.float(), full_matrices=False)
+    return U[:, : min(rank, U.shape[1])].contiguous()

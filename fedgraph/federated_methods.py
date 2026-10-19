@@ -112,7 +112,14 @@ def run_fedgraph(args: attridict) -> None:
             and getattr(args, "use_encryption", False)
             and getattr(args, "he_backend", "tenseal") == "openfhe"
         )
-        if getattr(args, "use_lowrank", False) and not _openfhe_lowrank:
+        # ``lowrank_pretrain`` runs the low-rank PRETRAINING (per-client SVD or
+        # shared basis) in plaintext, for accuracy studies without HE.
+        _plain_lowrank_pretrain = (
+            getattr(args, "use_lowrank", False)
+            and not getattr(args, "use_encryption", False)
+            and getattr(args, "lowrank_pretrain", False)
+        )
+        if getattr(args, "use_lowrank", False) and not (_openfhe_lowrank or _plain_lowrank_pretrain):
             run_NC_lowrank(args, data)
         else:
             run_NC(args, data)
@@ -286,11 +293,13 @@ def run_NC(args: attridict, data: Any = None) -> None:
 
             if self.use_encryption:
                 if self.he_backend == "tenseal":
-                    file_path = str(files("fedgraph").joinpath("he_context.pkl"))
+                    file_path = getattr(args_obj, "tenseal_context_file", None) or str(
+                        files("fedgraph").joinpath("he_context.pkl")
+                    )
                     with open(file_path, "rb") as f:
                         context_bytes = pickle.load(f)
                     self.he_context = ts.context_from(context_bytes)
-                    print(f"Trainer {self.rank} loaded TenSEAL context")
+                    print(f"Trainer {self.rank} loaded TenSEAL context ({file_path})")
                 elif self.he_backend == "openfhe":
                     # OpenFHE is coordinated by the server; trainer side enc is not yet implemented
                     print(f"Trainer {self.rank} configured for OpenFHE threshold HE")
@@ -307,11 +316,15 @@ def run_NC(args: attridict, data: Any = None) -> None:
             num_nodes = (
                 len(self.local_node_index) if hasattr(self, "local_node_index") else 0
             )
-            num_edges = (
-                self.adj.shape[1]
-                if hasattr(self, "adj") and len(self.adj.shape) > 1
-                else 0
-            )
+            adj = getattr(self, "adj", None)
+            if adj is None:
+                num_edges = 0
+            elif hasattr(adj, "nnz"):  # torch_sparse.SparseTensor after relabel_adj
+                num_edges = int(adj.nnz())
+            elif hasattr(adj, "shape") and len(adj.shape) > 1:
+                num_edges = int(adj.shape[1])
+            else:
+                num_edges = 0
 
             return {
                 "trainer_id": getattr(self, "rank", "unknown"),
@@ -437,13 +450,67 @@ def run_NC(args: attridict, data: Any = None) -> None:
             elif getattr(args, "he_backend", "tenseal") == "openfhe":
                 print("Starting OpenFHE threshold encrypted feature aggregation...")
                 import openfhe
-                import os, tempfile
+                import json, os, tempfile
 
                 # Shared directory for OpenFHE serialized objects
                 he_dir = tempfile.mkdtemp(prefix="openfhe_")
 
-                # --- Two-party key generation protocol ---
-                # 1. Server (lead party) generates initial key pair
+                # Encrypted pretraining configurations (args), as in the paper:
+                #   use_lowrank=False                      full aggregate (Sec. 4.3)
+                #   use_lowrank=True, lowrank_basis="svd"  per-client truncated SVD,
+                #                                          reconstructed at the server (property 5)
+                #   use_lowrank=True, lowrank_basis="shared"
+                #                                          shared basis (federated PCA): one sketch
+                #                                          round, then summed under EvalAdd and
+                #                                          decrypted like the full mode
+                #   openfhe_fusion="owner" (default)       Phase 4 at the row owner, rows forwarded
+                #   openfhe_fusion="server"                older server-side fusion (comparison only)
+                #   openfhe_client_share="replicated" (default) | "designated" (only trainer 0
+                #                                          holds the client share; its partials are
+                #                                          sealed to the owners)
+                #   openfhe_nparty=True                    n-of-n: every client holds a distinct share
+                #   openfhe_single_key=True                single key at the server (v1 trust model)
+                #   openfhe_window                         chunks per Phase-4 window (disk bound)
+                #
+                # Single-key ablation mode: same OpenFHE CKKS context, but the
+                # server holds the full secret key (no MultipartyKeyGen, no
+                # partial-decrypt fusion, no designated trainer).  Isolates
+                # the cost of the threshold machinery for the ablation.
+                openfhe_single_key = bool(getattr(args, "openfhe_single_key", False))
+                # N-party ablation mode: EVERY trainer holds a secret share
+                # (sequential MultipartyKeyGen chain), and decryption needs
+                # partial decryptions from all K trainers plus the server's
+                # lead partial.  The strongest collusion resistance and the
+                # most expensive protocol -- upper end of the security ladder.
+                openfhe_nparty = bool(getattr(args, "openfhe_nparty", False))
+                if openfhe_single_key and openfhe_nparty:
+                    raise ValueError(
+                        "openfhe_single_key and openfhe_nparty are mutually exclusive."
+                    )
+
+                # Per-phase wall-clock breakdown of the encrypted round, printed
+                # as //phase_times: {...}//end for the pretraining-cost figure.
+                _ph = {}
+
+                def _acc(key, t0):
+                    _ph[key] = _ph.get(key, 0.0) + (time.time() - t0)
+
+                def _sum_chunk(paths, chunk_idx):
+                    """Homomorphic sum of chunk ``chunk_idx`` of every client's ciphertext."""
+                    agg = None
+                    for pth in paths:
+                        base, ext = os.path.splitext(pth)
+                        chunk_path = f"{base}_chunk{chunk_idx}{ext}"
+                        ct, ok = openfhe.DeserializeCiphertext(chunk_path, openfhe.BINARY)
+                        if not ok:
+                            raise RuntimeError(f"Failed to deserialize {chunk_path}")
+                        agg = ct if agg is None else server.openfhe_cc.add_ciphertexts(agg, ct)
+                    return agg
+
+                _t_keygen = time.time()
+                # --- Key generation ---
+                # 1. Server generates initial key pair (lead party in the
+                #    threshold protocol; sole key holder in single-key mode).
                 print("Step 1: Server generates lead keys...")
                 server.openfhe_cc = OpenFHEThresholdCKKS(security_level=128, ring_dim=16384)
                 kp1 = server.openfhe_cc.generate_lead_keys()
@@ -454,36 +521,187 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 openfhe.SerializeToFile(cc_path, server.openfhe_cc.cc, openfhe.BINARY)
                 openfhe.SerializeToFile(pk1_path, kp1.publicKey, openfhe.BINARY)
 
-                # 2. Designated trainer (trainer 0) is the non-lead party
-                print("Step 2: Designated trainer generates non-lead share...")
-                designated_trainer = server.trainers[0]
+                if openfhe_single_key:
+                    # All trainers encrypt with the server's own public key.
+                    print("Single-key mode: distributing server public key to all trainers...")
+                    designated_trainer = None
+                    ray.get([
+                        trainer.set_openfhe_public_key.remote(cc_path, pk1_path)
+                        for trainer in server.trainers
+                    ])
+                    print("Single-key OpenFHE key generation complete!")
+                elif openfhe_nparty:
+                    # Sequential n-party keygen chain: each trainer extends
+                    # the previous party's public key; the LAST trainer's
+                    # output is the joint public key.  The chain cannot be
+                    # parallelized -- each step consumes the previous pk.
+                    print(f"N-party mode: sequential keygen chain over {len(server.trainers)} trainers...")
+                    keygen_chain_start = time.time()
+                    designated_trainer = None
+                    prev_pk_path = pk1_path
+                    for i, trainer in enumerate(server.trainers):
+                        next_pk_path = os.path.join(he_dir, f"pk_chain_{i}.bin")
+                        ray.get(trainer.setup_openfhe_nonlead.remote(
+                            cc_path, prev_pk_path, next_pk_path
+                        ))
+                        prev_pk_path = next_pk_path
+                    joint_pk_path = prev_pk_path
 
-                # Trainer reads serialized context + lead PK from files, generates its share
-                pk2_path = os.path.join(he_dir, "pk_nonlead.bin")
-                ray.get(designated_trainer.setup_openfhe_nonlead.remote(
-                    cc_path, pk1_path, pk2_path
-                ))
+                    # Server and all non-final trainers switch to the joint pk
+                    # (their secret shares are kept).
+                    joint_pk, _ = openfhe.DeserializePublicKey(joint_pk_path, openfhe.BINARY)
+                    server.openfhe_cc.set_public_key(joint_pk)
+                    ray.get([
+                        trainer.update_openfhe_public_key.remote(joint_pk_path)
+                        for trainer in server.trainers[:-1]
+                    ])
+                    keygen_chain_time = time.time() - keygen_chain_start
+                    print(f"N-party keygen chain complete! Chain time: {keygen_chain_time:.2f} seconds")
+                else:
+                    # 2. Designated trainer (trainer 0) is the non-lead party
+                    print("Step 2: Designated trainer generates non-lead share...")
+                    designated_trainer = server.trainers[0]
 
-                # 3. Server reads the non-lead public key (= joint PK) and uses it
-                print("Step 3: Server reads joint public key...")
-                joint_pk, _ = openfhe.DeserializePublicKey(pk2_path, openfhe.BINARY)
-                server.openfhe_cc.set_public_key(joint_pk)
+                    # Trainer reads serialized context + lead PK from files, generates its share
+                    pk2_path = os.path.join(he_dir, "pk_nonlead.bin")
+                    ray.get(designated_trainer.setup_openfhe_nonlead.remote(
+                        cc_path, pk1_path, pk2_path
+                    ))
 
-                # 4. All other trainers get context + joint PK for encryption only
-                print("Step 4: Distributing joint public key to all trainers...")
-                setup_refs = []
-                for trainer in server.trainers:
-                    if trainer is not designated_trainer:
-                        setup_refs.append(
-                            trainer.set_openfhe_public_key.remote(cc_path, pk2_path)
-                        )
-                if setup_refs:
-                    ray.get(setup_refs)
+                    # 3. Server reads the non-lead public key (= joint PK) and uses it
+                    print("Step 3: Server reads joint public key...")
+                    joint_pk, _ = openfhe.DeserializePublicKey(pk2_path, openfhe.BINARY)
+                    server.openfhe_cc.set_public_key(joint_pk)
 
-                print("Two-party threshold key generation complete!")
+                    # 4. All other trainers get context + joint PK for encryption only
+                    print("Step 4: Distributing joint public key to all trainers...")
+                    setup_refs = []
+                    for trainer in server.trainers:
+                        if trainer is not designated_trainer:
+                            setup_refs.append(
+                                trainer.set_openfhe_public_key.remote(cc_path, pk2_path)
+                            )
+                    if setup_refs:
+                        ray.get(setup_refs)
 
+                    print("Two-party threshold key generation complete!")
+
+                _ph["keygen"] = time.time() - _t_keygen
+
+                # --- Shared-basis low-rank: one extra encrypted round ---
+                # Each client encrypts a sketch Y_k = Z_k^T (Z_k Omega) of its
+                # aggregate; the server sums the sketches homomorphically, the
+                # two-party decryption recovers only the SUM, and its top-r
+                # left singular vectors become the basis W shared by all
+                # clients.  Afterwards clients encrypt Z_k W, which sums
+                # under encryption exactly like the standard mode.
+                _basis_shared = (
+                    getattr(args, "use_lowrank", False)
+                    and getattr(args, "lowrank_basis", "svd") == "shared"
+                )
+                if _basis_shared:
+                    if openfhe_single_key or openfhe_nparty:
+                        raise ValueError("shared-basis low-rank mode is implemented for the "
+                                         "two-party threshold configuration only")
+                    from fedgraph.low_rank.compression_utils import shared_basis_from_sketch
+                    _t_basis = time.time()
+                    _rank = int(getattr(args, "fixed_rank", 50))
+                    _ell = int(getattr(args, "lowrank_basis_ell", 4 * _rank))
+                    _seed = int(getattr(args, "lowrank_basis_seed", 0))
+                    basis_dir = os.path.join(he_dir, "basis")
+                    os.makedirs(basis_dir, exist_ok=True)
+                    sk_paths = [os.path.join(basis_dir, f"sk_{i}.bin") for i in range(len(server.trainers))]
+                    sk_results = ray.get([
+                        trainer.get_encrypted_basis_sketch.remote(_ell, _seed, sk_paths[i])
+                        for i, trainer in enumerate(server.trainers)
+                    ])
+                    with open(os.path.join(basis_dir, "sk_0_meta.json")) as f:
+                        sk_meta = json.load(f)
+                    sk_chunks, sk_total = sk_meta["num_chunks"], sk_meta["total_elements"]
+                    sk_shape = tuple(sk_meta["sketch_shape"])
+                    sk_upload = []
+                    for pth in sk_paths:
+                        base, ext = os.path.splitext(pth)
+                        sk_upload.append(sum(os.path.getsize(f"{base}_chunk{c}{ext}") for c in range(sk_chunks)))
+                    # Homomorphic sum of the sketches; the server produces its
+                    # partial decryption of each chunk and hands both to one
+                    # client, which fuses them, computes the basis W and returns
+                    # it.  The server learns only W (public); the fusing client
+                    # learns the aggregated sketch, a d x ell global statistic.
+                    for chunk_idx in range(sk_chunks):
+                        agg_ct = _sum_chunk(sk_paths, chunk_idx)
+                        openfhe.SerializeToFile(os.path.join(basis_dir, f"agg_ct_{chunk_idx}.bin"), agg_ct, openfhe.BINARY)
+                        openfhe.SerializeToFile(os.path.join(basis_dir, f"pl_{chunk_idx}.bin"),
+                                                server.openfhe_cc.partial_decrypt(agg_ct), openfhe.BINARY)
+                    W = ray.get(designated_trainer.openfhe_fuse_sketch_basis.remote(
+                        basis_dir, sk_chunks, sk_total, sk_shape, _rank))
+                    ray.get([trainer.set_shared_basis.remote(W) for trainer in server.trainers])
+                    _basis_upload_bytes = sk_upload
+                    _basis_download_bytes = W.element_size() * W.nelement()
+                    _ph["basis_round"] = time.time() - _t_basis
+                    print(f"Shared basis: rank={W.shape[1]}, sketch ell={_ell}, "
+                          f"sketch upload={sum(sk_upload)/1e6:.1f} MB, basis round {_ph['basis_round']:.1f}s")
+                else:
+                    _basis_upload_bytes = [0] * len(server.trainers)
+                    _basis_download_bytes = 0
+                # --- Owner-partitioned Phase 4 (default for threshold modes) ---
+                # Each node's aggregate row is decrypted exactly once, at the
+                # client that owns the node: the upload is laid out so that
+                # every ciphertext chunk holds rows of one owner, the server
+                # and the share-holder(s) produce one partial decryption per
+                # chunk, and only the owner fuses them.  Rows that other
+                # clients need for training are then forwarded by the owner
+                # under transport encryption, relayed by the server.  The
+                # server therefore never holds a fusable pair of partials and
+                # never sees a plaintext row; no single client sees more
+                # than the rows it trains on.  ``openfhe_fusion="server"``
+                # restores the older server-side fusion for comparison.
+                owner_path = (
+                    not openfhe_single_key
+                    and getattr(args, "openfhe_fusion", "owner") == "owner"
+                    and (not getattr(args, "use_lowrank", False) or _basis_shared)
+                )
+                if owner_path and args.use_huggingface:
+                    raise ValueError("owner-partitioned Phase 4 needs the node ownership of the "
+                                     "local data loader; it is not available with use_huggingface")
+                if owner_path:
+                    _slot = server.openfhe_cc.cc.GetRingDimension() // 2
+                    _width = int(W.shape[1]) if _basis_shared else int(_feature_dim)
+                    _blocks, _c0 = [], 0
+                    for k in range(len(server.trainers)):
+                        _ids = [int(i) for i in split_node_indexes[k].cpu().tolist()]
+                        _n = (len(_ids) * _width + _slot - 1) // _slot
+                        _blocks.append((_c0, _n, _ids))
+                        _c0 += _n
+                    he_layout = {"slot_count": _slot, "width": _width, "blocks": _blocks}
+                    owner_of_chunk = np.concatenate(
+                        [np.full(n, k, dtype=np.int64) for k, (_, n, _) in enumerate(_blocks)]
+                    )
+                    peer_pks = ray.get([t.init_transport_key.remote() for t in server.trainers])
+                    ray.get([t.set_he_layout.remote(he_layout, peer_pks) for t in server.trainers])
+                    # Client share: "replicated" (default) -- the non-lead share
+                    # generated by trainer 0 is sealed to every client, so each
+                    # owner partial-decrypts and fuses its own chunks with the
+                    # server's partial and nothing is relayed between clients;
+                    # "designated" -- only trainer 0 holds it and its partials are
+                    # sealed to the owners (kept for comparison).
+                    # The n-party mode always uses distinct shares.
+                    replicated_share = (
+                        not openfhe_nparty
+                        and getattr(args, "openfhe_client_share", "replicated") == "replicated"
+                    )
+                    if replicated_share:
+                        _t0 = time.time()
+                        ray.get(designated_trainer.export_secret_share_sealed.remote(he_dir, peer_pks))
+                        ray.get([t.import_secret_share.remote(he_dir)
+                                 for t in server.trainers if t is not designated_trainer])
+                        _ph["keygen"] += time.time() - _t0
+                        print("Replicated client share distributed (sealed) to all clients")
+                    print(f"Owner-partitioned layout: {_c0} chunks over {len(_blocks)} owners "
+                          f"(width {_width}, {_slot} slots/chunk)")
                 # --- Encrypted feature aggregation ---
                 # Each trainer encrypts locally and writes ciphertext to a file
+                _t_enc = time.time()
                 ct_paths = []
                 encrypt_refs = []
                 for i, trainer in enumerate(server.trainers):
@@ -496,8 +714,11 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 results = ray.get(encrypt_refs)
                 shapes = [r[0] for r in results]
                 encryption_times = [r[1] for r in results]
-
-                import json
+                # client_local: feature sum (+ SVD) + encryption + serialization,
+                # wall-clock over the parallel clients; client_encrypt: the slowest
+                # client's encryption+serialization alone.
+                _ph["client_local"] = time.time() - _t_enc
+                _ph["client_encrypt"] = max(encryption_times)
 
                 # Read chunk metadata from first trainer
                 meta_path = os.path.join(he_dir, "ct_0_meta.json")
@@ -515,11 +736,17 @@ def run_NC(args: attridict, data: Any = None) -> None:
                         for c in range(num_chunks)
                     )
                     enc_sizes.append(size)
+                enc_sizes = [e + b for e, b in zip(enc_sizes, _basis_upload_bytes)]
 
                 aggregation_start = time.time()
                 total_agg_size = sum(enc_sizes)
 
                 if use_lowrank:
+                    if openfhe_single_key or openfhe_nparty:
+                        raise ValueError(
+                            "openfhe_single_key / openfhe_nparty are ablation modes "
+                            "for full (uncompressed) HE only; combine with use_lowrank=False."
+                        )
                     # Low-rank mode: decrypt each trainer separately, decompress, then add
                     from fedgraph.low_rank.compression_utils import svd_decompress
                     u_shape = meta["U_shape"]
@@ -538,20 +765,27 @@ def run_NC(args: attridict, data: Any = None) -> None:
                         partial_leads = []
                         for chunk_idx in range(num_chunks):
                             chunk_path = f"{base}_chunk{chunk_idx}{ext}"
+                            _t0 = time.time()
                             ct, ok = openfhe.DeserializeCiphertext(chunk_path, openfhe.BINARY)
                             if not ok:
                                 raise RuntimeError(f"Failed to deserialize {chunk_path}")
                             partial_leads.append(server.openfhe_cc.partial_decrypt(ct))
+                            _acc("server_partial_decrypt", _t0)
                             # Write ct for designated trainer
+                            _t0 = time.time()
                             agg_path = os.path.join(he_dir, f"agg_ct_{chunk_idx}.bin")
                             openfhe.SerializeToFile(agg_path, ct, openfhe.BINARY)
+                            _acc("send_to_keyholders", _t0)
 
                         # Batch partial decrypt on designated trainer
+                        _t0 = time.time()
                         ray.get(designated_trainer.openfhe_partial_decrypt_main_batch.remote(
                             he_dir, num_chunks
                         ))
+                        _acc("client_partial_decrypt", _t0)
 
                         # Fuse and collect values
+                        _t0 = time.time()
                         trainer_values = []
                         for chunk_idx in range(num_chunks):
                             partial_main_path = os.path.join(he_dir, f"partial_main_{chunk_idx}.bin")
@@ -564,38 +798,244 @@ def run_NC(args: attridict, data: Any = None) -> None:
                                 [partial_leads[chunk_idx], partial_main_ct]
                             )
                             trainer_values.extend(fused.GetRealPackedValue())
+                        _acc("fusion", _t0)
 
                         # Decompress SVD and accumulate
+                        _t0 = time.time()
                         vals = trainer_values[:total_elements]
                         U = torch.tensor(vals[:u_size], dtype=torch.float32).reshape(u_shape)
                         S = torch.tensor(vals[u_size:u_size + s_len], dtype=torch.float32)
                         V = torch.tensor(vals[u_size + s_len:u_size + s_len + v_size], dtype=torch.float32).reshape(v_shape)
                         decrypted_tensor += svd_decompress(U, S, V)
+                        _acc("lowrank_reconstruct", _t0)
 
                     shape = original_shape
                     print(f"Low-rank decompressed and aggregated: rank={meta['rank']}, shape={shape}")
+                elif openfhe_single_key:
+                    # Single-key ablation: aggregate homomorphically, then the
+                    # server decrypts each chunk directly -- no partial
+                    # decryptions, no fusion, no round trip to trainer 0.
+                    print(f"Aggregating {num_chunks} chunks across {len(ct_paths)} trainers (single-key)...")
+                    all_values = []
+                    for chunk_idx in range(num_chunks):
+                        _t0 = time.time()
+                        agg_ct = _sum_chunk(ct_paths, chunk_idx)
+                        _acc("server_aggregate", _t0)
+                        _t0 = time.time()
+                        all_values.extend(server.openfhe_cc.decrypt(agg_ct))
+                        _acc("server_decrypt", _t0)
+
+                    shape = shapes[0]
+                    decrypted_tensor = torch.tensor(
+                        all_values[:total_elements], dtype=torch.float32
+                    ).reshape(shape)
+                elif owner_path:
+                    holders = list(range(len(server.trainers))) if openfhe_nparty else [0]
+                    main_prefixes = [f"pm{t}" for t in holders]
+                    window = int(getattr(args, "openfhe_window", 128))
+                    comm_detail = {"to_keyholders": 0, "partials_to_owners": 0, "forwarded_rows": 0}
+                    print(f"Aggregating {num_chunks} chunks across {len(ct_paths)} trainers "
+                          f"(owner-partitioned Phase 4, {len(holders)} share-holder(s), window={window})...")
+                    for win_start in range(0, num_chunks, window):
+                        win = list(range(win_start, min(win_start + window, num_chunks)))
+                        # Server: homomorphic sum + lead partial per chunk.
+                        for chunk_idx in win:
+                            _t0 = time.time()
+                            agg_ct = _sum_chunk(ct_paths, chunk_idx)
+                            _acc("server_aggregate", _t0)
+                            _t0 = time.time()
+                            pl = server.openfhe_cc.partial_decrypt(agg_ct)
+                            openfhe.SerializeToFile(os.path.join(he_dir, f"pl_{chunk_idx}.bin"), pl, openfhe.BINARY)
+                            _acc("server_partial_decrypt", _t0)
+                            _t0 = time.time()
+                            agg_path = os.path.join(he_dir, f"agg_ct_{chunk_idx}.bin")
+                            openfhe.SerializeToFile(agg_path, agg_ct, openfhe.BINARY)
+                            if not replicated_share:
+                                # chunk relayed to the share-holder(s); with a
+                                # replicated share the owner's own download
+                                # (chunk + lead partial) is counted at the owner.
+                                comm_detail["to_keyholders"] += os.path.getsize(agg_path) * len(holders)
+                            _acc("send_to_keyholders", _t0)
+                        by_owner = {}
+                        for c in win:
+                            by_owner.setdefault(int(owner_of_chunk[c]), []).append(c)
+                        if replicated_share:
+                            # Each owner: own main partial + server's lead partial,
+                            # fused locally; owners run in parallel.
+                            _t0 = time.time()
+                            outs = ray.get([
+                                server.trainers[k].openfhe_decrypt_owned.remote(he_dir, cs, "pl")
+                                for k, cs in by_owner.items()
+                            ])
+                            wall = time.time() - _t0
+                            tp = max(o["partial_s"] for o in outs); tf = max(o["fusion_s"] for o in outs)
+                            _ph["client_partial_decrypt"] = _ph.get("client_partial_decrypt", 0.0) + wall * tp / max(tp + tf, 1e-9)
+                            _ph["fusion"] = _ph.get("fusion", 0.0) + wall * tf / max(tp + tf, 1e-9)
+                            comm_detail["partials_to_owners"] += sum(o["bytes"] for o in outs)
+                        else:
+                            # Share-holder(s): main partial per chunk, sealed to the chunk's owner.
+                            seal_to = {c: peer_pks[int(owner_of_chunk[c])] for c in win}
+                            _t0 = time.time()
+                            ray.get([
+                                server.trainers[t].openfhe_partial_decrypt_main_batch.remote(
+                                    he_dir, win, out_prefix=f"pm{t}", seal_to=seal_to)
+                                for t in holders
+                            ])
+                            _acc("client_partial_decrypt", _t0)
+                            # Owners: fuse their own chunks (in parallel across owners).
+                            _t0 = time.time()
+                            outs = ray.get([
+                                server.trainers[k].openfhe_fuse_owned.remote(he_dir, cs, "pl", main_prefixes)
+                                for k, cs in by_owner.items()
+                            ])
+                            comm_detail["partials_to_owners"] += sum(o["bytes"] for o in outs)
+                            _acc("fusion", _t0)
+                        for c in win:
+                            for path in ([os.path.join(he_dir, f"agg_ct_{c}.bin"), os.path.join(he_dir, f"pl_{c}.bin")]
+                                         + [os.path.join(he_dir, f"{p}_{c}.enc") for p in main_prefixes]):
+                                try:
+                                    os.remove(path)
+                                except OSError:
+                                    pass
+                        print(f"  window {win[0]}-{win[-1]} fused at owners")
+                    # Redistribution: owners forward the rows other clients train on.
+                    _t_dist = time.time()
+                    owner_of_node = np.full(int(global_node_num), -1, dtype=np.int64)
+                    for k, (_, _, ids) in enumerate(he_layout["blocks"]):
+                        owner_of_node[np.asarray(ids, dtype=np.int64)] = k
+                    if (owner_of_node < 0).any():
+                        raise RuntimeError("every node must be owned by exactly one client")
+                    fwd = {j: [] for j in range(len(server.trainers))}
+                    inc = {k: [] for k in range(len(server.trainers))}
+                    for k in range(len(server.trainers)):
+                        need = np.asarray(communicate_node_global_indexes[k].cpu().tolist(), dtype=np.int64)
+                        own = owner_of_node[need]
+                        for j in range(len(server.trainers)):
+                            if j == k:
+                                continue
+                            ids = need[own == j].tolist()
+                            if ids:
+                                fwd[j].append((k, ids))
+                                inc[k].append((j, ids))
+                    outs = ray.get([
+                        server.trainers[j].forward_owned_rows.remote(he_dir, fwd[j])
+                        for j in range(len(server.trainers)) if fwd[j]
+                    ])
+                    comm_detail["forwarded_rows"] = sum(o["bytes"] for o in outs)
+                    outs = ray.get([
+                        server.trainers[k].assemble_feature_aggregation.remote(he_dir, inc[k])
+                        for k in range(len(server.trainers))
+                    ])
+                    decryption_times = [o["time"] for o in outs]
+                    _ph["distribute"] = time.time() - _t_dist
+                    download_sizes = [
+                        comm_detail["partials_to_owners"] + comm_detail["forwarded_rows"]
+                        + _basis_download_bytes * len(server.trainers)
+                    ]
+                    print("//pretrain_detail: " + json.dumps({
+                        "ct_upload": int(sum(enc_sizes)), **{k: int(v) for k, v in comm_detail.items()},
+                        "num_chunks": int(num_chunks), "share_holders": len(holders),
+                        "client_share": "replicated" if replicated_share else "designated"}) + "//end")
+                elif openfhe_nparty:
+                    # N-party mode: aggregate homomorphically, then EVERY
+                    # trainer partial-decrypts each chunk (in parallel across
+                    # trainers) and the server fuses K+1 partials per chunk.
+                    #
+                    # Processed in windows of chunks so that the K partial
+                    # ciphertexts per chunk do not all sit on disk at once:
+                    # with K=10 on Citeseer the unwindowed footprint is
+                    # ~38 GB of partials, which does not fit alongside the
+                    # ~18 GB of source ciphertexts.  Each window's agg_ct
+                    # and partial files are deleted after fusion.
+                    nparty_window = int(getattr(args, "openfhe_nparty_window", 128))
+                    print(f"Aggregating {num_chunks} chunks across {len(ct_paths)} "
+                          f"trainers (n-party, window={nparty_window})...")
+                    all_fused_values = []
+                    for win_start in range(0, num_chunks, nparty_window):
+                        win = list(range(win_start, min(win_start + nparty_window, num_chunks)))
+
+                        # Server aggregates this window and takes its lead partials.
+                        partial_leads = {}
+                        for chunk_idx in win:
+                            _t0 = time.time()
+                            agg_ct = _sum_chunk(ct_paths, chunk_idx)
+                            _acc("server_aggregate", _t0)
+                            _t0 = time.time()
+                            partial_leads[chunk_idx] = server.openfhe_cc.partial_decrypt(agg_ct)
+                            _acc("server_partial_decrypt", _t0)
+                            _t0 = time.time()
+                            openfhe.SerializeToFile(
+                                os.path.join(he_dir, f"agg_ct_{chunk_idx}.bin"),
+                                agg_ct, openfhe.BINARY,
+                            )
+                            _acc("send_to_keyholders", _t0)
+
+                        # All K trainers partial-decrypt this window in parallel.
+                        _t0 = time.time()
+                        ray.get([
+                            trainer.openfhe_partial_decrypt_main_batch.remote(
+                                he_dir, win, out_prefix=f"partial_main_t{i}"
+                            )
+                            for i, trainer in enumerate(server.trainers)
+                        ])
+                        _acc("client_partial_decrypt", _t0)
+
+                        # Fuse lead + all K main partials for each chunk.
+                        _t0 = time.time()
+                        for chunk_idx in win:
+                            partials = [partial_leads[chunk_idx]]
+                            for i in range(len(server.trainers)):
+                                p_path = os.path.join(he_dir, f"partial_main_t{i}_{chunk_idx}.bin")
+                                p_ct, ok = openfhe.DeserializeCiphertext(p_path, openfhe.BINARY)
+                                if not ok:
+                                    raise RuntimeError(
+                                        f"Failed to deserialize n-party partial t{i} chunk {chunk_idx}")
+                                partials.append(p_ct)
+                            fused = server.openfhe_cc.cc.MultipartyDecryptFusion(partials)
+                            all_fused_values.extend(fused.GetRealPackedValue())
+                        _acc("fusion", _t0)
+
+                        # Free this window's intermediates before the next one.
+                        for chunk_idx in win:
+                            for path in [os.path.join(he_dir, f"agg_ct_{chunk_idx}.bin")] + [
+                                os.path.join(he_dir, f"partial_main_t{i}_{chunk_idx}.bin")
+                                for i in range(len(server.trainers))
+                            ]:
+                                try:
+                                    os.remove(path)
+                                except OSError:
+                                    pass
+                        print(f"  n-party window {win[0]}-{win[-1]} fused "
+                              f"({len(all_fused_values)}/{total_elements} values)")
+
+                    shape = shapes[0]
+                    decrypted_tensor = torch.tensor(
+                        all_fused_values[:total_elements], dtype=torch.float32
+                    ).reshape(shape)
                 else:
                     # Standard mode: aggregate ciphertexts homomorphically, then decrypt
                     print(f"Aggregating {num_chunks} chunks across {len(ct_paths)} trainers...")
                     partial_leads = []
                     for chunk_idx in range(num_chunks):
-                        agg_ct = None
-                        for i in range(len(ct_paths)):
-                            base, ext = os.path.splitext(ct_paths[i])
-                            chunk_path = f"{base}_chunk{chunk_idx}{ext}"
-                            ct, ok = openfhe.DeserializeCiphertext(chunk_path, openfhe.BINARY)
-                            if not ok:
-                                raise RuntimeError(f"Failed to deserialize {chunk_path}")
-                            agg_ct = ct if agg_ct is None else server.openfhe_cc.add_ciphertexts(agg_ct, ct)
+                        _t0 = time.time()
+                        agg_ct = _sum_chunk(ct_paths, chunk_idx)
+                        _acc("server_aggregate", _t0)
+                        _t0 = time.time()
                         partial_leads.append(server.openfhe_cc.partial_decrypt(agg_ct))
+                        _acc("server_partial_decrypt", _t0)
+                        _t0 = time.time()
                         agg_ct_path = os.path.join(he_dir, f"agg_ct_{chunk_idx}.bin")
                         openfhe.SerializeToFile(agg_ct_path, agg_ct, openfhe.BINARY)
+                        _acc("send_to_keyholders", _t0)
 
                     print(f"Batch partial decryption on designated trainer...")
+                    _t0 = time.time()
                     ray.get(designated_trainer.openfhe_partial_decrypt_main_batch.remote(
                         he_dir, num_chunks
                     ))
+                    _acc("client_partial_decrypt", _t0)
 
+                    _t0 = time.time()
                     all_fused_values = []
                     for chunk_idx in range(num_chunks):
                         partial_main_path = os.path.join(he_dir, f"partial_main_{chunk_idx}.bin")
@@ -608,6 +1048,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
                             [partial_leads[chunk_idx], partial_main_ct]
                         )
                         all_fused_values.extend(fused.GetRealPackedValue())
+                    _acc("fusion", _t0)
 
                     shape = shapes[0]
                     decrypted_tensor = torch.tensor(
@@ -615,15 +1056,39 @@ def run_NC(args: attridict, data: Any = None) -> None:
                     ).reshape(shape)
 
                 aggregation_time = time.time() - aggregation_start
-                agg_size = total_agg_size
-                aggregated_result = (decrypted_tensor, shape)
+                if owner_path:
+                    # Rows were fused at their owners and forwarded; nothing
+                    # to slice or distribute from the server.
+                    pass
+                else:
+                    aggregated_result = (decrypted_tensor, shape)
 
-                # Load decrypted features to all trainers
-                load_feature_refs = [
-                    trainer.load_encrypted_feature_aggregation.remote(aggregated_result)
-                    for trainer in server.trainers
-                ]
-                decryption_times = ray.get(load_feature_refs)
+                    # Load decrypted features to all trainers.
+                    # Server pre-slices per-client (mirrors the plaintext path
+                    # at federated_methods.py:695-704) instead of broadcasting
+                    # the full N x F aggregate: nothing about threshold CKKS
+                    # requires all-clients to see the whole decrypted tensor,
+                    # and each trainer only ever uses its own
+                    # communicate_node_index slice anyway.
+                    _t_dist = time.time()
+                    download_sizes = []
+                    load_feature_refs = []
+                    for i, trainer in enumerate(server.trainers):
+                        communicate_nodes = (
+                            communicate_node_global_indexes[i].clone().detach().cpu()
+                        )
+                        trainer_slice = decrypted_tensor[communicate_nodes]
+                        download_sizes.append(
+                            trainer_slice.element_size() * trainer_slice.nelement()
+                            + _basis_download_bytes
+                        )
+                        load_feature_refs.append(
+                            trainer.load_encrypted_feature_aggregation.remote(
+                                (trainer_slice, tuple(trainer_slice.shape))
+                            )
+                        )
+                    decryption_times = ray.get(load_feature_refs)
+                    _ph["distribute"] = time.time() - _t_dist
 
                 # Cleanup temp files
                 import shutil
@@ -631,8 +1096,12 @@ def run_NC(args: attridict, data: Any = None) -> None:
 
                 pretrain_time = time.time() - pretrain_start
                 pretrain_upload = sum(enc_sizes) / (1024 * 1024)  # MB
-                pretrain_download = agg_size * len(server.trainers) / (1024 * 1024)  # MB
+                pretrain_download = sum(download_sizes) / (1024 * 1024)  # MB
                 pretrain_comm_cost = pretrain_upload + pretrain_download
+                # Keep agg_size consistent with the outer recomputation
+                # (pretrain_download = agg_size * K) so downstream metric
+                # reporting agrees.
+                agg_size = sum(download_sizes) // max(len(server.trainers), 1)
 
                 # Print performance metrics
                 print("\nPre-training Phase Metrics (OpenFHE Threshold):")
@@ -641,6 +1110,8 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 print(f"Pre-training Upload: {pretrain_upload:.2f} MB")
                 print(f"Pre-training Download: {pretrain_download:.2f} MB")
                 print(f"Total Pre-training Communication Cost: {pretrain_comm_cost:.2f} MB")
+                _ph["total"] = pretrain_time
+                print("//phase_times: " + json.dumps({k: round(v, 3) for k, v in _ph.items()}) + "//end")
             else:
                 raise ValueError(f"Unknown he_backend: {getattr(args, 'he_backend', None)}")
             pretrain_time = time.time() - pretrain_start
@@ -658,56 +1129,140 @@ def run_NC(args: attridict, data: Any = None) -> None:
         else:
             pretrain_upload = 0
             pretrain_download = 0
-            local_neighbor_feature_sums = [
-                trainer.get_local_feature_sum.remote() for trainer in server.trainers
-            ]
-            # Record uploaded data sizes. Run server-side aggregation on CPU
-            # since Ray actors may return tensors from different devices.
-            upload_sizes = []
-            global_feature_sum = torch.zeros_like(features).cpu()
-            while True:
-                ready, left = ray.wait(
-                    local_neighbor_feature_sums, num_returns=1, timeout=None
-                )
-                if ready:
-                    for t in ready:
-                        local_sum = ray.get(t).cpu()
-                        global_feature_sum += local_sum
-                        # Calculate size of uploaded data
-                        upload_sizes.append(
-                            local_sum.element_size() * local_sum.nelement()
-                        )
-                local_neighbor_feature_sums = left
-                if not local_neighbor_feature_sums:
-                    break
-            # Calculate total upload size
-            pretrain_upload = sum(upload_sizes) / (1024 * 1024)  # MB
-            print("server aggregates all local neighbor feature sums")
-            # TODO: Verify that the aggregated global feature sum matches the true 1-hop feature sum for correctness checking.
-            # test if aggregation is correct
-            # if not args.use_huggingface and args.num_hops != 0:
-            # assert (
-            #     global_feature_sum
-            #     != get_1hop_feature_sum(features, edge_index, device)
-            # ).sum() == 0
-            # Calculate and record download sizes (done on CPU to match global_feature_sum)
-            download_sizes = []
-            for i in range(args.n_trainer):
-                communicate_nodes = (
-                    communicate_node_global_indexes[i].clone().detach().cpu()
-                )
-                trainer_aggregation = global_feature_sum[communicate_nodes]
-                # Calculate download size for each trainer
-                download_sizes.append(
-                    trainer_aggregation.element_size() * trainer_aggregation.nelement()
-                )
-                server.trainers[i].load_feature_aggregation.remote(trainer_aggregation)
-            # Calculate total download size
-            pretrain_download = sum(download_sizes) / (1024 * 1024)  # MB
-            print("clients received feature aggregation from server")
+            # Opt-in sparse (index-based) pretrain payloads: clients upload only the
+            # nonzero rows of their local feature sum plus the corresponding global
+            # node indices, instead of a dense global_node_num x d matrix. Smaller
+            # and faster, but reveals each client's neighborhood support to the server.
+            plain_lowrank = (
+                getattr(args, "use_lowrank", False) and getattr(args, "lowrank_pretrain", False)
+            )
+            if plain_lowrank:
+                # Plaintext low-rank pretraining (no HE): either per-client SVD
+                # factors reconstructed at the server, or the shared-basis
+                # variant with its extra sketch round.  Communication is
+                # counted in plaintext bytes.
+                from fedgraph.low_rank.compression_utils import (
+                    shared_basis_from_sketch, svd_decompress)
+                _rank = int(getattr(args, "fixed_rank", 50))
+                _basis = getattr(args, "lowrank_basis", "svd")
+                upload_sizes, download_sizes = [], []
+                if _basis in ("shared", "oracle"):
+                    _ell = int(getattr(args, "lowrank_basis_ell", 4 * _rank))
+                    _seed = int(getattr(args, "lowrank_basis_seed", 0))
+                    sketches = ray.get([t.get_basis_sketch.remote(_ell, _seed) for t in server.trainers])
+                    Y = torch.stack([y.cpu() for y in sketches]).sum(0)
+                    if _basis == "shared":
+                        # Deployed variant: randomized range finder on the sum of
+                        # per-client Gram matrices, sum(Z_k^T Z_k) Omega.
+                        W = shared_basis_from_sketch(Y, _rank)
+                    else:
+                        # Analysis only (plaintext; the server sees every Z_k):
+                        # the exact top-r right singular vectors of the aggregate
+                        # Z, i.e. the best rank-r shared basis.  Upper-bounds the
+                        # accuracy any private basis estimate can reach.
+                        Zs = ray.get([t.get_local_feature_sum_plain.remote() for t in server.trainers])
+                        Zagg = torch.stack([z.cpu() for z in Zs]).sum(0)
+                        _, _, Vh = torch.linalg.svd(Zagg, full_matrices=False)
+                        W = Vh[:_rank].t().contiguous()
+                        err = torch.linalg.norm(Zagg - (Zagg @ W) @ W.t()) / torch.linalg.norm(Zagg)
+                        print(f"//basis_rel_err: {float(err):.4f}//end")
+                    ray.get([t.set_shared_basis.remote(W) for t in server.trainers])
+                    projs = ray.get([t.get_projected_feature_sum.remote() for t in server.trainers])
+                    P = torch.stack([pk.cpu() for pk in projs]).sum(0)
+                    for y, pk in zip(sketches, projs):
+                        upload_sizes.append(y.element_size() * y.nelement() + pk.element_size() * pk.nelement())
+                    w_bytes = W.element_size() * W.nelement()
+                    for i in range(args.n_trainer):
+                        communicate_nodes = communicate_node_global_indexes[i].clone().detach().cpu()
+                        rows = P[communicate_nodes]
+                        download_sizes.append(rows.element_size() * rows.nelement() + w_bytes)
+                        server.trainers[i].load_projected_feature_aggregation.remote(rows)
+                    print(f"shared-basis pretraining: rank={W.shape[1]}, ell={_ell}")
+                else:
+                    factors = ray.get([t.get_svd_factors.remote(_rank) for t in server.trainers])
+                    global_feature_sum = torch.zeros_like(features).cpu()
+                    for (U, S, V) in factors:
+                        global_feature_sum += svd_decompress(U.cpu(), S.cpu(), V.cpu())
+                        upload_sizes.append(4 * (U.nelement() + S.nelement() + V.nelement()))
+                    for i in range(args.n_trainer):
+                        communicate_nodes = communicate_node_global_indexes[i].clone().detach().cpu()
+                        trainer_aggregation = global_feature_sum[communicate_nodes]
+                        download_sizes.append(trainer_aggregation.element_size() * trainer_aggregation.nelement())
+                        server.trainers[i].load_feature_aggregation.remote(trainer_aggregation)
+                    print(f"per-client SVD pretraining: rank={_rank}")
+                pretrain_upload = sum(upload_sizes) / (1024 * 1024)
+                pretrain_download = sum(download_sizes) / (1024 * 1024)
+            else:
+                sparse_pretrain = getattr(args, "sparse_pretrain", False)
+                if sparse_pretrain:
+                    local_neighbor_feature_sums = [
+                        trainer.get_local_feature_sum_sparse.remote()
+                        for trainer in server.trainers
+                    ]
+                else:
+                    local_neighbor_feature_sums = [
+                        trainer.get_local_feature_sum.remote()
+                        for trainer in server.trainers
+                    ]
+                # Record uploaded data sizes. Run server-side aggregation on CPU
+                # since Ray actors may return tensors from different devices.
+                upload_sizes = []
+                global_feature_sum = torch.zeros_like(features).cpu()
+                while True:
+                    ready, left = ray.wait(
+                        local_neighbor_feature_sums, num_returns=1, timeout=None
+                    )
+                    if ready:
+                        for t in ready:
+                            if sparse_pretrain:
+                                indices, values = ray.get(t)
+                                indices, values = indices.cpu(), values.cpu()
+                                global_feature_sum.index_add_(0, indices, values)
+                                upload_sizes.append(
+                                    values.element_size() * values.nelement()
+                                    + indices.element_size() * indices.nelement()
+                                )
+                            else:
+                                local_sum = ray.get(t).cpu()
+                                global_feature_sum += local_sum
+                                # Calculate size of uploaded data
+                                upload_sizes.append(
+                                    local_sum.element_size() * local_sum.nelement()
+                                )
+                    local_neighbor_feature_sums = left
+                    if not local_neighbor_feature_sums:
+                        break
+                # Calculate total upload size
+                pretrain_upload = sum(upload_sizes) / (1024 * 1024)  # MB
+                print("server aggregates all local neighbor feature sums")
+                # TODO: Verify that the aggregated global feature sum matches the true 1-hop feature sum for correctness checking.
+                # test if aggregation is correct
+                # if not args.use_huggingface and args.num_hops != 0:
+                # assert (
+                #     global_feature_sum
+                #     != get_1hop_feature_sum(features, edge_index, device)
+                # ).sum() == 0
+                # Calculate and record download sizes (done on CPU to match global_feature_sum)
+                download_sizes = []
+                for i in range(args.n_trainer):
+                    communicate_nodes = (
+                        communicate_node_global_indexes[i].clone().detach().cpu()
+                    )
+                    trainer_aggregation = global_feature_sum[communicate_nodes]
+                    # Calculate download size for each trainer
+                    download_sizes.append(
+                        trainer_aggregation.element_size() * trainer_aggregation.nelement()
+                    )
+                    server.trainers[i].load_feature_aggregation.remote(trainer_aggregation)
+                # Calculate total download size
+                pretrain_download = sum(download_sizes) / (1024 * 1024)  # MB
+                print("clients received feature aggregation from server")
         [trainer.relabel_adj.remote() for trainer in server.trainers]
 
     monitor.pretrain_time_end()
+    # One uniform, machine-readable line for every mode (plaintext, TenSEAL,
+    # OpenFHE full / low-rank): measured pretraining upload and download in MB.
+    print(f"//pretrain_comm: {float(pretrain_upload):.3f} {float(pretrain_download):.3f}//end")
     monitor.add_pretrain_comm_cost(
         upload_mb=pretrain_upload,
         download_mb=pretrain_download,

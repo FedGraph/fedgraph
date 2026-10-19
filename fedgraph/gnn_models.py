@@ -290,6 +290,40 @@ class GCN_products(torch.nn.Module):
         return torch.log_softmax(x, dim=-1)
 
 
+class AggreSAGE(torch.nn.Module):
+    """
+    GraphSage variant for the FedGCN-v2 pipeline: the first layer is a linear
+    map applied to the (encrypted, server-aggregated) 1-hop feature matrix,
+    followed by SAGEConv layers.  This is the SAGE counterpart of AggreGCN
+    and is selected when ``gnn_model == "graphsage"`` with ``num_hops >= 1``;
+    previously that flag was silently ignored on that path and AggreGCN ran.
+    """
+
+    def __init__(
+        self, nfeat: int, nhid: int, nclass: int, dropout: float, NumLayers: int
+    ):
+        super(AggreSAGE, self).__init__()
+        self.convs = torch.nn.ModuleList()
+        self.convs.append(torch.nn.Linear(nfeat, nhid))
+        for _ in range(NumLayers - 2):
+            self.convs.append(SAGEConv(nhid, nhid))
+        self.convs.append(SAGEConv(nhid, nclass))
+        self.dropout = dropout
+
+    def reset_parameters(self) -> None:
+        for conv in self.convs:
+            conv.reset_parameters()
+
+    def forward(self, aggregated_feature: torch.Tensor, adj_t: torch.Tensor) -> torch.Tensor:
+        x = F.relu(self.convs[0](aggregated_feature))
+        x = F.dropout(x, p=self.dropout, training=self.training)
+        for conv in self.convs[1:-1]:
+            x = F.relu(conv(x, adj_t))
+            x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.convs[-1](x, adj_t)
+        return torch.log_softmax(x, dim=-1)
+
+
 class SAGE_products(torch.nn.Module):
     """
     A Graph SAGE model designed specifically for handling product graphs as another variant of GCN.

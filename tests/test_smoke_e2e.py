@@ -178,3 +178,37 @@ def test_smoke_openfhe_threshold_lowrank():
     with _ray_shutdown_after():
         acc = _run(cfg)
     assert 0.3 <= acc <= 0.95, f"unexpected accuracy {acc:.3f}"
+
+
+# ---------------------------------------------------------------------------
+# OpenFHE owner-partitioned Phase 4 invariant
+# ---------------------------------------------------------------------------
+#
+# In the threshold path every ciphertext chunk holds the rows of one client,
+# the two partial decryptions of a chunk are fused only at that client, and
+# the rows a client's neighbors need are forwarded by their owners under
+# transport encryption.  If the layout, the owner routing or the forwarding
+# were wrong, a trainer would train on the wrong rows and accuracy would
+# collapse; if they are right, the CKKS run must match plaintext up to the
+# CKKS noise floor, so the final test accuracy at the same seed must agree
+# within a fraction of a percent.
+
+@needs_openfhe
+@pytest.mark.timeout(360)
+def test_openfhe_download_slicing_matches_plaintext():
+    seed = 0
+    with _ray_shutdown_after():
+        acc_plain = _run(_base_cora_config(seed=seed))
+    with _ray_shutdown_after():
+        acc_he = _run(
+            _base_cora_config(
+                seed=seed,
+                use_encryption=True,
+                he_backend="openfhe",
+            )
+        )
+    assert abs(acc_plain - acc_he) < 0.02, (
+        f"OpenFHE accuracy {acc_he:.4f} diverges from plaintext {acc_plain:.4f} "
+        "by >2% at the same seed. The per-client download slice may be "
+        "routing the wrong rows to the wrong trainer."
+    )

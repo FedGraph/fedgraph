@@ -23,6 +23,7 @@ from fedgraph.gnn_models import (
     GNN_LP,
     AggreGCN,
     AggreGCN_Arxiv,
+    AggreSAGE,
     GCN_arxiv,
     SAGE_products,
 )
@@ -70,7 +71,16 @@ class Server:
     ) -> None:
         self.args = args
         if self.args.num_hops >= 1:  # Federated Methods
-            if "ogbn-arxiv" in self.args.dataset:
+            if getattr(self.args, "gnn_model", "auto") == "graphsage":
+                print("Running AggreSAGE")
+                self.model = AggreSAGE(
+                    nfeat=feature_dim,
+                    nhid=args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(device)
+            elif "ogbn-arxiv" in self.args.dataset:
                 print("Running AggreGCN_Arxiv")
                 self.model = AggreGCN_Arxiv(
                     nfeat=feature_dim,
@@ -130,12 +140,14 @@ class Server:
                 print("Initialized OpenFHE threshold context")
             else:
                 self.he_backend = "tenseal"
-                file_path = str(files("fedgraph").joinpath("he_context.pkl"))
+                file_path = getattr(args, "tenseal_context_file", None) or str(
+                    files("fedgraph").joinpath("he_context.pkl")
+                )
                 with open(file_path, "rb") as f:
                     context_bytes = pickle.load(f)
                 self.he_context = ts.context_from(context_bytes)
                 self.aggregation_stats = []
-                print("Loaded TenSEAL HE context with secret key.")
+                print(f"Loaded TenSEAL HE context with secret key ({file_path}).")
 
         self.device = device
         # self.broadcast_params(-1)

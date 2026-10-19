@@ -13,7 +13,10 @@ The protocol follows the official OpenFHE multiparty CKKS example:
 - Fusion combines both partial decryptions
 """
 
-import openfhe
+try:
+    import openfhe
+except ImportError:  # OpenFHE is optional; only the threshold-HE path needs it
+    openfhe = None
 import numpy as np
 from typing import List, Tuple, Optional, Union
 import logging
@@ -146,6 +149,23 @@ class OpenFHEThresholdCKKS:
         result = fused.GetRealPackedValue()
 
         logger.debug(f"Fused partial decryptions, got {len(result)} values")
+        return result
+
+    def decrypt(self, ciphertext) -> List[float]:
+        """
+        Single-key decryption (ablation baseline, no threshold protocol).
+
+        Valid only when this party holds the full secret key, i.e. after
+        ``generate_lead_keys()`` WITHOUT a subsequent ``MultipartyKeyGen``
+        by a second party.  Uses the same CKKS context/parameters as the
+        threshold path so timing differences isolate the threshold
+        machinery (partial decryptions + fusion + the extra round trip).
+        """
+        if self.secret_key_share is None:
+            raise RuntimeError("Secret key not set.")
+        plaintext = self.cc.Decrypt(self.secret_key_share, ciphertext)
+        result = plaintext.GetRealPackedValue()
+        logger.debug(f"Single-key decrypted {len(result)} values")
         return result
 
     def serialize_context(self) -> bytes:

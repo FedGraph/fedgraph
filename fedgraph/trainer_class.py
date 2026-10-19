@@ -25,6 +25,7 @@ from fedgraph.gnn_models import (
     GNN_LP,
     AggreGCN,
     AggreGCN_Arxiv,
+    AggreSAGE,
     GCN_arxiv,
     SAGE_products,
 )
@@ -239,7 +240,16 @@ class Trainer_General:
 
         # seems that new trainer process will not inherit sys.path from parent, need to reimport!
         if self.args.num_hops >= 1:
-            if self.args.dataset == "ogbn-arxiv":
+            if getattr(self.args, "gnn_model", "auto") == "graphsage":
+                print("running AggreSAGE")
+                self.model = AggreSAGE(
+                    nfeat=self.features.shape[1],
+                    nhid=self.args_hidden,
+                    nclass=class_num,
+                    dropout=0.5,
+                    NumLayers=self.args.num_layers,
+                ).to(self.device)
+            elif self.args.dataset == "ogbn-arxiv":
                 print("running AggreGCN_Arxiv")
                 self.model = AggreGCN_Arxiv(
                     nfeat=self.features.shape[1],
@@ -249,6 +259,7 @@ class Trainer_General:
                     NumLayers=self.args.num_layers,
                 ).to(self.device)
             else:
+                print("running AggreGCN")
                 self.model = AggreGCN(
                     nfeat=self.features.shape[1],
                     nhid=self.args_hidden,
@@ -350,12 +361,13 @@ class Trainer_General:
         # Create a large matrix with known local node features
         new_feature_for_trainer = torch.zeros(
             global_node_num, self.features.shape[1]
-        ).to(self.device)
-        new_feature_for_trainer[self.local_node_index] = self.features
+        )  # built on CPU: the pretrain feature-sum is a one-shot sparse op
+        #    that feeds OpenFHE (CPU-only) and must not occupy GPU memory.
+        new_feature_for_trainer[self.local_node_index.cpu()] = self.features.cpu()
 
         # Sum of features of all 1-hop nodes for each node
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
-            new_feature_for_trainer, self.adj, self.device,
+            new_feature_for_trainer, self.adj.cpu(), "cpu",
             norm_type=getattr(self.args, "norm_type", "none")
         )
         if hasattr(self.args, 'use_encryption') and self.args.use_encryption:
@@ -365,6 +377,26 @@ class Trainer_General:
             )
 
         return one_hop_neighbor_feature_sum
+
+    def get_local_feature_sum_sparse(self) -> tuple:
+        """
+        Sparse (index-based) variant of get_local_feature_sum. Instead of a dense
+        global_node_num x d matrix that is zero outside this client's neighborhood,
+        returns only the nonzero rows together with their global node indices, so the
+        server can scatter-add them into the global buffer.
+
+        Note the payload reveals which global node ids this client contributes to
+        (neighborhood membership), trading privacy for a smaller upload.
+
+        Returns
+        -------
+        (indices, values) : tuple of torch.Tensor
+            indices has shape (S,), values has shape (S, d), where S is the number
+            of nodes this client has nonzero contributions for.
+        """
+        dense_sum = self.get_local_feature_sum()
+        support = torch.nonzero(dense_sum.abs().sum(dim=1), as_tuple=False).flatten()
+        return support.cpu(), dense_sum[support].cpu()
 
     def get_local_feature_sum_og(self) -> torch.Tensor:
         """
@@ -379,10 +411,11 @@ class Trainer_General:
         computation_start = time.time()
         new_feature_for_trainer = torch.zeros(
             self.global_node_num, self.features.shape[1]
-        ).to(self.device)
-        new_feature_for_trainer[self.local_node_index] = self.features
+        )  # built on CPU: the pretrain feature-sum is a one-shot sparse op
+        #    that feeds OpenFHE (CPU-only) and must not occupy GPU memory.
+        new_feature_for_trainer[self.local_node_index.cpu()] = self.features.cpu()
         one_hop_neighbor_feature_sum = get_1hop_feature_sum(
-            new_feature_for_trainer, self.adj, self.device,
+            new_feature_for_trainer, self.adj.cpu(), "cpu",
             norm_type=getattr(self.args, "norm_type", "none")
         )
         computation_time = time.time() - computation_start
@@ -446,6 +479,8 @@ class Trainer_General:
         # Check HE backend and route accordingly
         if hasattr(self, 'he_backend') and self.he_backend == "openfhe":
             if getattr(self, 'use_lowrank', False):
+                if getattr(self.args, "lowrank_basis", "svd") == "shared":
+                    return self._get_openfhe_shared_projected_feature_sum(ct_output_path)
                 return self._get_openfhe_lowrank_encrypted_feature_sum(ct_output_path)
             return self._get_openfhe_encrypted_local_feature_sum(ct_output_path)
         else:
@@ -458,10 +493,11 @@ class Trainer_General:
 
         new_feature_for_trainer = torch.zeros(
             self.global_node_num, self.features.shape[1]
-        ).to(self.device)
-        new_feature_for_trainer[self.local_node_index] = self.features
+        )  # built on CPU: the pretrain feature-sum is a one-shot sparse op
+        #    that feeds OpenFHE (CPU-only) and must not occupy GPU memory.
+        new_feature_for_trainer[self.local_node_index.cpu()] = self.features.cpu()
         feature_sum = get_1hop_feature_sum(
-            new_feature_for_trainer, self.adj, self.device,
+            new_feature_for_trainer, self.adj.cpu(), "cpu",
             norm_type=getattr(self.args, "norm_type", "none")
         )
 
@@ -469,7 +505,11 @@ class Trainer_General:
             raise RuntimeError("OpenFHE context not available on trainer")
 
         encryption_start = time.time()
-        feature_list = feature_sum.flatten().tolist()
+        if getattr(self, "_he_layout", None) is not None:
+            # Owner-partitioned layout: every chunk holds rows of one owner.
+            feature_list = self._layout_flat(feature_sum).tolist()
+        else:
+            feature_list = feature_sum.flatten().tolist()
 
         # CKKS can only encrypt ring_dim/2 values per ciphertext
         slot_count = self.openfhe_cc.cc.GetRingDimension() // 2
@@ -501,10 +541,11 @@ class Trainer_General:
 
         new_feature_for_trainer = torch.zeros(
             self.global_node_num, self.features.shape[1]
-        ).to(self.device)
-        new_feature_for_trainer[self.local_node_index] = self.features
+        )  # built on CPU: the pretrain feature-sum is a one-shot sparse op
+        #    that feeds OpenFHE (CPU-only) and must not occupy GPU memory.
+        new_feature_for_trainer[self.local_node_index.cpu()] = self.features.cpu()
         feature_sum = get_1hop_feature_sum(
-            new_feature_for_trainer, self.adj, self.device,
+            new_feature_for_trainer, self.adj.cpu(), "cpu",
             norm_type=getattr(self.args, "norm_type", "none")
         )
 
@@ -554,15 +595,99 @@ class Trainer_General:
         encryption_time = time.time() - encryption_start
         return feature_sum.shape, encryption_time
 
+    # ------------------------------------------------------------------
+    # Shared-basis (federated PCA) low-rank pretraining
+    # ------------------------------------------------------------------
+    def _cached_local_feature_sum(self) -> torch.Tensor:
+        """Dense N x d local feature sum, computed once per pretraining round."""
+        if getattr(self, "_feature_sum_cache", None) is None:
+            self._feature_sum_cache = self.get_local_feature_sum().cpu().float()
+        return self._feature_sum_cache
+
+    def get_basis_sketch(self, ell: int, seed: int = 0) -> torch.Tensor:
+        """Plaintext sketch Y_k = Z_k^T (Z_k Omega) of this client's aggregate (d x ell)."""
+        from fedgraph.low_rank.compression_utils import basis_sketch, make_omega
+
+        Z = self._cached_local_feature_sum()
+        return basis_sketch(Z, make_omega(Z.shape[1], ell, seed))
+
+    def get_local_feature_sum_plain(self) -> torch.Tensor:
+        """Analysis only: this client's dense N x d aggregate in plaintext."""
+        return self._cached_local_feature_sum()
+
+    def set_shared_basis(self, W: torch.Tensor) -> bool:
+        """Receive the shared projection basis W (d x r) from the server."""
+        self.shared_basis = W.cpu().float()
+        return True
+
+    def get_projected_feature_sum(self) -> torch.Tensor:
+        """Plaintext projection P_k = Z_k W (N x r) onto the shared basis."""
+        if getattr(self, "shared_basis", None) is None:
+            raise RuntimeError("shared basis not set; call set_shared_basis first")
+        return self._cached_local_feature_sum() @ self.shared_basis
+
+    def get_svd_factors(self, rank: int):
+        """Plaintext per-client truncated SVD factors (U, S, V) of Z_k."""
+        from fedgraph.low_rank.compression_utils import svd_compress
+
+        Z = self._cached_local_feature_sum()
+        return svd_compress(Z, min(rank, min(Z.shape)))
+
+    def load_projected_feature_aggregation(self, P_rows: torch.Tensor) -> None:
+        """Receive this client's rows of P = sum_k Z_k W and back-project with W."""
+        self.feature_aggregation = (P_rows.float() @ self.shared_basis.t()).to(self.device)
+
+    def _encrypt_values_to_chunks(self, values, ct_output_path, extra_meta):
+        """Encrypt a flat list of floats with the joint key into numbered chunk files."""
+        import openfhe
+        import json
+
+        slot_count = self.openfhe_cc.cc.GetRingDimension() // 2
+        num_chunks = (len(values) + slot_count - 1) // slot_count
+        base, ext = os.path.splitext(ct_output_path)
+        for i in range(num_chunks):
+            ct = self.openfhe_cc.encrypt(values[i * slot_count : (i + 1) * slot_count])
+            openfhe.SerializeToFile(f"{base}_chunk{i}{ext}", ct, openfhe.BINARY)
+        meta = {"num_chunks": num_chunks, "slot_count": slot_count,
+                "total_elements": len(values)}
+        meta.update(extra_meta)
+        with open(f"{base}_meta.json", "w") as f:
+            json.dump(meta, f)
+        return num_chunks
+
+    def get_encrypted_basis_sketch(self, ell: int, seed: int, ct_output_path: str):
+        """Round A of the shared-basis variant: encrypt the sketch Y_k under the joint key."""
+        if not hasattr(self, 'openfhe_cc'):
+            raise RuntimeError("OpenFHE context not available on trainer")
+        Y = self.get_basis_sketch(ell, seed)
+        t0 = time.time()
+        self._encrypt_values_to_chunks(Y.flatten().tolist(), ct_output_path,
+                                       {"sketch_shape": list(Y.shape)})
+        return tuple(Y.shape), time.time() - t0
+
+    def _get_openfhe_shared_projected_feature_sum(self, ct_output_path=None):
+        """Round B of the shared-basis variant: encrypt P_k = Z_k W (N x r)."""
+        if not hasattr(self, 'openfhe_cc'):
+            raise RuntimeError("OpenFHE context not available on trainer")
+        P = self.get_projected_feature_sum()
+        t0 = time.time()
+        if ct_output_path:
+            vals = (self._layout_flat(P) if getattr(self, "_he_layout", None) is not None
+                    else P.flatten())
+            self._encrypt_values_to_chunks(vals.tolist(), ct_output_path,
+                                           {"shared_basis": True, "proj_shape": list(P.shape)})
+        return tuple(P.shape), time.time() - t0
+
     def _get_tenseal_encrypted_local_feature_sum(self):
         """TenSEAL encryption of local feature sum (existing implementation)"""
         # Same feature sum computation as original
         new_feature_for_trainer = torch.zeros(
             self.global_node_num, self.features.shape[1]
-        ).to(self.device)
-        new_feature_for_trainer[self.local_node_index] = self.features
+        )  # built on CPU: the pretrain feature-sum is a one-shot sparse op
+        #    that feeds OpenFHE (CPU-only) and must not occupy GPU memory.
+        new_feature_for_trainer[self.local_node_index.cpu()] = self.features.cpu()
         feature_sum = get_1hop_feature_sum(
-            new_feature_for_trainer, self.adj, self.device,
+            new_feature_for_trainer, self.adj.cpu(), "cpu",
             norm_type=getattr(self.args, "norm_type", "none")
         )
 
@@ -638,16 +763,55 @@ class Trainer_General:
         print(f"Trainer {self.rank}: Set joint public key (encryption only)")
         return True
 
-    def openfhe_partial_decrypt_main_batch(self, he_dir, num_chunks):
-        """Batch partial decryption of all chunks at once."""
+    def update_openfhe_public_key(self, joint_pk_path):
+        """Replace only the encryption public key on the existing OpenFHE
+        context, keeping this trainer's secret key share.
+
+        Used by the n-party keygen chain: intermediate trainers generate
+        their share against the previous party's public key, then switch
+        to the final (joint) public key for encryption once the chain
+        completes."""
         import openfhe
 
         if not hasattr(self, 'openfhe_cc'):
             raise RuntimeError("OpenFHE context not initialized on trainer")
+        joint_pk, ok = openfhe.DeserializePublicKey(joint_pk_path, openfhe.BINARY)
+        if not ok:
+            raise RuntimeError("Failed to deserialize joint public key")
+        self.openfhe_cc.set_public_key(joint_pk)
+        print(f"Trainer {self.rank}: updated to joint public key (share kept)")
+        return True
 
-        for chunk_idx in range(num_chunks):
+    def openfhe_partial_decrypt_main_batch(self, he_dir, num_chunks, out_prefix="partial_main",
+                                           seal_to=None):
+        """Batch partial decryption of chunks.
+
+        ``num_chunks`` is either a count (decrypt chunks ``0..n-1``) or an
+        explicit list of chunk indices -- the list form lets the server
+        drive decryption in windows so the partial ciphertexts of all
+        parties never all sit on disk at once (n-party mode).
+        ``out_prefix`` distinguishes each party's partials when more than
+        one trainer participates in decryption.
+
+        ``seal_to`` (owner-partitioned Phase 4): ``{chunk_idx: recipient
+        transport public key}``.  Each partial is then sealed to the owner
+        of its chunk and written as ``{out_prefix}_{idx}.enc``, so the
+        server relaying it cannot combine it with its own partial."""
+        import openfhe
+        from fedgraph.transport_crypto import seal
+
+        if not hasattr(self, 'openfhe_cc'):
+            raise RuntimeError("OpenFHE context not initialized on trainer")
+
+        chunk_indices = (
+            list(range(num_chunks))
+            if isinstance(num_chunks, int)
+            else list(num_chunks)
+        )
+        nbytes = 0
+        for chunk_idx in chunk_indices:
             agg_ct_path = os.path.join(he_dir, f"agg_ct_{chunk_idx}.bin")
-            partial_path = os.path.join(he_dir, f"partial_main_{chunk_idx}.bin")
+            partial_path = os.path.join(he_dir, f"{out_prefix}_{chunk_idx}.bin")
 
             agg_ct, ok = openfhe.DeserializeCiphertext(agg_ct_path, openfhe.BINARY)
             if not ok:
@@ -657,20 +821,274 @@ class Trainer_General:
                 [agg_ct], self.openfhe_cc.secret_key_share
             )
             openfhe.SerializeToFile(partial_path, partial_list[0], openfhe.BINARY)
+            if seal_to is not None:
+                with open(partial_path, "rb") as f:
+                    raw = f.read()
+                blob = seal(seal_to[chunk_idx], raw)
+                with open(os.path.join(he_dir, f"{out_prefix}_{chunk_idx}.enc"), "wb") as f:
+                    f.write(blob)
+                os.remove(partial_path)
+                nbytes += len(blob)
 
-        print(f"Trainer {self.rank}: Batch partial decryption done ({num_chunks} chunks)")
+        print(f"Trainer {self.rank}: Batch partial decryption done "
+              f"({len(chunk_indices)} chunks)")
+        return {"bytes": nbytes}
+
+    # ------------------------------------------------------------------
+    # Owner-partitioned threshold decryption (Phase 4 at the node owner)
+    # ------------------------------------------------------------------
+    def init_transport_key(self):
+        """Generate this client's transport key pair and return the public key.
+
+        Partial decryptions and forwarded rows addressed to this client are
+        sealed under it, so the relaying server cannot read them."""
+        from fedgraph.transport_crypto import TransportKey
+        self._transport = TransportKey()
+        return self._transport.public_bytes()
+
+    def set_he_layout(self, layout, peer_pks):
+        """Install the owner-partitioned slot layout of the encrypted upload.
+
+        ``layout`` = {"slot_count", "width", "blocks": [(chunk_start,
+        n_chunks, node_ids), ...]} with one block per owner.  Every client
+        lays its contribution out in this common order, so the server can
+        still EvalAdd chunk-wise, while each chunk holds rows of exactly
+        one owner and is fused only there."""
+        self._he_layout = layout
+        self._peer_pks = peer_pks
+        c0, n, ids = layout["blocks"][self.rank]
+        self._own_ids = torch.as_tensor(ids, dtype=torch.long)
+        self._owned_rows = None
         return True
+
+    def _layout_flat(self, M):
+        """Lay a global N x w matrix out in the owner-partitioned slot order."""
+        lay = self._he_layout
+        slot, w = lay["slot_count"], lay["width"]
+        total = sum(n for _, n, _ in lay["blocks"]) * slot
+        buf = torch.zeros(total, dtype=M.dtype)
+        for c0, n, ids in lay["blocks"]:
+            rows = M[torch.as_tensor(ids, dtype=torch.long)].reshape(-1)
+            buf[c0 * slot: c0 * slot + rows.numel()] = rows
+        return buf
+
+    def openfhe_fuse_owned(self, he_dir, chunk_ids, lead_prefix, main_prefixes):
+        """Fuse the partial decryptions of this owner's chunks; keep the rows.
+
+        ``lead_prefix`` names the server's partial (``{lead_prefix}_{c}.bin``),
+        ``main_prefixes`` the share-holders' partials sealed to this owner
+        (``{p}_{c}.enc``).  Only the owner ever holds a complete set of
+        partials for its chunks."""
+        import openfhe
+        lay = self._he_layout
+        slot, w = lay["slot_count"], lay["width"]
+        c0, n, ids = lay["blocks"][self.rank]
+        if self._owned_rows is None:
+            self._owned_rows = torch.zeros(len(ids) * w, dtype=torch.float32)
+        t0 = time.time()
+        received = 0
+        tmp = os.path.join(he_dir, f"tmp_fuse_{self.rank}.bin")
+        for c in chunk_ids:
+            if not (c0 <= c < c0 + n):
+                raise RuntimeError(f"Trainer {self.rank}: chunk {c} is not in my block")
+            parts = []
+            p = os.path.join(he_dir, f"{lead_prefix}_{c}.bin")
+            received += os.path.getsize(p)
+            ct, ok = openfhe.DeserializeCiphertext(p, openfhe.BINARY)
+            if not ok:
+                raise RuntimeError(f"Failed to deserialize lead partial {c}")
+            parts.append(ct)
+            for pref in main_prefixes:
+                with open(os.path.join(he_dir, f"{pref}_{c}.enc"), "rb") as f:
+                    blob = f.read()
+                received += len(blob)
+                with open(tmp, "wb") as f:
+                    f.write(self._transport.open(blob))
+                ct, ok = openfhe.DeserializeCiphertext(tmp, openfhe.BINARY)
+                if not ok:
+                    raise RuntimeError(f"Failed to deserialize partial {pref}_{c}")
+                parts.append(ct)
+            vals = self.openfhe_cc.cc.MultipartyDecryptFusion(parts).GetRealPackedValue()
+            self._store_fused_chunk(c, vals)
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        return {"time": time.time() - t0, "bytes": received}
+
+    def export_secret_share_sealed(self, he_dir, peer_pks):
+        """Replicated client share: seal this party's secret share to every
+        other client (``share_for_{r}.enc``), so the relaying server cannot
+        read it.  Called on the client that ran MultipartyKeyGen."""
+        import openfhe
+        from fedgraph.transport_crypto import seal
+        tmp = os.path.join(he_dir, f"tmp_share_{self.rank}.bin")
+        if not openfhe.SerializeToFile(tmp, self.openfhe_cc.secret_key_share, openfhe.BINARY):
+            raise RuntimeError("Failed to serialize secret share")
+        with open(tmp, "rb") as f:
+            raw = f.read()
+        os.remove(tmp)
+        n = 0
+        for r, pk in enumerate(peer_pks):
+            if r == self.rank:
+                continue
+            with open(os.path.join(he_dir, f"share_for_{r}.enc"), "wb") as f:
+                f.write(seal(pk, raw))
+            n += 1
+        return n
+
+    def import_secret_share(self, he_dir):
+        """Replicated client share: open the share sealed to this client and
+        install it as this party's (non-lead) secret share."""
+        import openfhe
+        with open(os.path.join(he_dir, f"share_for_{self.rank}.enc"), "rb") as f:
+            blob = f.read()
+        tmp = os.path.join(he_dir, f"tmp_share_{self.rank}.bin")
+        with open(tmp, "wb") as f:
+            f.write(self._transport.open(blob))
+        sk, ok = openfhe.DeserializePrivateKey(tmp, openfhe.BINARY)
+        os.remove(tmp)
+        if not ok:
+            raise RuntimeError("Failed to deserialize secret share")
+        self.openfhe_cc.secret_key_share = sk
+        self.openfhe_cc.is_lead_party = False
+        return True
+
+    def openfhe_decrypt_owned(self, he_dir, chunk_ids, lead_prefix="pl", ct_prefix="agg_ct"):
+        """Replicated client share: for each of this owner's chunks, produce
+        the main partial with the client share, fuse it with the server's
+        lead partial, and keep the rows.  Nothing leaves this client."""
+        import openfhe
+        lay = self._he_layout
+        c0, n, ids = lay["blocks"][self.rank]
+        t_partial = t_fuse = 0.0
+        received = 0
+        for c in chunk_ids:
+            if not (c0 <= c < c0 + n):
+                raise RuntimeError(f"Trainer {self.rank}: chunk {c} is not in my block")
+            p_ct = os.path.join(he_dir, f"{ct_prefix}_{c}.bin")
+            p_pl = os.path.join(he_dir, f"{lead_prefix}_{c}.bin")
+            received += os.path.getsize(p_ct) + os.path.getsize(p_pl)
+            t0 = time.time()
+            agg_ct, ok = openfhe.DeserializeCiphertext(p_ct, openfhe.BINARY)
+            if not ok:
+                raise RuntimeError(f"Failed to deserialize chunk {c}")
+            p_main = self.openfhe_cc.cc.MultipartyDecryptMain([agg_ct], self.openfhe_cc.secret_key_share)[0]
+            t_partial += time.time() - t0
+            t0 = time.time()
+            p_lead, ok = openfhe.DeserializeCiphertext(p_pl, openfhe.BINARY)
+            if not ok:
+                raise RuntimeError(f"Failed to deserialize lead partial {c}")
+            vals = self.openfhe_cc.cc.MultipartyDecryptFusion([p_lead, p_main]).GetRealPackedValue()
+            self._store_fused_chunk(c, vals)
+            t_fuse += time.time() - t0
+        return {"partial_s": t_partial, "fusion_s": t_fuse, "bytes": received}
+
+    def openfhe_fuse_sketch_basis(self, basis_dir, num_chunks, total, shape, rank):
+        """Shared-basis round: fuse the server's partials of the summed sketch
+        with this client's own partials, and return the basis W (public).
+        Only this client sees the aggregated d x ell sketch; the server does not."""
+        import openfhe
+        from fedgraph.low_rank.compression_utils import shared_basis_from_sketch
+        vals = []
+        for c in range(num_chunks):
+            agg_ct, ok = openfhe.DeserializeCiphertext(os.path.join(basis_dir, f"agg_ct_{c}.bin"), openfhe.BINARY)
+            if not ok:
+                raise RuntimeError(f"Failed to deserialize sketch chunk {c}")
+            pl, ok = openfhe.DeserializeCiphertext(os.path.join(basis_dir, f"pl_{c}.bin"), openfhe.BINARY)
+            if not ok:
+                raise RuntimeError(f"Failed to deserialize sketch partial {c}")
+            pm = self.openfhe_cc.cc.MultipartyDecryptMain([agg_ct], self.openfhe_cc.secret_key_share)[0]
+            vals.extend(self.openfhe_cc.cc.MultipartyDecryptFusion([pl, pm]).GetRealPackedValue())
+        Y = torch.tensor(vals[:total], dtype=torch.float32).reshape(tuple(shape))
+        return shared_basis_from_sketch(Y, rank)
+
+    def _store_fused_chunk(self, c, vals):
+        """Write the fused slot values of chunk ``c`` into this owner's row block."""
+        lay = self._he_layout
+        slot, w = lay["slot_count"], lay["width"]
+        c0, n, ids = lay["blocks"][self.rank]
+        if self._owned_rows is None:
+            self._owned_rows = torch.zeros(len(ids) * w, dtype=torch.float32)
+        lo = (c - c0) * slot
+        hi = min(lo + slot, self._owned_rows.numel())
+        if hi > lo:
+            self._owned_rows[lo:hi] = torch.as_tensor(vals[: hi - lo], dtype=torch.float32)
+
+    def forward_owned_rows(self, he_dir, requests):
+        """Seal the requested rows of this owner's decrypted block to each recipient.
+
+        ``requests`` = [(recipient_rank, node_ids), ...]; the rows are written
+        as ``fwd_{me}_to_{recipient}.enc`` for the server to relay."""
+        from fedgraph.transport_crypto import seal
+        t0 = time.time()
+        sent = 0
+        w = self._he_layout["width"]
+        rows_all = self._owned_rows.view(len(self._own_ids), w)
+        pos = torch.full((int(self.global_node_num),), -1, dtype=torch.long)
+        pos[self._own_ids] = torch.arange(len(self._own_ids))
+        for r, ids in requests:
+            idx = pos[torch.as_tensor(ids, dtype=torch.long)]
+            if (idx < 0).any():
+                raise RuntimeError(f"Trainer {self.rank}: asked to forward rows I do not own")
+            blob = seal(self._peer_pks[r], rows_all[idx].contiguous().numpy().tobytes())
+            with open(os.path.join(he_dir, f"fwd_{self.rank}_to_{r}.enc"), "wb") as f:
+                f.write(blob)
+            sent += len(blob)
+        return {"time": time.time() - t0, "bytes": sent}
+
+    def assemble_feature_aggregation(self, he_dir, incoming):
+        """Build this client's rows of the aggregate from its own fused block
+        and the rows forwarded by other owners.
+
+        ``incoming`` = [(sender_rank, node_ids), ...] in the order the sender
+        wrote them.  Rows are arranged in ``communicate_node_index`` order,
+        exactly as the server-side slicing used to deliver them."""
+        t0 = time.time()
+        received = 0
+        w = self._he_layout["width"]
+        comm = self.communicate_node_index.cpu()
+        where = torch.full((int(self.global_node_num),), -1, dtype=torch.long)
+        where[comm] = torch.arange(len(comm))
+        Z = torch.zeros(len(comm), w, dtype=torch.float32)
+        own = self._owned_rows.view(len(self._own_ids), w)
+        mine = where[self._own_ids]
+        keep = mine >= 0
+        Z[mine[keep]] = own[keep]
+        for s, ids in incoming:
+            with open(os.path.join(he_dir, f"fwd_{s}_to_{self.rank}.enc"), "rb") as f:
+                blob = f.read()
+            received += len(blob)
+            rows = torch.frombuffer(bytearray(self._transport.open(blob)),
+                                    dtype=torch.float32).view(len(ids), w)
+            dst = where[torch.as_tensor(ids, dtype=torch.long)]
+            if (dst < 0).any():
+                raise RuntimeError(f"Trainer {self.rank}: received rows I did not request")
+            Z[dst] = rows
+        W = getattr(self, "shared_basis", None)
+        if W is not None and w == W.shape[1]:
+            # Shared-basis low-rank mode: rows are the projected aggregate
+            # (Z W)[S_k]; back-project locally with the shared basis.
+            Z = Z @ W.t()
+        self.feature_aggregation = Z.to(self.device)
+        return {"time": time.time() - t0, "bytes": received}
 
     def load_encrypted_feature_aggregation(self, encrypted_data):
         encrypted_sum, shape = encrypted_data
 
         # Check if this is OpenFHE decrypted data (already a tensor) or TenSEAL encrypted data
         if isinstance(encrypted_sum, torch.Tensor):
-            # OpenFHE path: data is already decrypted tensor (on CPU from server).
-            # Move to trainer's device for indexing and downstream training.
+            # OpenFHE path: server has already sliced this trainer's
+            # communicate_node_index rows out of the decrypted N x F tensor
+            # (see the OpenFHE branch of run_NC), so we load the tensor
+            # directly without re-slicing.  This makes the OpenFHE download
+            # path symmetric with the plaintext one.
             decryption_start = time.time()
-            encrypted_sum = encrypted_sum.to(self.device)
-            self.feature_aggregation = encrypted_sum[self.communicate_node_index]
+            W = getattr(self, "shared_basis", None)
+            if W is not None and encrypted_sum.shape[1] == W.shape[1]:
+                # Shared-basis low-rank mode: the server delivered this
+                # client's rows of the projected aggregate P = sum_k Z_k W
+                # (width r); back-project locally with the shared basis.
+                encrypted_sum = encrypted_sum.float() @ W.t()
+            self.feature_aggregation = encrypted_sum.to(self.device)
             decryption_time = time.time() - decryption_start
             return decryption_time
         else:
@@ -741,6 +1159,22 @@ class Trainer_General:
         _, self.adj, __, ___ = torch_geometric.utils.k_hop_subgraph(
             self.communicate_node_index, 0, self.adj, relabel_nodes=True
         )
+        # Hand the GNN a SparseTensor (adj_t, PyG's transposed convention)
+        # rather than an edge_index.  With edge_index the convolutions
+        # gather one hidden vector per edge (E x hidden per layer, plus
+        # gradients) -- ~5 GB/trainer on Arxiv and ~60 GB/trainer on
+        # Products; the sparse-matmul path is O(N x hidden).  Same sums,
+        # different floating-point order.  Kept as edge_index only if
+        # torch_sparse is unavailable.
+        try:
+            from torch_sparse import SparseTensor
+            n = int(self.communicate_node_index.numel())
+            self.adj_edge_index = self.adj
+            self.adj = SparseTensor(
+                row=self.adj[1], col=self.adj[0], sparse_sizes=(n, n)
+            ).to(self.device)
+        except ImportError:
+            pass
         # print(f"Max value in adj: {self.adj.max()}")
         # print(
         #     f"Max value in communicate_node_index: {self.communicate_node_index.max()}"
