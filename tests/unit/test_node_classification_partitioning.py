@@ -9,11 +9,18 @@ import numpy as np
 import pytest
 import torch
 
+from fedgraph.feature_compression import (
+    feature_basis_sha256,
+    solve_shared_feature_basis,
+)
 from fedgraph.trainer_class import (
     Trainer_General,
     _load_artifact_tensor,
     load_trainer_data_from_huggingface_local_artifact,
     load_trainer_data_from_local_artifact,
+)
+from scripts.data.convert_nc_artifact_v3_to_v2 import (
+    convert_nc_artifact_v3_to_v2,
 )
 from scripts.data.node_classification_partitioning import (
     build_label_balanced_owner_plan,
@@ -286,6 +293,227 @@ def test_partition_raw_ogb_2hop_writes_sorted_dual_coordinate_shards(tmp_path):
     assert manifest["total_induced_edge_num"] == total_edges
 
 
+def test_compact_2hop_artifact_reconstructs_v2_edges_and_feature_sums(tmp_path):
+    dataset_root = tmp_path / "synthetic"
+    v2_output = tmp_path / "artifact-2hop-v2"
+    v3_output = tmp_path / "artifact-2hop-v3"
+    _make_raw_dataset(dataset_root)
+
+    partition_raw_ogb_2hop(
+        dataset_root=dataset_root,
+        output_dir=v2_output,
+        n_trainer=2,
+        iid_beta=10000.0,
+        seed=42,
+        checksums=False,
+        chunk_rows=2,
+    )
+    manifest = partition_raw_ogb_2hop(
+        dataset_root=dataset_root,
+        output_dir=v3_output,
+        n_trainer=2,
+        iid_beta=10000.0,
+        seed=42,
+        checksums=False,
+        chunk_rows=2,
+        adjacency_layout="local-int32",
+    )
+
+    assert manifest["artifact_version"] == 3
+    assert manifest["adjacency_layout"] == "local-int32"
+    assert (
+        validate_nc_artifact_for_upload(v3_output, verify_checksums=False) == manifest
+    )
+
+    for trainer_id in range(2):
+        v2_shard = v2_output / "shards" / f"trainer-{trainer_id:03d}"
+        v3_shard = v3_output / "shards" / f"trainer-{trainer_id:03d}"
+        communicate = torch.load(
+            v3_shard / "communicate_node_index.pt", weights_only=True
+        )
+        compact_adjacency = torch.load(v3_shard / "adj.pt", weights_only=True)
+        global_adjacency = torch.load(v2_shard / "adj_global.pt", weights_only=True)
+        local_adjacency = torch.load(v2_shard / "adj.pt", weights_only=True)
+
+        assert not (v3_shard / "adj_global.pt").exists()
+        assert compact_adjacency.dtype == torch.int32
+        assert torch.equal(compact_adjacency.long(), local_adjacency)
+        assert torch.equal(communicate[compact_adjacency.long()], global_adjacency)
+
+    common_args = {
+        "use_huggingface": False,
+        "num_hops": 2,
+        "n_trainer": 2,
+        "graph_storage_mode": "cpu",
+        "graph_relabel_chunk_edges": 2,
+        "pretrain_feature_aggregation_mode": "chunked",
+        "pretrain_feature_chunk_rows": 2,
+        "pretrain_feature_chunk_edges": 1,
+        "pretrain_feature_output_dir": str(tmp_path / "pretrain-output"),
+        "seed": 42,
+        "local_step": 1,
+        "method": "FedGCN",
+        "norm_type": "none",
+    }
+    v2_trainer = Trainer_General(
+        rank=0,
+        args_hidden=8,
+        device=torch.device("cpu"),
+        args=SimpleNamespace(
+            **common_args,
+            local_artifact_dir=str(v2_output),
+        ),
+    )
+    v3_trainer = Trainer_General(
+        rank=0,
+        args_hidden=8,
+        device=torch.device("cpu"),
+        args=SimpleNamespace(
+            **common_args,
+            local_artifact_dir=str(v3_output),
+        ),
+    )
+
+    for start in range(0, v2_trainer.global_node_num, 2):
+        requested = torch.arange(start, min(start + 2, v2_trainer.global_node_num))
+        v2_rows, v2_values = v2_trainer.get_chunked_local_feature_sum(requested)
+        v3_rows, v3_values = v3_trainer.get_chunked_local_feature_sum(requested)
+        torch.testing.assert_close(v3_rows, v2_rows)
+        torch.testing.assert_close(v3_values, v2_values)
+
+    expected_local = torch.load(
+        v2_output / "shards" / "trainer-000" / "adj.pt", weights_only=True
+    )
+    v3_trainer.relabel_adj()
+    assert v3_trainer.adj.dtype == torch.int64
+    assert torch.equal(v3_trainer.adj, expected_local)
+    assert (
+        v3_trainer.adjacency_relabel_strategy
+        == "artifact-compact-int32-disk-staged-cpu"
+    )
+
+    mmap_trainer = Trainer_General(
+        rank=0,
+        args_hidden=8,
+        device=torch.device("cpu"),
+        args=SimpleNamespace(
+            **{
+                **common_args,
+                "graph_storage_mode": "mmap",
+                "local_artifact_dir": str(v3_output),
+                "graph_relabel_cache_dir": str(tmp_path / "relabel-cache"),
+                "pretrain_feature_output_dir": str(tmp_path / "pretrain-output"),
+            }
+        ),
+    )
+    mmap_trainer.initialize_chunked_feature_aggregation()
+    for start in range(0, mmap_trainer.global_node_num, 2):
+        stop = min(start + 2, mmap_trainer.global_node_num)
+        communicate = mmap_trainer.communicate_node_index.long()
+        first = int(torch.searchsorted(communicate, start))
+        last = int(torch.searchsorted(communicate, stop))
+        mmap_trainer.append_chunked_feature_aggregation_range(
+            start,
+            stop,
+            torch.zeros((last - first, mmap_trainer.features.size(1))),
+        )
+    mmap_trainer.finalize_chunked_feature_aggregation()
+    assert mmap_trainer.adj.dtype == torch.int64
+    assert torch.equal(mmap_trainer.adj, expected_local)
+    assert mmap_trainer.adjacency_memory_mapped
+    assert mmap_trainer.adjacency_relabel_strategy == "artifact-compact-int32-mmap"
+    assert Path(mmap_trainer.adjacency_relabel_cache_path).is_file()
+
+
+def test_convert_compact_v3_artifact_to_valid_v2_without_mutating_source(tmp_path):
+    dataset_root = tmp_path / "synthetic"
+    v3_output = tmp_path / "artifact-2hop-v3"
+    converted_output = tmp_path / "artifact-2hop-v2-converted"
+    _make_raw_dataset(dataset_root)
+    partition_raw_ogb_2hop(
+        dataset_root=dataset_root,
+        output_dir=v3_output,
+        n_trainer=2,
+        iid_beta=10000.0,
+        seed=42,
+        checksums=True,
+        chunk_rows=2,
+        adjacency_layout="local-int32",
+    )
+
+    manifest = convert_nc_artifact_v3_to_v2(
+        v3_output,
+        converted_output,
+        chunk_edges=1,
+    )
+
+    assert manifest["artifact_version"] == 2
+    assert manifest["conversion_provenance"]["source_artifact_version"] == 3
+    assert manifest["conversion_provenance"]["complete_artifact"] is True
+    assert "adjacency_layout" not in manifest
+    assert validate_nc_artifact_for_upload(converted_output) == manifest
+    assert validate_nc_artifact_for_upload(v3_output)["artifact_version"] == 3
+
+    for trainer_id in range(2):
+        source_shard = v3_output / "shards" / f"trainer-{trainer_id:03d}"
+        converted_shard = converted_output / "shards" / f"trainer-{trainer_id:03d}"
+        communicate = torch.load(
+            source_shard / "communicate_node_index.pt", weights_only=True
+        )
+        compact = torch.load(source_shard / "adj.pt", weights_only=True)
+        local = torch.load(converted_shard / "adj.pt", weights_only=True)
+        global_adjacency = torch.load(
+            converted_shard / "adj_global.pt", weights_only=True
+        )
+        assert local.dtype == torch.int64
+        assert torch.equal(local, compact.long())
+        assert torch.equal(global_adjacency, communicate[local])
+
+
+def test_compact_2hop_resume_reuses_existing_edge_work(tmp_path):
+    dataset_root = tmp_path / "synthetic"
+    output_dir = tmp_path / "artifact-2hop"
+    _make_raw_dataset(dataset_root)
+
+    with patch(
+        "scripts.data.node_classification_partitioning._write_2hop_adjacencies",
+        side_effect=RuntimeError("simulated materialization failure"),
+    ):
+        with pytest.raises(RuntimeError, match="simulated materialization failure"):
+            partition_raw_ogb_2hop(
+                dataset_root=dataset_root,
+                output_dir=output_dir,
+                n_trainer=2,
+                iid_beta=10000.0,
+                seed=42,
+                checksums=False,
+                chunk_rows=2,
+            )
+
+    stage_dir = output_dir.with_name(f"{output_dir.name}.incomplete")
+    assert (stage_dir / "_work" / "source_sorted_edges" / "metadata.json").is_file()
+    assert (stage_dir / "_work" / "communication_membership.json").is_file()
+
+    with patch(
+        "scripts.data.node_classification_partitioning._iter_edge_chunks",
+        side_effect=AssertionError("resume unexpectedly rescanned raw edges"),
+    ):
+        manifest = partition_raw_ogb_2hop(
+            dataset_root=dataset_root,
+            output_dir=output_dir,
+            n_trainer=2,
+            iid_beta=10000.0,
+            seed=42,
+            checksums=False,
+            chunk_rows=2,
+            resume=True,
+            adjacency_layout="local-int32",
+        )
+
+    assert manifest["artifact_version"] == 3
+    assert not stage_dir.exists()
+
+
 def test_partition_raw_ogb_2hop_binary_matches_csv_artifact(tmp_path):
     csv_root = tmp_path / "synthetic-csv"
     binary_root = tmp_path / "synthetic-binary"
@@ -533,6 +761,93 @@ def test_chunked_v2_feature_sum_matches_full_indexed_aggregation(
     torch.testing.assert_close(torch.cat(chunk_row_values), full_row_values)
     assert trainer._chunk_source_degree is not None
     assert trainer._chunk_source_offsets is not None
+
+
+def test_shared_pca_commutes_with_chunked_v2_feature_aggregation(tmp_path):
+    dataset_root = tmp_path / "synthetic"
+    artifact_dir = tmp_path / "artifact-2hop"
+    feature_output_dir = tmp_path / "feature-output"
+    _make_raw_dataset(dataset_root)
+    partition_raw_ogb_2hop(
+        dataset_root=dataset_root,
+        output_dir=artifact_dir,
+        n_trainer=2,
+        iid_beta=10000.0,
+        seed=42,
+        checksums=False,
+        chunk_rows=2,
+    )
+    trainer = Trainer_General(
+        rank=0,
+        args_hidden=8,
+        device=torch.device("cpu"),
+        args=SimpleNamespace(
+            local_artifact_dir=str(artifact_dir),
+            use_huggingface=False,
+            num_hops=2,
+            n_trainer=2,
+            graph_storage_mode="cpu",
+            graph_relabel_chunk_edges=2,
+            pretrain_feature_aggregation_mode="chunked",
+            pretrain_feature_chunk_rows=2,
+            pretrain_feature_chunk_edges=1,
+            pretrain_feature_output_dir=str(feature_output_dir),
+            feature_compression_mode="shared-pca",
+            seed=42,
+            local_step=1,
+            method="FedGCN",
+            norm_type="none",
+        ),
+    )
+    raw_row_ids, raw_row_values = trainer.get_indexed_local_feature_sum()
+    statistic = trainer.compute_feature_compression_statistics(chunk_rows=2)
+    basis = solve_shared_feature_basis(statistic, rank=1)
+
+    projection = trainer.apply_shared_feature_basis(basis, chunk_rows=2)
+    compressed_row_ids = []
+    compressed_row_values = []
+    for start in range(0, trainer.global_node_num, 2):
+        row_ids, row_values = trainer.get_chunked_local_feature_sum(
+            torch.arange(start, min(start + 2, trainer.global_node_num))
+        )
+        compressed_row_ids.append(row_ids)
+        compressed_row_values.append(row_values)
+
+    torch.testing.assert_close(torch.cat(compressed_row_ids), raw_row_ids)
+    torch.testing.assert_close(
+        torch.cat(compressed_row_values),
+        raw_row_values @ basis.matrix,
+    )
+    basis_hash = feature_basis_sha256(basis)
+    assert projection["basis_sha256"] == basis_hash
+
+    initialization = trainer.initialize_chunked_feature_aggregation()
+    assert initialization["feature_dim"] == 1
+    assert initialization["feature_compression_basis_sha256"] == basis_hash
+    expected = torch.zeros((trainer.communicate_node_index.numel(), 1))
+    for global_start in range(0, trainer.global_node_num, 2):
+        global_stop = min(global_start + 2, trainer.global_node_num)
+        start_position = int(
+            torch.searchsorted(trainer.communicate_node_index, global_start)
+        )
+        stop_position = int(
+            torch.searchsorted(trainer.communicate_node_index, global_stop)
+        )
+        trainer.append_chunked_feature_aggregation_range(
+            global_start,
+            global_stop,
+            expected[start_position:stop_position],
+        )
+    finalized = trainer.finalize_chunked_feature_aggregation()
+    assert finalized["feature_dim"] == 1
+    assert finalized["feature_compression_basis_sha256"] == basis_hash
+    metadata = json.loads(
+        Path(finalized["output_path"])
+        .with_name("feature-aggregation.json")
+        .read_text(encoding="utf-8")
+    )
+    assert metadata["provenance"]["feature_compression_mode"] == "shared-pca"
+    assert metadata["provenance"]["feature_compression_basis_sha256"] == basis_hash
 
 
 @pytest.mark.parametrize("norm_type", ["none", "row", "sym"])
@@ -913,6 +1228,49 @@ def test_huggingface_local_artifact_loader_supports_v2_shards(
         "trainer-001/source_offsets.pt"
     )
     assert validate_nc_artifact_for_upload(output_dir)["artifact_version"] == 2
+
+
+@patch("fedgraph.trainer_class.snapshot_download")
+def test_huggingface_local_artifact_loader_supports_compact_v3_shards(
+    mock_snapshot_download, tmp_path
+):
+    dataset_root = tmp_path / "synthetic"
+    output_dir = tmp_path / "artifact-2hop-v3"
+    _make_raw_dataset(dataset_root)
+    partition_raw_ogb_2hop(
+        dataset_root=dataset_root,
+        output_dir=output_dir,
+        n_trainer=2,
+        iid_beta=10000.0,
+        seed=42,
+        checksums=True,
+        chunk_rows=2,
+        adjacency_layout="local-int32",
+    )
+    mock_snapshot_download.return_value = str(output_dir)
+    args = SimpleNamespace(
+        hf_local_artifact_repo="FedGraph/ogbn-arxiv-2-2hop-v3",
+        hf_local_artifact_revision="candidate",
+        hf_local_artifact_cache_dir=str(tmp_path / "hf-cache"),
+        num_hops=2,
+        n_trainer=2,
+        graph_storage_mode="mmap",
+        graph_relabel_chunk_edges=2,
+        graph_relabel_cache_dir=str(tmp_path / "relabel-cache"),
+        pretrain_feature_aggregation_mode="chunked",
+        pretrain_feature_output_dir=str(tmp_path / "pretrain-output"),
+    )
+
+    loaded = load_trainer_data_from_huggingface_local_artifact(1, args)
+
+    compact_adjacency = torch.load(
+        output_dir / "shards" / "trainer-001" / "adj.pt",
+        weights_only=True,
+    )
+    assert torch.equal(loaded[2], compact_adjacency)
+    assert loaded[2].dtype == torch.int32
+    assert args._local_artifact_manifest["artifact_version"] == 3
+    assert validate_nc_artifact_for_upload(output_dir)["artifact_version"] == 3
 
 
 def test_upload_validation_checks_complete_artifact_without_loading_tensors(tmp_path):

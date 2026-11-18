@@ -39,6 +39,11 @@ _SHARD_FILES_BY_CONTRACT = {
         "source_degree.pt",
         "source_offsets.pt",
     },
+    (3, 2): _COMMON_SHARD_FILES
+    | {
+        "source_degree.pt",
+        "source_offsets.pt",
+    },
 }
 
 
@@ -53,7 +58,7 @@ def _sha256(path: Path) -> str:
 def validate_nc_artifact_for_upload(
     artifact_dir: Path | str, *, verify_checksums: bool = True
 ) -> dict[str, Any]:
-    """Validate a completed v1/v2 artifact without materializing its tensors."""
+    """Validate a completed v1/v2/v3 artifact without materializing tensors."""
     artifact_root = Path(artifact_dir).expanduser().resolve()
     manifest_path = artifact_root / "manifest.json"
     if not manifest_path.is_file():
@@ -61,7 +66,9 @@ def validate_nc_artifact_for_upload(
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     contract = (manifest.get("artifact_version"), manifest.get("hop_semantics"))
     if contract not in _SHARD_FILES_BY_CONTRACT:
-        raise ValueError("Artifact must use the version/hop contract (1, 0) or (2, 2)")
+        raise ValueError(
+            "Artifact must use the version/hop contract (1, 0), (2, 2), or (3, 2)"
+        )
     expected_shard_files = _SHARD_FILES_BY_CONTRACT[contract]
     n_trainer = manifest.get("n_trainer")
     shards = manifest.get("shards")

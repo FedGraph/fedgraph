@@ -5,6 +5,11 @@ import numpy as np
 import pytest
 import torch
 
+from fedgraph.feature_compression import (
+    compute_feature_second_moment,
+    feature_basis_sha256,
+    project_features_in_memory,
+)
 from fedgraph.federated_methods import (
     _accumulate_chunked_feature_payload,
     _aggregate_indexed_feature_sums,
@@ -12,6 +17,7 @@ from fedgraph.federated_methods import (
     _nc_plateau_round,
     _nc_val_loss_patience_round,
     _parse_optional_float_list,
+    _resolve_feature_compression_mode,
     _resolve_local_artifact_rank_node_ids,
     _resolve_nc_class_num,
     _resolve_nc_devices,
@@ -24,7 +30,10 @@ from fedgraph.federated_methods import (
     _resource_monitor_uses_prometheus,
     _resource_snapshot_due,
     _run_chunked_feature_pretraining,
+    _run_shared_feature_compression,
     _unpack_nc_data,
+    _validate_local_nc_artifact,
+    _validate_trainer_feature_compression_contract,
     _weighted_nc_metric,
     run_fedgraph,
     run_fedgraph_enhanced,
@@ -199,6 +208,15 @@ class TestIndexedFeatureAggregation:
             _resolve_pretrain_feature_aggregation_mode(attridict.AttriDict()) == "full"
         )
 
+    def test_defaults_to_no_feature_compression(self):
+        assert _resolve_feature_compression_mode(attridict.AttriDict()) == "none"
+
+    def test_rejects_unknown_feature_compression_mode(self):
+        with pytest.raises(ValueError, match="none.*shared-pca"):
+            _resolve_feature_compression_mode(
+                attridict.AttriDict(feature_compression_mode="local-svd")
+            )
+
     def test_rejects_unknown_aggregation_mode(self):
         with pytest.raises(ValueError, match="full.*chunked"):
             _resolve_pretrain_feature_aggregation_mode(
@@ -252,6 +270,32 @@ class TestIndexedFeatureAggregation:
         with pytest.raises(ValueError, match="graph_storage_mode"):
             run_NC(args)
 
+    def test_compact_v3_artifact_requires_and_accepts_chunked_host_path(self, tmp_path):
+        (tmp_path / "manifest.json").write_text(
+            '{"artifact_version": 3, "hop_semantics": 2, "n_trainer": 1}',
+            encoding="utf-8",
+        )
+        args = attridict.AttriDict(
+            num_hops=2,
+            n_trainer=1,
+            local_artifact_dir=str(tmp_path),
+            local_artifact_rank_hosts=None,
+            hf_local_artifact_repo=None,
+            use_huggingface=False,
+            use_lowrank=False,
+            use_dp=False,
+            use_encryption=False,
+            pretrain_feature_upload_mode="indexed",
+            pretrain_feature_aggregation_mode="chunked",
+            graph_storage_mode="mmap",
+        )
+
+        _validate_local_nc_artifact(args)
+
+        args.pretrain_feature_aggregation_mode = "full"
+        with pytest.raises(ValueError, match="compact v3 adjacency"):
+            _validate_local_nc_artifact(args)
+
     def test_rejects_unknown_upload_mode(self):
         with pytest.raises(ValueError, match="dense.*indexed"):
             _resolve_pretrain_feature_upload_mode(
@@ -294,17 +338,18 @@ class _RemoteMethod:
     def __init__(self, function):
         self.function = function
 
-    def remote(self, *args):
+    def remote(self, *args, **kwargs):
         try:
-            return _ImmediateResult(value=self.function(*args))
+            return _ImmediateResult(value=self.function(*args, **kwargs))
         except Exception as error:
             return _ImmediateResult(error=error)
 
 
 class _FakeChunkTrainer:
-    def __init__(self, local_values, requested_rows):
+    def __init__(self, local_values, requested_rows, basis_hash=None):
         self.local_values = local_values
         self.requested_rows = requested_rows
+        self.basis_hash = basis_hash
         self.received_rows = []
         self.received_values = []
         self.initialized = False
@@ -318,7 +363,11 @@ class _FakeChunkTrainer:
 
     def _initialize(self):
         self.initialized = True
-        return {"row_count": self.requested_rows.numel()}
+        return {
+            "row_count": self.requested_rows.numel(),
+            "feature_dim": self.local_values.size(1),
+            "feature_compression_basis_sha256": self.basis_hash,
+        }
 
     def _payload(self, start, stop):
         rows = torch.arange(start, stop)
@@ -341,7 +390,11 @@ class _FakeChunkTrainer:
 
     def _finalize(self):
         self.finalized = True
-        return {"row_count": self.requested_rows.numel()}
+        return {
+            "row_count": self.requested_rows.numel(),
+            "feature_dim": self.local_values.size(1),
+            "feature_compression_basis_sha256": self.basis_hash,
+        }
 
     def _abort(self):
         self.aborted = True
@@ -392,7 +445,12 @@ def test_chunked_feature_pretraining_aggregates_and_distributes_bounded_chunks(
     monkeypatch.setattr("fedgraph.federated_methods.ray.wait", fake_wait)
     monkeypatch.setattr("fedgraph.federated_methods.ray.get", fake_get)
 
-    upload_mib, download_mib = _run_chunked_feature_pretraining(
+    (
+        upload_mib,
+        download_mib,
+        finalization_results,
+        finalization_wall_time_sec,
+    ) = _run_chunked_feature_pretraining(
         [trainer_0, trainer_1],
         global_node_num=5,
         feature_dim=2,
@@ -402,6 +460,8 @@ def test_chunked_feature_pretraining_aggregates_and_distributes_bounded_chunks(
 
     assert upload_mib == pytest.approx(152 / (1024 * 1024))
     assert download_mib == pytest.approx(56 / (1024 * 1024))
+    assert len(finalization_results) == 2
+    assert finalization_wall_time_sec >= 0
     assert max(observed_wait_widths) == 1
     assert trainer_0.initialized and trainer_0.finalized and not trainer_0.aborted
     assert trainer_1.initialized and trainer_1.finalized and not trainer_1.aborted
@@ -426,6 +486,146 @@ def test_chunked_feature_payload_rejects_rows_outside_server_range():
                 torch.tensor([[1.0]]),
                 torch.tensor([], dtype=torch.long),
             ),
+        )
+
+
+def test_chunked_feature_pretraining_rejects_a_different_compression_basis(
+    monkeypatch,
+):
+    trainer = _FakeChunkTrainer(
+        torch.tensor([[1.0], [2.0]]),
+        torch.tensor([0, 1]),
+        basis_hash="basis-b",
+    )
+
+    def fake_wait(refs, num_returns, timeout):
+        del timeout
+        return refs[:num_returns], refs[num_returns:]
+
+    def fake_get(ref_or_refs):
+        if isinstance(ref_or_refs, list):
+            return [fake_get(ref) for ref in ref_or_refs]
+        if ref_or_refs.error is not None:
+            raise ref_or_refs.error
+        return ref_or_refs.value
+
+    monkeypatch.setattr("fedgraph.federated_methods.ray.wait", fake_wait)
+    monkeypatch.setattr("fedgraph.federated_methods.ray.get", fake_get)
+
+    with pytest.raises(RuntimeError, match="different compression basis"):
+        _run_chunked_feature_pretraining(
+            [trainer],
+            global_node_num=2,
+            feature_dim=1,
+            chunk_rows=1,
+            max_inflight_trainers=1,
+            feature_compression_basis_sha256="basis-a",
+        )
+    assert trainer.aborted is True
+
+
+class _FakeCompressionTrainer:
+    def __init__(self, trainer_id, features):
+        self.trainer_id = trainer_id
+        self.features = features
+        self.basis_hash = None
+        self.compute_feature_compression_statistics = _RemoteMethod(self._statistics)
+        self.apply_shared_feature_basis = _RemoteMethod(self._apply_basis)
+
+    def _statistics(self, chunk_rows):
+        return compute_feature_second_moment(self.features, chunk_rows=chunk_rows)
+
+    def _apply_basis(self, basis, *, chunk_rows, output_dir):
+        assert output_dir is None
+        original_size_bytes = self.features.numel() * self.features.element_size()
+        self.features = project_features_in_memory(
+            self.features,
+            basis,
+            chunk_rows=chunk_rows,
+        )
+        self.basis_hash = feature_basis_sha256(basis)
+        return {
+            "trainer_id": self.trainer_id,
+            "compressed_dim": self.features.size(1),
+            "basis_sha256": self.basis_hash,
+            "original_size_bytes": original_size_bytes,
+            "size_bytes": self.features.numel() * self.features.element_size(),
+            "elapsed_sec": 0.01,
+        }
+
+
+def test_shared_feature_compression_uses_one_basis_with_bounded_fan_in(
+    monkeypatch,
+):
+    trainer_0_source = torch.tensor([[4.0, 0.0, 1.0], [3.0, 1.0, 0.0], [2.0, 0.0, 1.0]])
+    trainer_1_source = torch.tensor([[0.0, 3.0, 1.0], [1.0, 2.0, 0.0]])
+    trainer_0 = _FakeCompressionTrainer(0, trainer_0_source.clone())
+    trainer_1 = _FakeCompressionTrainer(1, trainer_1_source.clone())
+    observed_wait_widths = []
+
+    def fake_wait(refs, num_returns, timeout):
+        del timeout
+        observed_wait_widths.append(len(refs))
+        return refs[:num_returns], refs[num_returns:]
+
+    def fake_get(ref_or_refs):
+        if isinstance(ref_or_refs, list):
+            return [fake_get(ref) for ref in ref_or_refs]
+        if ref_or_refs.error is not None:
+            raise ref_or_refs.error
+        return ref_or_refs.value
+
+    monkeypatch.setattr("fedgraph.federated_methods.ray.wait", fake_wait)
+    monkeypatch.setattr("fedgraph.federated_methods.ray.get", fake_get)
+
+    basis = _run_shared_feature_compression(
+        [trainer_0, trainer_1],
+        original_feature_dim=3,
+        expected_row_count=5,
+        rank=2,
+        chunk_rows=2,
+        max_inflight_trainers=1,
+        output_dir=None,
+    )
+
+    torch.testing.assert_close(
+        trainer_0.features,
+        trainer_0_source @ basis.matrix,
+    )
+    torch.testing.assert_close(
+        trainer_1.features,
+        trainer_1_source @ basis.matrix,
+    )
+    assert trainer_0.basis_hash == trainer_1.basis_hash
+    assert trainer_0.basis_hash == feature_basis_sha256(basis)
+    assert max(observed_wait_widths) == 1
+
+
+def test_trainer_feature_compression_contract_rejects_mixed_bases():
+    trainer_information = [
+        {
+            "feature_shape": 2,
+            "feature_compression_applied": True,
+            "feature_compression_original_dim": 3,
+            "feature_compression_rank": 2,
+            "feature_compression_basis_sha256": "basis-a",
+        },
+        {
+            "feature_shape": 2,
+            "feature_compression_applied": True,
+            "feature_compression_original_dim": 3,
+            "feature_compression_rank": 2,
+            "feature_compression_basis_sha256": "basis-b",
+        },
+    ]
+
+    with pytest.raises(RuntimeError, match="different shared feature basis"):
+        _validate_trainer_feature_compression_contract(
+            trainer_information,
+            mode="shared-pca",
+            original_feature_dim=3,
+            expected_feature_dim=2,
+            expected_basis_sha256="basis-a",
         )
 
 

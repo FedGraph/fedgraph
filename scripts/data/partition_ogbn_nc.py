@@ -66,6 +66,15 @@ def parse_args() -> argparse.Namespace:
         help="Raw feature/edge rows parsed per chunk; lower it to reduce RAM.",
     )
     parser.add_argument(
+        "--adjacency-layout",
+        choices=("dual-int64", "local-int32"),
+        default="dual-int64",
+        help=(
+            "2-hop adjacency representation. dual-int64 preserves the v2 global/local "
+            "pair; local-int32 writes a compact v3 local-coordinate adjacency only."
+        ),
+    )
+    parser.add_argument(
         "--no-checksums",
         action="store_true",
         help="Skip SHA-256 generation after validation to shorten a prototype run.",
@@ -93,6 +102,7 @@ def main() -> int:
         binary_cache_dir=args.binary_cache_dir,
         checksums=not args.no_checksums,
         resume=args.resume,
+        **({"adjacency_layout": args.adjacency_layout} if args.num_hops == 2 else {}),
     )
     print(json.dumps(manifest, indent=2, sort_keys=True))
     return 0

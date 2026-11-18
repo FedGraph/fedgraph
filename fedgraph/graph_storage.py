@@ -8,6 +8,7 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Mapping, Optional
 
 import numpy as np
 import torch
@@ -46,6 +47,7 @@ class FeatureAggregationStore:
         trainer_id: int,
         row_count: int,
         feature_dim: int,
+        provenance: Optional[Mapping[str, Any]] = None,
     ) -> None:
         if trainer_id < 0:
             raise ValueError("trainer_id must be non-negative")
@@ -57,6 +59,13 @@ class FeatureAggregationStore:
         self.row_count = row_count
         self.feature_dim = feature_dim
         self.written_rows = 0
+        self.provenance = dict(provenance or {})
+        try:
+            json.dumps(self.provenance)
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                "feature aggregation provenance must be JSON serializable"
+            ) from error
         self.data_path = trainer_dir / "feature-aggregation.f32"
         self.metadata_path = trainer_dir / "feature-aggregation.json"
         temporary_suffix = f"tmp-{os.getpid()}-{time.time_ns()}"
@@ -126,6 +135,8 @@ class FeatureAggregationStore:
             * self.feature_dim
             * np.dtype(np.float32).itemsize,
         }
+        if self.provenance:
+            metadata["provenance"] = self.provenance
         self.temporary_metadata_path.write_text(
             json.dumps(metadata, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
@@ -228,6 +239,132 @@ def _read_cached_result(
         dropped_edge_count=dropped_edge_count,
         elapsed_sec=time.perf_counter() - started_at,
     )
+
+
+def expand_local_adjacency_to_mmap_cache(
+    adjacency: torch.Tensor,
+    *,
+    source_path: Path,
+    cache_dir: Path,
+    trainer_id: int,
+    chunk_edges: int,
+) -> RelabeledAdjacency:
+    """Expand a compact local int32 edge index to file-backed int64 storage."""
+    started_at = time.perf_counter()
+    if adjacency.device.type != "cpu":
+        raise ValueError("bounded adjacency expansion requires a CPU tensor")
+    if adjacency.ndim != 2 or adjacency.size(0) != 2:
+        raise ValueError("adjacency must have shape [2, num_edges]")
+    if adjacency.dtype not in _INTEGER_DTYPES:
+        raise ValueError("adjacency must use an integer dtype")
+    if chunk_edges <= 0:
+        raise ValueError("chunk_edges must be positive")
+
+    resolved_source = source_path.expanduser().resolve()
+    if not resolved_source.is_file():
+        raise FileNotFoundError(f"adjacency artifact is missing: {resolved_source}")
+    source_stat = resolved_source.stat()
+    source_edge_count = int(adjacency.size(1))
+    fingerprint: dict[str, object] = {
+        "cache_version": _RELABEL_CACHE_VERSION,
+        "operation": "local_adjacency_int64_expansion",
+        "source_path": str(resolved_source),
+        "source_size_bytes": source_stat.st_size,
+        "source_mtime_ns": source_stat.st_mtime_ns,
+        "source_edge_count": source_edge_count,
+        "source_dtype": str(adjacency.dtype),
+    }
+    cache_key = hashlib.sha256(
+        json.dumps(fingerprint, sort_keys=True).encode("utf-8")
+    ).hexdigest()[:24]
+    trainer_cache_dir = cache_dir.expanduser().resolve() / f"trainer-{trainer_id:03d}"
+    trainer_cache_dir.mkdir(parents=True, exist_ok=True)
+    data_path = trainer_cache_dir / f"adj-local-{cache_key}.edge-index.i64"
+    metadata_path = trainer_cache_dir / f"adj-local-{cache_key}.json"
+
+    cached_result = _read_cached_result(
+        data_path,
+        metadata_path,
+        fingerprint,
+        started_at,
+    )
+    if cached_result is not None:
+        return cached_result
+
+    temporary_suffix = f"tmp-{os.getpid()}-{time.time_ns()}"
+    temporary_data = data_path.with_name(f"{data_path.name}.{temporary_suffix}")
+    temporary_metadata = metadata_path.with_name(
+        f"{metadata_path.name}.{temporary_suffix}"
+    )
+    output_storage: np.memmap | None = None
+    try:
+        if source_edge_count:
+            output_storage = np.memmap(
+                temporary_data,
+                dtype=np.int64,
+                mode="w+",
+                shape=(2, source_edge_count),
+            )
+            for start in range(0, source_edge_count, chunk_edges):
+                stop = min(start + chunk_edges, source_edge_count)
+                output_storage[:, start:stop] = (
+                    adjacency[:, start:stop].detach().cpu().long().contiguous().numpy()
+                )
+            output_storage.flush()
+            del output_storage
+            output_storage = None
+        else:
+            temporary_data.touch()
+
+        metadata = {
+            "fingerprint": fingerprint,
+            "layout": "row_major_int64_2_by_e",
+            "edge_count": source_edge_count,
+            "dropped_edge_count": 0,
+        }
+        temporary_metadata.write_text(
+            json.dumps(metadata, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        os.replace(temporary_data, data_path)
+        os.replace(temporary_metadata, metadata_path)
+    finally:
+        if output_storage is not None:
+            output_storage.flush()
+            del output_storage
+        temporary_data.unlink(missing_ok=True)
+        temporary_metadata.unlink(missing_ok=True)
+
+    return RelabeledAdjacency(
+        edge_index=_load_edge_index_cache(data_path, source_edge_count),
+        cache_path=data_path,
+        cache_hit=False,
+        source_edge_count=source_edge_count,
+        edge_count=source_edge_count,
+        dropped_edge_count=0,
+        elapsed_sec=time.perf_counter() - started_at,
+    )
+
+
+def materialize_adjacency_in_cpu_memory(
+    adjacency: torch.Tensor, *, chunk_edges: int
+) -> torch.Tensor:
+    """Copy a file-backed edge index into ordinary CPU RAM in bounded chunks."""
+    if adjacency.device.type != "cpu":
+        raise ValueError("adjacency materialization requires a CPU tensor")
+    if adjacency.ndim != 2 or adjacency.size(0) != 2:
+        raise ValueError("adjacency must have shape [2, num_edges]")
+    if adjacency.dtype != torch.int64:
+        raise ValueError("training adjacency must use int64 storage")
+    if chunk_edges <= 0:
+        raise ValueError("chunk_edges must be positive")
+
+    edge_count = int(adjacency.size(1))
+    materialized = torch.empty((2, edge_count), dtype=torch.int64, device="cpu")
+    for start in range(0, edge_count, chunk_edges):
+        stop = min(start + chunk_edges, edge_count)
+        materialized[:, start:stop].copy_(adjacency[:, start:stop])
+    return materialized.contiguous()
 
 
 def relabel_adjacency_to_mmap_cache(

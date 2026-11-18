@@ -11,6 +11,7 @@ import contextlib
 import csv
 import datetime as dt
 import json
+import logging
 import os
 import platform
 import random
@@ -30,6 +31,9 @@ import numpy as np
 # convert those logs into structured CSV/JSON outputs without mislabelling a
 # legacy per-round test evaluation as validation.
 ROUND_METRIC_PREFIX = "NC_ROUND_METRIC "
+FEATURE_COMPRESSION_METRIC_PREFIX = "NC_FEATURE_COMPRESSION_METRIC "
+PRETRAIN_METRIC_PREFIX = "NC_PRETRAIN_METRIC "
+NEIGHBOR_SAMPLER_METRIC_PREFIX = "NC_NEIGHBOR_SAMPLER_METRIC "
 ROUND_EVALUATION_LOSS_RE = re.compile(
     r"Round\s+(\d+):\s+Global (Val|Test) Loss\s*=\s*([0-9.eE+-]+)"
 )
@@ -80,6 +84,7 @@ class ExperimentConfig:
     dataset: str
     method: str
     batch_size: int
+    evaluation_batch_size: Optional[int]
     seed: int
     global_rounds: int
     local_step: int
@@ -91,6 +96,11 @@ class ExperimentConfig:
     num_hops: int
     gpu: bool
     server_device: Optional[str]
+    feature_compression_mode: str
+    feature_compression_rank: int
+    feature_compression_chunk_rows: int
+    feature_compression_max_inflight_trainers: int
+    feature_compression_output_dir: Optional[str]
     pretrain_feature_upload_mode: str
     pretrain_feature_aggregation_mode: str
     pretrain_feature_chunk_rows: int
@@ -145,6 +155,23 @@ class Tee:
 
     def isatty(self):
         return self.streams[0].isatty()
+
+
+def _restore_logging_streams(replacements):
+    """Detach persistent logging handlers from run-scoped tee streams."""
+    loggers = [logging.getLogger()]
+    loggers.extend(
+        logger
+        for logger in logging.root.manager.loggerDict.values()
+        if isinstance(logger, logging.Logger)
+    )
+    for logger in loggers:
+        for handler in logger.handlers:
+            stream = getattr(handler, "stream", None)
+            for temporary_stream, replacement_stream in replacements.items():
+                if stream is temporary_stream:
+                    handler.setStream(replacement_stream)
+                    break
 
 
 @contextlib.contextmanager
@@ -360,6 +387,12 @@ def to_fedgraph_args(
         pretrain_feature_output_dir = str(
             Path(config.pretrain_feature_output_dir) / run_id
         )
+    feature_compression_output_dir = None
+    if config.feature_compression_output_dir:
+        run_id = logdir.parent.name
+        feature_compression_output_dir = str(
+            Path(config.feature_compression_output_dir) / run_id
+        )
 
     return attridict.AttriDict(
         {
@@ -373,10 +406,18 @@ def to_fedgraph_args(
             "learning_rate": config.learning_rate,
             "n_trainer": config.n_trainer,
             "batch_size": config.batch_size,
+            "evaluation_batch_size": config.evaluation_batch_size,
             "num_layers": config.num_layers,
             "num_hops": config.num_hops,
             "gpu": config.gpu,
             "server_device": config.server_device,
+            "feature_compression_mode": config.feature_compression_mode,
+            "feature_compression_rank": config.feature_compression_rank,
+            "feature_compression_chunk_rows": (config.feature_compression_chunk_rows),
+            "feature_compression_max_inflight_trainers": (
+                config.feature_compression_max_inflight_trainers
+            ),
+            "feature_compression_output_dir": feature_compression_output_dir,
             "pretrain_feature_upload_mode": config.pretrain_feature_upload_mode,
             "pretrain_feature_aggregation_mode": (
                 config.pretrain_feature_aggregation_mode
@@ -462,6 +503,21 @@ def parse_structured_round_timings(text: str) -> dict[int, dict]:
             "cumulative_train_sync_time_sec": cumulative_time,
         }
     return timings
+
+
+def parse_last_structured_metric(text: str, prefix: str) -> Optional[dict]:
+    """Return the last valid JSON object emitted with a metric prefix."""
+    result = None
+    for line in text.splitlines():
+        if not line.startswith(prefix):
+            continue
+        try:
+            payload = json.loads(line[len(prefix) :])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            result = payload
+    return result
 
 
 def parse_run_log(log_path: Path):
@@ -566,6 +622,13 @@ def parse_run_log(log_path: Path):
     else:
         total_train_comm_time = parse_metric([TRAIN_COMM_TIME_RE], text)
     federated_loop_wall_time = parse_metric([FEDERATED_LOOP_WALL_TIME_RE], text)
+    feature_compression_metric = parse_last_structured_metric(
+        text, FEATURE_COMPRESSION_METRIC_PREFIX
+    )
+    pretrain_metric = parse_last_structured_metric(text, PRETRAIN_METRIC_PREFIX)
+    neighbor_sampler_metric = parse_last_structured_metric(
+        text, NEIGHBOR_SAMPLER_METRIC_PREFIX
+    )
 
     return {
         "round_metrics": round_metrics,
@@ -577,6 +640,9 @@ def parse_run_log(log_path: Path):
         "total_comm_time_sec": total_communication_time,
         "total_train_comm_time_sec": total_train_comm_time,
         "federated_loop_wall_time_sec": federated_loop_wall_time,
+        "feature_compression_metric": feature_compression_metric,
+        "pretrain_metric": pretrain_metric,
+        "neighbor_sampler_metric": neighbor_sampler_metric,
         # Backward-compatible alias for callers reading historical parser output.
         "total_pure_train_time_sec": total_training_time,
     }
@@ -788,8 +854,10 @@ def run_experiment(
     error = ""
 
     with log_path.open("w", encoding="utf-8") as log_file:
-        tee_stdout = Tee(sys.stdout, log_file)
-        tee_stderr = Tee(sys.stderr, log_file)
+        console_stdout = sys.stdout
+        console_stderr = sys.stderr
+        tee_stdout = Tee(console_stdout, log_file)
+        tee_stderr = Tee(console_stderr, log_file)
         with contextlib.redirect_stdout(tee_stdout), contextlib.redirect_stderr(
             tee_stderr
         ):
@@ -828,6 +896,13 @@ def run_experiment(
                         ray.shutdown()
                 except ImportError:
                     pass
+                finally:
+                    _restore_logging_streams(
+                        {
+                            tee_stdout: console_stdout,
+                            tee_stderr: console_stderr,
+                        }
+                    )
 
     end_timestamp = dt.datetime.now(dt.timezone.utc).isoformat()
     duration_sec = time.time() - start_time
@@ -872,6 +947,9 @@ def run_experiment(
     val_acc_end_stats = end_window_stats(
         round_metrics, "val_acc", convergence_window, val_acc_tolerance
     )
+    feature_compression_metric = parsed["feature_compression_metric"] or {}
+    pretrain_metric = parsed["pretrain_metric"] or {}
+    neighbor_sampler_metric = parsed["neighbor_sampler_metric"] or {}
 
     summary = {
         "experiment_name": experiment_name,
@@ -879,6 +957,7 @@ def run_experiment(
         "dataset": config.dataset,
         "method": config.method,
         "batch_size": config.batch_size,
+        "evaluation_batch_size": (config.evaluation_batch_size or config.batch_size),
         "seed": config.seed,
         "global_rounds": config.global_rounds,
         "local_step": config.local_step,
@@ -889,12 +968,104 @@ def run_experiment(
         "num_layers": config.num_layers,
         "num_hops": config.num_hops,
         "gpu": config.gpu,
+        "feature_compression_mode": config.feature_compression_mode,
+        "feature_compression_rank": config.feature_compression_rank,
+        "feature_compression_chunk_rows": config.feature_compression_chunk_rows,
+        "feature_compression_max_inflight_trainers": (
+            config.feature_compression_max_inflight_trainers
+        ),
+        "feature_compression_output_dir": config.feature_compression_output_dir,
+        "feature_compression_original_dim": feature_compression_metric.get(
+            "original_feature_dim"
+        ),
+        "feature_compression_runtime_dim": feature_compression_metric.get(
+            "compressed_feature_dim"
+        ),
+        "feature_compression_retained_energy": feature_compression_metric.get(
+            "retained_energy"
+        ),
+        "feature_compression_basis_sha256": feature_compression_metric.get(
+            "basis_sha256"
+        ),
+        "feature_compression_basis_output_path": feature_compression_metric.get(
+            "basis_output_path"
+        ),
+        "feature_compression_original_bytes": feature_compression_metric.get(
+            "original_feature_bytes"
+        ),
+        "feature_compression_projected_bytes": feature_compression_metric.get(
+            "projected_feature_bytes"
+        ),
+        "feature_compression_bytes_saved": feature_compression_metric.get(
+            "feature_bytes_saved"
+        ),
+        "feature_compression_projected_fraction": feature_compression_metric.get(
+            "projected_feature_fraction"
+        ),
+        "feature_compression_storage_reduction_ratio": (
+            feature_compression_metric.get("feature_storage_reduction_ratio")
+        ),
+        "feature_compression_statistics_upload_bytes": (
+            feature_compression_metric.get("statistics_tensor_upload_bytes")
+        ),
+        "feature_compression_basis_broadcast_bytes": (
+            feature_compression_metric.get("basis_tensor_broadcast_bytes")
+        ),
+        "feature_compression_setup_traffic_bytes": feature_compression_metric.get(
+            "compression_setup_traffic_bytes"
+        ),
+        "feature_compression_statistics_time_sec": feature_compression_metric.get(
+            "statistics_wall_time_sec"
+        ),
+        "feature_compression_basis_time_sec": feature_compression_metric.get(
+            "basis_wall_time_sec"
+        ),
+        "feature_compression_projection_time_sec": feature_compression_metric.get(
+            "projection_wall_time_sec"
+        ),
+        "feature_compression_max_trainer_projection_time_sec": (
+            feature_compression_metric.get("max_trainer_projection_time_sec")
+        ),
+        "feature_compression_wall_time_sec": feature_compression_metric.get(
+            "compression_wall_time_sec"
+        ),
+        "pretrain_feature_upload_mode": config.pretrain_feature_upload_mode,
+        "pretrain_feature_aggregation_mode": (config.pretrain_feature_aggregation_mode),
         "pretrain_feature_chunk_rows": config.pretrain_feature_chunk_rows,
         "pretrain_feature_chunk_edges": config.pretrain_feature_chunk_edges,
         "pretrain_feature_max_inflight_trainers": (
             config.pretrain_feature_max_inflight_trainers
         ),
         "pretrain_feature_output_dir": config.pretrain_feature_output_dir,
+        "pretrain_feature_dim": pretrain_metric.get("feature_dim"),
+        "pretrain_upload_bytes": pretrain_metric.get("upload_bytes"),
+        "pretrain_download_bytes": pretrain_metric.get("download_bytes"),
+        "pretrain_total_traffic_bytes": pretrain_metric.get("total_traffic_bytes"),
+        "pretrain_wall_time_sec": pretrain_metric.get("wall_time_sec"),
+        "pretrain_feature_compression_basis_sha256": pretrain_metric.get(
+            "feature_compression_basis_sha256"
+        ),
+        "artifact_version": pretrain_metric.get("artifact_version"),
+        "source_artifact_version": pretrain_metric.get("source_artifact_version"),
+        "adjacency_transition_wall_time_sec": pretrain_metric.get(
+            "adjacency_transition_wall_time_sec"
+        ),
+        "adjacency_transition_max_trainer_time_sec": pretrain_metric.get(
+            "adjacency_transition_max_trainer_time_sec"
+        ),
+        "adjacency_transition_strategies": pretrain_metric.get(
+            "adjacency_transition_strategies"
+        ),
+        "neighbor_sampler_setup_wall_time_sec": neighbor_sampler_metric.get(
+            "wall_time_sec"
+        ),
+        "neighbor_sampler_setup_max_trainer_time_sec": neighbor_sampler_metric.get(
+            "max_trainer_time_sec"
+        ),
+        "neighbor_sampler_index_bytes": neighbor_sampler_metric.get("index_bytes"),
+        "neighbor_sampler_prepared_trainer_count": neighbor_sampler_metric.get(
+            "prepared_trainer_count"
+        ),
         "graph_storage_mode": config.graph_storage_mode,
         "graph_relabel_cache_dir": config.graph_relabel_cache_dir,
         "graph_relabel_chunk_edges": config.graph_relabel_chunk_edges,
@@ -1065,6 +1236,7 @@ def run_experiment(
         "dataset",
         "method",
         "batch_size",
+        "evaluation_batch_size",
         "seed",
         "global_rounds",
         "local_step",
@@ -1075,10 +1247,50 @@ def run_experiment(
         "num_layers",
         "num_hops",
         "gpu",
+        "feature_compression_mode",
+        "feature_compression_rank",
+        "feature_compression_chunk_rows",
+        "feature_compression_max_inflight_trainers",
+        "feature_compression_output_dir",
+        "feature_compression_original_dim",
+        "feature_compression_runtime_dim",
+        "feature_compression_retained_energy",
+        "feature_compression_basis_sha256",
+        "feature_compression_basis_output_path",
+        "feature_compression_original_bytes",
+        "feature_compression_projected_bytes",
+        "feature_compression_bytes_saved",
+        "feature_compression_projected_fraction",
+        "feature_compression_storage_reduction_ratio",
+        "feature_compression_statistics_upload_bytes",
+        "feature_compression_basis_broadcast_bytes",
+        "feature_compression_setup_traffic_bytes",
+        "feature_compression_statistics_time_sec",
+        "feature_compression_basis_time_sec",
+        "feature_compression_projection_time_sec",
+        "feature_compression_max_trainer_projection_time_sec",
+        "feature_compression_wall_time_sec",
+        "pretrain_feature_upload_mode",
+        "pretrain_feature_aggregation_mode",
         "pretrain_feature_chunk_rows",
         "pretrain_feature_chunk_edges",
         "pretrain_feature_max_inflight_trainers",
         "pretrain_feature_output_dir",
+        "pretrain_feature_dim",
+        "pretrain_upload_bytes",
+        "pretrain_download_bytes",
+        "pretrain_total_traffic_bytes",
+        "pretrain_wall_time_sec",
+        "pretrain_feature_compression_basis_sha256",
+        "artifact_version",
+        "source_artifact_version",
+        "adjacency_transition_wall_time_sec",
+        "adjacency_transition_max_trainer_time_sec",
+        "adjacency_transition_strategies",
+        "neighbor_sampler_setup_wall_time_sec",
+        "neighbor_sampler_setup_max_trainer_time_sec",
+        "neighbor_sampler_index_bytes",
+        "neighbor_sampler_prepared_trainer_count",
         "graph_storage_mode",
         "graph_relabel_cache_dir",
         "graph_relabel_chunk_edges",
@@ -1171,6 +1383,7 @@ def build_configs(args) -> List[ExperimentConfig]:
                         dataset=args.dataset,
                         method=method,
                         batch_size=batch_size,
+                        evaluation_batch_size=args.evaluation_batch_size,
                         seed=seed,
                         global_rounds=args.rounds,
                         local_step=args.local_step,
@@ -1182,6 +1395,19 @@ def build_configs(args) -> List[ExperimentConfig]:
                         num_hops=args.num_hops,
                         gpu=args.gpu,
                         server_device=args.server_device,
+                        feature_compression_mode=args.feature_compression_mode,
+                        feature_compression_rank=args.feature_compression_rank,
+                        feature_compression_chunk_rows=(
+                            args.feature_compression_chunk_rows
+                        ),
+                        feature_compression_max_inflight_trainers=(
+                            args.feature_compression_max_inflight_trainers
+                        ),
+                        feature_compression_output_dir=(
+                            str(args.feature_compression_output_dir)
+                            if args.feature_compression_output_dir
+                            else None
+                        ),
                         pretrain_feature_upload_mode=args.pretrain_feature_upload_mode,
                         pretrain_feature_aggregation_mode=(
                             args.pretrain_feature_aggregation_mode
@@ -1256,6 +1482,15 @@ def parse_args():
     )
     parser.add_argument("--dataset", default="ogbn-arxiv")
     parser.add_argument("--batch-sizes", default="512,1024,2048,-1")
+    parser.add_argument(
+        "--evaluation-batch-size",
+        type=int,
+        default=None,
+        help=(
+            "Seed nodes per validation/test batch. Defaults to the current "
+            "training batch size when omitted."
+        ),
+    )
     parser.add_argument("--seeds", default="42")
     parser.add_argument("--iid-betas", default="10000")
     parser.add_argument("--rounds", type=int, default=200)
@@ -1274,6 +1509,46 @@ def parse_args():
         help=(
             "Temporary NC server-device override. By default, the server uses "
             "the same device selected by --gpu."
+        ),
+    )
+    parser.add_argument(
+        "--feature-compression-mode",
+        choices=("none", "shared-pca"),
+        default="none",
+        help=(
+            "Optional Component 3 shared feature projection. None preserves the "
+            "existing feature width; shared-pca projects all trainers through "
+            "one uncentered PCA basis before model initialization."
+        ),
+    )
+    parser.add_argument(
+        "--feature-compression-rank",
+        type=int,
+        default=16,
+        help="Compressed feature width used by --feature-compression-mode shared-pca.",
+    )
+    parser.add_argument(
+        "--feature-compression-chunk-rows",
+        type=int,
+        default=65_536,
+        help="Maximum feature rows processed by one statistics/projection chunk.",
+    )
+    parser.add_argument(
+        "--feature-compression-max-inflight-trainers",
+        type=int,
+        default=4,
+        help=(
+            "Maximum trainer statistics or projection calls concurrently in "
+            "flight during shared feature compression."
+        ),
+    )
+    parser.add_argument(
+        "--feature-compression-output-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Absolute worker-local root for projected feature files. Required "
+            "when shared-pca is combined with mmap graph storage."
         ),
     )
     parser.add_argument(
@@ -1524,6 +1799,18 @@ def main() -> int:
         raise SystemExit("--hf-artifact-num-hops must be non-negative")
     if args.graph_relabel_chunk_edges <= 0:
         raise SystemExit("--graph-relabel-chunk-edges must be positive")
+    if args.feature_compression_rank <= 0:
+        raise SystemExit("--feature-compression-rank must be positive")
+    if args.feature_compression_chunk_rows <= 0:
+        raise SystemExit("--feature-compression-chunk-rows must be positive")
+    if args.feature_compression_max_inflight_trainers <= 0:
+        raise SystemExit("--feature-compression-max-inflight-trainers must be positive")
+    if args.feature_compression_output_dir is not None:
+        args.feature_compression_output_dir = (
+            args.feature_compression_output_dir.expanduser()
+        )
+        if not args.feature_compression_output_dir.is_absolute():
+            raise SystemExit("--feature-compression-output-dir must be absolute")
     if args.pretrain_feature_chunk_rows <= 0:
         raise SystemExit("--pretrain-feature-chunk-rows must be positive")
     if args.pretrain_feature_chunk_edges <= 0:
@@ -1549,15 +1836,27 @@ def main() -> int:
             artifact_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             raise SystemExit(f"Invalid local artifact manifest: {exc}") from exc
-        expected_contract = (1, 0) if args.num_hops == 0 else (2, 2)
         artifact_contract = (
             artifact_manifest.get("artifact_version"),
             artifact_manifest.get("hop_semantics"),
         )
-        if args.num_hops not in {0, 2} or artifact_contract != expected_contract:
+        valid_contract = (
+            artifact_contract == (1, 0)
+            if args.num_hops == 0
+            else (args.num_hops == 2 and artifact_contract in {(2, 2), (3, 2)})
+        )
+        if not valid_contract:
             raise SystemExit(
                 "--local-artifact-dir requires artifact v1 for --num-hops 0 or "
-                "artifact v2 for --num-hops 2"
+                "artifact v2/v3 for --num-hops 2"
+            )
+        if artifact_contract == (3, 2) and (
+            args.pretrain_feature_aggregation_mode != "chunked"
+            or args.graph_storage_mode not in {"cpu", "mmap"}
+        ):
+            raise SystemExit(
+                "compact artifact v3 requires chunked pretraining and graph "
+                "storage cpu or mmap"
             )
         if artifact_manifest.get("n_trainer") != args.n_trainer:
             raise SystemExit(
@@ -1629,10 +1928,27 @@ def main() -> int:
             "--pretrain-feature-aggregation-mode chunked requires "
             "--pretrain-feature-output-dir"
         )
+    if args.feature_compression_mode == "shared-pca" and (
+        args.graph_storage_mode not in {"cpu", "mmap"}
+    ):
+        raise SystemExit(
+            "--feature-compression-mode shared-pca requires "
+            "--graph-storage-mode cpu or mmap"
+        )
+    if (
+        args.feature_compression_mode == "shared-pca"
+        and args.graph_storage_mode == "mmap"
+        and args.feature_compression_output_dir is None
+    ):
+        raise SystemExit(
+            "mmap shared-pca compression requires " "--feature-compression-output-dir"
+        )
     if args.evaluation_split == "test" and args.elastic_training:
         raise SystemExit(
             "--evaluation-split test cannot be used with --elastic-training"
         )
+    if args.evaluation_batch_size is not None and args.evaluation_batch_size <= 0:
+        raise SystemExit("--evaluation-batch-size must be positive")
     if args.resource_snapshot_interval_rounds < 0:
         raise SystemExit("--resource-snapshot-interval-rounds must be non-negative")
     output_dir = resolve_output_dir(args)
@@ -1645,7 +1961,9 @@ def main() -> int:
     for idx, config in enumerate(configs, start=1):
         print(
             f"{idx:02d}. dataset={config.dataset}, method={config.method}, "
-            f"batch_size={config.batch_size}, seed={config.seed}, "
+            f"batch_size={config.batch_size}, "
+            f"evaluation_batch_size={config.evaluation_batch_size or config.batch_size}, "
+            f"seed={config.seed}, "
             f"rounds={config.global_rounds}, lr={config.learning_rate}"
         )
 

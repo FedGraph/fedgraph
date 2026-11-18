@@ -1,4 +1,56 @@
-from benchmark.benchmark_NC_batch_size_convergence import parse_run_log
+import io
+import logging
+import sys
+
+from benchmark.benchmark_NC_batch_size_convergence import (
+    Tee,
+    _restore_logging_streams,
+    build_configs,
+    parse_args,
+    parse_run_log,
+)
+
+
+def test_evaluation_batch_size_is_recorded_separately(monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "benchmark_NC_batch_size_convergence.py",
+            "--batch-sizes",
+            "16",
+            "--evaluation-batch-size",
+            "512",
+        ],
+    )
+
+    config = build_configs(parse_args())[0]
+
+    assert config.batch_size == 16
+    assert config.evaluation_batch_size == 512
+
+
+def test_restore_logging_streams_detaches_run_scoped_tee(tmp_path):
+    console = io.StringIO()
+    logger = logging.getLogger(f"fedgraph-test-{id(tmp_path)}")
+    logger.propagate = False
+    logger.setLevel(logging.INFO)
+
+    with (tmp_path / "first-run.log").open("w", encoding="utf-8") as run_log:
+        tee = Tee(console, run_log)
+        handler = logging.StreamHandler(tee)
+        logger.addHandler(handler)
+        logger.info("first run")
+        _restore_logging_streams({tee: console})
+
+    try:
+        logger.info("second run")
+        assert handler.stream is console
+        assert "first run" in console.getvalue()
+        assert "second run" in console.getvalue()
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
 
 
 def test_parse_run_log_keeps_per_round_test_metrics_out_of_validation_fields(
@@ -107,3 +159,55 @@ def test_parse_run_log_repairs_legacy_train_comm_total(tmp_path):
         ),
         encoding="utf-8",
     )
+
+    parsed = parse_run_log(log_path)
+
+    assert parsed["total_training_time_sec"] == 1.25
+    assert parsed["total_comm_time_sec"] == 0.75
+    assert parsed["total_train_comm_time_sec"] == 2.0
+
+
+def test_parse_run_log_reads_component3_and_pretrain_metrics(tmp_path):
+    log_path = tmp_path / "run.log"
+    log_path.write_text(
+        "\n".join(
+            [
+                "NC_FEATURE_COMPRESSION_METRIC "
+                '{"basis_sha256":"basis-1","compressed_feature_dim":16,'
+                '"compression_wall_time_sec":3.5,"original_feature_bytes":5120,'
+                '"original_feature_dim":128,"projected_feature_bytes":640,'
+                '"retained_energy":0.91}',
+                "NC_PRETRAIN_METRIC "
+                '{"aggregation_mode":"chunked","download_bytes":320,'
+                '"artifact_version":3,'
+                '"adjacency_transition_wall_time_sec":0.75,'
+                '"feature_compression_basis_sha256":"basis-1",'
+                '"feature_dim":16,"total_traffic_bytes":640,'
+                '"upload_bytes":320,"wall_time_sec":2.25}',
+                "NC_NEIGHBOR_SAMPLER_METRIC "
+                '{"index_bytes":4096,"max_trainer_time_sec":1.25,'
+                '"prepared_trainer_count":2,"trainer_count":2,'
+                '"wall_time_sec":1.5}',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    parsed = parse_run_log(log_path)
+
+    assert parsed["feature_compression_metric"] == {
+        "basis_sha256": "basis-1",
+        "compressed_feature_dim": 16,
+        "compression_wall_time_sec": 3.5,
+        "original_feature_bytes": 5120,
+        "original_feature_dim": 128,
+        "projected_feature_bytes": 640,
+        "retained_energy": 0.91,
+    }
+    assert parsed["pretrain_metric"]["aggregation_mode"] == "chunked"
+    assert parsed["pretrain_metric"]["artifact_version"] == 3
+    assert parsed["pretrain_metric"]["adjacency_transition_wall_time_sec"] == 0.75
+    assert parsed["pretrain_metric"]["feature_dim"] == 16
+    assert parsed["pretrain_metric"]["total_traffic_bytes"] == 640
+    assert parsed["neighbor_sampler_metric"]["index_bytes"] == 4096
+    assert parsed["neighbor_sampler_metric"]["wall_time_sec"] == 1.5

@@ -20,9 +20,18 @@ from huggingface_hub import hf_hub_download, snapshot_download
 from huggingface_hub.errors import EntryNotFoundError
 from torch_geometric.data import Data
 from torch_geometric.loader import NeighborLoader
+from torch_geometric.sampler import NeighborSampler
 from torchmetrics.functional.retrieval import retrieval_auroc
 from torchmetrics.retrieval import RetrievalHitRate
 
+from fedgraph.feature_compression import (
+    FeatureSecondMoment,
+    SharedFeatureBasis,
+    compute_feature_second_moment,
+    feature_basis_sha256,
+    project_features_in_memory,
+    project_features_to_file,
+)
 from fedgraph.gnn_models import (
     GCN,
     GIN,
@@ -34,6 +43,8 @@ from fedgraph.gnn_models import (
 )
 from fedgraph.graph_storage import (
     FeatureAggregationStore,
+    expand_local_adjacency_to_mmap_cache,
+    materialize_adjacency_in_cpu_memory,
     relabel_adjacency_to_mmap_cache,
 )
 from fedgraph.resource_monitor import collect_resource_snapshot
@@ -109,6 +120,10 @@ _LOCAL_ARTIFACT_V2_EXTRA_SHARD_FILES = (
     "source_degree.pt",
     "source_offsets.pt",
 )
+_LOCAL_ARTIFACT_V3_EXTRA_SHARD_FILES = (
+    "source_degree.pt",
+    "source_offsets.pt",
+)
 _LOCAL_ARTIFACT_SHARD_FILES = (
     *_LOCAL_ARTIFACT_COMMON_SHARD_FILES,
     *_LOCAL_ARTIFACT_V2_EXTRA_SHARD_FILES,
@@ -137,6 +152,7 @@ def _record_local_artifact_manifest(args: Any, manifest: dict[str, Any]) -> None
             "artifact_version": manifest.get("artifact_version"),
             "hop_semantics": manifest.get("hop_semantics"),
             "adjacency_contract": manifest.get("adjacency_contract"),
+            "conversion_provenance": manifest.get("conversion_provenance"),
         },
     )
 
@@ -165,10 +181,10 @@ def _resolve_graph_storage_mode(args: Any) -> str:
         raise ValueError(f"graph_storage_mode must be one of: {choices}")
     num_hops = int(getattr(args, "num_hops", 0))
     aggregation_mode = getattr(args, "pretrain_feature_aggregation_mode", "full")
-    uses_manifest_v2_artifact = num_hops == 2 and (
+    uses_manifest_2hop_artifact = num_hops == 2 and (
         _uses_local_nc_artifact(args) or _uses_huggingface_local_nc_artifact(args)
     )
-    uses_supported_host_v2_path = uses_manifest_v2_artifact and (
+    uses_supported_host_path = uses_manifest_2hop_artifact and (
         aggregation_mode == "chunked"
         or (
             mode == "cpu"
@@ -179,7 +195,7 @@ def _resolve_graph_storage_mode(args: Any) -> str:
     if (
         mode in _HOST_GRAPH_STORAGE_MODES
         and num_hops != 0
-        and not uses_supported_host_v2_path
+        and not uses_supported_host_path
     ):
         raise ValueError(
             f"graph_storage_mode='{mode}' is not supported for this 2-hop "
@@ -389,6 +405,11 @@ def load_trainer_data_from_huggingface_local_artifact(
         n_trainer=args.n_trainer,
         graph_storage_mode=getattr(args, "graph_storage_mode", "device"),
         graph_relabel_chunk_edges=getattr(args, "graph_relabel_chunk_edges", 1_000_000),
+        graph_relabel_cache_dir=getattr(args, "graph_relabel_cache_dir", None),
+        pretrain_feature_aggregation_mode=getattr(
+            args, "pretrain_feature_aggregation_mode", "full"
+        ),
+        pretrain_feature_output_dir=getattr(args, "pretrain_feature_output_dir", None),
     )
     loaded_data = load_trainer_data_from_local_artifact(trainer_id, local_args)
     local_paths = _artifact_tensor_paths(local_args)
@@ -429,9 +450,10 @@ def load_trainer_data_from_local_artifact(trainer_id: int, args: Any) -> tuple[
     artifact_version = manifest.get("artifact_version")
     hop_semantics = manifest.get("hop_semantics")
     runtime_hops = int(getattr(args, "num_hops", 0))
-    if (artifact_version, hop_semantics) not in {(1, 0), (2, 2)}:
+    if (artifact_version, hop_semantics) not in {(1, 0), (2, 2), (3, 2)}:
         raise ValueError(
-            "local artifact must use the version/hop contract (1, 0) or (2, 2)"
+            "local artifact must use the version/hop contract (1, 0), (2, 2), "
+            "or (3, 2)"
         )
     if hop_semantics != runtime_hops:
         raise ValueError(
@@ -458,6 +480,9 @@ def load_trainer_data_from_local_artifact(trainer_id: int, args: Any) -> tuple[
     expected_tensor_files = set(_LOCAL_ARTIFACT_COMMON_SHARD_FILES[1:])
     if artifact_version == 2:
         expected_tensor_files.update(_LOCAL_ARTIFACT_V2_EXTRA_SHARD_FILES)
+    elif artifact_version == 3:
+        expected_tensor_files.update(_LOCAL_ARTIFACT_V3_EXTRA_SHARD_FILES)
+    if artifact_version in {2, 3}:
         if (
             manifest.get("neighborhood_hops") != 1
             or manifest.get("message_flow") != "source_to_target"
@@ -465,19 +490,37 @@ def load_trainer_data_from_local_artifact(trainer_id: int, args: Any) -> tuple[
         ):
             raise ValueError("2-hop artifact has incompatible graph semantics")
         contract = manifest.get("adjacency_contract")
-        required_contract: dict[str, dict[str, object]] = {
-            "pretrain_adjacency": {
+        pretrain_contract: dict[str, object] = (
+            {
                 "file": "adj_global.pt",
                 "coordinate_system": "global_node_id",
                 "sorted_by": "source_then_input_order",
                 "contiguous": True,
-            },
-            "training_adjacency": {
+            }
+            if artifact_version == 2
+            else {
                 "file": "adj.pt",
                 "coordinate_system": "communicate_node_position",
                 "mapping_file": "communicate_node_index.pt",
                 "sorted_by": "source_then_input_order",
                 "contiguous": True,
+                "dtype": "int32",
+                "global_ids_reconstructed_per_chunk": True,
+            }
+        )
+        training_contract: dict[str, object] = {
+            "file": "adj.pt",
+            "coordinate_system": "communicate_node_position",
+            "mapping_file": "communicate_node_index.pt",
+            "sorted_by": "source_then_input_order",
+            "contiguous": True,
+        }
+        if artifact_version == 3:
+            training_contract.update({"dtype": "int32", "runtime_dtype": "int64"})
+        required_contract: dict[str, dict[str, object]] = {
+            "pretrain_adjacency": pretrain_contract,
+            "training_adjacency": {
+                **training_contract,
             },
             "source_degree": {
                 "file": "source_degree.pt",
@@ -496,6 +539,17 @@ def load_trainer_data_from_local_artifact(trainer_id: int, args: Any) -> tuple[
             for section, fields in required_contract.items()
         ):
             raise ValueError("2-hop artifact has an invalid adjacency contract")
+        if artifact_version == 3:
+            if manifest.get("adjacency_layout") != "local-int32":
+                raise ValueError("v3 2-hop artifact must use local-int32 adjacency")
+            if _resolve_graph_storage_mode(args) not in _HOST_GRAPH_STORAGE_MODES:
+                raise ValueError(
+                    "compact v3 adjacency requires graph_storage_mode='cpu' or 'mmap'"
+                )
+            if getattr(args, "pretrain_feature_aggregation_mode", "full") != "chunked":
+                raise ValueError(
+                    "compact v3 adjacency requires chunked pretraining aggregation"
+                )
     metadata_files = metadata.get("files")
     if not isinstance(metadata_files, dict) or set(metadata_files) != (
         expected_tensor_files
@@ -592,12 +646,14 @@ def load_trainer_data_from_local_artifact(trainer_id: int, args: Any) -> tuple[
         if edge_count != metadata.get("induced_edge_count"):
             raise ValueError("2-hop artifact edge count does not match metadata")
 
-        # The baseline returns adj_global.pt for pretraining. Inspect the
-        # pre-relabeled training view and chunk indexes without retaining them.
+        # V2 returns the global-ID view for pretraining. V3 uses the compact
+        # local-coordinate view and reconstructs global endpoint IDs per chunk.
         for file_name in ("adj.pt", "source_degree.pt", "source_offsets.pt"):
             _record_artifact_tensor_path(args, file_name, shard_dir / file_name)
-        training_adjacency = _load_artifact_tensor(
-            shard_dir / "adj.pt", memory_map=True
+        training_adjacency = (
+            _load_artifact_tensor(shard_dir / "adj.pt", memory_map=True)
+            if artifact_version == 2
+            else adjacency
         )
         source_degree = _load_artifact_tensor(
             shard_dir / "source_degree.pt", memory_map=True
@@ -611,6 +667,8 @@ def load_trainer_data_from_local_artifact(trainer_id: int, args: Any) -> tuple[
             raise ValueError(
                 "2-hop adjacency tensors must use contiguous [2, E] storage"
             )
+        if artifact_version == 3 and adjacency.dtype != torch.int32:
+            raise ValueError("compact v3 adjacency must use int32 storage")
         if source_degree.shape != (communicate_node_count,) or (
             source_offsets.shape != (communicate_node_count + 1,)
         ):
@@ -625,28 +683,56 @@ def load_trainer_data_from_local_artifact(trainer_id: int, args: Any) -> tuple[
                 degree_chunk,
             ):
                 raise ValueError("2-hop source degrees and offsets disagree")
+            if artifact_version == 3:
+                active_positions = torch.nonzero(
+                    degree_chunk > 0, as_tuple=False
+                ).flatten()
+                if active_positions.numel():
+                    source_positions = active_positions + start
+                    first_edges = source_offsets[source_positions].long()
+                    last_edges = source_offsets[source_positions + 1].long() - 1
+                    expected_sources = source_positions.to(dtype=torch.long)
+                    if not torch.equal(
+                        training_adjacency[0, first_edges].long(), expected_sources
+                    ) or not torch.equal(
+                        training_adjacency[0, last_edges].long(), expected_sources
+                    ):
+                        raise ValueError(
+                            "compact v3 source offsets do not index adjacency rows"
+                        )
 
         previous_source: Optional[int] = None
         for start in range(0, edge_count, validation_chunk_size):
             stop = min(start + validation_chunk_size, edge_count)
-            global_chunk = adjacency[:, start:stop]
-            local_chunk = training_adjacency[:, start:stop]
+            stored_local_chunk = training_adjacency[:, start:stop]
+            local_chunk = (
+                stored_local_chunk.long()
+                if artifact_version == 2
+                else stored_local_chunk
+            )
             if local_chunk.numel() and (
                 int(local_chunk.min()) < 0
                 or int(local_chunk.max()) >= communicate_node_count
             ):
                 raise ValueError("2-hop local adjacency endpoint is out of range")
-            if not torch.equal(communicate_node_index[local_chunk], global_chunk):
-                raise ValueError("2-hop global and local adjacency views disagree")
-            edge_positions = torch.arange(
-                start, stop, dtype=source_offsets.dtype, device=source_offsets.device
-            )
-            expected_local_sources = (
-                torch.searchsorted(source_offsets, edge_positions, right=True) - 1
-            )
-            if not torch.equal(local_chunk[0], expected_local_sources):
-                raise ValueError("2-hop source offsets do not index adjacency rows")
-            sources = global_chunk[0]
+            if artifact_version == 2:
+                global_chunk = adjacency[:, start:stop]
+                if not torch.equal(communicate_node_index[local_chunk], global_chunk):
+                    raise ValueError("2-hop global and local adjacency views disagree")
+                edge_positions = torch.arange(
+                    start,
+                    stop,
+                    dtype=source_offsets.dtype,
+                    device=source_offsets.device,
+                )
+                expected_local_sources = (
+                    torch.searchsorted(source_offsets, edge_positions, right=True) - 1
+                )
+                if not torch.equal(local_chunk[0], expected_local_sources):
+                    raise ValueError("2-hop source offsets do not index adjacency rows")
+                sources = global_chunk[0]
+            else:
+                sources = local_chunk[0]
             if sources.numel() and (
                 (previous_source is not None and int(sources[0]) < previous_source)
                 or (
@@ -864,10 +950,28 @@ class Trainer_General:
         self.feature_aggregation_rows_written = 0
         self.feature_aggregation_finalized = False
         self.raw_features_released = False
+        self.feature_compression_applied = False
+        self.feature_compression_basis: Optional[torch.Tensor] = None
+        self.feature_compression_basis_sha256: Optional[str] = None
+        self.feature_compression_original_dim: Optional[int] = None
+        self.feature_compression_rank: Optional[int] = None
+        self.feature_compression_retained_energy: Optional[float] = None
+        self.feature_compression_output_path: Optional[str] = None
+        self.feature_compression_time_sec: Optional[float] = None
         artifact_manifest = getattr(args, "_local_artifact_manifest", {})
         self.artifact_version = (
             artifact_manifest.get("artifact_version")
             if isinstance(artifact_manifest, dict)
+            else None
+        )
+        conversion_provenance = (
+            artifact_manifest.get("conversion_provenance")
+            if isinstance(artifact_manifest, dict)
+            else None
+        )
+        self.source_artifact_version = (
+            conversion_provenance.get("source_artifact_version")
+            if isinstance(conversion_provenance, dict)
             else None
         )
         self.adjacency_relabel_time_sec: Optional[float] = None
@@ -896,6 +1000,10 @@ class Trainer_General:
             if self.graph_storage_mode in _HOST_GRAPH_STORAGE_MODES
             else self.device
         )
+        self._neighbor_data: Optional[Data] = None
+        self._neighbor_sampler: Optional[NeighborSampler] = None
+        self.neighbor_sampler_setup_time_sec: Optional[float] = None
+        self.neighbor_sampler_index_bytes: Optional[int] = None
         self.features_memory_mapped = self.graph_storage_mode == "mmap"
         self.adjacency_memory_mapped = self.graph_storage_mode == "mmap"
 
@@ -957,6 +1065,149 @@ class Trainer_General:
             self.feature_aggregation_rows_written = int(self.features.size(0))
             self.feature_aggregation_finalized = True
 
+    def compute_feature_compression_statistics(
+        self, chunk_rows: int
+    ) -> FeatureSecondMoment:
+        """Calculate this trainer's additive feature statistics on CPU."""
+        if self.model is not None:
+            raise RuntimeError(
+                "feature compression statistics must be computed before model initialization"
+            )
+        if self.feature_compression_applied:
+            raise RuntimeError("feature compression has already been applied")
+        if self.raw_features_released:
+            raise RuntimeError("raw trainer features have already been released")
+        if self.graph_storage_mode not in _HOST_GRAPH_STORAGE_MODES:
+            raise ValueError(
+                "bounded feature compression requires graph_storage_mode='cpu' "
+                "or 'mmap'"
+            )
+        return compute_feature_second_moment(self.features, chunk_rows=chunk_rows)
+
+    def _feature_compression_contract(self) -> dict[str, Any]:
+        """Describe the feature coordinate system used by this trainer."""
+        configured_mode = getattr(self.args, "feature_compression_mode", "none")
+        if configured_mode == "shared-pca" and not self.feature_compression_applied:
+            raise RuntimeError(
+                "shared feature compression must finish before model or "
+                "pretraining initialization"
+            )
+        runtime_dim = int(self.features.size(1))
+        if not self.feature_compression_applied:
+            return {
+                "feature_compression_mode": "none",
+                "feature_compression_basis_sha256": None,
+                "feature_compression_original_dim": runtime_dim,
+                "runtime_feature_dim": runtime_dim,
+            }
+        if (
+            self.feature_compression_basis_sha256 is None
+            or self.feature_compression_original_dim is None
+            or self.feature_compression_rank != runtime_dim
+        ):
+            raise RuntimeError("trainer feature compression metadata is incomplete")
+        return {
+            "feature_compression_mode": "shared-pca",
+            "feature_compression_basis_sha256": (self.feature_compression_basis_sha256),
+            "feature_compression_original_dim": self.feature_compression_original_dim,
+            "runtime_feature_dim": runtime_dim,
+        }
+
+    def apply_shared_feature_basis(
+        self,
+        basis: SharedFeatureBasis,
+        *,
+        chunk_rows: int,
+        output_dir: Optional[Union[str, Path]] = None,
+    ) -> dict[str, Any]:
+        """Replace owned features with a bounded shared-basis projection."""
+        if not isinstance(basis, SharedFeatureBasis):
+            raise TypeError("basis must be a SharedFeatureBasis")
+        if self.model is not None:
+            raise RuntimeError(
+                "shared feature basis must be applied before model initialization"
+            )
+        if self.feature_compression_applied:
+            raise RuntimeError("feature compression has already been applied")
+        if self.raw_features_released:
+            raise RuntimeError("raw trainer features have already been released")
+        if self.graph_storage_mode not in _HOST_GRAPH_STORAGE_MODES:
+            raise ValueError(
+                "bounded feature compression requires graph_storage_mode='cpu' "
+                "or 'mmap'"
+            )
+        if self._chunked_feature_store is not None:
+            raise RuntimeError("feature aggregation output is already being built")
+        aggregation_aliases_features = self.feature_aggregation is self.features
+        if self.feature_aggregation is not None and not aggregation_aliases_features:
+            raise RuntimeError(
+                "shared feature basis must be applied before feature aggregation"
+            )
+
+        started_at = time.perf_counter()
+        original_features = self.features
+        original_dim = int(original_features.size(1))
+        original_size_bytes = int(
+            original_features.numel() * original_features.element_size()
+        )
+        output_path: Optional[str] = None
+        output_is_mmap = False
+        if self.graph_storage_mode == "mmap":
+            if output_dir is None:
+                raise ValueError("output_dir is required for mmap feature compression")
+            resolved_output_dir = Path(output_dir).expanduser()
+            if not resolved_output_dir.is_absolute():
+                raise ValueError("feature compression output_dir must be absolute")
+            artifact = project_features_to_file(
+                original_features,
+                basis,
+                chunk_rows=chunk_rows,
+                output_dir=resolved_output_dir,
+                trainer_id=int(self.rank),
+            )
+            projected_features = artifact.tensor
+            output_path = str(artifact.data_path)
+            output_is_mmap = projected_features.numel() > 0
+            basis_hash = artifact.basis_sha256
+        else:
+            projected_features = project_features_in_memory(
+                original_features,
+                basis,
+                chunk_rows=chunk_rows,
+            )
+            basis_hash = feature_basis_sha256(basis)
+
+        self.features = projected_features
+        self.features_memory_mapped = output_is_mmap
+        if aggregation_aliases_features:
+            self.feature_aggregation = self.features
+            self.feature_aggregation_memory_mapped = output_is_mmap
+            self.feature_aggregation_rows_written = int(self.features.size(0))
+            self.feature_aggregation_finalized = True
+        del original_features
+
+        self.feature_compression_applied = True
+        self.feature_compression_basis = basis.matrix.detach().cpu().clone()
+        self.feature_compression_basis_sha256 = basis_hash
+        self.feature_compression_original_dim = original_dim
+        self.feature_compression_rank = basis.rank
+        self.feature_compression_retained_energy = basis.retained_energy
+        self.feature_compression_output_path = output_path
+        self.feature_compression_time_sec = time.perf_counter() - started_at
+        return {
+            "trainer_id": int(self.rank),
+            "row_count": int(self.features.size(0)),
+            "original_dim": original_dim,
+            "compressed_dim": int(self.features.size(1)),
+            "retained_energy": basis.retained_energy,
+            "basis_sha256": basis_hash,
+            "original_size_bytes": original_size_bytes,
+            "size_bytes": int(self.features.numel() * self.features.element_size()),
+            "memory_mapped": output_is_mmap,
+            "output_path": output_path,
+            "elapsed_sec": self.feature_compression_time_sec,
+        }
+
     def get_info(self):
         label_nums = [
             int(labels.max().item()) + 1
@@ -973,6 +1224,14 @@ class Trainer_General:
             "len_in_com_val_node_local_indexes": len(self.idx_val),
             "len_in_com_test_node_local_indexes": len(self.idx_test),
             "artifact_version": self.artifact_version,
+            "source_artifact_version": self.source_artifact_version,
+            "feature_compression_applied": self.feature_compression_applied,
+            "feature_compression_original_dim": self.feature_compression_original_dim,
+            "feature_compression_rank": self.feature_compression_rank,
+            "feature_compression_retained_energy": (
+                self.feature_compression_retained_energy
+            ),
+            "feature_compression_basis_sha256": (self.feature_compression_basis_sha256),
         }
         if (
             self.args.method != "FedAvg"
@@ -985,6 +1244,7 @@ class Trainer_General:
         return info
 
     def init_model(self, global_node_num, class_num):
+        self._feature_compression_contract()
         self.global_node_num = global_node_num
         self.class_num = class_num
         self.feature_shape = None
@@ -1248,9 +1508,9 @@ class Trainer_General:
         return row_ids.detach().cpu(), row_values.detach().cpu()
 
     def _load_chunked_feature_indexes(self) -> tuple[torch.Tensor, torch.Tensor]:
-        """Lazily memory-map the v2 source degree and offset sidecars."""
-        if self.artifact_version != 2:
-            raise ValueError("chunked feature aggregation requires a v2 artifact")
+        """Lazily memory-map source degree and offset sidecars."""
+        if self.artifact_version not in {2, 3}:
+            raise ValueError("chunked feature aggregation requires a v2/v3 artifact")
         if (
             not self.source_degree_artifact_path
             or not self.source_offsets_artifact_path
@@ -1283,7 +1543,7 @@ class Trainer_General:
     def get_chunked_local_feature_sum(
         self, requested_row_ids: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Aggregate one bounded global-row request using host-backed v2 data.
+        """Aggregate one bounded global-row request using host-backed v2/v3 data.
 
         Only features owned by this trainer contribute. Adjacency rows are read
         from the source-sorted global-ID view in edge-bounded slices. The result
@@ -1416,8 +1676,15 @@ class Trainer_General:
 
                 for edge_start in range(first_edge, last_edge, max_edges):
                     edge_stop = min(edge_start + max_edges, last_edge)
-                    source_nodes = self.adj[0, edge_start:edge_stop].long()
-                    target_nodes = self.adj[1, edge_start:edge_stop].long()
+                    edge_chunk = self.adj[:, edge_start:edge_stop].long()
+                    if self.artifact_version == 3:
+                        source_communicate_positions = edge_chunk[0]
+                        target_communicate_positions = edge_chunk[1]
+                        source_nodes = communicate_rows[source_communicate_positions]
+                        target_nodes = communicate_rows[target_communicate_positions]
+                    else:
+                        source_nodes = edge_chunk[0]
+                        target_nodes = edge_chunk[1]
                     target_positions = torch.searchsorted(local_rows, target_nodes)
                     target_is_local = target_positions < local_rows.numel()
                     target_is_local[target_is_local.clone()] = (
@@ -1452,9 +1719,14 @@ class Trainer_General:
                         if norm_type == "row":
                             weights = source_degrees.reciprocal()
                         else:
-                            target_communicate_positions = torch.searchsorted(
-                                communicate_rows, contributing_targets
-                            )
+                            if self.artifact_version == 3:
+                                target_communicate_positions = (
+                                    target_communicate_positions[target_is_local]
+                                )
+                            else:
+                                target_communicate_positions = torch.searchsorted(
+                                    communicate_rows, contributing_targets
+                                )
                             target_degrees = (
                                 source_degree[target_communicate_positions] + 1
                             ).to(dtype=self.features.dtype)
@@ -1562,6 +1834,21 @@ class Trainer_General:
         feature_aggregation : torch.Tensor
             The aggregated features to be loaded.
         """
+        if not isinstance(feature_aggregation, torch.Tensor):
+            raise TypeError("feature_aggregation must be a torch.Tensor")
+        if feature_aggregation.ndim != 2:
+            raise ValueError("feature_aggregation must be two-dimensional")
+        expected_shape = (
+            int(self.communicate_node_index.numel()),
+            int(self.features.size(1)),
+        )
+        if tuple(feature_aggregation.shape) != expected_shape:
+            raise ValueError(
+                "feature_aggregation has an unexpected shape: "
+                f"{tuple(feature_aggregation.shape)} != {expected_shape}"
+            )
+        self._feature_compression_contract()
+        self._invalidate_neighbor_sampling_cache()
         # load_start = time.time()
         self.feature_aggregation = feature_aggregation.float().to(self.graph_device)
         self.feature_aggregation_cache_path = None
@@ -1578,10 +1865,35 @@ class Trainer_General:
 
         # return load_time
 
+    def _release_pretraining_graph_state(self) -> None:
+        """Release tensors needed only while constructing aggregated features."""
+        feature_dim = int(self.features.size(1))
+        feature_dtype = self.features.dtype
+        self.features = torch.empty((0, feature_dim), dtype=feature_dtype)
+        self.features_memory_mapped = False
+        self.raw_features_released = True
+        self._chunk_source_degree = None
+        self._chunk_source_offsets = None
+
+    def finalize_full_feature_aggregation(self) -> dict[str, Any]:
+        """Complete the full pretraining-to-training graph transition."""
+        if not self.feature_aggregation_finalized or self.feature_aggregation is None:
+            raise RuntimeError("full feature aggregation has not been loaded")
+
+        self.relabel_adj()
+        self._release_pretraining_graph_state()
+        return {
+            "trainer_id": int(self.rank),
+            "adjacency_relabel_strategy": self.adjacency_relabel_strategy,
+            "adjacency_relabel_time_sec": self.adjacency_relabel_time_sec,
+            "adjacency_relabel_cache_hit": self.adjacency_relabel_cache_hit,
+            "raw_features_released": self.raw_features_released,
+        }
+
     def initialize_chunked_feature_aggregation(self) -> dict[str, Any]:
         """Create the ordered file-backed destination for server result chunks."""
-        if self.artifact_version != 2:
-            raise ValueError("chunked feature output requires a v2 artifact")
+        if self.artifact_version not in {2, 3}:
+            raise ValueError("chunked feature output requires a v2/v3 artifact")
         if self.graph_storage_mode not in _HOST_GRAPH_STORAGE_MODES:
             raise ValueError(
                 "chunked feature output requires graph_storage_mode='cpu' or 'mmap'"
@@ -1605,11 +1917,16 @@ class Trainer_General:
         if not output_dir.is_absolute():
             raise ValueError("pretrain_feature_output_dir must be an absolute path")
 
+        compression_contract = self._feature_compression_contract()
+
         self._chunked_feature_store = FeatureAggregationStore(
             output_dir,
             trainer_id=int(self.rank),
             row_count=int(self.communicate_node_index.numel()),
             feature_dim=int(self.features.size(1)),
+            provenance=(
+                compression_contract if self.feature_compression_applied else None
+            ),
         )
         self.feature_aggregation_cache_path = str(self._chunked_feature_store.data_path)
         self.feature_aggregation_rows_written = 0
@@ -1618,6 +1935,7 @@ class Trainer_General:
             "row_count": self._chunked_feature_store.row_count,
             "feature_dim": self._chunked_feature_store.feature_dim,
             "output_path": self.feature_aggregation_cache_path,
+            **compression_contract,
         }
 
     def append_chunked_feature_aggregation(
@@ -1709,6 +2027,7 @@ class Trainer_General:
             raise RuntimeError("chunked feature output has not been initialized")
 
         feature_aggregation = store.finalize()
+        self._invalidate_neighbor_sampling_cache()
         self.feature_aggregation = feature_aggregation
         self.feature_aggregation_cache_path = str(store.data_path)
         self.feature_aggregation_memory_mapped = feature_aggregation.numel() > 0
@@ -1716,17 +2035,11 @@ class Trainer_General:
         self.feature_aggregation_finalized = True
         self._chunked_feature_store = None
 
-        # The v2 artifact provides the same edges in local row coordinates for
-        # NeighborLoader. relabel_adj releases the global-ID view before loading it.
+        # V2 switches from its global view to its stored local view. V3 expands
+        # the compact local int32 view to the int64 format required by NeighborLoader.
         self.relabel_adj()
 
-        feature_dim = int(self.features.size(1))
-        feature_dtype = self.features.dtype
-        self.features = torch.empty((0, feature_dim), dtype=feature_dtype)
-        self.features_memory_mapped = False
-        self.raw_features_released = True
-        self._chunk_source_degree = None
-        self._chunk_source_offsets = None
+        self._release_pretraining_graph_state()
 
         return {
             "trainer_id": int(self.rank),
@@ -1737,7 +2050,10 @@ class Trainer_General:
             ),
             "output_path": self.feature_aggregation_cache_path,
             "adjacency_relabel_strategy": self.adjacency_relabel_strategy,
+            "adjacency_relabel_time_sec": self.adjacency_relabel_time_sec,
+            "adjacency_relabel_cache_hit": self.adjacency_relabel_cache_hit,
             "raw_features_released": self.raw_features_released,
+            "feature_compression_basis_sha256": (self.feature_compression_basis_sha256),
         }
 
     def abort_chunked_feature_aggregation(self) -> dict[str, Any]:
@@ -2077,11 +2393,76 @@ class Trainer_General:
         """
         Relabel the adjacency matrix against communication or explicitly supplied IDs.
         """
+        self._invalidate_neighbor_sampling_cache()
         started_at = time.perf_counter()
         relabel_node_index = (
             self.communicate_node_index if node_index is None else node_index
         )
         source_edge_count = int(self.adj.size(1))
+        if node_index is None and self.artifact_version == 3:
+            if self.adj.dtype != torch.int32 or self.adj.device.type != "cpu":
+                raise ValueError(
+                    "compact v3 adjacency must remain a CPU int32 tensor until "
+                    "the training transition"
+                )
+            configured_cache_dir = getattr(self.args, "graph_relabel_cache_dir", None)
+            if configured_cache_dir:
+                compact_cache_dir = Path(configured_cache_dir)
+            else:
+                pretrain_output_dir = getattr(
+                    self.args, "pretrain_feature_output_dir", None
+                )
+                if not pretrain_output_dir:
+                    raise ValueError(
+                        "compact adjacency expansion requires graph_relabel_cache_dir "
+                        "or pretrain_feature_output_dir"
+                    )
+                compact_cache_dir = Path(pretrain_output_dir) / "adjacency-cache"
+            if self.adjacency_artifact_path is None:
+                raise ValueError(
+                    "compact adjacency expansion requires the source artifact path"
+                )
+            chunk_edges = int(
+                getattr(self.args, "graph_relabel_chunk_edges", 1_000_000)
+            )
+            result = expand_local_adjacency_to_mmap_cache(
+                self.adj,
+                source_path=self.adjacency_artifact_path,
+                cache_dir=compact_cache_dir,
+                trainer_id=int(self.rank),
+                chunk_edges=chunk_edges,
+            )
+            self.adjacency_relabel_cache_path = str(result.cache_path)
+            self.adjacency_relabel_cache_hit = result.cache_hit
+            if self.graph_storage_mode == "mmap":
+                self.adj = result.edge_index
+                self.adjacency_memory_mapped = True
+                self.adjacency_relabel_time_sec = result.elapsed_sec
+                strategy = "artifact-compact-int32-mmap"
+            else:
+                expanded_adjacency = result.edge_index
+                self.adj = torch.empty((2, 0), dtype=torch.int32, device="cpu")
+                self.adj = materialize_adjacency_in_cpu_memory(
+                    expanded_adjacency,
+                    chunk_edges=chunk_edges,
+                )
+                self.adjacency_memory_mapped = False
+                self.adjacency_relabel_time_sec = time.perf_counter() - started_at
+                strategy = "artifact-compact-int32-disk-staged-cpu"
+
+            self.adjacency_relabel_strategy = strategy
+            self.adjacency_relabel_source_edge_count = source_edge_count
+            self.adjacency_relabel_output_edge_count = source_edge_count
+            self.adjacency_relabel_dropped_edge_count = 0
+            print(
+                "NC_ADJ_RELABEL, "
+                f"trainer={self.rank}, mode={strategy}, "
+                f"cache_hit={self.adjacency_relabel_cache_hit}, "
+                f"source_edges={source_edge_count}, output_edges={source_edge_count}, "
+                f"dropped_edges=0, time_sec={self.adjacency_relabel_time_sec:.6f}, "
+                f"cache={self.adjacency_relabel_cache_path}"
+            )
+            return
         if node_index is None and self.pre_relabelled_adjacency_path is not None:
             # Release the pretraining global-ID view before opening the local-ID
             # training view. This avoids holding two edge tensors in host RAM or
@@ -2213,6 +2594,63 @@ class Trainer_General:
         batch_size = getattr(self.args, "batch_size", 0)
         return isinstance(batch_size, int) and batch_size > 0
 
+    def _evaluation_batch_size(self) -> int:
+        configured_size = getattr(self.args, "evaluation_batch_size", None)
+        if isinstance(configured_size, int) and configured_size > 0:
+            return configured_size
+        return int(self.args.batch_size)
+
+    def _invalidate_neighbor_sampling_cache(self) -> None:
+        self._neighbor_sampler = None
+        self._neighbor_data = None
+
+    def _neighbor_sampling_context(self) -> tuple[Data, NeighborSampler]:
+        if self.feature_aggregation is None:
+            raise ValueError(
+                "feature_aggregation has not been set. Ensure pre-training "
+                "communication is completed."
+            )
+        if self._neighbor_data is None or self._neighbor_sampler is None:
+            self._neighbor_data = Data(
+                x=self.feature_aggregation,
+                edge_index=self.adj,
+            )
+            self._neighbor_sampler = NeighborSampler(
+                self._neighbor_data,
+                num_neighbors=[-1] * self.args.num_layers,
+            )
+        return self._neighbor_data, self._neighbor_sampler
+
+    def prepare_neighbor_sampler(self) -> dict[str, Any]:
+        """Build reusable sampling indexes outside the first training round."""
+        if not self._uses_mini_batch():
+            return {
+                "trainer_id": int(self.rank),
+                "prepared": False,
+                "cache_hit": False,
+                "elapsed_sec": 0.0,
+                "index_bytes": 0,
+            }
+
+        cache_hit = self._neighbor_sampler is not None
+        started_at = time.perf_counter()
+        _, sampler = self._neighbor_sampling_context()
+        elapsed_sec = time.perf_counter() - started_at
+        index_bytes = 0
+        for attribute in ("colptr", "row", "perm"):
+            value = getattr(sampler, attribute, None)
+            if isinstance(value, torch.Tensor):
+                index_bytes += int(value.numel() * value.element_size())
+        self.neighbor_sampler_setup_time_sec = elapsed_sec
+        self.neighbor_sampler_index_bytes = index_bytes
+        return {
+            "trainer_id": int(self.rank),
+            "prepared": True,
+            "cache_hit": cache_hit,
+            "elapsed_sec": elapsed_sec,
+            "index_bytes": index_bytes,
+        }
+
     def _require_supported_graph_execution(self, use_mini_batch: bool) -> None:
         if (
             self.graph_storage_mode in _HOST_GRAPH_STORAGE_MODES
@@ -2226,12 +2664,17 @@ class Trainer_General:
             )
 
     def _make_neighbor_loader(
-        self, data: Data, indexes: torch.Tensor, *, shuffle: bool
+        self,
+        indexes: torch.Tensor,
+        *,
+        batch_size: int,
+        shuffle: bool,
     ) -> NeighborLoader:
+        data, neighbor_sampler = self._neighbor_sampling_context()
         return NeighborLoader(
             data,
             num_neighbors=[-1] * self.args.num_layers,
-            batch_size=self.args.batch_size,
+            batch_size=batch_size,
             input_nodes=indexes,
             shuffle=shuffle,
             num_workers=0,
@@ -2239,6 +2682,7 @@ class Trainer_General:
                 self.graph_storage_mode in _HOST_GRAPH_STORAGE_MODES
                 and self.device.type == "cuda"
             ),
+            neighbor_sampler=neighbor_sampler,
         )
 
     def _sampled_batch_to_device(
@@ -2286,11 +2730,15 @@ class Trainer_General:
         self._require_supported_graph_execution(use_mini_batch)
         self.model.to(self.device)
 
-        data = (
-            Data(x=self.feature_aggregation, edge_index=self.adj)
-            if use_mini_batch
-            else None
-        )
+        train_loader = None
+        train_iterator = None
+        if use_mini_batch:
+            train_loader = self._make_neighbor_loader(
+                self.idx_train,
+                batch_size=int(self.args.batch_size),
+                shuffle=True,
+            )
+            train_iterator = iter(train_loader)
         full_batch_features = None
         full_batch_adjacency = None
         full_batch_labels = None
@@ -2306,9 +2754,12 @@ class Trainer_General:
         for iteration in range(self.local_step):
             self.model.train()
             if use_mini_batch:
-                assert data is not None
-                loader = self._make_neighbor_loader(data, self.idx_train, shuffle=True)
-                batch = next(iter(loader), None)
+                assert train_loader is not None
+                assert train_iterator is not None
+                batch = next(train_iterator, None)
+                if batch is None:
+                    train_iterator = iter(train_loader)
+                    batch = next(train_iterator, None)
                 if batch is None:
                     loss_train, acc_train = 0.0, 0.0
                 else:
@@ -2376,8 +2827,11 @@ class Trainer_General:
         self._require_supported_graph_execution(use_mini_batch)
         self.model = self.model.to(self.device)
         if use_mini_batch:
-            data = Data(x=self.feature_aggregation, edge_index=self.adj)
-            loader = self._make_neighbor_loader(data, indexes, shuffle=False)
+            loader = self._make_neighbor_loader(
+                indexes,
+                batch_size=self._evaluation_batch_size(),
+                shuffle=False,
+            )
             total_loss = torch.zeros((), device=self.device)
             total_correct = torch.zeros((), device=self.device, dtype=torch.long)
             total_examples = 0

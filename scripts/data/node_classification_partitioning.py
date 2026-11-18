@@ -25,6 +25,12 @@ import torch
 _OWNER_UNASSIGNED = np.uint8(255)
 _SPLIT_CODES = {"train": 1, "val": 2, "test": 3}
 _SPLIT_FILE_NAMES = {"train": "train", "val": "valid", "test": "test"}
+_ADJACENCY_LAYOUT_DUAL_INT64 = "dual-int64"
+_ADJACENCY_LAYOUT_LOCAL_INT32 = "local-int32"
+_ADJACENCY_LAYOUTS = {
+    _ADJACENCY_LAYOUT_DUAL_INT64,
+    _ADJACENCY_LAYOUT_LOCAL_INT32,
+}
 
 
 @dataclass(frozen=True)
@@ -1195,8 +1201,13 @@ def _write_2hop_adjacencies(
     sorted_targets: np.memmap,
     n_trainer: int,
     chunk_rows: int,
+    adjacency_layout: str,
 ) -> list[int]:
-    """Write source-sorted global and pre-relabeled induced adjacency files."""
+    """Write source-sorted induced adjacency files in the selected layout."""
+    if adjacency_layout not in _ADJACENCY_LAYOUTS:
+        raise ValueError(f"unsupported adjacency layout: {adjacency_layout}")
+    compact_local = adjacency_layout == _ADJACENCY_LAYOUT_LOCAL_INT32
+    local_dtype = np.int32 if compact_local else np.int64
     edge_counts: list[int] = []
     for trainer_id in range(n_trainer):
         shard_dir = shard_root / f"trainer-{trainer_id:03d}"
@@ -1207,6 +1218,11 @@ def _write_2hop_adjacencies(
             mode="r",
             shape=(communicate_count,),
         )
+        if compact_local and communicate_count > np.iinfo(np.int32).max:
+            raise ValueError(
+                f"Trainer {trainer_id} has {communicate_count} communication rows; "
+                "local-int32 supports at most 2^31-1 rows"
+            )
         degree_path = shard_dir / "source_degree.i64"
         degrees = np.memmap(
             degree_path,
@@ -1216,18 +1232,23 @@ def _write_2hop_adjacencies(
         )
         degrees[:] = 0
         global_path = shard_dir / "adj_global.i64"
-        local_path = shard_dir / "adj_local.i64"
+        local_suffix = "i32" if compact_local else "i64"
+        local_path = shard_dir / f"adj_local.{local_suffix}"
         global_target_path = shard_dir / "adj_global_targets.i64"
-        local_target_path = shard_dir / "adj_local_targets.i64"
+        local_target_path = shard_dir / f"adj_local_targets.{local_suffix}"
         edge_count = 0
         word = trainer_id // 64
         mask = np.left_shift(np.uint64(1), np.uint64(trainer_id % 64))
-        with (
-            global_path.open("wb") as global_source_output,
-            global_target_path.open("wb") as global_target_output,
-            local_path.open("wb") as local_source_output,
-            local_target_path.open("wb") as local_target_output,
-        ):
+        with ExitStack() as stack:
+            global_source_output = None
+            global_target_output = None
+            if not compact_local:
+                global_source_output = stack.enter_context(global_path.open("wb"))
+                global_target_output = stack.enter_context(
+                    global_target_path.open("wb")
+                )
+            local_source_output = stack.enter_context(local_path.open("wb"))
+            local_target_output = stack.enter_context(local_target_path.open("wb"))
             for local_start, local_stop, global_sources in _source_batches(
                 communicate_nodes, source_offsets, chunk_rows
             ):
@@ -1251,24 +1272,28 @@ def _write_2hop_adjacencies(
                         f"Trainer {trainer_id} adjacency target is absent from its "
                         "communication index"
                     )
-                retained_sources = np.asarray(
-                    communicate_nodes[source_positions], dtype=np.int64
-                )
-                retained_sources.tofile(global_source_output)
-                retained_targets.astype(np.int64, copy=False).tofile(
-                    global_target_output
-                )
-                source_positions.astype(np.int64, copy=False).tofile(
+                if not compact_local:
+                    retained_sources = np.asarray(
+                        communicate_nodes[source_positions], dtype=np.int64
+                    )
+                    retained_sources.tofile(global_source_output)
+                    retained_targets.astype(np.int64, copy=False).tofile(
+                        global_target_output
+                    )
+                source_positions.astype(local_dtype, copy=False).tofile(
                     local_source_output
                 )
-                target_positions.tofile(local_target_output)
+                target_positions.astype(local_dtype, copy=False).tofile(
+                    local_target_output
+                )
                 batch_degrees = np.bincount(
                     source_positions - local_start,
                     minlength=local_stop - local_start,
                 )
                 degrees[local_start:local_stop] = batch_degrees
                 edge_count += int(retained_targets.size)
-        _append_file_and_remove(global_target_path, global_path)
+        if not compact_local:
+            _append_file_and_remove(global_target_path, global_path)
         _append_file_and_remove(local_target_path, local_path)
         degrees.flush()
         offset_path = shard_dir / "source_offsets.i64"
@@ -1499,10 +1524,15 @@ def _split_payloads_for_communicate_nodes(
     return payloads
 
 
-def _edge_tensor_from_memmap(path: Path, edge_count: int) -> torch.Tensor:
+def _edge_tensor_from_memmap(
+    path: Path, edge_count: int, dtype: np.dtype = np.dtype(np.int64)
+) -> torch.Tensor:
     if edge_count == 0:
-        return torch.empty((2, 0), dtype=torch.long)
-    values = np.memmap(path, dtype=np.int64, mode="r+", shape=(2, edge_count))
+        torch_dtype = (
+            torch.int32 if np.dtype(dtype) == np.dtype(np.int32) else torch.long
+        )
+        return torch.empty((2, 0), dtype=torch_dtype)
+    values = np.memmap(path, dtype=dtype, mode="r+", shape=(2, edge_count))
     return torch.from_numpy(values)
 
 
@@ -1515,6 +1545,7 @@ def _finalize_2hop_shards(
     communicate_node_counts: list[int],
     edge_counts: list[int],
     checksums: bool,
+    adjacency_layout: str,
 ) -> tuple[list[dict[str, object]], int]:
     shard_root = stage_dir / "shards"
     split_payloads = _split_payloads_for_communicate_nodes(
@@ -1546,11 +1577,16 @@ def _finalize_2hop_shards(
             np.float32,
             (owned_node_count, plan.feature_dim),
         )
-        global_adjacency = _edge_tensor_from_memmap(
-            shard_dir / "adj_global.i64", edge_count
+        compact_local = adjacency_layout == _ADJACENCY_LAYOUT_LOCAL_INT32
+        global_adjacency = (
+            None
+            if compact_local
+            else _edge_tensor_from_memmap(shard_dir / "adj_global.i64", edge_count)
         )
+        local_dtype = np.dtype(np.int32 if compact_local else np.int64)
+        local_suffix = "i32" if compact_local else "i64"
         local_adjacency = _edge_tensor_from_memmap(
-            shard_dir / "adj_local.i64", edge_count
+            shard_dir / f"adj_local.{local_suffix}", edge_count, local_dtype
         )
         source_degree = _tensor_from_memmap(
             shard_dir / "source_degree.i64",
@@ -1565,7 +1601,8 @@ def _finalize_2hop_shards(
 
         torch.save(local_nodes, shard_dir / "local_node_index.pt")
         torch.save(communicate_nodes, shard_dir / "communicate_node_index.pt")
-        torch.save(global_adjacency, shard_dir / "adj_global.pt")
+        if global_adjacency is not None:
+            torch.save(global_adjacency, shard_dir / "adj_global.pt")
         torch.save(local_adjacency, shard_dir / "adj.pt")
         torch.save(source_degree, shard_dir / "source_degree.pt")
         torch.save(source_offsets, shard_dir / "source_offsets.pt")
@@ -1581,11 +1618,12 @@ def _finalize_2hop_shards(
             shard_dir / "features.f32",
             shard_dir / "local_node_index.i64",
             shard_dir / "communicate_node_index.i64",
-            shard_dir / "adj_global.i64",
-            shard_dir / "adj_local.i64",
+            shard_dir / f"adj_local.{local_suffix}",
             shard_dir / "source_degree.i64",
             shard_dir / "source_offsets.i64",
         ]
+        if not compact_local:
+            temporary_files.append(shard_dir / "adj_global.i64")
         for temporary_file in temporary_files:
             temporary_file.unlink()
 
@@ -1600,6 +1638,13 @@ def _finalize_2hop_shards(
             "test_count": int(split_payloads[trainer_id]["test"][0].numel()),
             "files": {path.name: path.stat().st_size for path in files},
         }
+        if compact_local:
+            metadata.update(
+                {
+                    "adjacency_layout": adjacency_layout,
+                    "adjacency_dtype": "int32",
+                }
+            )
         if checksums:
             metadata["sha256"] = {path.name: _sha256(path) for path in files}
         (shard_dir / "metadata.json").write_text(
@@ -1630,19 +1675,34 @@ def _validate_2hop_adjacency_contract(
     *,
     trainer_id: int,
     communicate_nodes: torch.Tensor,
-    global_adjacency: torch.Tensor,
+    global_adjacency: Optional[torch.Tensor],
     local_adjacency: torch.Tensor,
     source_degree: torch.Tensor,
     source_offsets: torch.Tensor,
     chunk_rows: int,
+    adjacency_layout: str,
 ) -> None:
-    if global_adjacency.shape != local_adjacency.shape or (
-        global_adjacency.ndim != 2 or global_adjacency.shape[0] != 2
-    ):
+    compact_local = adjacency_layout == _ADJACENCY_LAYOUT_LOCAL_INT32
+    if local_adjacency.ndim != 2 or local_adjacency.shape[0] != 2:
         raise RuntimeError(f"Shard {trainer_id} adjacency shapes are invalid")
-    if not global_adjacency.is_contiguous() or not local_adjacency.is_contiguous():
+    if not local_adjacency.is_contiguous():
         raise RuntimeError(f"Shard {trainer_id} adjacency tensors are not contiguous")
-    edge_count = int(global_adjacency.shape[1])
+    expected_dtype = torch.int32 if compact_local else torch.int64
+    if local_adjacency.dtype != expected_dtype:
+        raise RuntimeError(f"Shard {trainer_id} local adjacency dtype is invalid")
+    if compact_local:
+        if global_adjacency is not None:
+            raise RuntimeError(
+                f"Shard {trainer_id} compact adjacency has a global view"
+            )
+    elif (
+        global_adjacency is None
+        or global_adjacency.shape != local_adjacency.shape
+        or global_adjacency.dtype != torch.int64
+        or not global_adjacency.is_contiguous()
+    ):
+        raise RuntimeError(f"Shard {trainer_id} global adjacency is invalid")
+    edge_count = int(local_adjacency.shape[1])
     if source_degree.shape != communicate_nodes.shape:
         raise RuntimeError(f"Shard {trainer_id} source-degree shape is invalid")
     if source_offsets.shape != (communicate_nodes.numel() + 1,):
@@ -1658,12 +1718,15 @@ def _validate_2hop_adjacency_contract(
         ):
             raise RuntimeError(f"Shard {trainer_id} source degree and offsets disagree")
 
-    previous_global_source: Optional[int] = None
     previous_local_source: Optional[int] = None
     for start in range(0, edge_count, chunk_rows):
         stop = min(start + chunk_rows, edge_count)
-        global_chunk = global_adjacency[:, start:stop]
-        local_chunk = local_adjacency[:, start:stop]
+        stored_local_chunk = local_adjacency[:, start:stop]
+        local_chunk = (
+            stored_local_chunk.long()
+            if global_adjacency is not None
+            else stored_local_chunk
+        )
         if local_chunk.numel() and (
             int(local_chunk.min()) < 0
             or int(local_chunk.max()) >= communicate_nodes.numel()
@@ -1671,23 +1734,14 @@ def _validate_2hop_adjacency_contract(
             raise RuntimeError(
                 f"Shard {trainer_id} local adjacency endpoint is out of range"
             )
-        if not torch.equal(communicate_nodes[local_chunk], global_chunk):
+        if global_adjacency is not None and not torch.equal(
+            communicate_nodes[local_chunk], global_adjacency[:, start:stop]
+        ):
             raise RuntimeError(
                 f"Shard {trainer_id} global and local adjacency views disagree"
             )
-        global_sources = global_chunk[0]
         local_sources = local_chunk[0]
-        if global_sources.numel():
-            if (
-                previous_global_source is not None
-                and int(global_sources[0]) < previous_global_source
-            ) or (
-                global_sources.numel() > 1
-                and not bool(torch.all(global_sources[1:] >= global_sources[:-1]))
-            ):
-                raise RuntimeError(
-                    f"Shard {trainer_id} global adjacency is not source-sorted"
-                )
+        if local_sources.numel():
             if (
                 previous_local_source is not None
                 and int(local_sources[0]) < previous_local_source
@@ -1698,7 +1752,6 @@ def _validate_2hop_adjacency_contract(
                 raise RuntimeError(
                     f"Shard {trainer_id} local adjacency is not source-sorted"
                 )
-            previous_global_source = int(global_sources[-1])
             previous_local_source = int(local_sources[-1])
 
 
@@ -1706,6 +1759,7 @@ def _validate_final_2hop_shards(
     stage_dir: Path,
     plan: PartitionPlan,
     chunk_rows: int,
+    adjacency_layout: str,
 ) -> None:
     total_owned_nodes = 0
     total_split_counts = {split: 0 for split in _SPLIT_CODES}
@@ -1718,8 +1772,11 @@ def _validate_final_2hop_shards(
             shard_dir / "communicate_node_index.pt", weights_only=True, mmap=True
         )
         features = torch.load(shard_dir / "features.pt", weights_only=True, mmap=True)
-        global_adjacency = torch.load(
-            shard_dir / "adj_global.pt", weights_only=True, mmap=True
+        global_path = shard_dir / "adj_global.pt"
+        global_adjacency = (
+            torch.load(global_path, weights_only=True, mmap=True)
+            if global_path.is_file()
+            else None
         )
         local_adjacency = torch.load(shard_dir / "adj.pt", weights_only=True, mmap=True)
         source_degree = torch.load(
@@ -1754,6 +1811,7 @@ def _validate_final_2hop_shards(
             source_degree=source_degree,
             source_offsets=source_offsets,
             chunk_rows=chunk_rows,
+            adjacency_layout=adjacency_layout,
         )
         for split in _SPLIT_CODES:
             indexes = torch.load(shard_dir / f"idx_{split}.pt", weights_only=True)
@@ -1989,16 +2047,19 @@ def partition_raw_ogb_2hop(
     resume: bool = False,
     input_format: str = "auto",
     binary_cache_dir: Path | str | None = None,
+    adjacency_layout: str = _ADJACENCY_LAYOUT_DUAL_INT64,
 ) -> dict[str, object]:
     """Write a label-balanced artifact for FedGraph's two-layer NC path.
 
     The communication set is the one-hop source-to-target neighborhood of each
-    trainer's owned nodes. Each shard contains the same induced edge set in two
-    coordinate systems: source-sorted global IDs for the unchunked baseline and
-    source-sorted communication-row positions for training and chunked access.
+    trainer's owned nodes. ``dual-int64`` preserves the v2 global/local views.
+    ``local-int32`` writes only compact communication-row positions; consumers
+    reconstruct global IDs per chunk through ``communicate_node_index.pt``.
     """
     if chunk_rows < 1:
         raise ValueError("chunk_rows must be positive")
+    if adjacency_layout not in _ADJACENCY_LAYOUTS:
+        raise ValueError(f"unsupported adjacency layout: {adjacency_layout}")
     source = discover_ogb_source(
         dataset_root,
         split_name,
@@ -2132,6 +2193,7 @@ def partition_raw_ogb_2hop(
         global_sorted_targets,
         plan.n_trainer,
         chunk_rows,
+        adjacency_layout,
     )
     shard_metadata, total_induced_edges = _finalize_2hop_shards(
         stage_dir,
@@ -2142,10 +2204,36 @@ def partition_raw_ogb_2hop(
         communicate_node_counts,
         edge_counts,
         checksums,
+        adjacency_layout,
     )
     if total_induced_edges != sum(edge_counts):
         raise RuntimeError("final shard edge counts do not match streamed edge counts")
-    _validate_final_2hop_shards(stage_dir, plan, chunk_rows)
+    _validate_final_2hop_shards(stage_dir, plan, chunk_rows, adjacency_layout)
+
+    compact_local = adjacency_layout == _ADJACENCY_LAYOUT_LOCAL_INT32
+    pretrain_adjacency_contract: dict[str, object] = {
+        "file": "adj_global.pt",
+        "coordinate_system": "global_node_id",
+        "sorted_by": "source_then_input_order",
+        "edge_semantics": "induced_on_communication_nodes",
+        "contiguous": True,
+    }
+    training_adjacency_contract: dict[str, object] = {
+        "file": "adj.pt",
+        "coordinate_system": "communicate_node_position",
+        "mapping_file": "communicate_node_index.pt",
+        "sorted_by": "source_then_input_order",
+        "edge_semantics": "same_edges_as_pretrain_adjacency",
+        "contiguous": True,
+    }
+    if compact_local:
+        pretrain_adjacency_contract = {
+            **training_adjacency_contract,
+            "edge_semantics": "induced_on_communication_nodes",
+            "dtype": "int32",
+            "global_ids_reconstructed_per_chunk": True,
+        }
+        training_adjacency_contract.update({"dtype": "int32", "runtime_dtype": "int64"})
 
     adjacency_contract = {
         "communicate_node_index": {
@@ -2155,21 +2243,8 @@ def partition_raw_ogb_2hop(
             "unique": True,
             "contains_all_owned_nodes": True,
         },
-        "pretrain_adjacency": {
-            "file": "adj_global.pt",
-            "coordinate_system": "global_node_id",
-            "sorted_by": "source_then_input_order",
-            "edge_semantics": "induced_on_communication_nodes",
-            "contiguous": True,
-        },
-        "training_adjacency": {
-            "file": "adj.pt",
-            "coordinate_system": "communicate_node_position",
-            "mapping_file": "communicate_node_index.pt",
-            "sorted_by": "source_then_input_order",
-            "edge_semantics": "same_edges_as_pretrain_adjacency",
-            "contiguous": True,
-        },
+        "pretrain_adjacency": pretrain_adjacency_contract,
+        "training_adjacency": training_adjacency_contract,
         "source_degree": {
             "file": "source_degree.pt",
             "alignment": "communicate_node_position",
@@ -2182,7 +2257,7 @@ def partition_raw_ogb_2hop(
         },
     }
     manifest: dict[str, object] = {
-        "artifact_version": 2,
+        "artifact_version": 3 if compact_local else 2,
         "hop_semantics": 2,
         "neighborhood_hops": 1,
         "message_flow": "source_to_target",
@@ -2211,6 +2286,8 @@ def partition_raw_ogb_2hop(
         "adjacency_contract": adjacency_contract,
         "shards": shard_metadata,
     }
+    if compact_local:
+        manifest["adjacency_layout"] = adjacency_layout
     (stage_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",

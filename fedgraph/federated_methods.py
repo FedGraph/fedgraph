@@ -22,6 +22,13 @@ import torch
 from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
 
 from fedgraph.data_process import data_loader
+from fedgraph.feature_compression import (
+    SharedFeatureBasis,
+    aggregate_feature_second_moments,
+    feature_basis_sha256,
+    save_shared_feature_basis,
+    solve_shared_feature_basis,
+)
 from fedgraph.gnn_models import GIN
 from fedgraph.monitor_class import Monitor
 from fedgraph.resource_monitor import (
@@ -198,10 +205,10 @@ def _validate_local_nc_artifact(args: attridict) -> None:
         )
     if int(args.num_hops) == 2:
         if getattr(args, "use_encryption", False):
-            raise ValueError("2-hop v2 artifacts currently support plaintext only")
+            raise ValueError("2-hop v2/v3 artifacts currently support plaintext only")
         if _resolve_pretrain_feature_upload_mode(args) != "indexed":
             raise ValueError(
-                "2-hop v2 artifacts require pretrain_feature_upload_mode='indexed'"
+                "2-hop v2/v3 artifacts require pretrain_feature_upload_mode='indexed'"
             )
     if local_artifact_dir:
         manifest_path = (
@@ -212,15 +219,23 @@ def _validate_local_nc_artifact(args: attridict) -> None:
                 f"Local artifact manifest is missing: {manifest_path}"
             )
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        expected_contract = (1, 0) if int(args.num_hops) == 0 else (2, 2)
         actual_contract = (
             manifest.get("artifact_version"),
             manifest.get("hop_semantics"),
         )
-        if actual_contract != expected_contract:
+        expected_contracts = {(1, 0)} if int(args.num_hops) == 0 else {(2, 2), (3, 2)}
+        if actual_contract not in expected_contracts:
             raise ValueError(
                 "local artifact version/hop contract does not match the experiment: "
-                f"{actual_contract} != {expected_contract}"
+                f"{actual_contract} not in {sorted(expected_contracts)}"
+            )
+        if actual_contract == (3, 2) and (
+            _resolve_pretrain_feature_aggregation_mode(args) != "chunked"
+            or getattr(args, "graph_storage_mode", "device") not in {"cpu", "mmap"}
+        ):
+            raise ValueError(
+                "compact v3 adjacency requires chunked pretraining and graph "
+                "storage cpu or mmap"
             )
         if manifest.get("n_trainer") != int(args.n_trainer):
             raise ValueError("local artifact n_trainer does not match the experiment")
@@ -484,6 +499,16 @@ def _resolve_pretrain_feature_aggregation_mode(args: Any) -> str:
     return mode
 
 
+def _resolve_feature_compression_mode(args: Any) -> str:
+    """Return the optional shared feature-dimension compression method."""
+    mode = getattr(args, "feature_compression_mode", "none")
+    if mode not in {"none", "shared-pca"}:
+        raise ValueError(
+            "feature_compression_mode must be either 'none' or 'shared-pca'"
+        )
+    return mode
+
+
 def _aggregate_indexed_feature_sums(
     indexed_feature_sums: list[tuple[torch.Tensor, torch.Tensor]],
     requested_node_indexes: list[torch.Tensor],
@@ -598,14 +623,20 @@ def _run_bounded_trainer_calls(
     trainers: list,
     method_name: str,
     max_inflight: int,
+    *,
+    method_args: tuple[Any, ...] = (),
+    method_kwargs: Optional[dict[str, Any]] = None,
 ) -> list[Any]:
-    """Invoke a no-argument actor method without unbounded result fan-in."""
+    """Invoke one actor method without unbounded result fan-in."""
     results: list[Any] = [None] * len(trainers)
     pending: dict[Any, int] = {}
     next_rank = 0
+    call_kwargs = method_kwargs or {}
 
     while next_rank < len(trainers) and len(pending) < max_inflight:
-        result_ref = getattr(trainers[next_rank], method_name).remote()
+        result_ref = getattr(trainers[next_rank], method_name).remote(
+            *method_args, **call_kwargs
+        )
         pending[result_ref] = next_rank
         next_rank += 1
 
@@ -615,10 +646,227 @@ def _run_bounded_trainer_calls(
         rank = pending.pop(ready_ref)
         results[rank] = ray.get(ready_ref)
         if next_rank < len(trainers):
-            result_ref = getattr(trainers[next_rank], method_name).remote()
+            result_ref = getattr(trainers[next_rank], method_name).remote(
+                *method_args, **call_kwargs
+            )
             pending[result_ref] = next_rank
             next_rank += 1
     return results
+
+
+def _run_shared_feature_compression(
+    trainers: list,
+    *,
+    original_feature_dim: int,
+    expected_row_count: int,
+    rank: int,
+    chunk_rows: int,
+    max_inflight_trainers: int,
+    output_dir: Optional[Union[str, Path]],
+    basis_output_dir: Optional[Union[str, Path]] = None,
+) -> SharedFeatureBasis:
+    """Build and install one shared PCA basis before model initialization."""
+    compression_started_at = time.perf_counter()
+    if not trainers:
+        raise ValueError("shared feature compression requires at least one trainer")
+    if original_feature_dim < 1 or expected_row_count < 0:
+        raise ValueError("shared feature compression dimensions are invalid")
+    if not 1 <= rank <= original_feature_dim:
+        raise ValueError(
+            "feature compression rank must be between 1 and the feature dimension"
+        )
+    if chunk_rows < 1 or max_inflight_trainers < 1:
+        raise ValueError(
+            "feature compression chunk and in-flight limits must be positive"
+        )
+    max_inflight = min(max_inflight_trainers, len(trainers))
+
+    statistics_started_at = time.perf_counter()
+    statistics = _run_bounded_trainer_calls(
+        trainers,
+        "compute_feature_compression_statistics",
+        max_inflight,
+        method_args=(chunk_rows,),
+    )
+    statistics_wall_time_sec = time.perf_counter() - statistics_started_at
+    global_statistic = aggregate_feature_second_moments(statistics)
+    if global_statistic.feature_dim != original_feature_dim:
+        raise RuntimeError(
+            "trainer feature statistics report an unexpected feature dimension"
+        )
+    if global_statistic.row_count != expected_row_count:
+        raise RuntimeError(
+            "trainer feature statistics report an unexpected row count: "
+            f"{global_statistic.row_count} != {expected_row_count}"
+        )
+
+    basis_started_at = time.perf_counter()
+    basis = solve_shared_feature_basis(global_statistic, rank=rank)
+    basis_wall_time_sec = time.perf_counter() - basis_started_at
+    basis_hash = feature_basis_sha256(basis)
+    basis_output_path: Optional[str] = None
+    if basis_output_dir is not None:
+        basis_artifact = save_shared_feature_basis(
+            basis,
+            output_dir=Path(basis_output_dir),
+        )
+        basis_output_path = str(basis_artifact.data_path)
+
+    projection_started_at = time.perf_counter()
+    projection_results = _run_bounded_trainer_calls(
+        trainers,
+        "apply_shared_feature_basis",
+        max_inflight,
+        method_args=(basis,),
+        method_kwargs={
+            "chunk_rows": chunk_rows,
+            "output_dir": output_dir,
+        },
+    )
+    projection_wall_time_sec = time.perf_counter() - projection_started_at
+    for trainer_rank, result in enumerate(projection_results):
+        if (
+            int(result["trainer_id"]) != trainer_rank
+            or int(result["compressed_dim"]) != rank
+            or result["basis_sha256"] != basis_hash
+        ):
+            raise RuntimeError(
+                f"trainer {trainer_rank} reported inconsistent feature projection"
+            )
+
+    statistics_tensor_upload_bytes = sum(
+        statistic.matrix.numel() * statistic.matrix.element_size()
+        for statistic in statistics
+    )
+    basis_tensor_bytes = sum(
+        tensor.numel() * tensor.element_size()
+        for tensor in (basis.matrix, basis.eigenvalues)
+    )
+    basis_tensor_broadcast_bytes = basis_tensor_bytes * len(trainers)
+    projection_output_bytes = sum(
+        int(result["size_bytes"]) for result in projection_results
+    )
+    original_feature_bytes = sum(
+        int(result["original_size_bytes"]) for result in projection_results
+    )
+    feature_bytes_saved = original_feature_bytes - projection_output_bytes
+    projected_feature_fraction = (
+        projection_output_bytes / original_feature_bytes
+        if original_feature_bytes > 0
+        else 0.0
+    )
+    feature_storage_reduction_ratio = (
+        original_feature_bytes / projection_output_bytes
+        if projection_output_bytes > 0
+        else None
+    )
+    max_trainer_projection_time_sec = max(
+        float(result["elapsed_sec"]) for result in projection_results
+    )
+    compression_wall_time_sec = time.perf_counter() - compression_started_at
+    compression_metric = {
+        "mode": "shared-pca",
+        "trainer_count": len(trainers),
+        "row_count": global_statistic.row_count,
+        "original_feature_dim": original_feature_dim,
+        "compressed_feature_dim": rank,
+        "retained_energy": basis.retained_energy,
+        "basis_sha256": basis_hash,
+        "basis_output_path": basis_output_path,
+        "original_feature_bytes": original_feature_bytes,
+        "projected_feature_bytes": projection_output_bytes,
+        "feature_bytes_saved": feature_bytes_saved,
+        "projected_feature_fraction": projected_feature_fraction,
+        "feature_storage_reduction_ratio": feature_storage_reduction_ratio,
+        "statistics_tensor_upload_bytes": statistics_tensor_upload_bytes,
+        "basis_tensor_bytes": basis_tensor_bytes,
+        "basis_tensor_broadcast_bytes": basis_tensor_broadcast_bytes,
+        "compression_setup_traffic_bytes": (
+            statistics_tensor_upload_bytes + basis_tensor_broadcast_bytes
+        ),
+        "statistics_wall_time_sec": statistics_wall_time_sec,
+        "basis_wall_time_sec": basis_wall_time_sec,
+        "projection_wall_time_sec": projection_wall_time_sec,
+        "max_trainer_projection_time_sec": max_trainer_projection_time_sec,
+        "compression_wall_time_sec": compression_wall_time_sec,
+        "max_inflight_trainers": max_inflight,
+    }
+    print(
+        "NC_FEATURE_COMPRESSION_METRIC "
+        + json.dumps(compression_metric, sort_keys=True, separators=(",", ":"))
+    )
+    print(
+        "NC_FEATURE_COMPRESSION_SUMMARY, "
+        "mode=shared-pca, "
+        f"rows={global_statistic.row_count}, original_dim={original_feature_dim}, "
+        f"rank={rank}, retained_energy={basis.retained_energy:.12f}, "
+        f"basis_sha256={basis_hash}, "
+        f"basis_output_path={basis_output_path}, "
+        f"statistics_tensor_upload_bytes={statistics_tensor_upload_bytes}, "
+        f"basis_tensor_broadcast_bytes={basis_tensor_broadcast_bytes}, "
+        f"original_feature_bytes={original_feature_bytes}, "
+        f"projection_output_bytes={projection_output_bytes}, "
+        f"feature_bytes_saved={feature_bytes_saved}, "
+        f"statistics_wall_time_sec={statistics_wall_time_sec:.6f}, "
+        f"basis_wall_time_sec={basis_wall_time_sec:.6f}, "
+        f"projection_wall_time_sec={projection_wall_time_sec:.6f}, "
+        f"max_trainer_projection_time_sec={max_trainer_projection_time_sec:.6f}, "
+        f"max_inflight_trainers={max_inflight}"
+    )
+    return basis
+
+
+def _validate_trainer_feature_compression_contract(
+    trainer_information: list[dict[str, Any]],
+    *,
+    mode: str,
+    original_feature_dim: int,
+    expected_feature_dim: int,
+    expected_basis_sha256: Optional[str],
+) -> int:
+    """Ensure every trainer uses the same feature coordinate system."""
+    if not trainer_information:
+        raise ValueError("trainer feature information must not be empty")
+    feature_dims = {int(info["feature_shape"]) for info in trainer_information}
+    if feature_dims != {expected_feature_dim}:
+        raise RuntimeError(
+            "trainers report inconsistent runtime feature dimensions: "
+            f"{sorted(feature_dims)} != [{expected_feature_dim}]"
+        )
+
+    if mode == "none":
+        if any(
+            bool(info.get("feature_compression_applied"))
+            for info in trainer_information
+        ):
+            raise RuntimeError(
+                "a trainer applied feature compression while mode is 'none'"
+            )
+        return expected_feature_dim
+
+    if mode != "shared-pca" or expected_basis_sha256 is None:
+        raise RuntimeError("shared feature compression identity is unavailable")
+    for trainer_rank, info in enumerate(trainer_information):
+        if not bool(info.get("feature_compression_applied")):
+            raise RuntimeError(
+                f"trainer {trainer_rank} did not apply shared feature compression"
+            )
+        if int(info.get("feature_compression_original_dim", -1)) != (
+            original_feature_dim
+        ):
+            raise RuntimeError(
+                f"trainer {trainer_rank} reports an inconsistent original feature "
+                "dimension"
+            )
+        if int(info.get("feature_compression_rank", -1)) != expected_feature_dim:
+            raise RuntimeError(
+                f"trainer {trainer_rank} reports an inconsistent compression rank"
+            )
+        if info.get("feature_compression_basis_sha256") != expected_basis_sha256:
+            raise RuntimeError(
+                f"trainer {trainer_rank} reports a different shared feature basis"
+            )
+    return expected_feature_dim
 
 
 def _run_chunked_feature_pretraining(
@@ -628,7 +876,8 @@ def _run_chunked_feature_pretraining(
     feature_dim: int,
     chunk_rows: int,
     max_inflight_trainers: int,
-) -> tuple[float, float]:
+    feature_compression_basis_sha256: Optional[str] = None,
+) -> tuple[float, float, list[dict[str, Any]], float]:
     """Orchestrate bounded plaintext feature aggregation across Ray trainers."""
     if not trainers:
         raise ValueError("chunked feature aggregation requires at least one trainer")
@@ -644,11 +893,25 @@ def _run_chunked_feature_pretraining(
     progress_interval = max(1, chunk_count // 100)
 
     try:
-        _run_bounded_trainer_calls(
+        initialization_results = _run_bounded_trainer_calls(
             trainers,
             "initialize_chunked_feature_aggregation",
             max_inflight,
         )
+        for trainer_rank, result in enumerate(initialization_results):
+            if int(result["feature_dim"]) != feature_dim:
+                raise RuntimeError(
+                    f"trainer {trainer_rank} initialized an inconsistent feature "
+                    "aggregation width"
+                )
+            if (
+                result.get("feature_compression_basis_sha256")
+                != feature_compression_basis_sha256
+            ):
+                raise RuntimeError(
+                    f"trainer {trainer_rank} initialized feature aggregation with "
+                    "a different compression basis"
+                )
         for chunk_index, global_start_row in enumerate(
             range(0, global_node_num, chunk_rows), start=1
         ):
@@ -737,11 +1000,27 @@ def _run_chunked_feature_pretraining(
                     f"time_sec={time.perf_counter() - chunk_started_at:.6f}"
                 )
 
-        _run_bounded_trainer_calls(
+        finalization_started_at = time.perf_counter()
+        finalization_results = _run_bounded_trainer_calls(
             trainers,
             "finalize_chunked_feature_aggregation",
             max_inflight,
         )
+        finalization_wall_time_sec = time.perf_counter() - finalization_started_at
+        for trainer_rank, result in enumerate(finalization_results):
+            if int(result["feature_dim"]) != feature_dim:
+                raise RuntimeError(
+                    f"trainer {trainer_rank} finalized an inconsistent feature "
+                    "aggregation width"
+                )
+            if (
+                result.get("feature_compression_basis_sha256")
+                != feature_compression_basis_sha256
+            ):
+                raise RuntimeError(
+                    f"trainer {trainer_rank} finalized feature aggregation with "
+                    "a different compression basis"
+                )
     except Exception:
         abort_refs = [
             trainer.abort_chunked_feature_aggregation.remote() for trainer in trainers
@@ -759,7 +1038,12 @@ def _run_chunked_feature_pretraining(
         f"download_bytes={total_download_bytes}, "
         f"max_inflight_trainers={max_inflight}"
     )
-    return total_upload_bytes / mib, total_download_bytes / mib
+    return (
+        total_upload_bytes / mib,
+        total_download_bytes / mib,
+        finalization_results,
+        finalization_wall_time_sec,
+    )
 
 
 def _parse_optional_float_list(raw: Any) -> list:
@@ -998,6 +1282,45 @@ def run_NC(args: attridict, data: Any = None) -> None:
     _validate_local_nc_artifact(args)
     pretrain_aggregation_mode = _resolve_pretrain_feature_aggregation_mode(args)
     graph_storage_mode = _resolve_graph_storage_mode(args)
+    feature_compression_mode = _resolve_feature_compression_mode(args)
+    feature_compression_rank = int(getattr(args, "feature_compression_rank", 16))
+    feature_compression_chunk_rows = int(
+        getattr(args, "feature_compression_chunk_rows", 65_536)
+    )
+    feature_compression_max_inflight_trainers = int(
+        getattr(args, "feature_compression_max_inflight_trainers", 4)
+    )
+    feature_compression_output_dir = getattr(
+        args, "feature_compression_output_dir", None
+    )
+    if feature_compression_mode == "shared-pca":
+        if getattr(args, "use_encryption", False):
+            raise ValueError(
+                "shared feature compression currently supports plaintext NC only"
+            )
+        if graph_storage_mode not in {"cpu", "mmap"}:
+            raise ValueError(
+                "shared feature compression requires graph_storage_mode='cpu' "
+                "or 'mmap'"
+            )
+        if feature_compression_rank < 1:
+            raise ValueError("feature_compression_rank must be positive")
+        if feature_compression_chunk_rows < 1:
+            raise ValueError("feature_compression_chunk_rows must be positive")
+        if feature_compression_max_inflight_trainers < 1:
+            raise ValueError(
+                "feature_compression_max_inflight_trainers must be positive"
+            )
+        if graph_storage_mode == "mmap" and not feature_compression_output_dir:
+            raise ValueError(
+                "mmap shared feature compression requires "
+                "feature_compression_output_dir"
+            )
+        if (
+            feature_compression_output_dir
+            and not Path(feature_compression_output_dir).expanduser().is_absolute()
+        ):
+            raise ValueError("feature_compression_output_dir must be an absolute path")
     if pretrain_aggregation_mode == "chunked":
         if int(args.num_hops) != 2:
             raise ValueError(
@@ -1054,6 +1377,14 @@ def run_NC(args: attridict, data: Any = None) -> None:
         )
     print(f"NC_GRAPH_STORAGE, mode={graph_storage_mode}")
     print("NC_PRETRAIN_FEATURE_AGGREGATION, " f"mode={pretrain_aggregation_mode}")
+    print(
+        "NC_FEATURE_COMPRESSION, "
+        f"mode={feature_compression_mode}, rank={feature_compression_rank}, "
+        f"chunk_rows={feature_compression_chunk_rows}, "
+        "max_inflight_trainers="
+        f"{feature_compression_max_inflight_trainers}, "
+        f"output_dir={feature_compression_output_dir}"
+    )
 
     resource_monitor_mode = _resolve_nc_resource_monitor_mode(args)
     uses_manual_resource_monitor = _resource_monitor_uses_manual_snapshots(
@@ -1204,6 +1535,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 device=self.device,
                 tensors={
                     "features": self.features,
+                    "feature_compression_basis": self.feature_compression_basis,
                     "adjacency": self.adj,
                     "feature_aggregation": self.feature_aggregation,
                     "local_node_index": self.local_node_index,
@@ -1249,6 +1581,21 @@ def run_NC(args: attridict, data: Any = None) -> None:
                         self.feature_aggregation_finalized
                     ),
                     "raw_features_released": self.raw_features_released,
+                    "feature_compression_applied": (self.feature_compression_applied),
+                    "feature_compression_original_dim": (
+                        self.feature_compression_original_dim
+                    ),
+                    "feature_compression_rank": self.feature_compression_rank,
+                    "feature_compression_retained_energy": (
+                        self.feature_compression_retained_energy
+                    ),
+                    "feature_compression_basis_sha256": (
+                        self.feature_compression_basis_sha256
+                    ),
+                    "feature_compression_output_path": (
+                        self.feature_compression_output_path
+                    ),
+                    "feature_compression_time_sec": (self.feature_compression_time_sec),
                     "adjacency_relabel_source_edge_count": (
                         self.adjacency_relabel_source_edge_count
                     ),
@@ -1378,6 +1725,19 @@ def run_NC(args: attridict, data: Any = None) -> None:
         ray.get(trainers[i].get_info.remote()) for i in range(len(trainers))
     ]
 
+    def record_pre_model_trainer_snapshots(event: str) -> None:
+        """Record compression lifecycle memory before the server exists."""
+        if resource_snapshot_path is None:
+            return
+        snapshots = ray.get(
+            [trainer.get_resource_snapshot.remote(event, None) for trainer in trainers]
+        )
+        _append_nc_resource_snapshots(
+            resource_snapshot_path,
+            resource_monitor_mode,
+            snapshots,
+        )
+
     # Extract necessary details from trainer information
     global_node_num = _resolve_nc_global_node_num(
         uses_external_artifact,
@@ -1389,7 +1749,66 @@ def run_NC(args: attridict, data: Any = None) -> None:
         trainer_information,
         None if uses_external_artifact else class_num,
     )
-    feature_shape = trainer_information[0]["feature_shape"]
+    original_feature_dims = {int(info["feature_shape"]) for info in trainer_information}
+    if len(original_feature_dims) != 1:
+        raise ValueError("all trainers must have the same original feature dimension")
+    original_feature_dim = original_feature_dims.pop()
+    artifact_versions = {
+        int(info["artifact_version"])
+        for info in trainer_information
+        if info.get("artifact_version") is not None
+    }
+    artifact_version = artifact_versions.pop() if len(artifact_versions) == 1 else None
+    source_artifact_versions = {
+        int(info["source_artifact_version"])
+        for info in trainer_information
+        if info.get("source_artifact_version") is not None
+    }
+    source_artifact_version = (
+        source_artifact_versions.pop() if len(source_artifact_versions) == 1 else None
+    )
+    shared_feature_basis: Optional[SharedFeatureBasis] = None
+    if feature_compression_mode == "shared-pca":
+        record_pre_model_trainer_snapshots("feature_compression_before")
+        expected_feature_rows = sum(
+            int(info["features_num"]) for info in trainer_information
+        )
+        logdir = getattr(args, "logdir", None)
+        basis_output_dir = (
+            Path(logdir).expanduser() / "feature_compression" if logdir else None
+        )
+        shared_feature_basis = _run_shared_feature_compression(
+            trainers,
+            original_feature_dim=original_feature_dim,
+            expected_row_count=expected_feature_rows,
+            rank=feature_compression_rank,
+            chunk_rows=feature_compression_chunk_rows,
+            max_inflight_trainers=feature_compression_max_inflight_trainers,
+            output_dir=feature_compression_output_dir,
+            basis_output_dir=basis_output_dir,
+        )
+        trainer_information = [
+            ray.get(trainer.get_info.remote()) for trainer in trainers
+        ]
+        record_pre_model_trainer_snapshots("feature_compression_complete")
+
+    expected_feature_dim = (
+        feature_compression_rank
+        if feature_compression_mode == "shared-pca"
+        else original_feature_dim
+    )
+    compression_basis_hash = (
+        feature_basis_sha256(shared_feature_basis)
+        if shared_feature_basis is not None
+        else None
+    )
+    feature_shape = _validate_trainer_feature_compression_contract(
+        trainer_information,
+        mode=feature_compression_mode,
+        original_feature_dim=original_feature_dim,
+        expected_feature_dim=expected_feature_dim,
+        expected_basis_sha256=compression_basis_hash,
+    )
 
     train_data_weights = [
         info["len_in_com_train_node_local_indexes"] for info in trainer_information
@@ -1421,7 +1840,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
     # FedGCN-v2 low-rank pretraining path, otherwise the standard Server.
     use_lowrank = getattr(args, "use_lowrank", False) and LOWRANK_AVAILABLE
     ServerClass = Server_LowRank if use_lowrank else Server
-    _feature_dim = feature_shape if uses_external_artifact else features.shape[1]
+    _feature_dim = feature_shape
     server = ServerClass(
         _feature_dim, args_hidden, class_num, server_device, trainers, args
     )
@@ -1464,6 +1883,8 @@ def run_NC(args: attridict, data: Any = None) -> None:
 
     record_resource_snapshots("initialization_complete")
 
+    adjacency_transition_results: list[dict[str, Any]] = []
+    adjacency_transition_wall_time_sec = 0.0
     pretrain_start = time.time()
     monitor.pretrain_time_start()
     if args.method != "FedAvg":
@@ -1788,12 +2209,18 @@ def run_NC(args: attridict, data: Any = None) -> None:
             pretrain_download = 0
             if pretrain_aggregation_mode == "chunked":
                 print("Starting bounded chunked plaintext feature aggregation...")
-                pretrain_upload, pretrain_download = _run_chunked_feature_pretraining(
+                (
+                    pretrain_upload,
+                    pretrain_download,
+                    adjacency_transition_results,
+                    adjacency_transition_wall_time_sec,
+                ) = _run_chunked_feature_pretraining(
                     server.trainers,
                     global_node_num=int(global_node_num),
                     feature_dim=int(feature_shape),
                     chunk_rows=chunk_rows,
                     max_inflight_trainers=max_inflight_trainers,
+                    feature_compression_basis_sha256=compression_basis_hash,
                 )
                 print("clients finalized file-backed feature aggregations")
             else:
@@ -1860,6 +2287,7 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 pretrain_upload = sum(upload_sizes) / (1024 * 1024)
                 print("server aggregates all local neighbor feature sums")
                 download_sizes = []
+                load_feature_refs = []
                 for i in range(args.n_trainer):
                     if upload_mode == "dense":
                         communicate_nodes = (
@@ -1875,19 +2303,124 @@ def run_NC(args: attridict, data: Any = None) -> None:
                         trainer_aggregation.element_size()
                         * trainer_aggregation.nelement()
                     )
-                    server.trainers[i].load_feature_aggregation.remote(
-                        trainer_aggregation
+                    load_feature_refs.append(
+                        server.trainers[i].load_feature_aggregation.remote(
+                            trainer_aggregation
+                        )
                     )
+                ray.get(load_feature_refs)
+                indexed_trainer_aggregations.clear()
+                global_feature_sum = None
                 pretrain_download = sum(download_sizes) / (1024 * 1024)
                 print("clients received feature aggregation from server")
         if pretrain_aggregation_mode != "chunked":
-            [trainer.relabel_adj.remote() for trainer in server.trainers]
+            if getattr(args, "use_encryption", False):
+                ray.get([trainer.relabel_adj.remote() for trainer in server.trainers])
+            else:
+                transition_started_at = time.perf_counter()
+                adjacency_transition_results = _run_bounded_trainer_calls(
+                    server.trainers,
+                    "finalize_full_feature_aggregation",
+                    min(
+                        int(
+                            getattr(
+                                args,
+                                "pretrain_feature_max_inflight_trainers",
+                                4,
+                            )
+                        ),
+                        len(server.trainers),
+                    ),
+                )
+                adjacency_transition_wall_time_sec = (
+                    time.perf_counter() - transition_started_at
+                )
 
+    pretrain_wall_time_sec = time.time() - pretrain_start
     monitor.pretrain_time_end()
     record_resource_snapshots("pretrain_complete")
     monitor.add_pretrain_comm_cost(
         upload_mb=pretrain_upload,
         download_mb=pretrain_download,
+    )
+    pretrain_upload_bytes = int(round(pretrain_upload * 1024 * 1024))
+    pretrain_download_bytes = int(round(pretrain_download * 1024 * 1024))
+    adjacency_transition_strategies = sorted(
+        {
+            str(result["adjacency_relabel_strategy"])
+            for result in adjacency_transition_results
+            if result.get("adjacency_relabel_strategy") is not None
+        }
+    )
+    adjacency_transition_max_trainer_time_sec = max(
+        (
+            float(result["adjacency_relabel_time_sec"])
+            for result in adjacency_transition_results
+            if result.get("adjacency_relabel_time_sec") is not None
+        ),
+        default=0.0,
+    )
+    print(
+        "NC_PRETRAIN_METRIC "
+        + json.dumps(
+            {
+                "method": args.method,
+                "artifact_version": artifact_version,
+                "source_artifact_version": source_artifact_version,
+                "aggregation_mode": pretrain_aggregation_mode,
+                "feature_dim": int(feature_shape),
+                "feature_compression_mode": feature_compression_mode,
+                "feature_compression_basis_sha256": compression_basis_hash,
+                "upload_bytes": pretrain_upload_bytes,
+                "download_bytes": pretrain_download_bytes,
+                "total_traffic_bytes": (
+                    pretrain_upload_bytes + pretrain_download_bytes
+                ),
+                "wall_time_sec": pretrain_wall_time_sec,
+                "adjacency_transition_wall_time_sec": (
+                    adjacency_transition_wall_time_sec
+                ),
+                "adjacency_transition_max_trainer_time_sec": (
+                    adjacency_transition_max_trainer_time_sec
+                ),
+                "adjacency_transition_strategies": (adjacency_transition_strategies),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+
+    record_resource_snapshots("neighbor_sampler_setup_before")
+    neighbor_sampler_setup_started_at = time.perf_counter()
+    neighbor_sampler_results = ray.get(
+        [trainer.prepare_neighbor_sampler.remote() for trainer in server.trainers]
+    )
+    neighbor_sampler_setup_wall_time_sec = (
+        time.perf_counter() - neighbor_sampler_setup_started_at
+    )
+    record_resource_snapshots("neighbor_sampler_setup_complete")
+    neighbor_sampler_setup_max_trainer_time_sec = max(
+        (float(result["elapsed_sec"]) for result in neighbor_sampler_results),
+        default=0.0,
+    )
+    neighbor_sampler_index_bytes = sum(
+        int(result["index_bytes"]) for result in neighbor_sampler_results
+    )
+    print(
+        "NC_NEIGHBOR_SAMPLER_METRIC "
+        + json.dumps(
+            {
+                "prepared_trainer_count": sum(
+                    bool(result["prepared"]) for result in neighbor_sampler_results
+                ),
+                "trainer_count": len(neighbor_sampler_results),
+                "wall_time_sec": neighbor_sampler_setup_wall_time_sec,
+                "max_trainer_time_sec": (neighbor_sampler_setup_max_trainer_time_sec),
+                "index_bytes": neighbor_sampler_index_bytes,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
     )
     monitor.train_time_start()
     #######################################################################

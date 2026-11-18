@@ -11,7 +11,7 @@ usage() {
 Usage: stage-local-artifact-shards.sh --rank-hosts-file PATH --source-dir PATH --remote-dir PATH [options]
 
 Stage a completed manifest-style local artifact without replicating every shard
-to every worker. Supported contracts are version 1/0-hop and version 2/2-hop.
+to every worker. Supported contracts are version 1/0-hop and version 2/3 2-hop.
 The rank-host file has one '<rank> <private-ipv4>' pair per line; it must map
 every rank in the artifact manifest exactly once. Each destination receives
 manifest.json and only its assigned shards/trainer-NNN directory.
@@ -60,10 +60,10 @@ import sys
 
 manifest = json.load(open(sys.argv[1], encoding="utf-8"))
 contract = (manifest.get("artifact_version"), manifest.get("hop_semantics"))
-if contract not in {(1, 0), (2, 2)}:
+if contract not in {(1, 0), (2, 2), (3, 2)}:
     raise SystemExit(
         "unsupported artifact contract: expected version 1/0-hop or "
-        f"version 2/2-hop, got version {contract[0]!r}/{contract[1]!r}-hop"
+        f"version 2/3 2-hop, got version {contract[0]!r}/{contract[1]!r}-hop"
     )
 n_trainer = manifest.get("n_trainer")
 if not isinstance(n_trainer, int) or n_trainer < 1:

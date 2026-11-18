@@ -6,6 +6,8 @@ import torch
 
 from fedgraph.graph_storage import (
     FeatureAggregationStore,
+    expand_local_adjacency_to_mmap_cache,
+    materialize_adjacency_in_cpu_memory,
     relabel_adjacency_to_mmap_cache,
 )
 from fedgraph.trainer_class import Trainer_General
@@ -102,6 +104,56 @@ def test_bounded_relabel_builds_and_reuses_mmap_cache(tmp_path):
     assert cached.cache_path == result.cache_path
     assert cached.edge_count == 2
     torch.testing.assert_close(cached.edge_index, result.edge_index)
+
+
+def test_compact_adjacency_expansion_builds_and_reuses_int64_cache(tmp_path):
+    source_path = tmp_path / "adj.pt"
+    adjacency = torch.tensor([[0, 0, 2], [1, 2, 1]], dtype=torch.int32)
+    torch.save(adjacency, source_path)
+
+    result = expand_local_adjacency_to_mmap_cache(
+        adjacency,
+        source_path=source_path,
+        cache_dir=tmp_path / "cache",
+        trainer_id=4,
+        chunk_edges=1,
+    )
+
+    assert not result.cache_hit
+    assert result.edge_count == 3
+    assert result.dropped_edge_count == 0
+    assert result.edge_index.dtype == torch.int64
+    assert result.edge_index.is_contiguous()
+    torch.testing.assert_close(result.edge_index, adjacency.long())
+
+    cached = expand_local_adjacency_to_mmap_cache(
+        adjacency,
+        source_path=source_path,
+        cache_dir=tmp_path / "cache",
+        trainer_id=4,
+        chunk_edges=3,
+    )
+    assert cached.cache_hit
+    assert cached.cache_path == result.cache_path
+    torch.testing.assert_close(cached.edge_index, result.edge_index)
+
+
+def test_materialize_adjacency_in_cpu_memory_copies_bounded_file_view(tmp_path):
+    path = tmp_path / "adjacency.i64"
+    expected = torch.tensor([[0, 0, 2], [1, 2, 1]], dtype=torch.int64)
+    path.write_bytes(expected.numpy().tobytes())
+    file_backed = torch.from_file(
+        str(path), shared=False, size=expected.numel(), dtype=torch.int64
+    ).view_as(expected)
+
+    materialized = materialize_adjacency_in_cpu_memory(
+        file_backed,
+        chunk_edges=1,
+    )
+
+    torch.testing.assert_close(materialized, expected)
+    materialized[0, 0] = 9
+    assert file_backed[0, 0].item() == 0
 
 
 def test_trainer_mmap_relabel_records_cache_telemetry(tmp_path):

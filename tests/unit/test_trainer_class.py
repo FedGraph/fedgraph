@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
@@ -6,6 +7,7 @@ import ray
 import torch
 from huggingface_hub.errors import EntryNotFoundError
 
+from fedgraph.feature_compression import solve_shared_feature_basis
 from fedgraph.trainer_class import (
     Trainer_GC,
     Trainer_General,
@@ -349,6 +351,120 @@ class TestTrainerGeneral:
         assert info["label_num"] == expected_label_num
         assert "communicate_node_global_index" not in info
 
+    def test_feature_compression_replaces_cpu_features_before_model_init(self):
+        self.args.graph_storage_mode = "cpu"
+        self.args.num_hops = 0
+        trainer = Trainer_General(
+            rank=self.rank,
+            args_hidden=self.args_hidden,
+            device=self.device,
+            args=self.args,
+            local_node_index=self.local_node_index,
+            communicate_node_index=self.communicate_node_index,
+            adj=self.adj,
+            train_labels=self.train_labels,
+            test_labels=self.test_labels,
+            features=self.features,
+            idx_train=self.idx_train,
+            idx_test=self.idx_test,
+        )
+        original_features = trainer.features.clone()
+        statistic = trainer.compute_feature_compression_statistics(chunk_rows=13)
+        basis = solve_shared_feature_basis(statistic, rank=8)
+
+        result = trainer.apply_shared_feature_basis(basis, chunk_rows=11)
+
+        torch.testing.assert_close(
+            trainer.features,
+            original_features @ basis.matrix,
+        )
+        assert trainer.features.shape == (100, 8)
+        assert trainer.feature_aggregation is trainer.features
+        assert trainer.feature_compression_applied
+        assert trainer.feature_compression_original_dim == 50
+        assert trainer.feature_compression_rank == 8
+        assert result["compressed_dim"] == 8
+        assert result["memory_mapped"] is False
+        assert trainer.get_info()["feature_shape"] == 8
+
+    def test_feature_compression_rejects_projection_after_model_init(self):
+        self.args.graph_storage_mode = "cpu"
+        self.args.num_hops = 0
+        trainer = Trainer_General(
+            rank=self.rank,
+            args_hidden=self.args_hidden,
+            device=self.device,
+            args=self.args,
+            local_node_index=self.local_node_index,
+            communicate_node_index=self.communicate_node_index,
+            adj=self.adj,
+            train_labels=self.train_labels,
+            test_labels=self.test_labels,
+            features=self.features,
+            idx_train=self.idx_train,
+            idx_test=self.idx_test,
+        )
+        statistic = trainer.compute_feature_compression_statistics(chunk_rows=20)
+        basis = solve_shared_feature_basis(statistic, rank=4)
+        trainer.model = Mock()
+
+        with pytest.raises(RuntimeError, match="before model initialization"):
+            trainer.apply_shared_feature_basis(basis, chunk_rows=20)
+
+    def test_feature_compression_replaces_mmap_features_atomically(self, tmp_path):
+        self.args.graph_storage_mode = "cpu"
+        self.args.num_hops = 0
+        trainer = Trainer_General(
+            rank=self.rank,
+            args_hidden=self.args_hidden,
+            device=self.device,
+            args=self.args,
+            local_node_index=self.local_node_index,
+            communicate_node_index=self.communicate_node_index,
+            adj=self.adj,
+            train_labels=self.train_labels,
+            test_labels=self.test_labels,
+            features=self.features,
+            idx_train=self.idx_train,
+            idx_test=self.idx_test,
+        )
+        source_path = tmp_path / "source-features.f32"
+        source_storage = torch.from_file(
+            str(source_path),
+            shared=True,
+            size=self.features.numel(),
+            dtype=torch.float32,
+        ).view_as(self.features)
+        source_storage.copy_(self.features)
+        del source_storage
+        mapped_features = torch.from_file(
+            str(source_path),
+            shared=False,
+            size=self.features.numel(),
+            dtype=torch.float32,
+        ).view_as(self.features)
+        trainer.graph_storage_mode = "mmap"
+        trainer.features = mapped_features
+        trainer.feature_aggregation = trainer.features
+        trainer.features_memory_mapped = True
+        trainer.feature_aggregation_memory_mapped = True
+        statistic = trainer.compute_feature_compression_statistics(chunk_rows=17)
+        basis = solve_shared_feature_basis(statistic, rank=6)
+
+        result = trainer.apply_shared_feature_basis(
+            basis,
+            chunk_rows=13,
+            output_dir=tmp_path / "projection",
+        )
+
+        torch.testing.assert_close(trainer.features, self.features @ basis.matrix)
+        assert trainer.feature_aggregation is trainer.features
+        assert trainer.features_memory_mapped
+        assert trainer.feature_aggregation_memory_mapped
+        assert result["memory_mapped"] is True
+        assert result["output_path"] == trainer.feature_compression_output_path
+        assert Path(result["output_path"]).is_file()
+
     def test_fedgcn_get_info_includes_communication_indexes(self):
         self.args.method = "FedGCN"
         trainer = Trainer_General(
@@ -681,6 +797,66 @@ class TestTrainerGeneral:
 
         assert torch.equal(trainer.feature_aggregation, new_features.to(trainer.device))
 
+    def test_finalize_full_feature_aggregation_relabels_and_releases_raw_features(self):
+        self.args.method = "FedGCN"
+        trainer = Trainer_General(
+            rank=self.rank,
+            args_hidden=self.args_hidden,
+            device=self.device,
+            args=self.args,
+            local_node_index=self.local_node_index,
+            communicate_node_index=self.communicate_node_index,
+            adj=self.adj,
+            train_labels=self.train_labels,
+            test_labels=self.test_labels,
+            features=self.features,
+            idx_train=self.idx_train,
+            idx_test=self.idx_test,
+        )
+        trainer.relabel_adj = Mock()
+        trainer.adjacency_relabel_strategy = "artifact-precomputed"
+        trainer.adjacency_relabel_time_sec = 0.25
+        trainer.load_feature_aggregation(torch.randn(100, 50))
+
+        result = trainer.finalize_full_feature_aggregation()
+
+        trainer.relabel_adj.assert_called_once_with()
+        assert trainer.raw_features_released is True
+        assert trainer.features.shape == (0, 50)
+        assert result["adjacency_relabel_strategy"] == "artifact-precomputed"
+
+    @patch("fedgraph.trainer_class.NeighborSampler")
+    def test_prepare_neighbor_sampler_builds_and_reuses_indexes(self, mock_sampler):
+        self.args.graph_storage_mode = "cpu"
+        self.args.num_hops = 0
+        self.args.batch_size = 2
+        mock_sampler.return_value.colptr = torch.arange(4, dtype=torch.int64)
+        mock_sampler.return_value.row = torch.arange(3, dtype=torch.int64)
+        mock_sampler.return_value.perm = None
+        trainer = Trainer_General(
+            rank=self.rank,
+            args_hidden=self.args_hidden,
+            device=self.device,
+            args=self.args,
+            local_node_index=self.local_node_index,
+            communicate_node_index=self.communicate_node_index,
+            adj=self.adj,
+            train_labels=self.train_labels,
+            test_labels=self.test_labels,
+            features=self.features,
+            idx_train=self.idx_train,
+            idx_test=self.idx_test,
+        )
+
+        first = trainer.prepare_neighbor_sampler()
+        second = trainer.prepare_neighbor_sampler()
+
+        assert first["prepared"] is True
+        assert first["cache_hit"] is False
+        assert first["index_bytes"] == 7 * torch.int64.itemsize
+        assert second["cache_hit"] is True
+        assert mock_sampler.call_count == 1
+
     def test_get_params(self):
         """get_params returns a detached CPU snapshot for Ray transfer."""
         trainer = Trainer_General(
@@ -752,11 +928,12 @@ class TestTrainerGeneral:
         assert len(trainer.test_accs) == 0
 
     @patch("fedgraph.trainer_class.NeighborLoader")
+    @patch("fedgraph.trainer_class.NeighborSampler")
     @patch("fedgraph.trainer_class.train")
     def test_train_method_mini_batch_one_update_per_local_step(
-        self, mock_train_func, mock_neighbor_loader
+        self, mock_train_func, mock_neighbor_sampler, mock_neighbor_loader
     ):
-        """Mini-batch NC training should use one seed batch per local step."""
+        """Mini-batch training should reuse its loader and graph sampler."""
         self.args.graph_storage_mode = "cpu"
         self.args.num_hops = 0
         self.args.batch_size = 2
@@ -789,22 +966,42 @@ class TestTrainerGeneral:
 
         trainer.train(current_global_round=1)
 
-        assert mock_neighbor_loader.call_count == trainer.local_step
+        assert mock_neighbor_sampler.call_count == 1
+        assert mock_neighbor_loader.call_count == 1
         assert mock_train_func.call_count == trainer.local_step
         assert len(trainer.train_losses) == trainer.local_step
         assert len(trainer.train_accs) == trainer.local_step
 
-        for call in mock_neighbor_loader.call_args_list:
-            assert call.kwargs["batch_size"] == self.args.batch_size
-            assert call.kwargs["shuffle"] is True
-            assert torch.equal(call.kwargs["input_nodes"], trainer.idx_train)
-            assert call.args[0].y is None
+        train_loader_call = mock_neighbor_loader.call_args
+        assert train_loader_call.kwargs["batch_size"] == self.args.batch_size
+        assert train_loader_call.kwargs["shuffle"] is True
+        assert torch.equal(train_loader_call.kwargs["input_nodes"], trainer.idx_train)
+        assert train_loader_call.args[0].y is None
+        assert (
+            train_loader_call.kwargs["neighbor_sampler"]
+            is mock_neighbor_sampler.return_value
+        )
 
         expected_seed_index = torch.arange(self.args.batch_size)
         expected_seed_labels = trainer.train_labels[batch.input_id]
         for call in mock_train_func.call_args_list:
             assert torch.equal(call.args[5], expected_seed_labels)
             assert torch.equal(call.args[6].cpu(), expected_seed_index)
+
+        trainer._make_neighbor_loader(
+            trainer.idx_test,
+            batch_size=512,
+            shuffle=False,
+        )
+        assert mock_neighbor_sampler.call_count == 1
+        assert mock_neighbor_loader.call_count == 2
+        evaluation_loader_call = mock_neighbor_loader.call_args
+        assert evaluation_loader_call.kwargs["batch_size"] == 512
+        assert evaluation_loader_call.kwargs["shuffle"] is False
+        assert (
+            evaluation_loader_call.kwargs["neighbor_sampler"]
+            is mock_neighbor_sampler.return_value
+        )
 
     @patch("fedgraph.trainer_class.test")
     def test_local_test(self, mock_test_func):
@@ -854,6 +1051,7 @@ class TestTrainerGeneral:
         args.learning_rate = 0.01
         args.dataset = "cora"
         args.batch_size = 2
+        args.evaluation_batch_size = 3
         args.graph_storage_mode = "cpu"
         features = torch.tensor(
             [
