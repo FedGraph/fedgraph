@@ -1,0 +1,183 @@
+================================================================================
+Starting FedGraph NC batch-size convergence run: 20261120_085644_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0
+{
+  "batch_size": 16,
+  "dataset": "ogbn-papers100M",
+  "distribution_type": "average",
+  "elastic_training": false,
+  "evaluation_batch_size": 512,
+  "evaluation_split": "validation",
+  "feature_compression_chunk_rows": 65536,
+  "feature_compression_max_inflight_trainers": 4,
+  "feature_compression_mode": "shared-pca",
+  "feature_compression_output_dir": null,
+  "feature_compression_rank": 8,
+  "global_rounds": 3,
+  "gpu": true,
+  "graph_relabel_cache_dir": null,
+  "graph_relabel_chunk_edges": 1000000,
+  "graph_storage_mode": "cpu",
+  "hf_artifact_num_hops": null,
+  "hf_local_artifact_cache_dir": null,
+  "hf_local_artifact_repo": null,
+  "hf_local_artifact_revision": null,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_artifact_dir": "/mnt/fedgraph-nvme/artifacts/papers100m-10-2hop-v2-derived",
+  "local_artifact_rank_hosts": "$HOME/fedgraph-papers100m-2hop-rank-hosts.txt",
+  "local_step": 1,
+  "max_rounds": null,
+  "method": "FedGCN",
+  "n_trainer": 10,
+  "num_cpus_per_trainer": 1,
+  "num_gpus_per_trainer": 1.0,
+  "num_hops": 2,
+  "num_layers": 2,
+  "pretrain_feature_aggregation_mode": "full",
+  "pretrain_feature_chunk_edges": 1000000,
+  "pretrain_feature_chunk_rows": 262144,
+  "pretrain_feature_max_inflight_trainers": 10,
+  "pretrain_feature_output_dir": null,
+  "pretrain_feature_upload_mode": "indexed",
+  "resource_monitor_mode": "manual",
+  "resource_snapshot_interval_rounds": 1,
+  "seed": 42,
+  "server_device": "cpu",
+  "target_train_comm_times_sec": [],
+  "target_val_accs": [],
+  "target_val_losses": [],
+  "use_huggingface": false,
+  "use_ogb_load_patch": true,
+  "val_loss_min_delta": 0.0,
+  "val_loss_patience": 20
+}
+================================================================================
+FedGraph Differential Privacy module loaded (v1.0.0)
+✓ Differential Privacy support loaded
+NC_GRAPH_STORAGE, mode=cpu
+NC_PRETRAIN_FEATURE_AGGREGATION, mode=full
+NC_FEATURE_COMPRESSION, mode=shared-pca, rank=8, chunk_rows=65536, max_inflight_trainers=4, output_dir=None
+NC_RESOURCE_MONITOR, mode=manual, snapshot_interval_rounds=1, snapshot_path=$HOME/fedgraph/benchmark/results/nc_2hop_optimization/ogbn-papers100M/20261118T191651Z/03-aggregation/v2-full-cpu-pca8-rep02/runs/20261120_085644_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0/fedgraph_logs/resource_snapshots.jsonl, prometheus_summary_path=None
+Initialization start time recorded.
+2026-11-20 08:56:48,886	INFO worker.py:1683 -- Using address node-11:6379 set in the environment variable RAY_ADDRESS
+2026-11-20 08:56:48,888	INFO worker.py:1833 -- Connecting to existing Ray cluster at address: node-11:6379...
+2026-11-20 08:56:48,907	INFO worker.py:2015 -- Connected to Ray cluster. View the dashboard at http://127.0.0.1:8265
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=0, host=node-12, node_id=de745a22d9368f96ce942909ae1ba8900b8673ed357c3fb071753e13
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=1, host=node-04, node_id=8ce6c460d33e9137decc226f1ed7e11427b24af95a3d5db16c427542
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=2, host=node-09, node_id=2999607ae8a514850282c18879deecf9248eb7ba4cd106012b89aae5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=3, host=node-08, node_id=9e6e4e2106c44f1dfdecbb1323f6b4cc808421ec4b19acd6c663088b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=4, host=node-05, node_id=c213d0242f5a1fa392a368fe02219dae2fe7efbed9c83c4269fd3b12
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=5, host=node-07, node_id=e5d6e5ea8a4b02df606d37afeedc19264ba1ea210e1cc7c62577bfc4
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=6, host=node-02, node_id=2b124077096d18db573a9f7cd655a2c96e1fe541a6c7f89d9fb6c63f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=7, host=node-06, node_id=ac9a637d6458d5ee1d928b84be085732a918cdf3687ab84b6e56584b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=8, host=node-10, node_id=e25b1e525899d16ce7e9219c6d6e0c77e40337808134ca071f555c08
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=9, host=node-03, node_id=bdfd4ce9b06a34e9e805288d70f15ab20b65697586b0566cb9221a57
+(pid=30918, ip=node-09) FedGraph Differential Privacy module loaded (v1.0.0)
+(pid=30918, ip=node-09) ✓ Differential Privacy support loaded
+(Trainer pid=36295, ip=node-02) Loaded local artifact v2 shard 6 (2-hop) from /mnt/fedgraph-nvme/artifacts/papers100m-10-2hop-v2-derived/shards/trainer-006
+(Trainer pid=36295, ip=node-02) Trainer 6 artifact load completed in 124.650s; process RSS=23546826752; process peak RSS=38672998400 bytes
+(pid=14216, ip=node-08) FedGraph Differential Privacy module loaded (v1.0.0) [repeated 9x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)
+(pid=14216, ip=node-08) ✓ Differential Privacy support loaded [repeated 9x across cluster]
+NC_FEATURE_COMPRESSION_METRIC {"basis_output_path":"$HOME/fedgraph/benchmark/results/nc_2hop_optimization/ogbn-papers100M/20261118T191651Z/03-aggregation/v2-full-cpu-pca8-rep02/runs/20261120_085644_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0/fedgraph_logs/feature_compression/shared-pca-r8-7a54f6330a46dbc0.pt","basis_sha256":"7a54f6330a46dbc0c153f5305f1562ed34255c14b8430235ee6e67356041a837","basis_tensor_broadcast_bytes":51200,"basis_tensor_bytes":5120,"basis_wall_time_sec":0.0030870619957568124,"compressed_feature_dim":8,"compression_setup_traffic_bytes":1361920,"compression_wall_time_sec":43.82216333100223,"feature_bytes_saved":53308778880,"feature_storage_reduction_ratio":16.0,"max_inflight_trainers":4,"max_trainer_projection_time_sec":1.4026961600029608,"mode":"shared-pca","original_feature_bytes":56862697472,"original_feature_dim":128,"projected_feature_bytes":3553918592,"projected_feature_fraction":0.0625,"projection_wall_time_sec":4.091718793999462,"retained_energy":0.7710873122152563,"row_count":111059956,"statistics_tensor_upload_bytes":1310720,"statistics_wall_time_sec":39.72514481800317,"trainer_count":10}
+NC_FEATURE_COMPRESSION_SUMMARY, mode=shared-pca, rows=111059956, original_dim=128, rank=8, retained_energy=0.771087312215, basis_sha256=7a54f6330a46dbc0c153f5305f1562ed34255c14b8430235ee6e67356041a837, basis_output_path=$HOME/fedgraph/benchmark/results/nc_2hop_optimization/ogbn-papers100M/20261118T191651Z/03-aggregation/v2-full-cpu-pca8-rep02/runs/20261120_085644_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0/fedgraph_logs/feature_compression/shared-pca-r8-7a54f6330a46dbc0.pt, statistics_tensor_upload_bytes=1310720, basis_tensor_broadcast_bytes=51200, original_feature_bytes=56862697472, projection_output_bytes=3553918592, feature_bytes_saved=53308778880, statistics_wall_time_sec=39.725145, basis_wall_time_sec=0.003087, projection_wall_time_sec=4.091719, max_trainer_projection_time_sec=1.402696, max_inflight_trainers=4
+//Log init_time: 215252.641 ms //end
+Pretrain start time recorded.
+server aggregates all local neighbor feature sums
+clients received feature aggregation from server
+(Trainer pid=36572, ip=node-06) NC_ADJ_RELABEL, trainer=7, mode=artifact-precomputed, source_edges=1033510254, output_edges=1033510254, dropped_edges=0, time_sec=12.678620, source=/mnt/fedgraph-nvme/artifacts/papers100m-10-2hop-v2-derived/shards/trainer-007/adj.pt
+(Trainer pid=14216, ip=node-08) Loaded local artifact v2 shard 3 (2-hop) from /mnt/fedgraph-nvme/artifacts/papers100m-10-2hop-v2-derived/shards/trainer-003 [repeated 9x across cluster]
+(Trainer pid=14216, ip=node-08) Trainer 3 artifact load completed in 128.726s; process RSS=23506247680; process peak RSS=37117100032 bytes [repeated 9x across cluster]
+//pretrain_time: 616859.195 ms//end
+NC_PRETRAIN_METRIC {"adjacency_transition_max_trainer_time_sec":13.874055333006254,"adjacency_transition_strategies":["artifact-precomputed"],"adjacency_transition_wall_time_sec":13.893913216001238,"aggregation_mode":"full","artifact_version":2,"download_bytes":18020013760,"feature_compression_basis_sha256":"7a54f6330a46dbc0c153f5305f1562ed34255c14b8430235ee6e67356041a837","feature_compression_mode":"shared-pca","feature_dim":8,"method":"FedGCN","source_artifact_version":3,"total_traffic_bytes":40545030960,"upload_bytes":22525017200,"wall_time_sec":616.8591907024384}
+NC_NEIGHBOR_SAMPLER_METRIC {"index_bytes":169954849856,"max_trainer_time_sec":130.46506268599478,"prepared_trainer_count":10,"trainer_count":10,"wall_time_sec":130.46725235199847}
+Train start time recorded.
+global_rounds 3
+Round 1: Global Val Loss = 191.7184
+Round 1: Global Val Accuracy = 0.0000
+Round 1: Training Time = 1.09s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":1.1249802112579346,"parameter_sync_time_sec":0.03466200828552246,"round":1,"train_sync_time_sec":1.1249802112579346,"training_time_sec":1.090318202972412}
+Round 2: Global Val Loss = 91.3782
+Round 2: Global Val Accuracy = 0.0531
+Round 2: Training Time = 0.03s, Communication Time = 0.04s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":1.1879403591156006,"parameter_sync_time_sec":0.03701138496398926,"round":2,"train_sync_time_sec":0.06296014785766602,"training_time_sec":0.025948762893676758}
+Round 3: Global Val Loss = 22.1374
+Round 3: Global Val Accuracy = 0.0289
+Round 3: Training Time = 0.02s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":1.2440567016601562,"parameter_sync_time_sec":0.03211545944213867,"round":3,"train_sync_time_sec":0.056116342544555664,"training_time_sec":0.024000883102416992}
+//train_time: 1635.601 ms//end
+
+================================================================================
+TIME BREAKDOWN (excluding initialization)
+================================================================================
+Total Training Time (server-observed): 1.140268 seconds
+Total Communication Time (parameter synchronization): 0.103789 seconds
+Total Training + Communication Time: 1.244057 seconds
+Total Federated Loop Wall Time: 1.635624 seconds
+Training Time Percentage (of training + communication): 91.7%
+Communication Time Percentage (of training + communication): 8.3%
+Average Training Time per Round: 0.38 seconds
+Average Communication Time per Round: 0.03 seconds
+================================================================================
+[Training Time] Dataset: ogbn-papers100M, Batch Size: 16, Trainers: 10, Hops: 2, IID Beta: 10000.0 => Training Time = 1.14 seconds
+[Communication Time] Dataset: ogbn-papers100M, Batch Size: 16, Trainers: 10, Hops: 2, IID Beta: 10000.0 => Communication Time = 0.10 seconds
+average_final_test_loss, 15.629151773203148
+Average test accuracy, 0.026803460118277972
+
+================================================================================
+INDIVIDUAL TRAINER MEMORY USAGE
+================================================================================
+
+====================================================================================================
+TRAINER MEMORY vs LOCAL GRAPH SIZE
+====================================================================================================
+Trainer  Memory(MB)   Nodes    Edges    Memory/Node  Memory/Edge
+----------------------------------------------------------------------------------------------------
+0        37567.7      11105996 1033431820 0.003        0.000
+1        37538.2      11105996 1032585731 0.003        0.000
+2        37608.2      11105996 1034276598 0.003        0.000
+3        37586.1      11105996 1033864176 0.003        0.000
+4        37593.5      11105996 1034302639 0.003        0.000
+5        37677.8      11105996 1033510901 0.003        0.000
+6        37653.3      11105995 1036114965 0.003        0.000
+7        37569.4      11105995 1033510254 0.003        0.000
+8        39346.1      11105995 1035102656 0.004        0.000
+9        37582.7      11105995 1033915656 0.003        0.000
+====================================================================================================
+Total Memory Usage: 377723.0 MB (368.87 GB)
+Total Nodes: 111059956, Total Edges: 10340615396
+Average Memory per Trainer: 37772.3 MB
+Average Nodes per Trainer: 11105995.6
+Average Edges per Trainer: 1034061539.6
+Max Memory: 39346.1 MB (Trainer 8)
+Min Memory: 37538.2 MB (Trainer 1)
+Peak RSS: 54250.1 MB (Trainer 8)
+Overall Memory/Node Ratio: 0.003 MB/node
+Overall Memory/Edge Ratio: 0.000 MB/edge
+====================================================================================================
+//Log Theoretical Pretrain Comm Cost: 38666.75 MB //end
+//Log Theoretical Train Comm Cost: 10.64 MB //end
+
+================================================================================
+CSV FORMAT RESULT:
+DS,IID,BS,ExecutionTime[s],TrainingTime[s],CommTime[s],TrainCommTime[s],FinalTestAcc[%],TheoreticalCommCost[MB],PeakMem[MB],AvgRoundTrainTime[s],AvgRoundCommTime[s],AvgRoundTime[s],ModelSize[MB],TotalParams
+ogbn-papers100M,10000.0,16,963.8,1.1,0.1,1.2,2.68,38677.4,54250.1,0.380,0.035,0.415,0.177,46508
+================================================================================
+
+================================================================================
+EXPERIMENT SUMMARY
+================================================================================
+Dataset: ogbn-papers100M
+Method: FedGCN
+Trainers: 10
+IID Beta: 10000.0
+Batch Size: 16
+Hops: 2
+Total Execution Time: 963.82 seconds
+Training Time: 1.14 seconds
+Communication Time: 0.10 seconds
+Pretrain Comm Cost: 38666.75 MB
+Training Comm Cost: 10.64 MB
+================================================================================
+
+NC_RESOURCE_MONITOR_SUMMARY, snapshot_path=$HOME/fedgraph/benchmark/results/nc_2hop_optimization/ogbn-papers100M/20261118T191651Z/03-aggregation/v2-full-cpu-pca8-rep02/runs/20261120_085644_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0/fedgraph_logs/resource_snapshots.jsonl, summary_path=$HOME/fedgraph/benchmark/results/nc_2hop_optimization/ogbn-papers100M/20261118T191651Z/03-aggregation/v2-full-cpu-pca8-rep02/runs/20261120_085644_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0/fedgraph_logs/resource_snapshot_summary.json
+(Trainer pid=14670, ip=node-12) NC_ADJ_RELABEL, trainer=0, mode=artifact-precomputed, source_edges=1033431820, output_edges=1033431820, dropped_edges=0, time_sec=13.806977, source=/mnt/fedgraph-nvme/artifacts/papers100m-10-2hop-v2-derived/shards/trainer-000/adj.pt [repeated 9x across cluster]
