@@ -39,6 +39,9 @@ benchmark/results/nc_2hop_optimization/
     01-fleet-smoke/v3-chunked-mmap-pca16/
     02-storage/v3-chunked-cpu-pca16/
     03-aggregation/v2-full-cpu-pca16/
+    04-projection/v3-chunked-mmap-pca16/
+    05-chunk-tuning/v3-chunked-mmap-pca16-baseline/
+    06-rank-quality/v3-chunked-mmap-pca16-seed42/
 ```
 
 Pass the suite directory as `--output-root` and the case label as
@@ -46,6 +49,8 @@ Pass the suite directory as `--output-root` and the case label as
 attempt, including failures. Keep artifacts and runtime caches on the
 designated storage paths. Historical results remain in
 `benchmark/results/nc_batch_size_convergence/`.
+For retained evidence, see the [2-hop archive](../benchmark/archives/nc_2hop_optimization/ARCHIVE.md)
+and the [earlier NC archive](../benchmark/archives/nc_batch_size_convergence/ARCHIVE.md).
 
 ## Comparison Contract
 
@@ -273,14 +278,34 @@ run_arxiv_2hop 01-artifact-smoke v3-chunked-mmap-pca16 "$ARXIV_V3" mmap chunked 
 
 Inspect each `summary.jsonl` and confirm the expected artifact, feature width,
 sampler count, and final evaluation. Compare validation and test metrics for
-the unprojected cases. For the quality suite, keep the v3 artifact and
-`cpu + chunked` fixed. For example, this is one of the rank/seed pairs:
+the unprojected cases.
+
+### Run The Rank-Quality Sweep
+
+After the smoke suite passes, reuse its campaign variables, v3 artifact, and
+`run_arxiv_2hop` function. Keep CPU graph storage and chunked pretraining fixed.
+The archived run labels record the requested seeds, but the benchmark runner
+did not pass the seed into NC. Treat those cases as repeats. Use distinct seeds
+in this loop only after correcting and verifying runtime seed forwarding.
 
 ```bash
-ROUNDS=100 BATCH_SIZE=512 LOCAL_STEP=1 SEED=43 \
-  run_arxiv_2hop 02-rank-quality v3-chunked-cpu-pca64-seed43 \
-  "$ARXIV_V3" cpu chunked shared-pca 64
+export ROUNDS=100 BATCH_SIZE=512 LOCAL_STEP=1
+
+for seed in 42 43 44; do
+  SEED="$seed" run_arxiv_2hop 02-rank-quality "v3-chunked-cpu-none-seed${seed}" \
+    "$ARXIV_V3" cpu chunked none || break
+
+  for rank in 128 64 32 16; do
+    SEED="$seed" run_arxiv_2hop 02-rank-quality "v3-chunked-cpu-pca${rank}-seed${seed}" \
+      "$ARXIV_V3" cpu chunked shared-pca "$rank" || break 2
+  done
+done
 ```
+
+Expect 15 completed `summary.jsonl` files under
+`$ARXIV_OUTPUT_ROOT/02-rank-quality/`, each with 100 recorded rounds and a final
+test result. The loop stops on the first failed case. Use a `-rep02` suffix
+when retrying that case to preserve its original logs.
 
 ## Part B: Papers100M Distributed Verification
 
@@ -808,6 +833,14 @@ Preflight, launch, and verify workers:
 
 Expect eleven Ray nodes and ten free GPUs before submission.
 
+After a `ray stop` restart, an old `ray-worker-*` tmux session may still have
+its name even though the Ray processes have exited. Once the old fleet has
+stopped and no worker launch is in progress, add `--replace-stale-sessions`
+to the worker launch command (not the preflight command). The launcher
+replaces the exact worker session only when no live `raylet` is running on
+that host. It keeps sessions on workers that have already rejoined. This
+does not stop the EC2 instances or change staged artifacts.
+
 ### Submit The Safe First Canary
 
 Create a dedicated tmux session so all required exports are defined inside the
@@ -957,6 +990,300 @@ run_papers100m_2hop 03-aggregation v2-full-cpu-pca16 "$V2_ARTIFACT_DIR" \
 Full mode receives complete trainer payloads. The chunked in-flight limit
 bounds only chunked feature requests and the finalization calls. Watch head
 RAM and Ray object-store pressure before promoting a full baseline.
+
+### Run The Projection Sweep
+
+Reuse the ten-worker fleet, staged compact v3 shards, and rank-host map from
+the fleet smoke. This suite does not need the derived v2 shards or a completed
+full-aggregation baseline. In the head's submission tmux shell, keep the same
+`NC_2HOP_CAMPAIGN` and load the exports and `run_papers100m_2hop` function from
+[the smoke setup](#submit-the-safe-first-canary). Use the same code revision and
+worker environments for all five cases.
+
+Check the SSH agent, artifact manifest, and Ray resources before submission:
+
+```bash
+ssh-add -l
+test -r "$V3_ARTIFACT_DIR/manifest.json"
+./scripts/manual_ray/status.sh --head-ip "$HEAD_PRIVATE_IP"
+df -h "$PWD" /mnt/fedgraph-nvme
+```
+
+Expect eleven live nodes and ten free GPUs. Also check the filesystem holding
+the active head Ray temp/spill directory. If it is nearly full, restart Ray
+with `--ray-tmp-dir /mnt/fedgraph-nvme/ray` on mounted head NVMe, then rejoin the
+workers using [the fleet startup steps](#start-the-ray-fleet). Do not remove
+files from an active Ray session.
+
+Before **each** case, verify worker NVMe is mounted and use the
+[worker disk check](#runtime-storage-and-shutdown). Allow the following
+approximate additional GiB **per worker**, plus headroom for Ray and existing
+files. The estimates include the expanded int64 adjacency and the file-backed
+aggregated features. PCA cases also store projected local features.
+
+| Run order | Projection | Runtime width | Additional NVMe / worker |
+|---:|---|---:|---:|
+| 1 | PCA-16 | 16 | 20 GiB |
+| 2 | PCA-32 | 32 | 24 GiB |
+| 3 | PCA-64 | 64 | 32 GiB |
+| 4 | PCA-128 | 128 | 48 GiB |
+| 5 | None | 128 | 43 GiB |
+
+These files persist between cases. After a driver exits, its logs are archived,
+and all GPUs are free, reclaim space as needed from that finished case's
+worker-local `pretrain/` and `compression/` directories under
+`$PAPERS_RUNTIME_ROOT/04-projection/<case>/`. Do not delete staged shards or
+benchmark results.
+
+Define the launcher in the same shell. All cases use training and evaluation
+batch size 512, ten rounds, one local step, and seed 42. The helper overrides
+the smoke training batch size and keeps mmap, chunked pretraining, the smoke
+chunk limits (262,144 rows, 1,000,000 edges, 10 in-flight trainers), and resource
+monitoring fixed.
+
+```bash
+run_papers100m_projection() {
+  local projection="$1"
+  shift
+  local -a compression_args=(--feature-compression-mode none)
+  if [[ "$projection" != none ]]; then
+    compression_args=(--feature-compression-mode shared-pca
+                      --feature-compression-rank "${projection#pca}")
+  fi
+  SEED=42 run_papers100m_2hop 04-projection \
+    "v3-chunked-mmap-${projection}${PAPERS_CASE_SUFFIX:-}" "$V3_ARTIFACT_DIR" \
+    --batch-size 512 --rounds 10 \
+    --graph-storage-mode mmap --pretrain-aggregation-mode chunked \
+    "${compression_args[@]}" "$@"
+}
+
+run_papers100m_projection pca16
+```
+
+Run the remaining commands **one at a time** in this order. Before moving to
+the next case, require `status=completed`, ten recorded rounds, the expected
+`pretrain_feature_dim`, ten prepared samplers, and a final test result in
+`summary.jsonl`. Wait for GPU log collection, check worker `MemAvailable` and
+disk space, and confirm ten GPUs are free again.
+
+```bash
+run_papers100m_projection pca32
+run_papers100m_projection pca64
+run_papers100m_projection pca128
+run_papers100m_projection none
+```
+
+PCA-128 rotates the 128 features without reducing their width. `none` is the
+unprojected full-width control. Keep both for the comparison. A failed case
+should retain its logs, and a retry should use a new name, for example
+`PAPERS_CASE_SUFFIX=-rep02 run_papers100m_projection pca128`. To preview a case
+without Ray, append `--dry-run --output-root "$(mktemp -d)"`.
+
+After the sweep, copy the entire `04-projection` suite to the analysis host.
+From the repo root there, set `PAPERS_HEAD_SSH` to the Papers100M head's SSH
+address and `NC_2HOP_CAMPAIGN` to the campaign used on the head:
+
+```bash
+p="benchmark/results/nc_2hop_optimization/ogbn-papers100M/$NC_2HOP_CAMPAIGN/04-projection"
+mkdir -p "$p"
+rsync -av --partial "${PAPERS_HEAD_SSH}:/home/ubuntu/fedgraph/$p/" "$p/"
+```
+
+### Run The Chunk-Tuning Sweep
+
+Use the [case matrix](2hop_optimization_status.md#papers100m-chunk-tuning)
+to compare one limit at a time. Reuse the same ten-worker fleet, staged v3
+shards, and rank-host map. In the head's submission tmux shell, keep the same
+`NC_2HOP_CAMPAIGN` and load the exports and `run_papers100m_2hop` function from
+[the smoke setup](#submit-the-safe-first-canary). No v2 conversion is needed.
+
+```bash
+ssh-add -l
+test -r "$V3_ARTIFACT_DIR/manifest.json"
+./scripts/manual_ray/status.sh --head-ip "$HEAD_PRIVATE_IP"
+```
+
+Expect eleven live Ray nodes and ten free GPUs. Keep the head's Ray spill
+directory on mounted NVMe and keep its object-store budget fixed. Before
+each case, confirm the workers' NVMe mounts and use the
+[worker disk check](#runtime-storage-and-shutdown). The suite adds about
+20 GiB of runtime files per worker per case even though peak RAM varies.
+Aim for at least 60 GiB free per worker before starting each case. After
+collecting results and confirming the fleet is idle, reclaim space only from
+finished worker-local case directories under
+`$PAPERS_RUNTIME_ROOT/05-chunk-tuning/` as needed.
+
+Define the helper in the same shell. The positional arguments are case suffix,
+global rows, trainer edges, and in-flight trainer cap. The other arguments fix
+PCA-16, `mmap`, indexed chunked pretraining, training/evaluation batch size 512,
+three rounds, one local step, seed 42, and the existing monitoring.
+
+```bash
+run_papers100m_chunk_tuning() {
+  local label="$1" rows="$2" edges="$3" inflight="$4"
+  shift 4
+  SEED=42 run_papers100m_2hop 05-chunk-tuning \
+    "v3-chunked-mmap-pca16-${label}" "$V3_ARTIFACT_DIR" \
+    --batch-size 512 --rounds 3 \
+    --graph-storage-mode mmap --pretrain-aggregation-mode chunked \
+    --feature-compression-mode shared-pca --feature-compression-rank 16 \
+    --pretrain-chunk-rows "$rows" --pretrain-chunk-edges "$edges" \
+    --pretrain-max-inflight-trainers "$inflight" "$@"
+}
+
+run_papers100m_chunk_tuning baseline 262144 1000000 10
+```
+
+Check `summary.jsonl` for `completed`, three rounds, width 16, ten prepared
+samplers, and final test metrics. Check the basis hash against the baseline and
+the server chunk count in `NC_PRETRAIN_CHUNK_SUMMARY`. Wait for GPU log
+collection and all ten GPUs to be free again. Then run the remaining core
+cases **one at a time**, comparing each to the baseline:
+
+```bash
+run_papers100m_chunk_tuning rows-131072 131072 1000000 10
+run_papers100m_chunk_tuning rows-524288 524288 1000000 10
+run_papers100m_chunk_tuning edges-500000 262144 500000 10
+run_papers100m_chunk_tuning edges-2000000 262144 2000000 10
+run_papers100m_chunk_tuning inflight-4 262144 1000000 4
+```
+
+Try `run_papers100m_chunk_tuning rows-1048576 1048576 1000000 10` only if
+`rows-524288` improves pretraining time with comfortable memory and spill
+headroom. To preview any command, append `--dry-run --output-root "$(mktemp -d)"`.
+Use new suffixes such as `baseline-rep02` for repeats. Leave the adjacency
+cache case-local for every comparison so none reuses another case's expansion.
+
+Save `ray memory --address "$HEAD_PRIVATE_IP:6379" --stats-only` output before,
+during, and after each case from a second shell. Treat spill totals as
+cluster-wide counters and compare their per-case changes. Keep the benchmark's
+head and worker process high-water marks and label `MemAvailable` readings as
+samples, not exact peaks. Compare pretraining wall time and its adjacency
+transition separately. Three rounds are a correctness check, not a rank or
+accuracy sweep. Repeat the baseline and best feasible variant before claiming
+a speedup.
+
+Copy back the suite from the analysis host's repo root, with
+`PAPERS_HEAD_SSH` set to the head's SSH address and the same campaign ID:
+
+```bash
+p="benchmark/results/nc_2hop_optimization/ogbn-papers100M/$NC_2HOP_CAMPAIGN/05-chunk-tuning"
+mkdir -p "$p"
+rsync -av --partial "${PAPERS_HEAD_SSH}:/home/ubuntu/fedgraph/$p/" "$p/"
+```
+
+### Run The Papers100M Rank-Quality Sweep
+
+Follow the [case matrix](2hop_optimization_status.md#papers100m-rank-quality).
+In the head's submission tmux shell, reuse the same campaign ID, exports, and
+`run_papers100m_2hop` function from [the smoke setup](#submit-the-safe-first-canary).
+If the fleet is already up, do not rerun the smoke or restage the shards. This
+series uses the same ten-worker rank map and compact v3 artifact, not v2.
+
+```bash
+ssh-add -l
+test -r "$V3_ARTIFACT_DIR/manifest.json"
+findmnt --mountpoint /mnt/fedgraph-nvme
+df -h "$PWD" /mnt/fedgraph-nvme
+./scripts/manual_ray/status.sh --head-ip "$HEAD_PRIVATE_IP"
+```
+
+Expect eleven live Ray nodes and ten free GPUs. Keep the head's Ray temp/spill
+directory on NVMe with the same object-store budget as `05-chunk-tuning`.
+Before each case, verify the worker mounts and check
+[worker disk space](#runtime-storage-and-shutdown). Allow at least 60 GiB free
+per worker: the preceding projection suite used roughly 20 GiB, 32 GiB, and
+43 GiB per worker in new runtime files for PCA-16, PCA-64, and no PCA,
+respectively. They are written before training, so their sizes do not scale
+with the round budget, but they remain on disk after each case. Preserve all
+ten finalized `feature-aggregation.f32` and `feature-aggregation.json` pairs
+for each retained case under `$PAPERS_RUNTIME_ROOT/06-rank-quality/<case>/pretrain/`.
+Keep the matching v3 artifact fingerprint and the PCA basis when applicable.
+Verify an off-instance copy before deleting any retained worker cache. Only
+clean finished cases when the fleet is idle; leave staged shards, logs, and
+active Ray files alone.
+
+Define the launcher in the same shell. It runs 800 fixed rounds, one local
+step per round, training/evaluation batch size 512, mmap storage, and indexed
+chunked pretraining. It inherits 262,144 rows, 1,000,000 edges, and 10 in-flight
+trainers from the base helper. Validation still runs every round and test at
+the end. Manual resource snapshots cover the first round, every 25 rounds,
+and the phase boundaries. Raw `nvidia-smi` logging stays enabled.
+
+```bash
+run_papers100m_rank_quality() {
+  local seed="$1" projection="$2"
+  shift 2
+  local -a compression_args
+  case "$projection" in
+    none) compression_args=(--feature-compression-mode none) ;;
+    pca16|pca64)
+      compression_args=(--feature-compression-mode shared-pca
+                        --feature-compression-rank "${projection#pca}") ;;
+    *) printf 'Expected none, pca16, or pca64; got %s\n' "$projection" >&2; return 2 ;;
+  esac
+  SEED="$seed" run_papers100m_2hop 06-rank-quality \
+    "v3-chunked-mmap-${projection}-seed${seed}${PAPERS_CASE_SUFFIX:-}" \
+    "$V3_ARTIFACT_DIR" \
+    --batch-size 512 --rounds 800 \
+    --graph-storage-mode mmap --pretrain-aggregation-mode chunked \
+    --resource-snapshot-interval-rounds 25 "${compression_args[@]}" "$@"
+}
+
+run_papers100m_rank_quality 42 pca16 --dry-run --output-root "$(mktemp -d)"
+run_papers100m_rank_quality 42 pca16
+```
+
+After the first real case completes, verify the summary. For the other cases,
+use the corresponding case name and expected width (64 for `pca64`, 128 for
+`none`). Also verify that `round_metrics.csv` contains round-800 validation
+accuracy and loss, and inspect the resource and GPU summaries before continuing.
+
+```bash
+case_dir="$PAPERS_RESULT_ROOT/06-rank-quality/v3-chunked-mmap-pca16-seed42"
+jq -e --argjson width 16 '
+  .status == "completed" and .rounds_recorded == 800 and
+  .evaluation_split == "validation" and .artifact_version == 3 and
+  .pretrain_feature_dim == $width and
+  .neighbor_sampler_prepared_trainer_count == 10 and
+  (.test_acc_final | type == "number") and (.test_loss_final | type == "number")
+' "$case_dir/summary.jsonl"
+```
+
+Run the other two seed-42 cases **one at a time**, checking the result, disk
+space, and that all GPUs are free again after each one:
+
+```bash
+run_papers100m_rank_quality 42 pca64
+run_papers100m_rank_quality 42 none
+```
+
+The archived sweep completed the seed-42 triplet only. For a later independent
+seed comparison, first fix and verify runtime seed forwarding, then run all
+seeds with the same corrected source revision. With that prerequisite met,
+repeat the same order at seeds 43 and 44 and check the fleet between commands:
+
+```bash
+run_papers100m_rank_quality 43 pca16
+run_papers100m_rank_quality 43 pca64
+run_papers100m_rank_quality 43 none
+
+run_papers100m_rank_quality 44 pca16
+run_papers100m_rank_quality 44 pca64
+run_papers100m_rank_quality 44 none
+```
+
+Preserve failed attempts and use a new label for retries, for example
+`PAPERS_CASE_SUFFIX=-rep02 run_papers100m_rank_quality 42 none`. Compare quality
+at rounds 100, 200, 400, and 800 using the same runs. Do not use the final test
+metrics to select the rank. Copy the entire suite back after the runs, with
+`PAPERS_HEAD_SSH` set to the head's SSH address and the same campaign ID:
+
+```bash
+p="benchmark/results/nc_2hop_optimization/ogbn-papers100M/$NC_2HOP_CAMPAIGN/06-rank-quality"
+mkdir -p "$p"
+rsync -av --partial "${PAPERS_HEAD_SSH}:/home/ubuntu/fedgraph/$p/" "$p/"
+```
 
 ### Performance And Accuracy Runs
 

@@ -1,19 +1,19 @@
 # 2-Hop Optimization Status And Experiment Plan
 
-Plan updated 2026-11-17 on `update_hc_experiments`. The measurement tables
-describe the earlier campaign, before the separate sampler and adjacency
-transition timing was added.
+Status updated 2026-11-22 on `update_hc_experiments`. The historical tables
+predate separate sampler and adjacency-transition timing. For the later
+campaign, see the [benchmark archive](../benchmark/archives/nc_2hop_optimization/ARCHIVE.md).
 
 ## Implementation Status
 
 | Component | Implemented behavior | Evidence and remaining work |
 |---|---|---|
 | 1: Graph storage | `device`, `cpu`, and file-backed `mmap`; bounded adjacency relabel/cache; GPU transfer of sampled batches | Arxiv and Papers100M 0-hop storage comparisons completed. These are storage checks, not large-scale 2-hop baselines. |
-| 2: Chunked pretraining | Source-sorted row requests; bounded edge batches inside each request; bounded trainer concurrency; CPU result payloads; file-backed trainer aggregation output | Matched Arxiv full/chunked comparison and Papers100M compact-v3 chunked runs completed. Matched Papers100M full/chunked comparisons remain. |
-| 3: Shared feature projection | Uncentered PCA from additive, float64 `F x F` second moments; one shared basis; bounded CPU or mmap projection; compressed width retained through training | Arxiv smoke matrix, 3-seed Arxiv rank sweep, and Papers100M ranks 16/32/64/128 completed. Longer Papers100M quality comparisons remain. |
+| 2: Chunked pretraining | Source-sorted row requests; bounded edge batches inside each request; bounded trainer concurrency; CPU result payloads; file-backed trainer aggregation output | Matched full/chunked comparisons completed on Arxiv and on Papers100M at PCA-8. Full CPU PCA-16 exceeded worker RAM on the tested fleet. |
+| 3: Shared feature projection | Uncentered PCA from additive, float64 `F x F` second moments; one shared basis; bounded CPU or mmap projection; compressed width retained through training | Arxiv rank sweep and Papers100M projection sweep completed. Papers100M no PCA, PCA-16, and PCA-64 also completed 800 rounds at seed 42. Independent seed comparisons remain. |
 | Compact artifacts | V3 stores one local-position `int32` adjacency; degree/offset sidecars support global-row chunk requests without a full global adjacency | Papers100M v3 partitioning, upload, staging, and chunked/mmap training exercised. Runtime sampling still needs expanded `int64` adjacency and CSC indexes. |
-| Full baseline preparation | Offline, bounded v3-to-v2 conversion writes separate local/global `int64` adjacency files; supports worker-local rank subsets | Synthetic conversion/equivalence tests passed. Full fleet conversion and execution are still to be measured. |
-| Lifecycle and monitoring | Reused training/evaluation sampler; independent evaluation batch size; explicit full-pretraining finalization; sampler preparation timed before rounds; artifact/transition provenance | Sampler reuse and evaluation batching were exercised in Papers100M. Separate sampler-setup timing and the latest CPU adjacency transition need a new experiment. |
+| Full baseline preparation | Offline, bounded v3-to-v2 conversion writes separate local/global `int64` adjacency files; supports worker-local rank subsets | The derived v2 artifact supported the matched Papers100M rank-8 comparison. Wider full-mode baselines require more headroom. |
+| Lifecycle and monitoring | Reused training/evaluation sampler; independent evaluation batch size; explicit full-pretraining finalization; sampler preparation timed before rounds; artifact/transition provenance | The current campaign records separate sampler timing and exercises both the CPU and mmap adjacency transition. |
 
 The feature-compression implementation is modular under
 [`fedgraph/feature_compression`](../fedgraph/feature_compression/). It compresses
@@ -28,9 +28,12 @@ the Python server/driver peak, not whole-head memory including Ray's object
 store. RSS includes resident mapped file pages; it is not anonymous RAM alone.
 CUDA allocation is PyTorch allocation, not device-wide `nvidia-smi` memory.
 
-For the 3-seed sweep, scalar entries are arithmetic means over seeds 42/43/44.
-Memory entries are means of each run's peak as defined above. Accuracy is in
-percent; loss is unitless. Failed runs are excluded from successful-run tables.
+For rank-sweep tables, scalar entries are arithmetic means over runs labeled
+42/43/44. In the later Arxiv campaign, the runner recorded the requested seed
+but did not forward it to NC, so these labels do not establish independent
+seeds. Memory entries are means of each run's peak as defined above. Accuracy
+is in percent; loss is unitless. Failed runs are excluded from successful-run
+tables.
 
 Pretraining traffic is the implementation's tensor-payload accounting, including
 its row/index payloads. It is not measured TCP traffic or serialization overhead.
@@ -177,10 +180,10 @@ with chunking; v3 is the standard compact artifact for new large runs.
 |---|---|---|---|---|
 | device | full | none | v2 | Enabled; Arxiv measured. Papers100M 2-hop not measured. |
 | cpu | full | none | v2 | Enabled; Arxiv measured. Large server memory remains a constraint. |
-| cpu | full | shared-pca | v2 | Enabled; Arxiv PCA-128 measured. Papers100M baseline requires offline conversion and sizing. |
-| cpu | chunked | none | v2/v3 | Enabled; Arxiv measured. Papers100M CPU run pending. |
-| cpu | chunked | shared-pca | v2/v3 | Enabled; Arxiv measured. Papers100M CPU run pending. |
-| mmap | chunked | none | v2/v3 | Enabled; Arxiv measured. Papers100M no-projection control pending. |
+| cpu | full | shared-pca | v2 | Arxiv measured. Papers100M PCA-8 completed on the derived v2 artifact; PCA-16 hit worker RAM limits. |
+| cpu | chunked | none | v2/v3 | Enabled; Arxiv measured. Papers100M unprojected CPU run not measured. |
+| cpu | chunked | shared-pca | v2/v3 | Enabled; Arxiv and Papers100M measured. |
+| mmap | chunked | none | v2/v3 | Enabled; Arxiv and Papers100M measured, including the 800-round Papers100M control. |
 | mmap | chunked | shared-pca | v2/v3 | Enabled; Arxiv and Papers100M measured. |
 | mmap | full | either | either | Intentionally disabled in the current comparison workflow; full results would remove the bounded-output benefit. |
 | device | chunked | either | either | Disabled; a host-storage/GPU-chunk-compute extension is a separate future option. |
@@ -201,21 +204,21 @@ needed to describe the implementations already completed.
 
 ## Experiment Plan
 
-The fresh campaign starts at `01-artifact-smoke`. Its case directories use
+The archived campaign starts at `01-artifact-smoke`. Its original directories use
 `benchmark/results/nc_2hop_optimization/<dataset>/<campaign>/<suite>/<case>/`.
-The earlier tables are the historical record and can guide resource estimates.
-Each table row below defines the question and settings for a new suite.
+The archive preserves the same case hierarchy. Each table row below defines
+the question and settings for a suite.
 
 | Dataset / suite | Cases and budget | Question and gate |
 |---|---|---|
 | Arxiv / `01-artifact-smoke` | V2 full on device and CPU, v2 chunked CPU, v3 chunked CPU and mmap, all unprojected. Add v2 full CPU and v3 chunked mmap at PCA-16. Batch 16, 3 rounds, seed 42. | Does the current version complete pretraining, sampler setup, training, and evaluation? Compare final metrics across the unprojected cases and check artifact provenance, feature width, and sampler count. |
-| Arxiv / `02-rank-quality` | V3 chunked CPU, no PCA and ranks 128/64/32/16. Batch 512, 100 rounds, seeds 42/43/44. | Reproduce the rank and accuracy tradeoff. PCA-128 controls for the rotation at full width. |
+| Arxiv / `02-rank-quality` | V3 chunked CPU, no PCA and ranks 128/64/32/16. Batch 512, 100 rounds, requested seeds 42/43/44. | Compare rank and accuracy. PCA-128 controls for rotation at full width. The runner used the seed-42 fallback, so the runs are repeats, not an independent-seed sweep. |
 | Papers100M / `01-fleet-smoke` | V3 chunked mmap PCA-16, batch 16, 1 round, seed 42. | Reproduce a known feasible path on the current code. Check final evaluation, sampler timing, and head/worker memory before expanding the suite. |
 | Papers100M / `02-storage` | V3 chunked mmap and CPU at PCA-16. Batch 16, 3 rounds, seed 42. Both cases use the smoke chunk limits. | Isolate graph storage. Check worker RAM and runtime disk before CPU mode. Compare RSS, host MemAvailable, CUDA allocation, sampler setup, and time. |
 | Papers100M / `03-aggregation` | Derived v2 on CPU, full vs chunked, common PCA rank after sizing. Batch 16, 3 rounds, seed 42. Optionally add matching v3 chunked CPU. | Compare chunking on the same v2 artifact and fleet. The optional v3 case measures the additional effect of the compact representation. |
 | Papers100M / `04-projection` | V3 chunked mmap, no PCA and ranks 128/64/32/16. Batch 512, 10 rounds, seed 42. Run lower ranks first. | Measure PCA setup time, pretraining payload, pretraining time and memory with matched chunk settings. Use the no-PCA case as the full-width baseline. |
-| Papers100M / `05-chunk-tuning` | One fitting rank on v3 with chunked pretraining. Batch 512, 3 rounds, seed 42. Start from 262,144 rows, 1,000,000 edges, and 10 in-flight trainers. Vary one of these per pair. | Trade pretraining throughput against peak host/Ray memory. Repeat promising settings on the same fleet. |
-| Papers100M / `06-rank-quality` | Carry forward the feasible unprojected or full-width baseline and two useful PCA ranks. Batch 512, 100 rounds initially, seeds 42/43/44. | Use validation accuracy/loss to select ranks. Report final test accuracy and the systems metrics for the selected comparisons. |
+| Papers100M / `05-chunk-tuning` | V3 chunked mmap PCA-16, batch/evaluation size 512, 3 rounds, seed 42. Six single-knob cases plus an optional larger row chunk. See the [case matrix](#papers100m-chunk-tuning). | Compare pretraining throughput and peak host/Ray memory. Repeat the baseline and the leading case before selecting a setting. |
+| Papers100M / `06-rank-quality` | V3 chunked mmap, no PCA, PCA-16, and PCA-64. Batch/evaluation size 512, 800 fixed rounds. See the [case matrix](#papers100m-rank-quality). | The seed-42 triplet completed. Correct and verify seed forwarding before starting an independent-seed comparison. |
 
 Begin with Arxiv and the Papers100M fleet smoke. Record an unavailable full
 baseline as pending if the available fleet cannot accommodate it. The mmap
@@ -240,6 +243,104 @@ evaluation; it is not end-to-end execution time. The updated
 [`manual_ray_2hop_optimization_runbook.md`](manual_ray_2hop_optimization_runbook.md)
 contains fleet and submission commands.
 
+### Papers100M Chunk Tuning
+
+Use the same ten v3 shards, rank-host map, CPU head, and one T4 per trainer as
+`04-projection`. Fix graph storage to `mmap`, pretraining to `chunked`, and
+projection to PCA-16. This path already completed on the fleet, gives room to
+vary the chunk limits, and avoids changing feature width within the sweep.
+Keep training and evaluation batch size 512, three global rounds, one local
+step, seed 42, and the same Ray object-store and spill configuration. Start the
+suite with a fresh baseline at this round budget rather than reusing the
+ten-round result from `04-projection`.
+
+| Order | Case suffix | Rows per server chunk | Edges per trainer sub-batch | In-flight trainer cap | Expected server chunks | What it tests |
+|---:|---|---:|---:|---:|---:|---|
+| 1 | `baseline` | 262,144 | 1,000,000 | 10 | 424 | Reference for every variant. |
+| 2 | `rows-131072` | 131,072 | 1,000,000 | 10 | 848 | Smaller server buffers versus more RPCs. |
+| 3 | `rows-524288` | 524,288 | 1,000,000 | 10 | 212 | Fewer RPCs versus larger buffers. |
+| 4 | `edges-500000` | 262,144 | 500,000 | 10 | 424 | Smaller worker temporaries versus more inner batches. |
+| 5 | `edges-2000000` | 262,144 | 2,000,000 | 10 | 424 | Fewer inner batches versus larger worker temporaries. |
+| 6 | `inflight-4` | 262,144 | 1,000,000 | 4 | 424 | Lower concurrent object pressure versus less trainer overlap. |
+| Optional | `rows-1048576` | 1,048,576 | 1,000,000 | 10 | 106 | Try only if `rows-524288` is faster with comfortable RAM and spill headroom. |
+
+Row limits group global node IDs, so they change the number of server chunks
+and the size of each result. Edge limits bound scans of the current row range
+on each trainer. They do not split the trainer's reply for a row or change the
+server chunk count. The in-flight cap bounds concurrently outstanding trainer
+requests and also affects initialization and finalization RPCs. It does not
+change the number of trainers or parallelize the sequential chunk downlinks.
+Keep the PCA chunk limits and adjacency expansion edge limit unchanged.
+
+Compare each variant to `baseline`, not to the preceding row of the table.
+Require three completed rounds, ten prepared samplers, final test evaluation,
+the same PCA basis hash, and the expected server chunk count. The unchanged
+graph and feature width should produce the same logical tensor payload
+(about 75.52 GiB total) and comparable validation/test metrics. That payload
+is summed across the run, not the live Ray object-store footprint.
+
+Rank candidates first by pretraining wall time and check head and worst-worker
+peak process RSS, sampled host `MemAvailable`, Ray object-store usage, spill
+activity, and free NVMe. Report adjacency transition separately: it is included
+in pretraining wall time and may change when the in-flight cap changes. A
+pretraining-time difference by itself does not establish a faster chunk loop.
+Repeat the baseline and best feasible case with fresh case names and the same
+adjacency-cache policy before claiming a speedup. Report the run order because
+filesystem cache state can still differ. Only try a combination of winning
+settings as a separate case after the individual comparisons.
+
+Use the [launch commands](manual_ray_2hop_optimization_runbook.md#run-the-chunk-tuning-sweep)
+to run and archive the cases.
+
+### Papers100M Rank Quality
+
+Run 800 fixed rounds with one local step per round and no elastic stopping.
+The first 100 rounds are an early checkpoint on the same run, so a separate
+100-round sweep is not needed. This suite measures quality at a common budget;
+it does not assume that all ranks converge by round 800.
+
+Reuse the ten v3 shards, rank-host map, CPU head, and one T4 per trainer.
+Use `mmap`, indexed chunked pretraining, and the `05-chunk-tuning` baseline
+limits: 262,144 rows, 1,000,000 edges, and at most 10 trainers in flight.
+Keep training/evaluation batch size 512 and all other settings fixed,
+including PCA statistics blocks of 65,536 rows and 4 in-flight trainers.
+Use the same case-local adjacency cache policy and Ray object-store/spill
+configuration. Keep validation every round, final test after round 800, and
+manual resource snapshots on the first round and every 25 rounds.
+
+| Order per seed | Case label (`<seed>` = 42, 43, or 44) | Feature width | Role | `04-projection` pretrain payload |
+|---:|---|---:|---|---:|
+| 1 | `v3-chunked-mmap-pca16-seed<seed>` | 16 | Largest measured savings; 82.07% retained feature energy. | 75.52 GiB |
+| 2 | `v3-chunked-mmap-pca64-seed<seed>` | 64 | Higher-retention comparison; 93.00% retained feature energy. | 276.91 GiB |
+| 3 | `v3-chunked-mmap-none-seed<seed>` | 128 | Unprojected reference, not the rotated PCA-128 control. | 545.43 GiB |
+
+The payloads are measured logical upload plus download bytes, not peak RAM.
+The ten-round results establish feasibility, not a quality ranking. Keep
+PCA-32 as an optional follow-up if the results leave the tradeoff between 16
+and 64 unclear. All three seed-42 cases completed 800 rounds, ten samplers,
+and final test evaluation. Their final test accuracy was 28.85% for PCA-16,
+39.04% for PCA-64, and 38.52% without projection. The unprojected case had the
+highest best-validation accuracy (46.45%). Do not infer a consistent PCA-64
+quality gain from one seed and one final checkpoint.
+
+The benchmark records `--seeds` but does not forward the runtime seed. Do not
+run or report an independent-seed sweep until that is fixed and the effective
+seed is verified. Rerun matched seed-42 cases under the same fixed runner if
+comparing them with new seeds. Preserve the finalized worker feature files
+before cleaning the rank-quality runtime directories.
+
+Report validation accuracy and loss at rounds 100, 200, 400, and 800 from
+`round_metrics.csv`, plus the full curves and best-validation rounds.
+Compare each rank to `none` at the same seed and summarize the mean and sample
+standard deviation across seeds. Use validation to judge the accuracy/loss
+tradeoff, then report round-800 test accuracy and loss without using test to
+choose the rank. Report PCA setup time, pretraining time and payload, steady
+train+sync time per round, end-to-end time, and head/worker RSS, CUDA, and disk
+separately. Sampled memory telemetry is not an exact peak over all rounds.
+
+Use the [launch commands](manual_ray_2hop_optimization_runbook.md#run-the-papers100m-rank-quality-sweep)
+to run and archive the cases.
+
 ## Code Checkpoints
 
 The cleanup groups related changes into three commits:
@@ -250,8 +351,9 @@ The cleanup groups related changes into three commits:
 | `Integrate shared PCA and compact NC artifact execution` | Trainer/server integration, metrics, compact partition/load/upload/staging, converter, sampler/evaluation lifecycle, two-hop launcher, and related regression tests |
 | `Document 2-hop experiment workflow and measured status` | The two-hop runbook, historical metrics, and new campaign plan |
 
-Raw datasets and benchmark result trees remain in their existing locations;
-this report records their provenance without adding large archives.
+The [archives](../benchmark/archives/nc_2hop_optimization/ARCHIVE.md) retain
+reviewed experiment evidence. Raw datasets, telemetry, and worker feature
+caches are not part of the Git archive.
 
 The focused two-hop verification passed 72 tests in `fedgraph312`, including
 compact conversion, chunked/full feature sums, shared PCA, and sampler reuse.
