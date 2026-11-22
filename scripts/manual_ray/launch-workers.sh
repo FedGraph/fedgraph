@@ -21,6 +21,9 @@ Options:
   --num-cpus N          Ray CPUs per worker. Default: 12.
   --hf-home PATH        Worker-local HF cache. Default: /mnt/fedgraph-nvme/hf-cache.
   --preflight           Run worker prerequisite and head-connectivity checks only.
+  --replace-stale-sessions
+                        Replace an existing worker tmux session only if no live
+                        raylet is running. Use after shutdown, not during startup.
   --help                Show this message.
 
 Set SSH_OPTS if SSH requires an identity file. Each worker may keep HF_TOKEN in
@@ -35,6 +38,7 @@ remote_dir="/home/ubuntu/fedgraph"
 num_cpus=12
 hf_home="/mnt/fedgraph-nvme/hf-cache"
 preflight_only=false
+replace_stale_sessions=false
 
 while (( $# > 0 )); do
     case "$1" in
@@ -45,6 +49,7 @@ while (( $# > 0 )); do
         --num-cpus) num_cpus="$2"; shift 2 ;;
         --hf-home) hf_home="$2"; shift 2 ;;
         --preflight) preflight_only=true; shift ;;
+        --replace-stale-sessions) replace_stale_sessions=true; shift ;;
         --help) usage; exit 0 ;;
         *) die "Unknown option: $1" ;;
     esac
@@ -55,7 +60,36 @@ done
 require_ipv4 "$head_ip"
 require_file "$workers_file"
 [[ "$num_cpus" =~ ^[0-9]+$ ]] || die "--num-cpus must be an integer"
+if [[ "$preflight_only" == "true" && "$replace_stale_sessions" == "true" ]]; then
+    die "--replace-stale-sessions cannot be used with --preflight"
+fi
 require_command ssh
+
+read -r -d '' worker_launch_script <<'BASH' || true
+set -euo pipefail
+session="$1"
+start_command="$2"
+replace_stale_sessions="$3"
+target="=$session"
+
+if tmux has-session -t "$target" 2>/dev/null; then
+    if [[ "$replace_stale_sessions" != "true" ]]; then
+        printf 'Keeping existing tmux session %s.\n' "$session"
+        exit 0
+    fi
+
+    live_raylets="$(ps -eo comm=,stat= | awk '$1 == "raylet" && $2 !~ /^Z/')"
+    if [[ -n "$live_raylets" ]]; then
+        printf 'Keeping %s because Ray is still running.\n' "$session"
+        exit 0
+    fi
+
+    printf 'Replacing stale tmux session %s.\n' "$session"
+    tmux kill-session -t "$target"
+fi
+
+exec tmux new-session -d -s "$session" "$start_command"
+BASH
 
 read -r -a ssh_opts <<< "${SSH_OPTS:-}"
 worker_count=0
@@ -66,7 +100,9 @@ while IFS= read -r worker || [[ -n "$worker" ]]; do
     [[ -z "$worker" ]] && continue
 
     session="ray-worker-${worker//./-}"
-    remote_command="cd ${remote_dir} && ${remote_dir}/scripts/manual_ray/start-worker.sh --head-ip ${head_ip} --num-cpus ${num_cpus} --hf-home ${hf_home}"
+    printf -v remote_command 'cd %q && %q --head-ip %q --num-cpus %q --hf-home %q' \
+        "$remote_dir" "${remote_dir}/scripts/manual_ray/start-worker.sh" \
+        "$head_ip" "$num_cpus" "$hf_home"
     [[ "$preflight_only" == "true" ]] && remote_command+=" --preflight-only"
     if [[ "$preflight_only" == "true" ]]; then
         printf 'Preflighting %s\n' "$worker"
@@ -76,9 +112,9 @@ while IFS= read -r worker || [[ -n "$worker" ]]; do
         fi
     else
         printf 'Launching %s in tmux session %s\n' "$worker" "$session"
-        ssh "${ssh_opts[@]}" "${ssh_user}@${worker}" \
-            "tmux has-session -t '${session}' 2>/dev/null || tmux new-session -d -s '${session}' \"${remote_command}\"" \
-            </dev/null
+        printf -v launch_command 'bash -c %q _ %q %q %q' \
+            "$worker_launch_script" "$session" "$remote_command" "$replace_stale_sessions"
+        ssh "${ssh_opts[@]}" "${ssh_user}@${worker}" "$launch_command" </dev/null
     fi
     ((worker_count += 1))
 done < "$workers_file"
