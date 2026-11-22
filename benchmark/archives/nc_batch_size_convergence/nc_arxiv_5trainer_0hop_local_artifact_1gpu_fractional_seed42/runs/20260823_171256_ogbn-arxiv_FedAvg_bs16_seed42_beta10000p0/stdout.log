@@ -1,0 +1,134 @@
+================================================================================
+Starting FedGraph NC batch-size convergence run: 20260823_171256_ogbn-arxiv_FedAvg_bs16_seed42_beta10000p0
+{
+  "batch_size": 16,
+  "dataset": "ogbn-arxiv",
+  "distribution_type": "average",
+  "elastic_training": false,
+  "evaluation_split": "validation",
+  "global_rounds": 3,
+  "gpu": true,
+  "hf_artifact_num_hops": null,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_artifact_dir": "$HOME/fedgraph-artifacts/ogbn-arxiv-5-0hop-pilot",
+  "local_step": 1,
+  "max_rounds": null,
+  "method": "FedAvg",
+  "n_trainer": 5,
+  "num_cpus_per_trainer": 0,
+  "num_gpus_per_trainer": 0.2,
+  "num_hops": 0,
+  "num_layers": 2,
+  "pretrain_feature_upload_mode": "dense",
+  "resource_monitor_mode": "manual",
+  "resource_snapshot_interval_rounds": 1,
+  "seed": 42,
+  "server_device": "cpu",
+  "target_train_comm_times_sec": [],
+  "target_val_accs": [],
+  "target_val_losses": [],
+  "use_huggingface": false,
+  "use_ogb_load_patch": true,
+  "val_loss_min_delta": 0.0,
+  "val_loss_patience": 20
+}
+================================================================================
+FedGraph Differential Privacy module loaded (v1.0.0)
+✓ Differential Privacy support loaded
+Initialization start time recorded.
+NC_RESOURCE_MONITOR, mode=manual, snapshot_interval_rounds=1, snapshot_path=benchmark/results/nc_batch_size_convergence/nc_arxiv_5trainer_0hop_local_artifact_1gpu_fractional_seed42/runs/20260823_171256_ogbn-arxiv_FedAvg_bs16_seed42_beta10000p0/fedgraph_logs/resource_snapshots.jsonl
+2026-08-23 17:13:16,863	INFO worker.py:2015 -- Started a local Ray instance. View the dashboard at http://127.0.0.1:8265
+Changing method to FedAvg
+(pid=9467) FedGraph Differential Privacy module loaded (v1.0.0)
+(pid=9467) ✓ Differential Privacy support loaded
+(Trainer pid=9466) Loaded local artifact shard 3 from $HOME/fedgraph-artifacts/ogbn-arxiv-5-0hop-pilot/shards/trainer-003
+(Trainer pid=9466) Running GCN_arxiv
+Running GCN_arxiv
+//Log init_time: 19457.201 ms //end
+Pretrain start time recorded.
+//pretrain_time: 0.087 ms//end
+Train start time recorded.
+global_rounds 3
+Round 1: Global Val Loss = 3.7614
+Round 1: Global Val Accuracy = 0.0759
+Round 1: Training Time = 1.01s, Communication Time = 0.04s
+Round 2: Global Val Loss = 3.7552
+Round 2: Global Val Accuracy = 0.0745
+Round 2: Training Time = 0.02s, Communication Time = 0.04s
+Round 3: Global Val Loss = 3.7428
+Round 3: Global Val Accuracy = 0.0696
+Round 3: Training Time = 0.03s, Communication Time = 0.03s
+//train_time: 7631.729 ms//end
+
+================================================================================
+TIME BREAKDOWN (excluding initialization)
+================================================================================
+Total Pure Training Time (forward + gradient descent): 1.06 seconds
+Total Communication Time (parameter aggregation): 0.11 seconds
+Total Training + Communication Time: 7.63 seconds
+Training Time Percentage: 13.8%
+Communication Time Percentage: 1.5%
+Average Training Time per Round: 0.35 seconds
+Average Communication Time per Round: 0.04 seconds
+================================================================================
+[Pure Training Time] Dataset: ogbn-arxiv, Batch Size: 16, Trainers: 5, Hops: 0, IID Beta: 10000.0 => Pure Training Time = 1.06 seconds
+[Communication Time] Dataset: ogbn-arxiv, Batch Size: 16, Trainers: 5, Hops: 0, IID Beta: 10000.0 => Communication Time = 0.11 seconds
+average_final_test_loss, 3.7375164611657
+Average test accuracy, 0.06170401050064642
+
+================================================================================
+INDIVIDUAL TRAINER MEMORY USAGE
+================================================================================
+
+====================================================================================================
+TRAINER MEMORY vs LOCAL GRAPH SIZE
+====================================================================================================
+Trainer  Memory(MB)   Nodes    Edges    Memory/Node  Memory/Edge
+----------------------------------------------------------------------------------------------------
+0        1314.5       33869    41019    0.039        0.032
+1        1323.8       33869    43799    0.039        0.030
+2        1313.0       33869    50854    0.039        0.026
+3        1322.7       33868    48535    0.039        0.027
+4        1317.8       33868    49302    0.039        0.027
+====================================================================================================
+Total Memory Usage: 6591.8 MB (6.44 GB)
+Total Nodes: 169343, Total Edges: 233509
+Average Memory per Trainer: 1318.4 MB
+Average Nodes per Trainer: 33868.6
+Average Edges per Trainer: 46701.8
+Max Memory: 1323.8 MB (Trainer 1)
+Min Memory: 1313.0 MB (Trainer 2)
+Overall Memory/Node Ratio: 0.039 MB/node
+Overall Memory/Edge Ratio: 0.028 MB/edge
+====================================================================================================
+//Log Theoretical Pretrain Comm Cost: 0.00 MB //end
+//Log Theoretical Train Comm Cost: 5.01 MB //end
+
+================================================================================
+CSV FORMAT RESULT:
+DS,IID,BS,TotalTime[s],PureTrainingTime[s],CommTime[s],FinalAcc[%],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
+ogbn-arxiv,10000.0,16,23.0,1.1,0.1,0.06,5.0,1323.8,0.352,0.167,0
+================================================================================
+
+================================================================================
+EXPERIMENT SUMMARY
+================================================================================
+Dataset: ogbn-arxiv
+Method: FedAvg
+Trainers: 5
+IID Beta: 10000.0
+Batch Size: 16
+Hops: 0
+Total Execution Time: 23.05 seconds
+Pure Training Time: 1.06 seconds
+Communication Time: 0.11 seconds
+Pretrain Comm Cost: 0.00 MB
+Training Comm Cost: 5.01 MB
+================================================================================
+
+NC_RESOURCE_MONITOR_SUMMARY, snapshot_path=benchmark/results/nc_batch_size_convergence/nc_arxiv_5trainer_0hop_local_artifact_1gpu_fractional_seed42/runs/20260823_171256_ogbn-arxiv_FedAvg_bs16_seed42_beta10000p0/fedgraph_logs/resource_snapshots.jsonl, summary_path=benchmark/results/nc_batch_size_convergence/nc_arxiv_5trainer_0hop_local_artifact_1gpu_fractional_seed42/runs/20260823_171256_ogbn-arxiv_FedAvg_bs16_seed42_beta10000p0/fedgraph_logs/resource_snapshot_summary.json
+(pid=9596) FedGraph Differential Privacy module loaded (v1.0.0) [repeated 4x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)
+(pid=9596) ✓ Differential Privacy support loaded [repeated 4x across cluster]
+(Trainer pid=9596) Loaded local artifact shard 4 from $HOME/fedgraph-artifacts/ogbn-arxiv-5-0hop-pilot/shards/trainer-004 [repeated 4x across cluster]
+(Trainer pid=9596) Running GCN_arxiv [repeated 4x across cluster]

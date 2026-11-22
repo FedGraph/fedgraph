@@ -1,0 +1,11 @@
+batch_size,batch_label,target_val_acc,target_val_acc_percent,metric_name,runs,reached_runs,reach_rate,round_mean,round_std,local_steps_mean,train_comm_time_sec_mean,train_comm_time_sec_std
+2048,Batch 2048,0.5,50.0,val_acc,1,1,1.0,199.0,0.0,597.0,135.88000000000002,0.0
+2048,Batch 2048,0.52,52.0,val_acc,1,1,1.0,257.0,0.0,771.0,174.8099999999999,0.0
+2048,Batch 2048,0.54,54.0,val_acc,1,0,0.0,,,,,
+2048,Batch 2048,0.55,55.00000000000001,val_acc,1,0,0.0,,,,,
+2048,Batch 2048,0.56,56.00000000000001,val_acc,1,0,0.0,,,,,
+-1,Full batch,0.5,50.0,val_acc,1,1,1.0,158.0,0.0,474.0,121.28000000000019,0.0
+-1,Full batch,0.52,52.0,val_acc,1,1,1.0,220.0,0.0,660.0,168.54999999999995,0.0
+-1,Full batch,0.54,54.0,val_acc,1,0,0.0,,,,,
+-1,Full batch,0.55,55.00000000000001,val_acc,1,0,0.0,,,,,
+-1,Full batch,0.56,56.00000000000001,val_acc,1,0,0.0,,,,,

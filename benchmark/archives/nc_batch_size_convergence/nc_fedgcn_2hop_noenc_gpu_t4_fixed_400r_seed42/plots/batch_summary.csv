@@ -1,0 +1,3 @@
+batch_size,batch_label,runs,completed_runs,failed_runs,seeds,test_acc_final_mean,test_acc_final_std,test_loss_final_mean,val_acc_best_mean,val_acc_best_std,val_loss_best_mean,val_convergence_round_mean,val_convergence_time_sec_mean,total_pure_train_time_sec_mean,total_comm_time_sec_mean,total_train_comm_time_sec_mean,test_acc_delta_vs_full_batch,val_acc_best_delta_vs_full_batch
+1024,Batch 1024,1,1,0,42,0.5438553175729893,0.0,1.9060442158904258,0.5473,0.0,1.9613,,,210.34,14.1,281.35,,
+2048,Batch 2048,1,0,1,42,,,,,,,,,,,,,

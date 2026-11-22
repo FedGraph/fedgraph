@@ -1,0 +1,340 @@
+================================================================================
+Starting FedGraph NC batch-size convergence run: 20260625_202301_ogbn-arxiv_FedAvg_bs2048_seed42_beta10000p0
+{
+  "batch_size": 2048,
+  "dataset": "ogbn-arxiv",
+  "distribution_type": "average",
+  "global_rounds": 100,
+  "gpu": false,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_step": 3,
+  "method": "FedAvg",
+  "n_trainer": 5,
+  "num_cpus_per_trainer": 1,
+  "num_gpus_per_trainer": 0.0,
+  "num_hops": 0,
+  "num_layers": 2,
+  "seed": 42,
+  "use_ogb_load_patch": true
+}
+================================================================================
+config:  {'fedgraph_task': 'NC', 'dataset': 'ogbn-arxiv', 'method': 'FedAvg', 'iid_beta': 10000.0, 'distribution_type': 'average', 'global_rounds': 100, 'local_step': 3, 'learning_rate': 0.01, 'n_trainer': 5, 'batch_size': 2048, 'num_layers': 2, 'num_hops': 0, 'gpu': False, 'num_cpus_per_trainer': 1, 'num_gpus_per_trainer': 0.0, 'logdir': 'benchmark/results/nc_batch_size_convergence/ogbn_arxiv_fedavg_batch_size_100r_5clients_seed42/runs/20260625_202301_ogbn-arxiv_FedAvg_bs2048_seed42_beta10000p0/fedgraph_logs', 'use_encryption': False, 'use_huggingface': False, 'saveto_huggingface': False, 'use_cluster': False, 'use_lowrank': False, 'use_dp': False}
+Initialization start time recorded.
+--- Logging error ---
+Traceback (most recent call last):
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/logging/__init__.py", line 1163, in emit
+    stream.write(msg + self.terminator)
+  File "$HOME/fedgraph/benchmark/benchmark_NC_batch_size_convergence.py", line 85, in write
+    stream.write(data)
+ValueError: I/O operation on closed file.
+Call stack:
+  File "$HOME/fedgraph/benchmark/benchmark_NC_batch_size_convergence.py", line 865, in <module>
+    raise SystemExit(main())
+  File "$HOME/fedgraph/benchmark/benchmark_NC_batch_size_convergence.py", line 837, in main
+    summary = run_experiment(
+  File "$HOME/fedgraph/benchmark/benchmark_NC_batch_size_convergence.py", line 548, in run_experiment
+    run_fedgraph(to_fedgraph_args(config, log_dir))
+  File "$HOME/fedgraph/fedgraph/federated_methods.py", line 196, in run_fedgraph
+    run_NC(args, data)
+  File "$HOME/fedgraph/fedgraph/federated_methods.py", line 291, in run_NC
+    ray.init(**_ray_kwargs)
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/client_mode_hook.py", line 107, in wrapper
+    return func(*args, **kwargs)
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/worker.py", line 2003, in init
+    logger.info(
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/logging/__init__.py", line 1539, in info
+    self._log(INFO, msg, args, **kwargs)
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/logging/__init__.py", line 1684, in _log
+    self.handle(record)
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/logging/__init__.py", line 1700, in handle
+    self.callHandlers(record)
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/logging/__init__.py", line 1762, in callHandlers
+    hdlr.handle(record)
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/logging/__init__.py", line 1028, in handle
+    self.emit(record)
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/log.py", line 64, in emit
+    logging._StderrHandler.emit(self, record)
+Message: 'Started a local Ray instance. View the dashboard at %s%s%s %s%s'
+Arguments: ('\x1b[1m', '\x1b[32m', 'http://127.0.0.1:8265', '\x1b[39m', '\x1b[22m')
+Changing method to FedAvg
+(pid=22973) FedGraph Differential Privacy module loaded (v1.0.0)
+(pid=22973) ✓ Differential Privacy support loaded
+Running GCN_arxiv
+(Trainer pid=22973) Running GCN_arxiv
+//Log init_time: 7358.054 ms //end
+Pretrain start time recorded.
+//pretrain_time: 0.05 ms//end
+Train start time recorded.
+global_rounds 100
+Round 1: Global Test Accuracy = 0.1997
+Round 1: Training Time = 9.23s, Communication Time = 0.01s
+Round 2: Global Test Accuracy = 0.2949
+Round 2: Training Time = 9.36s, Communication Time = 0.01s
+Round 3: Global Test Accuracy = 0.3370
+Round 3: Training Time = 9.60s, Communication Time = 0.01s
+Round 4: Global Test Accuracy = 0.3722
+Round 4: Training Time = 9.85s, Communication Time = 0.01s
+Round 5: Global Test Accuracy = 0.3941
+Round 5: Training Time = 9.71s, Communication Time = 0.01s
+Round 6: Global Test Accuracy = 0.4111
+Round 6: Training Time = 9.80s, Communication Time = 0.01s
+Round 7: Global Test Accuracy = 0.4237
+Round 7: Training Time = 9.66s, Communication Time = 0.02s
+Round 8: Global Test Accuracy = 0.4324
+Round 8: Training Time = 9.66s, Communication Time = 0.01s
+Round 9: Global Test Accuracy = 0.4421
+Round 9: Training Time = 9.64s, Communication Time = 0.01s
+Round 10: Global Test Accuracy = 0.4493
+Round 10: Training Time = 9.63s, Communication Time = 0.01s
+Round 11: Global Test Accuracy = 0.4557
+Round 11: Training Time = 9.63s, Communication Time = 0.01s
+Round 12: Global Test Accuracy = 0.4609
+Round 12: Training Time = 9.71s, Communication Time = 0.01s
+Round 13: Global Test Accuracy = 0.4665
+Round 13: Training Time = 9.71s, Communication Time = 0.01s
+Round 14: Global Test Accuracy = 0.4703
+Round 14: Training Time = 9.78s, Communication Time = 0.01s
+Round 15: Global Test Accuracy = 0.4745
+Round 15: Training Time = 9.77s, Communication Time = 0.01s
+Round 16: Global Test Accuracy = 0.4773
+Round 16: Training Time = 9.79s, Communication Time = 0.01s
+Round 17: Global Test Accuracy = 0.4811
+Round 17: Training Time = 9.79s, Communication Time = 0.01s
+Round 18: Global Test Accuracy = 0.4849
+Round 18: Training Time = 9.84s, Communication Time = 0.01s
+Round 19: Global Test Accuracy = 0.4885
+Round 19: Training Time = 9.70s, Communication Time = 0.01s
+Round 20: Global Test Accuracy = 0.4912
+Round 20: Training Time = 9.78s, Communication Time = 0.01s
+Round 21: Global Test Accuracy = 0.4946
+Round 21: Training Time = 9.83s, Communication Time = 0.01s
+Round 22: Global Test Accuracy = 0.4973
+Round 22: Training Time = 9.86s, Communication Time = 0.01s
+Round 23: Global Test Accuracy = 0.4993
+Round 23: Training Time = 9.83s, Communication Time = 0.01s
+Round 24: Global Test Accuracy = 0.5023
+Round 24: Training Time = 9.84s, Communication Time = 0.01s
+Round 25: Global Test Accuracy = 0.5043
+Round 25: Training Time = 9.66s, Communication Time = 0.01s
+Round 26: Global Test Accuracy = 0.5068
+Round 26: Training Time = 9.79s, Communication Time = 0.01s
+Round 27: Global Test Accuracy = 0.5088
+Round 27: Training Time = 9.87s, Communication Time = 0.01s
+Round 28: Global Test Accuracy = 0.5114
+Round 28: Training Time = 9.92s, Communication Time = 0.01s
+Round 29: Global Test Accuracy = 0.5134
+Round 29: Training Time = 9.84s, Communication Time = 0.01s
+Round 30: Global Test Accuracy = 0.5151
+Round 30: Training Time = 9.89s, Communication Time = 0.01s
+Round 31: Global Test Accuracy = 0.5164
+Round 31: Training Time = 9.78s, Communication Time = 0.01s
+Round 32: Global Test Accuracy = 0.5182
+Round 32: Training Time = 9.83s, Communication Time = 0.01s
+Round 33: Global Test Accuracy = 0.5201
+Round 33: Training Time = 9.81s, Communication Time = 0.01s
+Round 34: Global Test Accuracy = 0.5217
+Round 34: Training Time = 9.81s, Communication Time = 0.01s
+Round 35: Global Test Accuracy = 0.5231
+Round 35: Training Time = 9.80s, Communication Time = 0.01s
+Round 36: Global Test Accuracy = 0.5241
+Round 36: Training Time = 9.90s, Communication Time = 0.01s
+Round 37: Global Test Accuracy = 0.5262
+Round 37: Training Time = 9.88s, Communication Time = 0.01s
+Round 38: Global Test Accuracy = 0.5277
+Round 38: Training Time = 9.97s, Communication Time = 0.01s
+Round 39: Global Test Accuracy = 0.5287
+Round 39: Training Time = 9.89s, Communication Time = 0.01s
+Round 40: Global Test Accuracy = 0.5303
+Round 40: Training Time = 9.89s, Communication Time = 0.01s
+Round 41: Global Test Accuracy = 0.5318
+Round 41: Training Time = 9.78s, Communication Time = 0.01s
+Round 42: Global Test Accuracy = 0.5327
+Round 42: Training Time = 9.84s, Communication Time = 0.01s
+Round 43: Global Test Accuracy = 0.5335
+Round 43: Training Time = 9.87s, Communication Time = 0.01s
+Round 44: Global Test Accuracy = 0.5341
+Round 44: Training Time = 9.88s, Communication Time = 0.01s
+Round 45: Global Test Accuracy = 0.5353
+Round 45: Training Time = 9.84s, Communication Time = 0.01s
+Round 46: Global Test Accuracy = 0.5367
+Round 46: Training Time = 9.99s, Communication Time = 0.01s
+Round 47: Global Test Accuracy = 0.5375
+Round 47: Training Time = 9.94s, Communication Time = 0.01s
+Round 48: Global Test Accuracy = 0.5382
+Round 48: Training Time = 9.90s, Communication Time = 0.01s
+Round 49: Global Test Accuracy = 0.5393
+Round 49: Training Time = 9.92s, Communication Time = 0.01s
+Round 50: Global Test Accuracy = 0.5398
+Round 50: Training Time = 9.86s, Communication Time = 0.01s
+Round 51: Global Test Accuracy = 0.5407
+Round 51: Training Time = 9.87s, Communication Time = 0.01s
+Round 52: Global Test Accuracy = 0.5413
+Round 52: Training Time = 9.94s, Communication Time = 0.01s
+Round 53: Global Test Accuracy = 0.5416
+Round 53: Training Time = 9.85s, Communication Time = 0.01s
+Round 54: Global Test Accuracy = 0.5425
+Round 54: Training Time = 9.90s, Communication Time = 0.01s
+Round 55: Global Test Accuracy = 0.5436
+Round 55: Training Time = 9.84s, Communication Time = 0.01s
+Round 56: Global Test Accuracy = 0.5441
+Round 56: Training Time = 9.94s, Communication Time = 0.01s
+Round 57: Global Test Accuracy = 0.5446
+Round 57: Training Time = 9.92s, Communication Time = 0.01s
+Round 58: Global Test Accuracy = 0.5451
+Round 58: Training Time = 9.91s, Communication Time = 0.01s
+Round 59: Global Test Accuracy = 0.5456
+Round 59: Training Time = 9.91s, Communication Time = 0.01s
+Round 60: Global Test Accuracy = 0.5460
+Round 60: Training Time = 9.99s, Communication Time = 0.01s
+Round 61: Global Test Accuracy = 0.5463
+Round 61: Training Time = 9.90s, Communication Time = 0.01s
+Round 62: Global Test Accuracy = 0.5469
+Round 62: Training Time = 9.95s, Communication Time = 0.01s
+Round 63: Global Test Accuracy = 0.5475
+Round 63: Training Time = 9.93s, Communication Time = 0.01s
+Round 64: Global Test Accuracy = 0.5476
+Round 64: Training Time = 9.89s, Communication Time = 0.01s
+Round 65: Global Test Accuracy = 0.5482
+Round 65: Training Time = 9.80s, Communication Time = 0.01s
+Round 66: Global Test Accuracy = 0.5484
+Round 66: Training Time = 10.00s, Communication Time = 0.01s
+Round 67: Global Test Accuracy = 0.5489
+Round 67: Training Time = 9.83s, Communication Time = 0.01s
+Round 68: Global Test Accuracy = 0.5492
+Round 68: Training Time = 9.87s, Communication Time = 0.01s
+Round 69: Global Test Accuracy = 0.5493
+Round 69: Training Time = 9.77s, Communication Time = 0.01s
+Round 70: Global Test Accuracy = 0.5499
+Round 70: Training Time = 10.00s, Communication Time = 0.01s
+Round 71: Global Test Accuracy = 0.5505
+Round 71: Training Time = 9.83s, Communication Time = 0.01s
+Round 72: Global Test Accuracy = 0.5510
+Round 72: Training Time = 9.89s, Communication Time = 0.01s
+Round 73: Global Test Accuracy = 0.5516
+Round 73: Training Time = 9.91s, Communication Time = 0.01s
+Round 74: Global Test Accuracy = 0.5521
+Round 74: Training Time = 9.86s, Communication Time = 0.01s
+Round 75: Global Test Accuracy = 0.5525
+Round 75: Training Time = 9.92s, Communication Time = 0.01s
+Round 76: Global Test Accuracy = 0.5526
+Round 76: Training Time = 9.75s, Communication Time = 0.01s
+Round 77: Global Test Accuracy = 0.5529
+Round 77: Training Time = 9.89s, Communication Time = 0.01s
+Round 78: Global Test Accuracy = 0.5531
+Round 78: Training Time = 9.89s, Communication Time = 0.01s
+Round 79: Global Test Accuracy = 0.5538
+Round 79: Training Time = 9.84s, Communication Time = 0.01s
+Round 80: Global Test Accuracy = 0.5541
+Round 80: Training Time = 9.91s, Communication Time = 0.01s
+Round 81: Global Test Accuracy = 0.5542
+Round 81: Training Time = 9.92s, Communication Time = 0.01s
+Round 82: Global Test Accuracy = 0.5550
+Round 82: Training Time = 9.88s, Communication Time = 0.01s
+Round 83: Global Test Accuracy = 0.5551
+Round 83: Training Time = 9.95s, Communication Time = 0.01s
+Round 84: Global Test Accuracy = 0.5555
+Round 84: Training Time = 9.87s, Communication Time = 0.01s
+Round 85: Global Test Accuracy = 0.5560
+Round 85: Training Time = 9.87s, Communication Time = 0.01s
+Round 86: Global Test Accuracy = 0.5564
+Round 86: Training Time = 9.82s, Communication Time = 0.01s
+Round 87: Global Test Accuracy = 0.5566
+Round 87: Training Time = 9.89s, Communication Time = 0.01s
+Round 88: Global Test Accuracy = 0.5566
+Round 88: Training Time = 9.95s, Communication Time = 0.01s
+Round 89: Global Test Accuracy = 0.5570
+Round 89: Training Time = 9.82s, Communication Time = 0.01s
+Round 90: Global Test Accuracy = 0.5577
+Round 90: Training Time = 9.90s, Communication Time = 0.01s
+Round 91: Global Test Accuracy = 0.5577
+Round 91: Training Time = 9.84s, Communication Time = 0.01s
+Round 92: Global Test Accuracy = 0.5577
+Round 92: Training Time = 9.86s, Communication Time = 0.01s
+Round 93: Global Test Accuracy = 0.5581
+Round 93: Training Time = 9.79s, Communication Time = 0.01s
+Round 94: Global Test Accuracy = 0.5584
+Round 94: Training Time = 9.89s, Communication Time = 0.01s
+Round 95: Global Test Accuracy = 0.5587
+Round 95: Training Time = 9.82s, Communication Time = 0.01s
+Round 96: Global Test Accuracy = 0.5588
+Round 96: Training Time = 9.84s, Communication Time = 0.01s
+Round 97: Global Test Accuracy = 0.5591
+Round 97: Training Time = 9.88s, Communication Time = 0.01s
+Round 98: Global Test Accuracy = 0.5592
+Round 98: Training Time = 9.86s, Communication Time = 0.01s
+Round 99: Global Test Accuracy = 0.5593
+Round 99: Training Time = 9.87s, Communication Time = 0.01s
+Round 100: Global Test Accuracy = 0.5596
+Round 100: Training Time = 9.97s, Communication Time = 0.01s
+//train_time: 1014976.5 ms//end
+
+================================================================================
+TIME BREAKDOWN (excluding initialization)
+================================================================================
+Total Pure Training Time (forward + gradient descent): 983.52 seconds
+Total Communication Time (parameter aggregation): 1.29 seconds
+Total Training + Communication Time: 1014.98 seconds
+Training Time Percentage: 96.9%
+Communication Time Percentage: 0.1%
+Average Training Time per Round: 9.84 seconds
+Average Communication Time per Round: 0.01 seconds
+================================================================================
+[Pure Training Time] Dataset: ogbn-arxiv, Batch Size: 2048, Trainers: 5, Hops: 0, IID Beta: 10000.0 => Pure Training Time = 983.52 seconds
+[Communication Time] Dataset: ogbn-arxiv, Batch Size: 2048, Trainers: 5, Hops: 0, IID Beta: 10000.0 => Communication Time = 1.29 seconds
+average_final_test_loss, 1.7668003753642252
+Average test accuracy, 0.5596362364463099
+
+================================================================================
+INDIVIDUAL TRAINER MEMORY USAGE
+================================================================================
+
+====================================================================================================
+TRAINER MEMORY vs LOCAL GRAPH SIZE
+====================================================================================================
+Trainer  Memory(MB)   Nodes    Edges    Memory/Node  Memory/Edge
+----------------------------------------------------------------------------------------------------
+0        597.7        33876    93792    0.018        0.006
+1        598.1        33849    83512    0.018        0.007
+2        689.0        33913    90572    0.020        0.008
+3        600.2        33759    89264    0.018        0.007
+4        605.4        33946    106824   0.018        0.006
+====================================================================================================
+Total Memory Usage: 3090.5 MB (3.02 GB)
+Total Nodes: 169343, Total Edges: 463964
+Average Memory per Trainer: 618.1 MB
+Average Nodes per Trainer: 33868.6
+Average Edges per Trainer: 92792.8
+Max Memory: 689.0 MB (Trainer 2)
+Min Memory: 597.7 MB (Trainer 0)
+Overall Memory/Node Ratio: 0.018 MB/node
+Overall Memory/Edge Ratio: 0.007 MB/edge
+====================================================================================================
+//Log Theoretical Pretrain Comm Cost: 0.00 MB //end
+//Log Theoretical Train Comm Cost: 167.14 MB //end
+
+================================================================================
+CSV FORMAT RESULT:
+DS,IID,BS,TotalTime[s],PureTrainingTime[s],CommTime[s],FinalAcc[%],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
+ogbn-arxiv,10000.0,2048,1019.3,983.5,1.3,0.56,167.1,689.0,9.835,0.167,0
+================================================================================
+
+================================================================================
+EXPERIMENT SUMMARY
+================================================================================
+Dataset: ogbn-arxiv
+Method: FedAvg
+Trainers: 5
+IID Beta: 10000.0
+Batch Size: 2048
+Hops: 0
+Total Execution Time: 1019.25 seconds
+Pure Training Time: 983.52 seconds
+Communication Time: 1.29 seconds
+Pretrain Comm Cost: 0.00 MB
+Training Comm Cost: 167.14 MB
+================================================================================
+
+(pid=22969) FedGraph Differential Privacy module loaded (v1.0.0) [repeated 4x across cluster]
+(pid=22969) ✓ Differential Privacy support loaded [repeated 4x across cluster]
+(Trainer pid=22975) Running GCN_arxiv [repeated 4x across cluster]

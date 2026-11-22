@@ -1,0 +1,455 @@
+================================================================================
+Starting FedGraph NC batch-size convergence run: 20260625_184037_ogbn-arxiv_FedAvg_bs256_seed42_beta10000p0
+{
+  "batch_size": 256,
+  "dataset": "ogbn-arxiv",
+  "distribution_type": "average",
+  "global_rounds": 100,
+  "gpu": false,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_step": 3,
+  "method": "FedAvg",
+  "n_trainer": 5,
+  "num_cpus_per_trainer": 1,
+  "num_gpus_per_trainer": 0.0,
+  "num_hops": 0,
+  "num_layers": 2,
+  "seed": 42,
+  "use_ogb_load_patch": true
+}
+================================================================================
+FedGraph Differential Privacy module loaded (v1.0.0)
+✓ Differential Privacy support loaded
+config:  {'fedgraph_task': 'NC', 'dataset': 'ogbn-arxiv', 'method': 'FedAvg', 'iid_beta': 10000.0, 'distribution_type': 'average', 'global_rounds': 100, 'local_step': 3, 'learning_rate': 0.01, 'n_trainer': 5, 'batch_size': 256, 'num_layers': 2, 'num_hops': 0, 'gpu': False, 'num_cpus_per_trainer': 1, 'num_gpus_per_trainer': 0.0, 'logdir': 'benchmark/results/nc_batch_size_convergence/ogbn_arxiv_fedavg_batch_size_100r_5clients_seed42/runs/20260625_184037_ogbn-arxiv_FedAvg_bs256_seed42_beta10000p0/fedgraph_logs', 'use_encryption': False, 'use_huggingface': False, 'saveto_huggingface': False, 'use_cluster': False, 'use_lowrank': False, 'use_dp': False}
+ogbn-arxiv has been updated.
+Downloading http://snap.stanford.edu/ogb/data/nodeproppred/arxiv.zip
+
+  0%|                                                   | 0/81 [00:00<?, ?it/s]
+Downloaded 0.00 GB:   0%|                               | 0/81 [00:02<?, ?it/s]
+Downloaded 0.00 GB:   1%|2                      | 1/81 [00:02<03:09,  2.37s/it]
+Downloaded 0.00 GB:   1%|2                      | 1/81 [00:03<03:09,  2.37s/it]
+Downloaded 0.00 GB:   2%|5                      | 2/81 [00:03<01:50,  1.41s/it]
+Downloaded 0.00 GB:   2%|5                      | 2/81 [00:03<01:50,  1.41s/it]
+Downloaded 0.00 GB:   4%|8                      | 3/81 [00:03<01:15,  1.03it/s]
+Downloaded 0.00 GB:   4%|8                      | 3/81 [00:03<01:15,  1.03it/s]
+Downloaded 0.00 GB:   5%|#1                     | 4/81 [00:03<00:54,  1.41it/s]
+Downloaded 0.00 GB:   5%|#1                     | 4/81 [00:04<00:54,  1.41it/s]
+Downloaded 0.00 GB:   6%|#4                     | 5/81 [00:04<00:45,  1.66it/s]
+Downloaded 0.01 GB:   6%|#4                     | 5/81 [00:04<00:45,  1.66it/s]
+Downloaded 0.01 GB:   7%|#7                     | 6/81 [00:04<00:33,  2.21it/s]
+Downloaded 0.01 GB:   7%|#7                     | 6/81 [00:04<00:33,  2.21it/s]
+Downloaded 0.01 GB:   9%|#9                     | 7/81 [00:04<00:29,  2.51it/s]
+Downloaded 0.01 GB:   9%|#9                     | 7/81 [00:04<00:29,  2.51it/s]
+Downloaded 0.01 GB:  10%|##2                    | 8/81 [00:04<00:23,  3.13it/s]
+Downloaded 0.01 GB:  10%|##2                    | 8/81 [00:05<00:23,  3.13it/s]
+Downloaded 0.01 GB:  11%|##5                    | 9/81 [00:05<00:19,  3.76it/s]
+Downloaded 0.01 GB:  11%|##5                    | 9/81 [00:05<00:19,  3.76it/s]
+Downloaded 0.01 GB:  12%|##7                   | 10/81 [00:05<00:16,  4.37it/s]
+Downloaded 0.01 GB:  12%|##7                   | 10/81 [00:05<00:16,  4.37it/s]
+Downloaded 0.01 GB:  14%|##9                   | 11/81 [00:05<00:14,  4.98it/s]
+Downloaded 0.01 GB:  14%|##9                   | 11/81 [00:05<00:14,  4.98it/s]
+Downloaded 0.01 GB:  14%|##9                   | 11/81 [00:05<00:14,  4.98it/s]
+Downloaded 0.01 GB:  16%|###5                  | 13/81 [00:05<00:09,  6.90it/s]
+Downloaded 0.01 GB:  16%|###5                  | 13/81 [00:05<00:09,  6.90it/s]
+Downloaded 0.01 GB:  17%|###8                  | 14/81 [00:05<00:09,  6.96it/s]
+Downloaded 0.01 GB:  17%|###8                  | 14/81 [00:05<00:09,  6.96it/s]
+Downloaded 0.02 GB:  17%|###8                  | 14/81 [00:05<00:09,  6.96it/s]
+Downloaded 0.02 GB:  20%|####3                 | 16/81 [00:05<00:07,  8.66it/s]
+Downloaded 0.02 GB:  20%|####3                 | 16/81 [00:05<00:07,  8.66it/s]
+Downloaded 0.02 GB:  20%|####3                 | 16/81 [00:05<00:07,  8.66it/s]
+Downloaded 0.02 GB:  22%|####8                 | 18/81 [00:05<00:06, 10.01it/s]
+Downloaded 0.02 GB:  22%|####8                 | 18/81 [00:05<00:06, 10.01it/s]
+Downloaded 0.02 GB:  22%|####8                 | 18/81 [00:06<00:06, 10.01it/s]
+Downloaded 0.02 GB:  25%|#####4                | 20/81 [00:06<00:05, 11.05it/s]
+Downloaded 0.02 GB:  25%|#####4                | 20/81 [00:06<00:05, 11.05it/s]
+Downloaded 0.02 GB:  25%|#####4                | 20/81 [00:06<00:05, 11.05it/s]
+Downloaded 0.02 GB:  27%|#####9                | 22/81 [00:06<00:04, 12.70it/s]
+Downloaded 0.02 GB:  27%|#####9                | 22/81 [00:06<00:04, 12.70it/s]
+Downloaded 0.02 GB:  27%|#####9                | 22/81 [00:06<00:04, 12.70it/s]
+Downloaded 0.02 GB:  27%|#####9                | 22/81 [00:06<00:04, 12.70it/s]
+Downloaded 0.02 GB:  31%|######7               | 25/81 [00:06<00:04, 13.99it/s]
+Downloaded 0.03 GB:  31%|######7               | 25/81 [00:06<00:04, 13.99it/s]
+Downloaded 0.03 GB:  31%|######7               | 25/81 [00:06<00:04, 13.99it/s]
+Downloaded 0.03 GB:  31%|######7               | 25/81 [00:06<00:04, 13.99it/s]
+Downloaded 0.03 GB:  35%|#######6              | 28/81 [00:06<00:03, 15.67it/s]
+Downloaded 0.03 GB:  35%|#######6              | 28/81 [00:06<00:03, 15.67it/s]
+Downloaded 0.03 GB:  35%|#######6              | 28/81 [00:06<00:03, 15.67it/s]
+Downloaded 0.03 GB:  37%|########1             | 30/81 [00:06<00:03, 15.22it/s]
+Downloaded 0.03 GB:  37%|########1             | 30/81 [00:06<00:03, 15.22it/s]
+Downloaded 0.03 GB:  37%|########1             | 30/81 [00:06<00:03, 15.22it/s]
+Downloaded 0.03 GB:  37%|########1             | 30/81 [00:06<00:03, 15.22it/s]
+Downloaded 0.03 GB:  41%|########9             | 33/81 [00:06<00:02, 16.52it/s]
+Downloaded 0.03 GB:  41%|########9             | 33/81 [00:06<00:02, 16.52it/s]
+Downloaded 0.03 GB:  41%|########9             | 33/81 [00:06<00:02, 16.52it/s]
+Downloaded 0.03 GB:  43%|#########5            | 35/81 [00:06<00:02, 16.01it/s]
+Downloaded 0.04 GB:  43%|#########5            | 35/81 [00:06<00:02, 16.01it/s]
+Downloaded 0.04 GB:  43%|#########5            | 35/81 [00:06<00:02, 16.01it/s]
+Downloaded 0.04 GB:  43%|#########5            | 35/81 [00:07<00:02, 16.01it/s]
+Downloaded 0.04 GB:  47%|##########3           | 38/81 [00:07<00:02, 17.05it/s]
+Downloaded 0.04 GB:  47%|##########3           | 38/81 [00:07<00:02, 17.05it/s]
+Downloaded 0.04 GB:  47%|##########3           | 38/81 [00:07<00:02, 17.05it/s]
+Downloaded 0.04 GB:  49%|##########8           | 40/81 [00:07<00:02, 15.67it/s]
+Downloaded 0.04 GB:  49%|##########8           | 40/81 [00:07<00:02, 15.67it/s]
+Downloaded 0.04 GB:  49%|##########8           | 40/81 [00:07<00:02, 15.67it/s]
+Downloaded 0.04 GB:  52%|###########4          | 42/81 [00:07<00:02, 14.91it/s]
+Downloaded 0.04 GB:  52%|###########4          | 42/81 [00:07<00:02, 14.91it/s]
+Downloaded 0.04 GB:  52%|###########4          | 42/81 [00:07<00:02, 14.91it/s]
+Downloaded 0.04 GB:  54%|###########9          | 44/81 [00:07<00:03, 11.40it/s]
+Downloaded 0.04 GB:  54%|###########9          | 44/81 [00:07<00:03, 11.40it/s]
+Downloaded 0.04 GB:  54%|###########9          | 44/81 [00:07<00:03, 11.40it/s]
+Downloaded 0.04 GB:  57%|############4         | 46/81 [00:07<00:03, 11.66it/s]
+Downloaded 0.05 GB:  57%|############4         | 46/81 [00:07<00:03, 11.66it/s]
+Downloaded 0.05 GB:  57%|############4         | 46/81 [00:08<00:03, 11.66it/s]
+Downloaded 0.05 GB:  59%|#############         | 48/81 [00:08<00:03,  9.83it/s]
+Downloaded 0.05 GB:  59%|#############         | 48/81 [00:08<00:03,  9.83it/s]
+Downloaded 0.05 GB:  59%|#############         | 48/81 [00:08<00:03,  9.83it/s]
+Downloaded 0.05 GB:  62%|#############5        | 50/81 [00:08<00:02, 10.45it/s]
+Downloaded 0.05 GB:  62%|#############5        | 50/81 [00:08<00:02, 10.45it/s]
+Downloaded 0.05 GB:  62%|#############5        | 50/81 [00:08<00:02, 10.45it/s]
+Downloaded 0.05 GB:  64%|##############1       | 52/81 [00:08<00:03,  9.26it/s]
+Downloaded 0.05 GB:  64%|##############1       | 52/81 [00:08<00:03,  9.26it/s]
+Downloaded 0.05 GB:  64%|##############1       | 52/81 [00:08<00:03,  9.26it/s]
+Downloaded 0.05 GB:  67%|##############6       | 54/81 [00:08<00:02,  9.97it/s]
+Downloaded 0.05 GB:  67%|##############6       | 54/81 [00:08<00:02,  9.97it/s]
+Downloaded 0.05 GB:  67%|##############6       | 54/81 [00:08<00:02,  9.97it/s]
+Downloaded 0.05 GB:  69%|###############2      | 56/81 [00:08<00:02,  8.97it/s]
+Downloaded 0.06 GB:  69%|###############2      | 56/81 [00:09<00:02,  8.97it/s]
+Downloaded 0.06 GB:  69%|###############2      | 56/81 [00:09<00:02,  8.97it/s]
+Downloaded 0.06 GB:  72%|###############7      | 58/81 [00:09<00:02,  9.75it/s]
+Downloaded 0.06 GB:  72%|###############7      | 58/81 [00:09<00:02,  9.75it/s]
+Downloaded 0.06 GB:  72%|###############7      | 58/81 [00:09<00:02,  9.75it/s]
+Downloaded 0.06 GB:  74%|################2     | 60/81 [00:09<00:02, 10.14it/s]
+Downloaded 0.06 GB:  74%|################2     | 60/81 [00:09<00:02, 10.14it/s]
+Downloaded 0.06 GB:  74%|################2     | 60/81 [00:09<00:02, 10.14it/s]
+Downloaded 0.06 GB:  77%|################8     | 62/81 [00:09<00:02,  9.38it/s]
+Downloaded 0.06 GB:  77%|################8     | 62/81 [00:09<00:02,  9.38it/s]
+Downloaded 0.06 GB:  78%|#################1    | 63/81 [00:09<00:02,  8.95it/s]
+Downloaded 0.06 GB:  78%|#################1    | 63/81 [00:09<00:02,  8.95it/s]
+Downloaded 0.06 GB:  78%|#################1    | 63/81 [00:09<00:02,  8.95it/s]
+Downloaded 0.06 GB:  80%|#################6    | 65/81 [00:09<00:01,  9.85it/s]
+Downloaded 0.06 GB:  80%|#################6    | 65/81 [00:10<00:01,  9.85it/s]
+Downloaded 0.07 GB:  80%|#################6    | 65/81 [00:10<00:01,  9.85it/s]
+Downloaded 0.07 GB:  83%|##################1   | 67/81 [00:10<00:01, 10.30it/s]
+Downloaded 0.07 GB:  83%|##################1   | 67/81 [00:10<00:01, 10.30it/s]
+Downloaded 0.07 GB:  83%|##################1   | 67/81 [00:10<00:01, 10.30it/s]
+Downloaded 0.07 GB:  85%|##################7   | 69/81 [00:10<00:01,  9.35it/s]
+Downloaded 0.07 GB:  85%|##################7   | 69/81 [00:10<00:01,  9.35it/s]
+Downloaded 0.07 GB:  85%|##################7   | 69/81 [00:10<00:01,  9.35it/s]
+Downloaded 0.07 GB:  88%|###################2  | 71/81 [00:10<00:00, 10.16it/s]
+Downloaded 0.07 GB:  88%|###################2  | 71/81 [00:10<00:00, 10.16it/s]
+Downloaded 0.07 GB:  88%|###################2  | 71/81 [00:10<00:00, 10.16it/s]
+Downloaded 0.07 GB:  90%|###################8  | 73/81 [00:10<00:00, 10.42it/s]
+Downloaded 0.07 GB:  90%|###################8  | 73/81 [00:10<00:00, 10.42it/s]
+Downloaded 0.07 GB:  90%|###################8  | 73/81 [00:10<00:00, 10.42it/s]
+Downloaded 0.07 GB:  93%|####################3 | 75/81 [00:10<00:00,  9.57it/s]
+Downloaded 0.07 GB:  93%|####################3 | 75/81 [00:10<00:00,  9.57it/s]
+Downloaded 0.08 GB:  93%|####################3 | 75/81 [00:11<00:00,  9.57it/s]
+Downloaded 0.08 GB:  95%|####################9 | 77/81 [00:11<00:00, 10.28it/s]
+Downloaded 0.08 GB:  95%|####################9 | 77/81 [00:11<00:00, 10.28it/s]
+Downloaded 0.08 GB:  95%|####################9 | 77/81 [00:11<00:00, 10.28it/s]
+Downloaded 0.08 GB:  98%|#####################4| 79/81 [00:11<00:00, 10.50it/s]
+Downloaded 0.08 GB:  98%|#####################4| 79/81 [00:11<00:00, 10.50it/s]
+Downloaded 0.08 GB:  98%|#####################4| 79/81 [00:11<00:00, 10.50it/s]
+Downloaded 0.08 GB: 100%|######################| 81/81 [00:11<00:00,  7.14it/s]
+Extracting dataset/arxiv.zip
+Processing...
+Loading necessary files...
+This might take a while.
+Processing graphs...
+
+  0%|                                                    | 0/1 [00:00<?, ?it/s]
+100%|#########################################| 1/1 [00:00<00:00, 28728.11it/s]
+Converting graphs into PyG objects...
+
+  0%|                                                    | 0/1 [00:00<?, ?it/s]
+100%|###########################################| 1/1 [00:00<00:00, 400.68it/s]
+$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ogb/nodeproppred/dataset_pyg.py:187: UserWarning: The given NumPy array is not writable, and PyTorch does not support non-writable tensors. This means writing to this tensor will result in undefined behavior. You may want to copy the array to protect its data or make it writable before converting it to a tensor. This type of warning will be suppressed for the rest of this program. (Triggered internally at /pytorch/torch/csrc/utils/tensor_numpy.cpp:203.)
+  data.y = torch.from_numpy(node_label).to(torch.long)
+Saving...
+Done!
+Initialization start time recorded.
+2026-06-25 18:41:00,608	INFO worker.py:2003 -- Started a local Ray instance. View the dashboard at http://127.0.0.1:8265
+$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/worker.py:2051: FutureWarning: Tip: In future versions of Ray, Ray will no longer override accelerator visible devices env var if num_gpus=0 or num_gpus=None (default). To enable this behavior and turn off this error message, set RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO=0
+  warnings.warn(
+Changing method to FedAvg
+(pid=3902) FedGraph Differential Privacy module loaded (v1.0.0)
+(pid=3902) ✓ Differential Privacy support loaded
+(Trainer pid=3898) Running GCN_arxiv
+Running GCN_arxiv
+//Log init_time: 8381.171999999999 ms //end
+Pretrain start time recorded.
+//pretrain_time: 0.043000000000000003 ms//end
+Train start time recorded.
+global_rounds 100
+Round 1: Global Test Accuracy = 0.3981
+Round 1: Training Time = 27.45s, Communication Time = 0.01s
+Round 2: Global Test Accuracy = 0.4386
+Round 2: Training Time = 27.01s, Communication Time = 0.01s
+Round 3: Global Test Accuracy = 0.4505
+Round 3: Training Time = 27.91s, Communication Time = 0.01s
+Round 4: Global Test Accuracy = 0.4567
+Round 4: Training Time = 27.73s, Communication Time = 0.01s
+Round 5: Global Test Accuracy = 0.4610
+Round 5: Training Time = 28.29s, Communication Time = 0.01s
+Round 6: Global Test Accuracy = 0.4643
+Round 6: Training Time = 28.75s, Communication Time = 0.01s
+Round 7: Global Test Accuracy = 0.4673
+Round 7: Training Time = 28.83s, Communication Time = 0.01s
+Round 8: Global Test Accuracy = 0.4701
+Round 8: Training Time = 28.52s, Communication Time = 0.01s
+Round 9: Global Test Accuracy = 0.4733
+Round 9: Training Time = 28.76s, Communication Time = 0.01s
+Round 10: Global Test Accuracy = 0.4752
+Round 10: Training Time = 28.49s, Communication Time = 0.01s
+Round 11: Global Test Accuracy = 0.4784
+Round 11: Training Time = 28.86s, Communication Time = 0.01s
+Round 12: Global Test Accuracy = 0.4806
+Round 12: Training Time = 29.09s, Communication Time = 0.01s
+Round 13: Global Test Accuracy = 0.4818
+Round 13: Training Time = 28.66s, Communication Time = 0.01s
+Round 14: Global Test Accuracy = 0.4846
+Round 14: Training Time = 28.62s, Communication Time = 0.01s
+Round 15: Global Test Accuracy = 0.4856
+Round 15: Training Time = 28.86s, Communication Time = 0.01s
+Round 16: Global Test Accuracy = 0.4879
+Round 16: Training Time = 28.55s, Communication Time = 0.01s
+Round 17: Global Test Accuracy = 0.4889
+Round 17: Training Time = 28.68s, Communication Time = 0.01s
+Round 18: Global Test Accuracy = 0.4903
+Round 18: Training Time = 28.96s, Communication Time = 0.01s
+Round 19: Global Test Accuracy = 0.4914
+Round 19: Training Time = 30.17s, Communication Time = 0.01s
+Round 20: Global Test Accuracy = 0.4930
+Round 20: Training Time = 29.58s, Communication Time = 0.01s
+Round 21: Global Test Accuracy = 0.4942
+Round 21: Training Time = 28.62s, Communication Time = 0.01s
+Round 22: Global Test Accuracy = 0.4959
+Round 22: Training Time = 27.91s, Communication Time = 0.01s
+Round 23: Global Test Accuracy = 0.4971
+Round 23: Training Time = 28.07s, Communication Time = 0.01s
+Round 24: Global Test Accuracy = 0.4979
+Round 24: Training Time = 28.33s, Communication Time = 0.01s
+Round 25: Global Test Accuracy = 0.5001
+Round 25: Training Time = 28.97s, Communication Time = 0.01s
+Round 26: Global Test Accuracy = 0.4999
+Round 26: Training Time = 28.93s, Communication Time = 0.01s
+Round 27: Global Test Accuracy = 0.5004
+Round 27: Training Time = 27.94s, Communication Time = 0.01s
+Round 28: Global Test Accuracy = 0.5017
+Round 28: Training Time = 27.84s, Communication Time = 0.01s
+Round 29: Global Test Accuracy = 0.5026
+Round 29: Training Time = 27.62s, Communication Time = 0.01s
+Round 30: Global Test Accuracy = 0.5032
+Round 30: Training Time = 28.76s, Communication Time = 0.01s
+Round 31: Global Test Accuracy = 0.5044
+Round 31: Training Time = 29.02s, Communication Time = 0.01s
+Round 32: Global Test Accuracy = 0.5053
+Round 32: Training Time = 28.72s, Communication Time = 0.01s
+Round 33: Global Test Accuracy = 0.5061
+Round 33: Training Time = 28.80s, Communication Time = 0.01s
+Round 34: Global Test Accuracy = 0.5065
+Round 34: Training Time = 28.91s, Communication Time = 0.01s
+Round 35: Global Test Accuracy = 0.5069
+Round 35: Training Time = 28.63s, Communication Time = 0.01s
+Round 36: Global Test Accuracy = 0.5076
+Round 36: Training Time = 28.82s, Communication Time = 0.01s
+Round 37: Global Test Accuracy = 0.5080
+Round 37: Training Time = 29.04s, Communication Time = 0.01s
+Round 38: Global Test Accuracy = 0.5089
+Round 38: Training Time = 28.66s, Communication Time = 0.01s
+Round 39: Global Test Accuracy = 0.5096
+Round 39: Training Time = 28.73s, Communication Time = 0.01s
+Round 40: Global Test Accuracy = 0.5096
+Round 40: Training Time = 28.86s, Communication Time = 0.01s
+Round 41: Global Test Accuracy = 0.5101
+Round 41: Training Time = 28.97s, Communication Time = 0.01s
+Round 42: Global Test Accuracy = 0.5109
+Round 42: Training Time = 28.76s, Communication Time = 0.01s
+Round 43: Global Test Accuracy = 0.5111
+Round 43: Training Time = 28.78s, Communication Time = 0.01s
+Round 44: Global Test Accuracy = 0.5117
+Round 44: Training Time = 28.81s, Communication Time = 0.01s
+Round 45: Global Test Accuracy = 0.5119
+Round 45: Training Time = 28.94s, Communication Time = 0.01s
+Round 46: Global Test Accuracy = 0.5116
+Round 46: Training Time = 28.68s, Communication Time = 0.01s
+Round 47: Global Test Accuracy = 0.5128
+Round 47: Training Time = 29.04s, Communication Time = 0.01s
+Round 48: Global Test Accuracy = 0.5125
+Round 48: Training Time = 28.44s, Communication Time = 0.01s
+Round 49: Global Test Accuracy = 0.5136
+Round 49: Training Time = 28.70s, Communication Time = 0.01s
+Round 50: Global Test Accuracy = 0.5141
+Round 50: Training Time = 28.43s, Communication Time = 0.01s
+Round 51: Global Test Accuracy = 0.5141
+Round 51: Training Time = 28.78s, Communication Time = 0.01s
+Round 52: Global Test Accuracy = 0.5147
+Round 52: Training Time = 28.72s, Communication Time = 0.01s
+Round 53: Global Test Accuracy = 0.5153
+Round 53: Training Time = 28.89s, Communication Time = 0.01s
+Round 54: Global Test Accuracy = 0.5160
+Round 54: Training Time = 28.71s, Communication Time = 0.01s
+Round 55: Global Test Accuracy = 0.5160
+Round 55: Training Time = 28.75s, Communication Time = 0.01s
+Round 56: Global Test Accuracy = 0.5162
+Round 56: Training Time = 28.74s, Communication Time = 0.01s
+Round 57: Global Test Accuracy = 0.5166
+Round 57: Training Time = 28.69s, Communication Time = 0.01s
+Round 58: Global Test Accuracy = 0.5173
+Round 58: Training Time = 28.82s, Communication Time = 0.01s
+Round 59: Global Test Accuracy = 0.5165
+Round 59: Training Time = 28.86s, Communication Time = 0.01s
+Round 60: Global Test Accuracy = 0.5168
+Round 60: Training Time = 28.79s, Communication Time = 0.01s
+Round 61: Global Test Accuracy = 0.5180
+Round 61: Training Time = 29.11s, Communication Time = 0.01s
+Round 62: Global Test Accuracy = 0.5182
+Round 62: Training Time = 28.74s, Communication Time = 0.01s
+Round 63: Global Test Accuracy = 0.5181
+Round 63: Training Time = 29.03s, Communication Time = 0.01s
+Round 64: Global Test Accuracy = 0.5188
+Round 64: Training Time = 28.88s, Communication Time = 0.01s
+Round 65: Global Test Accuracy = 0.5189
+Round 65: Training Time = 28.95s, Communication Time = 0.01s
+Round 66: Global Test Accuracy = 0.5193
+Round 66: Training Time = 28.99s, Communication Time = 0.01s
+Round 67: Global Test Accuracy = 0.5196
+Round 67: Training Time = 29.40s, Communication Time = 0.01s
+Round 68: Global Test Accuracy = 0.5189
+Round 68: Training Time = 28.71s, Communication Time = 0.01s
+Round 69: Global Test Accuracy = 0.5202
+Round 69: Training Time = 29.27s, Communication Time = 0.01s
+Round 70: Global Test Accuracy = 0.5200
+Round 70: Training Time = 29.30s, Communication Time = 0.01s
+Round 71: Global Test Accuracy = 0.5200
+Round 71: Training Time = 29.14s, Communication Time = 0.01s
+Round 72: Global Test Accuracy = 0.5209
+Round 72: Training Time = 28.76s, Communication Time = 0.01s
+Round 73: Global Test Accuracy = 0.5206
+Round 73: Training Time = 29.20s, Communication Time = 0.02s
+Round 74: Global Test Accuracy = 0.5208
+Round 74: Training Time = 29.36s, Communication Time = 0.01s
+Round 75: Global Test Accuracy = 0.5210
+Round 75: Training Time = 29.41s, Communication Time = 0.01s
+Round 76: Global Test Accuracy = 0.5211
+Round 76: Training Time = 29.13s, Communication Time = 0.01s
+Round 77: Global Test Accuracy = 0.5218
+Round 77: Training Time = 29.11s, Communication Time = 0.01s
+Round 78: Global Test Accuracy = 0.5214
+Round 78: Training Time = 28.93s, Communication Time = 0.01s
+Round 79: Global Test Accuracy = 0.5220
+Round 79: Training Time = 29.07s, Communication Time = 0.02s
+Round 80: Global Test Accuracy = 0.5221
+Round 80: Training Time = 29.37s, Communication Time = 0.01s
+Round 81: Global Test Accuracy = 0.5225
+Round 81: Training Time = 29.37s, Communication Time = 0.01s
+Round 82: Global Test Accuracy = 0.5218
+Round 82: Training Time = 29.44s, Communication Time = 0.01s
+Round 83: Global Test Accuracy = 0.5223
+Round 83: Training Time = 29.44s, Communication Time = 0.01s
+Round 84: Global Test Accuracy = 0.5228
+Round 84: Training Time = 28.95s, Communication Time = 0.01s
+Round 85: Global Test Accuracy = 0.5230
+Round 85: Training Time = 29.60s, Communication Time = 0.02s
+Round 86: Global Test Accuracy = 0.5230
+Round 86: Training Time = 29.44s, Communication Time = 0.01s
+Round 87: Global Test Accuracy = 0.5233
+Round 87: Training Time = 29.73s, Communication Time = 0.01s
+Round 88: Global Test Accuracy = 0.5235
+Round 88: Training Time = 29.37s, Communication Time = 0.01s
+Round 89: Global Test Accuracy = 0.5235
+Round 89: Training Time = 29.39s, Communication Time = 0.01s
+Round 90: Global Test Accuracy = 0.5237
+Round 90: Training Time = 29.32s, Communication Time = 0.01s
+Round 91: Global Test Accuracy = 0.5241
+Round 91: Training Time = 29.48s, Communication Time = 0.01s
+Round 92: Global Test Accuracy = 0.5247
+Round 92: Training Time = 29.36s, Communication Time = 0.01s
+Round 93: Global Test Accuracy = 0.5249
+Round 93: Training Time = 29.68s, Communication Time = 0.01s
+Round 94: Global Test Accuracy = 0.5240
+Round 94: Training Time = 29.36s, Communication Time = 0.01s
+Round 95: Global Test Accuracy = 0.5245
+Round 95: Training Time = 29.46s, Communication Time = 0.01s
+Round 96: Global Test Accuracy = 0.5250
+Round 96: Training Time = 29.40s, Communication Time = 0.01s
+Round 97: Global Test Accuracy = 0.5256
+Round 97: Training Time = 29.50s, Communication Time = 0.01s
+Round 98: Global Test Accuracy = 0.5250
+Round 98: Training Time = 29.22s, Communication Time = 0.01s
+Round 99: Global Test Accuracy = 0.5251
+Round 99: Training Time = 29.53s, Communication Time = 0.01s
+Round 100: Global Test Accuracy = 0.5254
+Round 100: Training Time = 29.35s, Communication Time = 0.01s
+//train_time: 2919164.977 ms//end
+
+================================================================================
+TIME BREAKDOWN (excluding initialization)
+================================================================================
+Total Pure Training Time (forward + gradient descent): 2888.46 seconds
+Total Communication Time (parameter aggregation): 1.29 seconds
+Total Training + Communication Time: 2919.16 seconds
+Training Time Percentage: 98.9%
+Communication Time Percentage: 0.0%
+Average Training Time per Round: 28.88 seconds
+Average Communication Time per Round: 0.01 seconds
+================================================================================
+[Pure Training Time] Dataset: ogbn-arxiv, Batch Size: 256, Trainers: 5, Hops: 0, IID Beta: 10000.0 => Pure Training Time = 2888.46 seconds
+[Communication Time] Dataset: ogbn-arxiv, Batch Size: 256, Trainers: 5, Hops: 0, IID Beta: 10000.0 => Communication Time = 1.29 seconds
+average_final_test_loss, 1.5900602887555497
+Average test accuracy, 0.5253585169639734
+
+================================================================================
+INDIVIDUAL TRAINER MEMORY USAGE
+================================================================================
+
+====================================================================================================
+TRAINER MEMORY vs LOCAL GRAPH SIZE
+====================================================================================================
+Trainer  Memory(MB)   Nodes    Edges    Memory/Node  Memory/Edge
+----------------------------------------------------------------------------------------------------
+0        583.0        33876    93792    0.017        0.006
+1        633.6        33849    83512    0.019        0.008
+2        587.7        33913    90572    0.017        0.006
+3        582.9        33759    89264    0.017        0.007
+4        647.6        33946    106824   0.019        0.006
+====================================================================================================
+Total Memory Usage: 3034.8 MB (2.96 GB)
+Total Nodes: 169343, Total Edges: 463964
+Average Memory per Trainer: 607.0 MB
+Average Nodes per Trainer: 33868.6
+Average Edges per Trainer: 92792.8
+Max Memory: 647.6 MB (Trainer 4)
+Min Memory: 582.9 MB (Trainer 3)
+Overall Memory/Node Ratio: 0.018 MB/node
+Overall Memory/Edge Ratio: 0.007 MB/edge
+====================================================================================================
+//Log Theoretical Pretrain Comm Cost: 0.00 MB //end
+//Log Theoretical Train Comm Cost: 167.14 MB //end
+
+================================================================================
+CSV FORMAT RESULT:
+DS,IID,BS,TotalTime[s],PureTrainingTime[s],CommTime[s],FinalAcc[%],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
+ogbn-arxiv,10000.0,256,2923.3,2888.5,1.3,0.53,167.1,647.6,28.885,0.167,0
+================================================================================
+
+================================================================================
+EXPERIMENT SUMMARY
+================================================================================
+Dataset: ogbn-arxiv
+Method: FedAvg
+Trainers: 5
+IID Beta: 10000.0
+Batch Size: 256
+Hops: 0
+Total Execution Time: 2923.31 seconds
+Pure Training Time: 2888.46 seconds
+Communication Time: 1.29 seconds
+Pretrain Comm Cost: 0.00 MB
+Training Comm Cost: 167.14 MB
+================================================================================
+
+(pid=3909) FedGraph Differential Privacy module loaded (v1.0.0) [repeated 4x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)
+(pid=3909) ✓ Differential Privacy support loaded [repeated 4x across cluster]
+(Trainer pid=3909) Running GCN_arxiv [repeated 4x across cluster]

@@ -1,0 +1,8 @@
+{
+  "dtype": "float32",
+  "feature_dim": 128,
+  "layout": "row_major",
+  "row_count": 120064,
+  "size_bytes": 61472768,
+  "store_version": 1
+}

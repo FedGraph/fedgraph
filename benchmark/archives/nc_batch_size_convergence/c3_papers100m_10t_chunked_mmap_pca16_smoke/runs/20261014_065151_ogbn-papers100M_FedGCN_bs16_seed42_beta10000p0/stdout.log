@@ -1,0 +1,253 @@
+================================================================================
+Starting FedGraph NC batch-size convergence run: 20261014_065151_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0
+{
+  "batch_size": 16,
+  "dataset": "ogbn-papers100M",
+  "distribution_type": "average",
+  "elastic_training": false,
+  "evaluation_split": "validation",
+  "feature_compression_chunk_rows": 65536,
+  "feature_compression_max_inflight_trainers": 4,
+  "feature_compression_mode": "shared-pca",
+  "feature_compression_output_dir": "/mnt/fedgraph-nvme/fedgraph-runtime/compression",
+  "feature_compression_rank": 16,
+  "global_rounds": 1,
+  "gpu": true,
+  "graph_relabel_cache_dir": null,
+  "graph_relabel_chunk_edges": 1000000,
+  "graph_storage_mode": "mmap",
+  "hf_artifact_num_hops": null,
+  "hf_local_artifact_cache_dir": null,
+  "hf_local_artifact_repo": null,
+  "hf_local_artifact_revision": null,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_artifact_dir": "/mnt/fedgraph-nvme/artifacts/papers100m-10-2hop-v3-compact",
+  "local_artifact_rank_hosts": "$HOME/fedgraph-papers100m-2hop-rank-hosts.txt",
+  "local_step": 1,
+  "max_rounds": null,
+  "method": "FedGCN",
+  "n_trainer": 10,
+  "num_cpus_per_trainer": 1,
+  "num_gpus_per_trainer": 1.0,
+  "num_hops": 2,
+  "num_layers": 2,
+  "pretrain_feature_aggregation_mode": "chunked",
+  "pretrain_feature_chunk_edges": 1000000,
+  "pretrain_feature_chunk_rows": 65536,
+  "pretrain_feature_max_inflight_trainers": 4,
+  "pretrain_feature_output_dir": "/mnt/fedgraph-nvme/fedgraph-runtime/pretrain",
+  "pretrain_feature_upload_mode": "indexed",
+  "resource_monitor_mode": "manual",
+  "resource_snapshot_interval_rounds": 1,
+  "seed": 42,
+  "server_device": "cpu",
+  "target_train_comm_times_sec": [],
+  "target_val_accs": [],
+  "target_val_losses": [],
+  "use_huggingface": false,
+  "use_ogb_load_patch": true,
+  "val_loss_min_delta": 0.0,
+  "val_loss_patience": 20
+}
+================================================================================
+FedGraph Differential Privacy module loaded (v1.0.0)
+✓ Differential Privacy support loaded
+NC_GRAPH_STORAGE, mode=mmap
+NC_PRETRAIN_FEATURE_AGGREGATION, mode=chunked
+NC_FEATURE_COMPRESSION, mode=shared-pca, rank=16, chunk_rows=65536, max_inflight_trainers=4, output_dir=/mnt/fedgraph-nvme/fedgraph-runtime/compression/20261014_065151_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0
+NC_RESOURCE_MONITOR, mode=manual, snapshot_interval_rounds=1, snapshot_path=benchmark/results/nc_batch_size_convergence/c3_papers100m_10t_chunked_mmap_pca16_smoke/runs/20261014_065151_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0/fedgraph_logs/resource_snapshots.jsonl, prometheus_summary_path=None
+Initialization start time recorded.
+2026-10-14 06:52:01,663	INFO worker.py:1683 -- Using address node-11:6379 set in the environment variable RAY_ADDRESS
+2026-10-14 06:52:01,668	INFO worker.py:1833 -- Connecting to existing Ray cluster at address: node-11:6379...
+2026-10-14 06:52:01,686	INFO worker.py:2015 -- Connected to Ray cluster. View the dashboard at http://127.0.0.1:8265
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=0, host=node-12, node_id=f18e8f32a140d355599b51c15c7cddbe18e1cab65f5acea5fe58e8bd
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=1, host=node-04, node_id=39ca712c173be1b4b3360c84acf582e7c57f5ca0d9d55e85e7c4611e
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=2, host=node-09, node_id=35d6b0cf2fa82d6f81550f3432d5356a7e954b5278045c97b6bf9cb1
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=3, host=node-08, node_id=a0f188dae86f34adf1041379082539674cf8fef1bc4af2aab138e133
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=4, host=node-05, node_id=463073fa22622acdb58a137ce8618ead54e01be157d544f35cd36bec
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=5, host=node-07, node_id=9ba6b27c3cd11205b934e7853365c9ea2af47a0df06fde6f42574e6a
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=6, host=node-02, node_id=bf8d261c891c143f6b35a2fd31ceb59b0ff9add6613a7975b3a8dbaa
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=7, host=node-06, node_id=7494b3aba0127d94a88533c3969b06b52bcc11ded4e7af5295051f1a
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=8, host=node-10, node_id=4378907b8a58b9caf19b151759ade4ab95693f4a86e1f519f8e4e0de
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=9, host=node-03, node_id=8c81df9bdebd6103c1a50b7770d0e5bfa63e391ac567840c8da3e57a
+(pid=3342, ip=node-06) FedGraph Differential Privacy module loaded (v1.0.0)
+(pid=3342, ip=node-06) ✓ Differential Privacy support loaded
+(Trainer pid=3197, ip=node-04) Loaded local artifact v3 shard 1 (2-hop) from /mnt/fedgraph-nvme/artifacts/papers100m-10-2hop-v3-compact/shards/trainer-001
+(Trainer pid=3197, ip=node-04) Trainer 1 artifact load completed in 8.365s; process RSS=9569718272; process peak RSS=10468945920 bytes
+(pid=3363, ip=node-03) FedGraph Differential Privacy module loaded (v1.0.0) [repeated 9x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)
+(pid=3363, ip=node-03) ✓ Differential Privacy support loaded [repeated 9x across cluster]
+NC_FEATURE_COMPRESSION_METRIC {"basis_output_path":"$HOME/fedgraph/benchmark/results/nc_batch_size_convergence/c3_papers100m_10t_chunked_mmap_pca16_smoke/runs/20261014_065151_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0/fedgraph_logs/feature_compression/shared-pca-r16-8aa5b65a95fd713b.pt","basis_sha256":"8aa5b65a95fd713b0aa0b3732f45291a0fb9e35822c46b275b0f808db0dc8ee4","basis_tensor_broadcast_bytes":92160,"basis_tensor_bytes":9216,"basis_wall_time_sec":0.09832675100187771,"compressed_feature_dim":16,"compression_setup_traffic_bytes":1402880,"compression_wall_time_sec":43.21338661699701,"feature_bytes_saved":49754860288,"feature_storage_reduction_ratio":8.0,"max_inflight_trainers":4,"max_trainer_projection_time_sec":1.9127085009999973,"mode":"shared-pca","original_feature_bytes":56862697472,"original_feature_dim":128,"projected_feature_bytes":7107837184,"projected_feature_fraction":0.125,"projection_wall_time_sec":5.233597799000563,"retained_energy":0.8207015562172439,"row_count":111059956,"statistics_tensor_upload_bytes":1310720,"statistics_wall_time_sec":37.86046303900366,"trainer_count":10}
+NC_FEATURE_COMPRESSION_SUMMARY, mode=shared-pca, rows=111059956, original_dim=128, rank=16, retained_energy=0.820701556217, basis_sha256=8aa5b65a95fd713b0aa0b3732f45291a0fb9e35822c46b275b0f808db0dc8ee4, basis_output_path=$HOME/fedgraph/benchmark/results/nc_batch_size_convergence/c3_papers100m_10t_chunked_mmap_pca16_smoke/runs/20261014_065151_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0/fedgraph_logs/feature_compression/shared-pca-r16-8aa5b65a95fd713b.pt, statistics_tensor_upload_bytes=1310720, basis_tensor_broadcast_bytes=92160, original_feature_bytes=56862697472, projection_output_bytes=7107837184, feature_bytes_saved=49754860288, statistics_wall_time_sec=37.860463, basis_wall_time_sec=0.098327, projection_wall_time_sec=5.233598, max_trainer_projection_time_sec=1.912709, max_inflight_trainers=4
+//Log init_time: 60502.257 ms //end
+Pretrain start time recorded.
+Starting bounded chunked plaintext feature aggregation...
+NC_PRETRAIN_CHUNK, chunk=1/1695, global_start=0, global_stop=65536, upload_bytes=23656800, download_bytes=18925440, time_sec=1.153707
+NC_PRETRAIN_CHUNK, chunk=16/1695, global_start=983040, global_stop=1048576, upload_bytes=23335440, download_bytes=18668352, time_sec=0.920703
+NC_PRETRAIN_CHUNK, chunk=32/1695, global_start=2031616, global_stop=2097152, upload_bytes=23501840, download_bytes=18801472, time_sec=0.940242
+NC_PRETRAIN_CHUNK, chunk=48/1695, global_start=3080192, global_stop=3145728, upload_bytes=23587520, download_bytes=18870016, time_sec=0.944426
+NC_PRETRAIN_CHUNK, chunk=64/1695, global_start=4128768, global_stop=4194304, upload_bytes=20109440, download_bytes=16087552, time_sec=0.719001
+NC_PRETRAIN_CHUNK, chunk=80/1695, global_start=5177344, global_stop=5242880, upload_bytes=16520800, download_bytes=13216640, time_sec=0.634526
+NC_PRETRAIN_CHUNK, chunk=96/1695, global_start=6225920, global_stop=6291456, upload_bytes=9931600, download_bytes=7945280, time_sec=0.378013
+NC_PRETRAIN_CHUNK, chunk=112/1695, global_start=7274496, global_stop=7340032, upload_bytes=19791680, download_bytes=15833344, time_sec=0.807161
+NC_PRETRAIN_CHUNK, chunk=128/1695, global_start=8323072, global_stop=8388608, upload_bytes=25302720, download_bytes=20242176, time_sec=1.273441
+NC_PRETRAIN_CHUNK, chunk=144/1695, global_start=9371648, global_stop=9437184, upload_bytes=27554080, download_bytes=22043264, time_sec=1.098976
+NC_PRETRAIN_CHUNK, chunk=160/1695, global_start=10420224, global_stop=10485760, upload_bytes=27509440, download_bytes=22007552, time_sec=1.138341
+NC_PRETRAIN_CHUNK, chunk=176/1695, global_start=11468800, global_stop=11534336, upload_bytes=27554880, download_bytes=22043904, time_sec=1.123026
+NC_PRETRAIN_CHUNK, chunk=192/1695, global_start=12517376, global_stop=12582912, upload_bytes=27670560, download_bytes=22136448, time_sec=1.110556
+NC_PRETRAIN_CHUNK, chunk=208/1695, global_start=13565952, global_stop=13631488, upload_bytes=27639440, download_bytes=22111552, time_sec=1.100945
+NC_PRETRAIN_CHUNK, chunk=224/1695, global_start=14614528, global_stop=14680064, upload_bytes=30087280, download_bytes=24069824, time_sec=1.540362
+NC_PRETRAIN_CHUNK, chunk=240/1695, global_start=15663104, global_stop=15728640, upload_bytes=31435280, download_bytes=25148224, time_sec=1.684374
+NC_PRETRAIN_CHUNK, chunk=256/1695, global_start=16711680, global_stop=16777216, upload_bytes=32220800, download_bytes=25776640, time_sec=1.579963
+NC_PRETRAIN_CHUNK, chunk=272/1695, global_start=17760256, global_stop=17825792, upload_bytes=32640640, download_bytes=26112512, time_sec=1.300347
+NC_PRETRAIN_CHUNK, chunk=288/1695, global_start=18808832, global_stop=18874368, upload_bytes=32650640, download_bytes=26120512, time_sec=1.262731
+NC_PRETRAIN_CHUNK, chunk=304/1695, global_start=19857408, global_stop=19922944, upload_bytes=32716640, download_bytes=26173312, time_sec=1.251813
+NC_PRETRAIN_CHUNK, chunk=320/1695, global_start=20905984, global_stop=20971520, upload_bytes=32592640, download_bytes=26074112, time_sec=1.260497
+NC_PRETRAIN_CHUNK, chunk=336/1695, global_start=21954560, global_stop=22020096, upload_bytes=32545040, download_bytes=26036032, time_sec=1.251552
+NC_PRETRAIN_CHUNK, chunk=352/1695, global_start=23003136, global_stop=23068672, upload_bytes=32664080, download_bytes=26131264, time_sec=1.246790
+NC_PRETRAIN_CHUNK, chunk=368/1695, global_start=24051712, global_stop=24117248, upload_bytes=32731360, download_bytes=26185088, time_sec=1.308118
+NC_PRETRAIN_CHUNK, chunk=384/1695, global_start=25100288, global_stop=25165824, upload_bytes=32749680, download_bytes=26199744, time_sec=1.279647
+NC_PRETRAIN_CHUNK, chunk=400/1695, global_start=26148864, global_stop=26214400, upload_bytes=32666320, download_bytes=26133056, time_sec=1.303396
+NC_PRETRAIN_CHUNK, chunk=416/1695, global_start=27197440, global_stop=27262976, upload_bytes=32785600, download_bytes=26228480, time_sec=1.294504
+NC_PRETRAIN_CHUNK, chunk=432/1695, global_start=28246016, global_stop=28311552, upload_bytes=32704800, download_bytes=26163840, time_sec=1.266963
+NC_PRETRAIN_CHUNK, chunk=448/1695, global_start=29294592, global_stop=29360128, upload_bytes=32721280, download_bytes=26177024, time_sec=1.269728
+NC_PRETRAIN_CHUNK, chunk=464/1695, global_start=30343168, global_stop=30408704, upload_bytes=32677440, download_bytes=26141952, time_sec=1.244924
+NC_PRETRAIN_CHUNK, chunk=480/1695, global_start=31391744, global_stop=31457280, upload_bytes=32680480, download_bytes=26144384, time_sec=1.275990
+NC_PRETRAIN_CHUNK, chunk=496/1695, global_start=32440320, global_stop=32505856, upload_bytes=32728720, download_bytes=26182976, time_sec=1.270440
+NC_PRETRAIN_CHUNK, chunk=512/1695, global_start=33488896, global_stop=33554432, upload_bytes=32680240, download_bytes=26144192, time_sec=1.275781
+NC_PRETRAIN_CHUNK, chunk=528/1695, global_start=34537472, global_stop=34603008, upload_bytes=32775920, download_bytes=26220736, time_sec=1.272800
+NC_PRETRAIN_CHUNK, chunk=544/1695, global_start=35586048, global_stop=35651584, upload_bytes=32706560, download_bytes=26165248, time_sec=1.268775
+NC_PRETRAIN_CHUNK, chunk=560/1695, global_start=36634624, global_stop=36700160, upload_bytes=32704240, download_bytes=26163392, time_sec=1.292196
+NC_PRETRAIN_CHUNK, chunk=576/1695, global_start=37683200, global_stop=37748736, upload_bytes=32737280, download_bytes=26189824, time_sec=1.284142
+NC_PRETRAIN_CHUNK, chunk=592/1695, global_start=38731776, global_stop=38797312, upload_bytes=32658320, download_bytes=26126656, time_sec=1.293839
+NC_PRETRAIN_CHUNK, chunk=608/1695, global_start=39780352, global_stop=39845888, upload_bytes=32704240, download_bytes=26163392, time_sec=1.267360
+NC_PRETRAIN_CHUNK, chunk=624/1695, global_start=40828928, global_stop=40894464, upload_bytes=32674240, download_bytes=26139392, time_sec=1.269526
+NC_PRETRAIN_CHUNK, chunk=640/1695, global_start=41877504, global_stop=41943040, upload_bytes=32744960, download_bytes=26195968, time_sec=1.271766
+NC_PRETRAIN_CHUNK, chunk=656/1695, global_start=42926080, global_stop=42991616, upload_bytes=32777280, download_bytes=26221824, time_sec=1.260108
+NC_PRETRAIN_CHUNK, chunk=672/1695, global_start=43974656, global_stop=44040192, upload_bytes=32658720, download_bytes=26126976, time_sec=1.257334
+NC_PRETRAIN_CHUNK, chunk=688/1695, global_start=45023232, global_stop=45088768, upload_bytes=32981520, download_bytes=26385216, time_sec=1.290241
+NC_PRETRAIN_CHUNK, chunk=704/1695, global_start=46071808, global_stop=46137344, upload_bytes=36821360, download_bytes=29457088, time_sec=1.732471
+NC_PRETRAIN_CHUNK, chunk=720/1695, global_start=47120384, global_stop=47185920, upload_bytes=36958720, download_bytes=29566976, time_sec=1.768728
+NC_PRETRAIN_CHUNK, chunk=736/1695, global_start=48168960, global_stop=48234496, upload_bytes=37020560, download_bytes=29616448, time_sec=1.736628
+NC_PRETRAIN_CHUNK, chunk=752/1695, global_start=49217536, global_stop=49283072, upload_bytes=36903920, download_bytes=29523136, time_sec=1.743900
+NC_PRETRAIN_CHUNK, chunk=768/1695, global_start=50266112, global_stop=50331648, upload_bytes=37067200, download_bytes=29653760, time_sec=1.775198
+NC_PRETRAIN_CHUNK, chunk=784/1695, global_start=51314688, global_stop=51380224, upload_bytes=37034000, download_bytes=29627200, time_sec=1.772337
+NC_PRETRAIN_CHUNK, chunk=800/1695, global_start=52363264, global_stop=52428800, upload_bytes=37003760, download_bytes=29603008, time_sec=1.759987
+NC_PRETRAIN_CHUNK, chunk=816/1695, global_start=53411840, global_stop=53477376, upload_bytes=37087280, download_bytes=29669824, time_sec=1.773276
+NC_PRETRAIN_CHUNK, chunk=832/1695, global_start=54460416, global_stop=54525952, upload_bytes=37041600, download_bytes=29633280, time_sec=1.750424
+NC_PRETRAIN_CHUNK, chunk=848/1695, global_start=55508992, global_stop=55574528, upload_bytes=33399680, download_bytes=26719744, time_sec=1.253760
+NC_PRETRAIN_CHUNK, chunk=864/1695, global_start=56557568, global_stop=56623104, upload_bytes=30464880, download_bytes=24371904, time_sec=1.218440
+NC_PRETRAIN_CHUNK, chunk=880/1695, global_start=57606144, global_stop=57671680, upload_bytes=26504400, download_bytes=21203520, time_sec=1.270508
+NC_PRETRAIN_CHUNK, chunk=896/1695, global_start=58654720, global_stop=58720256, upload_bytes=21601440, download_bytes=17281152, time_sec=0.562585
+NC_PRETRAIN_CHUNK, chunk=912/1695, global_start=59703296, global_stop=59768832, upload_bytes=24946160, download_bytes=19956928, time_sec=0.860084
+NC_PRETRAIN_CHUNK, chunk=928/1695, global_start=60751872, global_stop=60817408, upload_bytes=25584080, download_bytes=20467264, time_sec=0.949375
+NC_PRETRAIN_CHUNK, chunk=944/1695, global_start=61800448, global_stop=61865984, upload_bytes=29850000, download_bytes=23880000, time_sec=1.348882
+NC_PRETRAIN_CHUNK, chunk=960/1695, global_start=62849024, global_stop=62914560, upload_bytes=29064720, download_bytes=23251776, time_sec=1.199694
+NC_PRETRAIN_CHUNK, chunk=976/1695, global_start=63897600, global_stop=63963136, upload_bytes=21835520, download_bytes=17468416, time_sec=0.769717
+NC_PRETRAIN_CHUNK, chunk=992/1695, global_start=64946176, global_stop=65011712, upload_bytes=21874000, download_bytes=17499200, time_sec=0.777131
+NC_PRETRAIN_CHUNK, chunk=1008/1695, global_start=65994752, global_stop=66060288, upload_bytes=29117680, download_bytes=23294144, time_sec=1.283449
+NC_PRETRAIN_CHUNK, chunk=1024/1695, global_start=67043328, global_stop=67108864, upload_bytes=10206720, download_bytes=8165376, time_sec=0.366309
+NC_PRETRAIN_CHUNK, chunk=1040/1695, global_start=68091904, global_stop=68157440, upload_bytes=19496000, download_bytes=15596800, time_sec=0.540197
+NC_PRETRAIN_CHUNK, chunk=1056/1695, global_start=69140480, global_stop=69206016, upload_bytes=19598080, download_bytes=15678464, time_sec=0.549897
+NC_PRETRAIN_CHUNK, chunk=1072/1695, global_start=70189056, global_stop=70254592, upload_bytes=15474160, download_bytes=12379328, time_sec=0.488845
+NC_PRETRAIN_CHUNK, chunk=1088/1695, global_start=71237632, global_stop=71303168, upload_bytes=15476240, download_bytes=12380992, time_sec=0.485004
+NC_PRETRAIN_CHUNK, chunk=1104/1695, global_start=72286208, global_stop=72351744, upload_bytes=20839360, download_bytes=16671488, time_sec=0.891734
+NC_PRETRAIN_CHUNK, chunk=1120/1695, global_start=73334784, global_stop=73400320, upload_bytes=22516480, download_bytes=18013184, time_sec=1.116667
+NC_PRETRAIN_CHUNK, chunk=1136/1695, global_start=74383360, global_stop=74448896, upload_bytes=22478000, download_bytes=17982400, time_sec=1.059299
+NC_PRETRAIN_CHUNK, chunk=1152/1695, global_start=75431936, global_stop=75497472, upload_bytes=22854080, download_bytes=18283264, time_sec=1.071098
+NC_PRETRAIN_CHUNK, chunk=1168/1695, global_start=76480512, global_stop=76546048, upload_bytes=30407280, download_bytes=24325824, time_sec=1.463129
+NC_PRETRAIN_CHUNK, chunk=1184/1695, global_start=77529088, global_stop=77594624, upload_bytes=29969280, download_bytes=23975424, time_sec=1.587161
+NC_PRETRAIN_CHUNK, chunk=1200/1695, global_start=78577664, global_stop=78643200, upload_bytes=29644720, download_bytes=23715776, time_sec=1.500589
+NC_PRETRAIN_CHUNK, chunk=1216/1695, global_start=79626240, global_stop=79691776, upload_bytes=27370240, download_bytes=21896192, time_sec=1.417748
+NC_PRETRAIN_CHUNK, chunk=1232/1695, global_start=80674816, global_stop=80740352, upload_bytes=24527680, download_bytes=19622144, time_sec=1.192813
+NC_PRETRAIN_CHUNK, chunk=1248/1695, global_start=81723392, global_stop=81788928, upload_bytes=25776640, download_bytes=20621312, time_sec=1.386251
+NC_PRETRAIN_CHUNK, chunk=1264/1695, global_start=82771968, global_stop=82837504, upload_bytes=26876640, download_bytes=21501312, time_sec=1.367986
+NC_PRETRAIN_CHUNK, chunk=1280/1695, global_start=83820544, global_stop=83886080, upload_bytes=24273440, download_bytes=19418752, time_sec=1.044163
+NC_PRETRAIN_CHUNK, chunk=1296/1695, global_start=84869120, global_stop=84934656, upload_bytes=33920480, download_bytes=27136384, time_sec=2.133437
+NC_PRETRAIN_CHUNK, chunk=1312/1695, global_start=85917696, global_stop=85983232, upload_bytes=31817120, download_bytes=25453696, time_sec=1.998542
+NC_PRETRAIN_CHUNK, chunk=1328/1695, global_start=86966272, global_stop=87031808, upload_bytes=12561120, download_bytes=10048896, time_sec=0.216161
+NC_PRETRAIN_CHUNK, chunk=1344/1695, global_start=88014848, global_stop=88080384, upload_bytes=12638880, download_bytes=10111104, time_sec=0.211484
+NC_PRETRAIN_CHUNK, chunk=1360/1695, global_start=89063424, global_stop=89128960, upload_bytes=12568720, download_bytes=10054976, time_sec=0.210633
+NC_PRETRAIN_CHUNK, chunk=1376/1695, global_start=90112000, global_stop=90177536, upload_bytes=12534640, download_bytes=10027712, time_sec=0.214492
+NC_PRETRAIN_CHUNK, chunk=1392/1695, global_start=91160576, global_stop=91226112, upload_bytes=12563520, download_bytes=10050816, time_sec=0.218829
+NC_PRETRAIN_CHUNK, chunk=1408/1695, global_start=92209152, global_stop=92274688, upload_bytes=12630960, download_bytes=10104768, time_sec=0.216304
+NC_PRETRAIN_CHUNK, chunk=1424/1695, global_start=93257728, global_stop=93323264, upload_bytes=12552480, download_bytes=10041984, time_sec=0.217160
+NC_PRETRAIN_CHUNK, chunk=1440/1695, global_start=94306304, global_stop=94371840, upload_bytes=12578000, download_bytes=10062400, time_sec=0.211015
+NC_PRETRAIN_CHUNK, chunk=1456/1695, global_start=95354880, global_stop=95420416, upload_bytes=12607840, download_bytes=10086272, time_sec=0.210846
+NC_PRETRAIN_CHUNK, chunk=1472/1695, global_start=96403456, global_stop=96468992, upload_bytes=12608000, download_bytes=10086400, time_sec=0.215086
+NC_PRETRAIN_CHUNK, chunk=1488/1695, global_start=97452032, global_stop=97517568, upload_bytes=12571120, download_bytes=10056896, time_sec=0.209993
+NC_PRETRAIN_CHUNK, chunk=1504/1695, global_start=98500608, global_stop=98566144, upload_bytes=12547680, download_bytes=10038144, time_sec=0.211739
+NC_PRETRAIN_CHUNK, chunk=1520/1695, global_start=99549184, global_stop=99614720, upload_bytes=12571200, download_bytes=10056960, time_sec=0.212676
+NC_PRETRAIN_CHUNK, chunk=1536/1695, global_start=100597760, global_stop=100663296, upload_bytes=12639920, download_bytes=10111936, time_sec=0.213350
+NC_PRETRAIN_CHUNK, chunk=1552/1695, global_start=101646336, global_stop=101711872, upload_bytes=32292480, download_bytes=25833984, time_sec=2.054405
+NC_PRETRAIN_CHUNK, chunk=1568/1695, global_start=102694912, global_stop=102760448, upload_bytes=29996320, download_bytes=23997056, time_sec=1.860785
+NC_PRETRAIN_CHUNK, chunk=1584/1695, global_start=103743488, global_stop=103809024, upload_bytes=32305840, download_bytes=25844672, time_sec=2.046341
+NC_PRETRAIN_CHUNK, chunk=1600/1695, global_start=104792064, global_stop=104857600, upload_bytes=22181920, download_bytes=17745536, time_sec=0.579789
+NC_PRETRAIN_CHUNK, chunk=1616/1695, global_start=105840640, global_stop=105906176, upload_bytes=22424000, download_bytes=17939200, time_sec=0.964021
+NC_PRETRAIN_CHUNK, chunk=1632/1695, global_start=106889216, global_stop=106954752, upload_bytes=25099760, download_bytes=20079808, time_sec=0.834787
+NC_PRETRAIN_CHUNK, chunk=1648/1695, global_start=107937792, global_stop=108003328, upload_bytes=35882000, download_bytes=28705600, time_sec=2.305442
+NC_PRETRAIN_CHUNK, chunk=1664/1695, global_start=108986368, global_stop=109051904, upload_bytes=31608640, download_bytes=25286912, time_sec=1.820784
+NC_PRETRAIN_CHUNK, chunk=1680/1695, global_start=110034944, global_stop=110100480, upload_bytes=33955360, download_bytes=27164288, time_sec=2.028369
+NC_PRETRAIN_CHUNK, chunk=1695/1695, global_start=111017984, global_stop=111059956, upload_bytes=15746800, download_bytes=12597440, time_sec=0.637126
+(Trainer pid=3699, ip=node-12) NC_ADJ_RELABEL, trainer=0, mode=artifact-compact-int32-mmap, cache_hit=False, source_edges=1033431820, output_edges=1033431820, dropped_edges=0, time_sec=52.652667, cache=/mnt/fedgraph-nvme/fedgraph-runtime/pretrain/20261014_065151_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0/adjacency-cache/trainer-000/adj-local-89a49bcdcab33c68100ed6fb.edge-index.i64
+(Trainer pid=3363, ip=node-03) Loaded local artifact v3 shard 9 (2-hop) from /mnt/fedgraph-nvme/artifacts/papers100m-10-2hop-v3-compact/shards/trainer-009 [repeated 9x across cluster]
+(Trainer pid=3363, ip=node-03) Trainer 9 artifact load completed in 8.655s; process RSS=9598455808; process peak RSS=10497925120 bytes [repeated 9x across cluster]
+(Trainer pid=3315, ip=node-07) NC_ADJ_RELABEL, trainer=5, mode=artifact-compact-int32-mmap, cache_hit=False, source_edges=1033510901, output_edges=1033510901, dropped_edges=0, time_sec=52.658164, cache=/mnt/fedgraph-nvme/fedgraph-runtime/pretrain/20261014_065151_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0/adjacency-cache/trainer-005/adj-local-496484a3d7b70a67c259c1ca.edge-index.i64 [repeated 4x across cluster]
+(Trainer pid=3363, ip=node-03) NC_ADJ_RELABEL, trainer=9, mode=artifact-compact-int32-mmap, cache_hit=False, source_edges=1033915656, output_edges=1033915656, dropped_edges=0, time_sec=52.734675, cache=/mnt/fedgraph-nvme/fedgraph-runtime/pretrain/20261014_065151_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0/adjacency-cache/trainer-009/adj-local-bd9ed4a54145a4f00504089a.edge-index.i64 [repeated 4x across cluster]
+NC_PRETRAIN_CHUNK_SUMMARY, chunks=1695, upload_bytes=45050034400, download_bytes=36040027520, max_inflight_trainers=4
+clients finalized file-backed feature aggregations
+//pretrain_time: 2041916.588 ms//end
+NC_PRETRAIN_METRIC {"aggregation_mode":"chunked","download_bytes":36040027520,"feature_compression_basis_sha256":"8aa5b65a95fd713b0aa0b3732f45291a0fb9e35822c46b275b0f808db0dc8ee4","feature_compression_mode":"shared-pca","feature_dim":16,"method":"FedGCN","total_traffic_bytes":81090061920,"upload_bytes":45050034400,"wall_time_sec":2041.9165828227997}
+Train start time recorded.
+global_rounds 1
+Round 1: Global Val Loss = 92.0063
+Round 1: Global Val Accuracy = 0.0017
+Round 1: Training Time = 129.05s, Communication Time = 0.04s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":129.0875482559204,"parameter_sync_time_sec":0.03797125816345215,"round":1,"train_sync_time_sec":129.0875482559204,"training_time_sec":129.04957699775696}
+//train_time: 293353.795 ms//end
+
+================================================================================
+TIME BREAKDOWN (excluding initialization)
+================================================================================
+Total Training Time (server-observed): 129.049577 seconds
+Total Communication Time (parameter synchronization): 0.037971 seconds
+Total Training + Communication Time: 129.087548 seconds
+Total Federated Loop Wall Time: 293.353806 seconds
+Training Time Percentage (of training + communication): 100.0%
+Communication Time Percentage (of training + communication): 0.0%
+Average Training Time per Round: 129.05 seconds
+Average Communication Time per Round: 0.04 seconds
+================================================================================
+[Training Time] Dataset: ogbn-papers100M, Batch Size: 16, Trainers: 10, Hops: 2, IID Beta: 10000.0 => Training Time = 129.05 seconds
+[Communication Time] Dataset: ogbn-papers100M, Batch Size: 16, Trainers: 10, Hops: 2, IID Beta: 10000.0 => Communication Time = 0.04 seconds
+(raylet, ip=node-04) [2026-10-14 07:32:50,342 E 2933 2933] (raylet) node_manager.cc:3388: 1 Workers (tasks / actors) killed due to memory pressure (OOM), 0 Workers crashed due to other reasons at node (ID: 39ca712c173be1b4b3360c84acf582e7c57f5ca0d9d55e85e7c4611e, IP: node-04) over the last time period. To see more information about the Workers killed on this node, use `ray logs raylet.out -ip node-04`
+(raylet, ip=node-04)
+(raylet, ip=node-04) Refer to the documentation on how to address the out of memory issue: https://docs.ray.io/en/latest/ray-core/scheduling/ray-oom-prevention.html. Consider provisioning more memory on this node or reducing task parallelism by requesting more CPUs per task. To adjust the kill threshold, set the environment variable `RAY_memory_usage_threshold` when starting Ray. To disable worker killing, set the environment variable `RAY_memory_monitor_refresh_ms` to zero. Since 2.56, Ray updated the oom killing policy to enabling killing multiple workers and selecting workers based on the time since the task start executing. To revert to the legacy policy of determining worker to oom kill based on owner group size or only selecting a single worker to kill at a time, set the environment variable `RAY_worker_killing_policy_by_group` to true before starting Ray. If the idle workers have a non-trivial memory footprint at the time of OOM (check OOM log for non-selected idle workers), consider setting the environment variable `RAY_idle_worker_killing_memory_threshold_bytes` to a lower value to consider idle workers with lower memory footprint for killing.
+(raylet, ip=node-08)
+(raylet, ip=node-05)
+Traceback (most recent call last):
+  File "$HOME/fedgraph/benchmark/benchmark_NC_batch_size_convergence.py", line 870, in run_experiment
+    run_fedgraph(
+  File "$HOME/fedgraph/fedgraph/federated_methods.py", line 1189, in run_fedgraph
+    run_NC(args, data)
+  File "$HOME/fedgraph/fedgraph/federated_methods.py", line 2659, in run_NC
+    average_final_test_loss, average_final_test_accuracy = _evaluate_nc_test_metrics(
+                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/fedgraph/fedgraph/federated_methods.py", line 1094, in _evaluate_nc_test_metrics
+    results = np.array([ray.get(result) for result in results])
+                        ^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/auto_init_hook.py", line 22, in auto_init_wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/client_mode_hook.py", line 110, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/worker.py", line 2968, in get
+    values, debugger_breakpoint = worker.get_objects(
+                                  ^^^^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/worker.py", line 1052, in get_objects
+    raise value
+ray.exceptions.OutOfMemoryError: 1 worker(s) were killed due to the node running low on memory. Memory on the node (IP: node-12, ID: f18e8f32a140d355599b51c15c7cddbe18e1cab65f5acea5fe58e8bd) was 59.71GB / 62.10GB (0.961602); OOM kill reason: Memory usage 63550836736B exceeded threshold of 63342481408B (95.0% of 66676297728B total); Object store memory usage: [- objects spillable: 0; - bytes spillable: 0; - objects unsealed: 0; - bytes unsealed: 0; - objects in use: 0; - bytes in use: 0; - objects evictable: 0; - bytes evictable: 0; ; - objects created by worker: 0; - bytes created by worker: 0; - objects restored: 0; - bytes restored: 0; - objects received: 0; - bytes received: 0; - objects errored: 0; - bytes errored: 0; ; Eviction Stats:; (global lru) capacity: 8589934592; (global lru) used: 0%; (global lru) num objects: 0; (global lru) num evictions: 0; (global lru) bytes evicted: 0]; Ray killed 1 worker(s) based on the killing policy; Considered workers: [; Selected to kill: (Actor(da1ccfe1cc5632761e85906801000000): job ID=01000000, lease ID=0b000000883f5a8581abeed21fdb051f9a53f4667bf6676603710ab273e6ce51, task name=Trainer.__init__, required resources={CPU: 1, GPU: 1}, pid=3699, actual memory used=59.63GB, worker ID=a503dabd14f844142f5b762057de49a6d7f8f5485e189df44edd12f4)]; Total non-selected idle workers: 0; Total non-selected idle workers USS bytes: 0.00GB; To see more information about memory usage on this node, use `ray logs raylet.out -ip node-12`; Top 10 memory users: PID	MEM(GB)	COMMAND; 3699	59.63	ray::Trainer.local_test; 3481	0.09	ray::DashboardAgent; 3409	0.07	$HOME/miniconda3/envs/fedgraph312/bin/python $HOME/miniconda3/envs/fedgraph312/bin/ray...; 3483	0.04	ray::RuntimeEnvAgent; 3436	0.04	$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/core/src/ray/raylet/raylet...; 3435	0.04	$HOME/miniconda3/envs/fedgraph312/bin/python -u $HOME/miniconda3/envs/fedgraph312/lib/...; 3695	0.02	nvidia-smi --query-gpu=timestamp,index,uuid,name,utilization.gpu,utilization.memory,memory.used,memo...; 3363	0.00	tmux new-session -d -s ray-worker-10-195-25-35 cd $HOME/fedgraph && $HOME/fedgraph/scr...; 3365	0.00	/usr/bin/dbus-daemon --session --address=systemd: --nofork --nopidfile --systemd-activation --syslog...; 3364	0.00	bash $HOME/fedgraph/scripts/manual_ray/start-worker.sh --head-ip node-11 --num-cpus 8 --...; Refer to the documentation on how to address the out of memory issue: https://docs.ray.io/en/latest/ray-core/scheduling/ray-oom-prevention.html. Consider provisioning more memory on this node or reducing task parallelism by requesting more CPUs per task. Set max_restarts and max_task_retries to enable retry when the task crashes due to OOM. To adjust the kill threshold, set the environment variable `RAY_memory_usage_threshold` when starting Ray. To disable worker killing, set the environment variable `RAY_memory_monitor_refresh_ms` to zero. Since 2.56, Ray updated the oom killing policy to enabling killing multiple workers and selecting workers based on the time since the task start executing. To revert to the legacy policy of determining worker to oom kill based on owner group size or only selecting a single worker to kill at a time, set the environment variable `RAY_worker_killing_policy_by_group` to true before starting Ray. If the idle workers have a non-trivial memory footprint at the time of OOM (check OOM log for non-selected idle workers), consider setting the environment variable `RAY_idle_worker_killing_memory_threshold_bytes` to a lower value to consider idle workers with lower memory footprint for killing.
+(Trainer pid=3562, ip=node-10) NC_ADJ_RELABEL, trainer=8, mode=artifact-compact-int32-mmap, cache_hit=False, source_edges=1035102656, output_edges=1035102656, dropped_edges=0, time_sec=52.820493, cache=/mnt/fedgraph-nvme/fedgraph-runtime/pretrain/20261014_065151_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0/adjacency-cache/trainer-008/adj-local-ae74a9395d85cee6eade3f48.edge-index.i64
+(raylet, ip=node-05) [2026-10-14 07:32:55,112 E 3048 3048] (raylet) node_manager.cc:3388: 1 Workers (tasks / actors) killed due to memory pressure (OOM), 0 Workers crashed due to other reasons at node (ID: 463073fa22622acdb58a137ce8618ead54e01be157d544f35cd36bec, IP: node-05) over the last time period. To see more information about the Workers killed on this node, use `ray logs raylet.out -ip node-05` [repeated 2x across cluster]
+(raylet, ip=node-05) Refer to the documentation on how to address the out of memory issue: https://docs.ray.io/en/latest/ray-core/scheduling/ray-oom-prevention.html. Consider provisioning more memory on this node or reducing task parallelism by requesting more CPUs per task. To adjust the kill threshold, set the environment variable `RAY_memory_usage_threshold` when starting Ray. To disable worker killing, set the environment variable `RAY_memory_monitor_refresh_ms` to zero. Since 2.56, Ray updated the oom killing policy to enabling killing multiple workers and selecting workers based on the time since the task start executing. To revert to the legacy policy of determining worker to oom kill based on owner group size or only selecting a single worker to kill at a time, set the environment variable `RAY_worker_killing_policy_by_group` to true before starting Ray. If the idle workers have a non-trivial memory footprint at the time of OOM (check OOM log for non-selected idle workers), consider setting the environment variable `RAY_idle_worker_killing_memory_threshold_bytes` to a lower value to consider idle workers with lower memory footprint for killing. [repeated 2x across cluster]

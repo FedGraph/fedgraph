@@ -1,0 +1,11 @@
+run_id,batch_size,seed,metric_name,target_val_acc,round,local_steps,train_comm_time_sec
+20260706_225053_ogbn-arxiv_FedGCN_bs2048_seed42_beta10000p0,2048,42,val_acc,0.5,199,597,135.88000000000002
+20260706_225053_ogbn-arxiv_FedGCN_bs2048_seed42_beta10000p0,2048,42,val_acc,0.52,257,771,174.8099999999999
+20260706_225053_ogbn-arxiv_FedGCN_bs2048_seed42_beta10000p0,2048,42,val_acc,0.54,,,
+20260706_225053_ogbn-arxiv_FedGCN_bs2048_seed42_beta10000p0,2048,42,val_acc,0.55,,,
+20260706_225053_ogbn-arxiv_FedGCN_bs2048_seed42_beta10000p0,2048,42,val_acc,0.56,,,
+20260706_225531_ogbn-arxiv_FedGCN_bsfull_seed42_beta10000p0,-1,42,val_acc,0.5,158,474,121.28000000000019
+20260706_225531_ogbn-arxiv_FedGCN_bsfull_seed42_beta10000p0,-1,42,val_acc,0.52,220,660,168.54999999999995
+20260706_225531_ogbn-arxiv_FedGCN_bsfull_seed42_beta10000p0,-1,42,val_acc,0.54,,,
+20260706_225531_ogbn-arxiv_FedGCN_bsfull_seed42_beta10000p0,-1,42,val_acc,0.55,,,
+20260706_225531_ogbn-arxiv_FedGCN_bsfull_seed42_beta10000p0,-1,42,val_acc,0.56,,,

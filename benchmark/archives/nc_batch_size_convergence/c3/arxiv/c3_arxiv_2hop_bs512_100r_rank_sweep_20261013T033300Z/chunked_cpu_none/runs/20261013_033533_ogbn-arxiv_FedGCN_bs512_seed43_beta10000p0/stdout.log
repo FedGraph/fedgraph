@@ -1,0 +1,590 @@
+================================================================================
+Starting FedGraph NC batch-size convergence run: 20261013_033533_ogbn-arxiv_FedGCN_bs512_seed43_beta10000p0
+{
+  "batch_size": 512,
+  "dataset": "ogbn-arxiv",
+  "distribution_type": "average",
+  "elastic_training": false,
+  "evaluation_split": "validation",
+  "feature_compression_chunk_rows": 65536,
+  "feature_compression_max_inflight_trainers": 4,
+  "feature_compression_mode": "none",
+  "feature_compression_output_dir": null,
+  "feature_compression_rank": 128,
+  "global_rounds": 100,
+  "gpu": true,
+  "graph_relabel_cache_dir": null,
+  "graph_relabel_chunk_edges": 1000000,
+  "graph_storage_mode": "cpu",
+  "hf_artifact_num_hops": null,
+  "hf_local_artifact_cache_dir": null,
+  "hf_local_artifact_repo": null,
+  "hf_local_artifact_revision": null,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_artifact_dir": "$HOME/fedgraph-artifacts/ogbn-arxiv-5-2hop-v2",
+  "local_artifact_rank_hosts": null,
+  "local_step": 1,
+  "max_rounds": null,
+  "method": "FedGCN",
+  "n_trainer": 5,
+  "num_cpus_per_trainer": 0,
+  "num_gpus_per_trainer": 0.2,
+  "num_hops": 2,
+  "num_layers": 2,
+  "pretrain_feature_aggregation_mode": "chunked",
+  "pretrain_feature_chunk_edges": 1000000,
+  "pretrain_feature_chunk_rows": 65536,
+  "pretrain_feature_max_inflight_trainers": 4,
+  "pretrain_feature_output_dir": "$HOME/fedgraph-2hop-runtime/c3_arxiv_2hop_bs512_100r_rank_sweep_20261013T033300Z/chunked_cpu_none/pretrain",
+  "pretrain_feature_upload_mode": "indexed",
+  "resource_monitor_mode": "manual",
+  "resource_snapshot_interval_rounds": 1,
+  "seed": 43,
+  "server_device": "cpu",
+  "target_train_comm_times_sec": [],
+  "target_val_accs": [],
+  "target_val_losses": [],
+  "use_huggingface": false,
+  "use_ogb_load_patch": true,
+  "val_loss_min_delta": 0.0,
+  "val_loss_patience": 20
+}
+================================================================================
+NC_GRAPH_STORAGE, mode=cpu
+NC_PRETRAIN_FEATURE_AGGREGATION, mode=chunked
+NC_FEATURE_COMPRESSION, mode=none, rank=128, chunk_rows=65536, max_inflight_trainers=4, output_dir=None
+NC_RESOURCE_MONITOR, mode=manual, snapshot_interval_rounds=1, snapshot_path=$HOME/fedgraph/benchmark/results/nc_batch_size_convergence/c3_arxiv_2hop_bs512_100r_rank_sweep_20261013T033300Z/chunked_cpu_none/runs/20261013_033533_ogbn-arxiv_FedGCN_bs512_seed43_beta10000p0/fedgraph_logs/resource_snapshots.jsonl, prometheus_summary_path=None
+Initialization start time recorded.
+--- Logging error ---
+Traceback (most recent call last):
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/logging/__init__.py", line 1163, in emit
+    stream.write(msg + self.terminator)
+  File "$HOME/fedgraph/benchmark/benchmark_NC_batch_size_convergence.py", line 140, in write
+    stream.write(data)
+ValueError: I/O operation on closed file.
+Call stack:
+  File "$HOME/fedgraph/benchmark/benchmark_NC_batch_size_convergence.py", line 1916, in <module>
+    raise SystemExit(main())
+  File "$HOME/fedgraph/benchmark/benchmark_NC_batch_size_convergence.py", line 1887, in main
+    summary = run_experiment(
+  File "$HOME/fedgraph/benchmark/benchmark_NC_batch_size_convergence.py", line 850, in run_experiment
+    run_fedgraph(
+  File "$HOME/fedgraph/fedgraph/federated_methods.py", line 1181, in run_fedgraph
+    run_NC(args, data)
+  File "$HOME/fedgraph/fedgraph/federated_methods.py", line 1419, in run_NC
+    ray.init(**_ray_kwargs)
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/client_mode_hook.py", line 110, in wrapper
+    return func(*args, **kwargs)
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/worker.py", line 2015, in init
+    logger.info(
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/logging/__init__.py", line 1539, in info
+    self._log(INFO, msg, args, **kwargs)
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/logging/__init__.py", line 1684, in _log
+    self.handle(record)
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/logging/__init__.py", line 1700, in handle
+    self.callHandlers(record)
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/logging/__init__.py", line 1762, in callHandlers
+    hdlr.handle(record)
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/logging/__init__.py", line 1028, in handle
+    self.emit(record)
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/log.py", line 64, in emit
+    logging._StderrHandler.emit(self, record)
+Message: 'Started a local Ray instance. View the dashboard at %s%s%s %s%s'
+Arguments: ('\x1b[1m', '\x1b[32m', 'http://127.0.0.1:8265', '\x1b[39m', '\x1b[22m')
+(pid=48271) FedGraph Differential Privacy module loaded (v1.0.0)
+(pid=48271) ✓ Differential Privacy support loaded
+(Trainer pid=48271) Loaded local artifact v2 shard 4 (2-hop) from $HOME/fedgraph-artifacts/ogbn-arxiv-5-2hop-v2/shards/trainer-004
+(Trainer pid=48271) Trainer 4 artifact load completed in 0.132s; process RSS=807964672; process peak RSS=823009280 bytes
+(Trainer pid=48269) running AggreGCN_Arxiv
+Running AggreGCN_Arxiv
+//Log init_time: 18564.499 ms //end
+Pretrain start time recorded.
+Starting bounded chunked plaintext feature aggregation...
+NC_PRETRAIN_CHUNK, chunk=1/3, global_start=0, global_stop=65536, upload_bytes=110773344, download_bytes=107416576, time_sec=1.158898
+NC_PRETRAIN_CHUNK, chunk=2/3, global_start=65536, global_stop=131072, upload_bytes=110732160, download_bytes=107376640, time_sec=1.039444
+NC_PRETRAIN_CHUNK, chunk=3/3, global_start=131072, global_stop=169343, upload_bytes=65011056, download_bytes=63041024, time_sec=0.505108
+(Trainer pid=48269) NC_ADJ_RELABEL, trainer=0, mode=artifact-precomputed, source_edges=819411, output_edges=819411, dropped_edges=0, time_sec=0.005083, source=$HOME/fedgraph-artifacts/ogbn-arxiv-5-2hop-v2/shards/trainer-000/adj.pt
+(pid=48388) FedGraph Differential Privacy module loaded (v1.0.0) [repeated 4x across cluster]
+(pid=48388) ✓ Differential Privacy support loaded [repeated 4x across cluster]
+(Trainer pid=48388) Loaded local artifact v2 shard 1 (2-hop) from $HOME/fedgraph-artifacts/ogbn-arxiv-5-2hop-v2/shards/trainer-001 [repeated 4x across cluster]
+(Trainer pid=48388) Trainer 1 artifact load completed in 0.087s; process RSS=804999168; process peak RSS=819052544 bytes [repeated 4x across cluster]
+NC_PRETRAIN_CHUNK_SUMMARY, chunks=3, upload_bytes=286516560, download_bytes=277834240, max_inflight_trainers=4
+clients finalized file-backed feature aggregations
+//pretrain_time: 3845.7219999999998 ms//end
+NC_PRETRAIN_METRIC {"aggregation_mode":"chunked","download_bytes":277834240,"feature_compression_basis_sha256":null,"feature_compression_mode":"none","feature_dim":128,"method":"FedGCN","total_traffic_bytes":564350800,"upload_bytes":286516560,"wall_time_sec":3.8457188606262207}
+Train start time recorded.
+global_rounds 100
+Round 1: Global Val Loss = 5.6944
+Round 1: Global Val Accuracy = 0.0092
+Round 1: Training Time = 0.93s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":0.9607405662536621,"parameter_sync_time_sec":0.02796792984008789,"round":1,"train_sync_time_sec":0.9607405662536621,"training_time_sec":0.9327726364135742}
+Round 2: Global Val Loss = 4.8431
+Round 2: Global Val Accuracy = 0.0125
+Round 2: Training Time = 0.23s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":1.2136547565460205,"parameter_sync_time_sec":0.02765035629272461,"round":2,"train_sync_time_sec":0.2529141902923584,"training_time_sec":0.2252638339996338}
+Round 3: Global Val Loss = 4.3860
+Round 3: Global Val Accuracy = 0.0155
+Round 3: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":1.4024298191070557,"parameter_sync_time_sec":0.02697587013244629,"round":3,"train_sync_time_sec":0.18877506256103516,"training_time_sec":0.16179919242858887}
+Round 4: Global Val Loss = 4.0886
+Round 4: Global Val Accuracy = 0.0410
+Round 4: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":1.5871679782867432,"parameter_sync_time_sec":0.0266878604888916,"round":4,"train_sync_time_sec":0.1847381591796875,"training_time_sec":0.1580502986907959}
+Round 5: Global Val Loss = 3.8942
+Round 5: Global Val Accuracy = 0.1016
+Round 5: Training Time = 0.19s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":1.800400733947754,"parameter_sync_time_sec":0.026145219802856445,"round":5,"train_sync_time_sec":0.21323275566101074,"training_time_sec":0.1870875358581543}
+Round 6: Global Val Loss = 3.7664
+Round 6: Global Val Accuracy = 0.1515
+Round 6: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":1.9910523891448975,"parameter_sync_time_sec":0.0285952091217041,"round":6,"train_sync_time_sec":0.19065165519714355,"training_time_sec":0.16205644607543945}
+Round 7: Global Val Loss = 3.6960
+Round 7: Global Val Accuracy = 0.1842
+Round 7: Training Time = 0.20s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":2.2212443351745605,"parameter_sync_time_sec":0.027760744094848633,"round":7,"train_sync_time_sec":0.23019194602966309,"training_time_sec":0.20243120193481445}
+Round 8: Global Val Loss = 3.6285
+Round 8: Global Val Accuracy = 0.1849
+Round 8: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":2.412587881088257,"parameter_sync_time_sec":0.026960372924804688,"round":8,"train_sync_time_sec":0.1913435459136963,"training_time_sec":0.1643831729888916}
+Round 9: Global Val Loss = 3.5580
+Round 9: Global Val Accuracy = 0.1859
+Round 9: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":2.610438346862793,"parameter_sync_time_sec":0.030867338180541992,"round":9,"train_sync_time_sec":0.19785046577453613,"training_time_sec":0.16698312759399414}
+Round 10: Global Val Loss = 3.4976
+Round 10: Global Val Accuracy = 0.1921
+Round 10: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":2.8137104511260986,"parameter_sync_time_sec":0.029039382934570312,"round":10,"train_sync_time_sec":0.20327210426330566,"training_time_sec":0.17423272132873535}
+Round 11: Global Val Loss = 3.4252
+Round 11: Global Val Accuracy = 0.1986
+Round 11: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":3.016033887863159,"parameter_sync_time_sec":0.02631211280822754,"round":11,"train_sync_time_sec":0.20232343673706055,"training_time_sec":0.176011323928833}
+Round 12: Global Val Loss = 3.3788
+Round 12: Global Val Accuracy = 0.2014
+Round 12: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":3.20329213142395,"parameter_sync_time_sec":0.02726459503173828,"round":12,"train_sync_time_sec":0.18725824356079102,"training_time_sec":0.15999364852905273}
+Round 13: Global Val Loss = 3.3397
+Round 13: Global Val Accuracy = 0.2024
+Round 13: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":3.409806489944458,"parameter_sync_time_sec":0.030408859252929688,"round":13,"train_sync_time_sec":0.2065143585205078,"training_time_sec":0.17610549926757812}
+Round 14: Global Val Loss = 3.3019
+Round 14: Global Val Accuracy = 0.2136
+Round 14: Training Time = 0.20s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":3.641831636428833,"parameter_sync_time_sec":0.03442239761352539,"round":14,"train_sync_time_sec":0.232025146484375,"training_time_sec":0.1976027488708496}
+Round 15: Global Val Loss = 3.2673
+Round 15: Global Val Accuracy = 0.2181
+Round 15: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":3.8426120281219482,"parameter_sync_time_sec":0.027575969696044922,"round":15,"train_sync_time_sec":0.20078039169311523,"training_time_sec":0.1732044219970703}
+Round 16: Global Val Loss = 3.2312
+Round 16: Global Val Accuracy = 0.2263
+Round 16: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":4.055100917816162,"parameter_sync_time_sec":0.028497695922851562,"round":16,"train_sync_time_sec":0.21248888969421387,"training_time_sec":0.1839911937713623}
+Round 17: Global Val Loss = 3.2310
+Round 17: Global Val Accuracy = 0.2172
+Round 17: Training Time = 0.19s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":4.271892309188843,"parameter_sync_time_sec":0.02642369270324707,"round":17,"train_sync_time_sec":0.21679139137268066,"training_time_sec":0.1903676986694336}
+Round 18: Global Val Loss = 3.2098
+Round 18: Global Val Accuracy = 0.2199
+Round 18: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":4.46480131149292,"parameter_sync_time_sec":0.025736570358276367,"round":18,"train_sync_time_sec":0.19290900230407715,"training_time_sec":0.16717243194580078}
+Round 19: Global Val Loss = 3.1710
+Round 19: Global Val Accuracy = 0.2295
+Round 19: Training Time = 0.21s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":4.697789192199707,"parameter_sync_time_sec":0.02760171890258789,"round":19,"train_sync_time_sec":0.2329878807067871,"training_time_sec":0.20538616180419922}
+Round 20: Global Val Loss = 3.1707
+Round 20: Global Val Accuracy = 0.2197
+Round 20: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":4.880395174026489,"parameter_sync_time_sec":0.02619791030883789,"round":20,"train_sync_time_sec":0.18260598182678223,"training_time_sec":0.15640807151794434}
+Round 21: Global Val Loss = 3.1391
+Round 21: Global Val Accuracy = 0.2292
+Round 21: Training Time = 0.15s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":5.061189651489258,"parameter_sync_time_sec":0.026228904724121094,"round":21,"train_sync_time_sec":0.18079447746276855,"training_time_sec":0.15456557273864746}
+Round 22: Global Val Loss = 3.1176
+Round 22: Global Val Accuracy = 0.2274
+Round 22: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":5.271723985671997,"parameter_sync_time_sec":0.026381731033325195,"round":22,"train_sync_time_sec":0.21053433418273926,"training_time_sec":0.18415260314941406}
+Round 23: Global Val Loss = 3.1134
+Round 23: Global Val Accuracy = 0.2272
+Round 23: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":5.470914125442505,"parameter_sync_time_sec":0.025928974151611328,"round":23,"train_sync_time_sec":0.1991901397705078,"training_time_sec":0.17326116561889648}
+Round 24: Global Val Loss = 3.0924
+Round 24: Global Val Accuracy = 0.2309
+Round 24: Training Time = 0.21s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":5.708231449127197,"parameter_sync_time_sec":0.026297330856323242,"round":24,"train_sync_time_sec":0.23731732368469238,"training_time_sec":0.21101999282836914}
+Round 25: Global Val Loss = 3.0690
+Round 25: Global Val Accuracy = 0.2439
+Round 25: Training Time = 0.15s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":5.887663125991821,"parameter_sync_time_sec":0.02721381187438965,"round":25,"train_sync_time_sec":0.17943167686462402,"training_time_sec":0.15221786499023438}
+Round 26: Global Val Loss = 3.0600
+Round 26: Global Val Accuracy = 0.2400
+Round 26: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":6.07557487487793,"parameter_sync_time_sec":0.026499271392822266,"round":26,"train_sync_time_sec":0.1879117488861084,"training_time_sec":0.16141247749328613}
+Round 27: Global Val Loss = 3.0403
+Round 27: Global Val Accuracy = 0.2445
+Round 27: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":6.279094457626343,"parameter_sync_time_sec":0.029747724533081055,"round":27,"train_sync_time_sec":0.20351958274841309,"training_time_sec":0.17377185821533203}
+Round 28: Global Val Loss = 3.0192
+Round 28: Global Val Accuracy = 0.2443
+Round 28: Training Time = 0.20s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":6.511212587356567,"parameter_sync_time_sec":0.029119014739990234,"round":28,"train_sync_time_sec":0.2321181297302246,"training_time_sec":0.20299911499023438}
+Round 29: Global Val Loss = 3.0034
+Round 29: Global Val Accuracy = 0.2518
+Round 29: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":6.7199413776397705,"parameter_sync_time_sec":0.027674198150634766,"round":29,"train_sync_time_sec":0.20872879028320312,"training_time_sec":0.18105459213256836}
+Round 30: Global Val Loss = 2.9885
+Round 30: Global Val Accuracy = 0.2584
+Round 30: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":6.930761337280273,"parameter_sync_time_sec":0.026534080505371094,"round":30,"train_sync_time_sec":0.21081995964050293,"training_time_sec":0.18428587913513184}
+Round 31: Global Val Loss = 2.9567
+Round 31: Global Val Accuracy = 0.2760
+Round 31: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":7.120208263397217,"parameter_sync_time_sec":0.02717304229736328,"round":31,"train_sync_time_sec":0.18944692611694336,"training_time_sec":0.16227388381958008}
+Round 32: Global Val Loss = 2.9357
+Round 32: Global Val Accuracy = 0.2869
+Round 32: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":7.3082404136657715,"parameter_sync_time_sec":0.027001142501831055,"round":32,"train_sync_time_sec":0.1880321502685547,"training_time_sec":0.16103100776672363}
+Round 33: Global Val Loss = 2.9317
+Round 33: Global Val Accuracy = 0.2918
+Round 33: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":7.5103373527526855,"parameter_sync_time_sec":0.02815079689025879,"round":33,"train_sync_time_sec":0.20209693908691406,"training_time_sec":0.17394614219665527}
+Round 34: Global Val Loss = 2.9216
+Round 34: Global Val Accuracy = 0.2978
+Round 34: Training Time = 0.19s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":7.731674671173096,"parameter_sync_time_sec":0.029921770095825195,"round":34,"train_sync_time_sec":0.22133731842041016,"training_time_sec":0.19141554832458496}
+Round 35: Global Val Loss = 2.9152
+Round 35: Global Val Accuracy = 0.2921
+Round 35: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":7.924293041229248,"parameter_sync_time_sec":0.0283811092376709,"round":35,"train_sync_time_sec":0.19261837005615234,"training_time_sec":0.16423726081848145}
+Round 36: Global Val Loss = 2.8945
+Round 36: Global Val Accuracy = 0.3099
+Round 36: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":8.119659423828125,"parameter_sync_time_sec":0.027721405029296875,"round":36,"train_sync_time_sec":0.19536638259887695,"training_time_sec":0.16764497756958008}
+Round 37: Global Val Loss = 2.8755
+Round 37: Global Val Accuracy = 0.3221
+Round 37: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":8.30437707901001,"parameter_sync_time_sec":0.028270959854125977,"round":37,"train_sync_time_sec":0.18471765518188477,"training_time_sec":0.1564466953277588}
+Round 38: Global Val Loss = 2.8759
+Round 38: Global Val Accuracy = 0.3049
+Round 38: Training Time = 0.20s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":8.532528162002563,"parameter_sync_time_sec":0.02732396125793457,"round":38,"train_sync_time_sec":0.2281510829925537,"training_time_sec":0.20082712173461914}
+Round 39: Global Val Loss = 2.8638
+Round 39: Global Val Accuracy = 0.3291
+Round 39: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":8.739186525344849,"parameter_sync_time_sec":0.026815176010131836,"round":39,"train_sync_time_sec":0.20665836334228516,"training_time_sec":0.17984318733215332}
+Round 40: Global Val Loss = 2.8416
+Round 40: Global Val Accuracy = 0.3355
+Round 40: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":8.925248146057129,"parameter_sync_time_sec":0.02635049819946289,"round":40,"train_sync_time_sec":0.18606162071228027,"training_time_sec":0.15971112251281738}
+Round 41: Global Val Loss = 2.8272
+Round 41: Global Val Accuracy = 0.3430
+Round 41: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":9.127725839614868,"parameter_sync_time_sec":0.026480674743652344,"round":41,"train_sync_time_sec":0.20247769355773926,"training_time_sec":0.17599701881408691}
+Round 42: Global Val Loss = 2.8241
+Round 42: Global Val Accuracy = 0.3410
+Round 42: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":9.311192512512207,"parameter_sync_time_sec":0.0263059139251709,"round":42,"train_sync_time_sec":0.18346667289733887,"training_time_sec":0.15716075897216797}
+Round 43: Global Val Loss = 2.8147
+Round 43: Global Val Accuracy = 0.3487
+Round 43: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":9.524723529815674,"parameter_sync_time_sec":0.034845590591430664,"round":43,"train_sync_time_sec":0.2135310173034668,"training_time_sec":0.17868542671203613}
+Round 44: Global Val Loss = 2.8066
+Round 44: Global Val Accuracy = 0.3570
+Round 44: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":9.724554538726807,"parameter_sync_time_sec":0.030337810516357422,"round":44,"train_sync_time_sec":0.1998310089111328,"training_time_sec":0.1694931983947754}
+Round 45: Global Val Loss = 2.7890
+Round 45: Global Val Accuracy = 0.3501
+Round 45: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":9.912122011184692,"parameter_sync_time_sec":0.028401613235473633,"round":45,"train_sync_time_sec":0.18756747245788574,"training_time_sec":0.1591658592224121}
+Round 46: Global Val Loss = 2.7766
+Round 46: Global Val Accuracy = 0.3589
+Round 46: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":10.104689836502075,"parameter_sync_time_sec":0.027981281280517578,"round":46,"train_sync_time_sec":0.1925678253173828,"training_time_sec":0.16458654403686523}
+Round 47: Global Val Loss = 2.7768
+Round 47: Global Val Accuracy = 0.3596
+Round 47: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":10.287432670593262,"parameter_sync_time_sec":0.026310205459594727,"round":47,"train_sync_time_sec":0.18274283409118652,"training_time_sec":0.1564326286315918}
+Round 48: Global Val Loss = 2.7886
+Round 48: Global Val Accuracy = 0.3537
+Round 48: Training Time = 0.27s, Communication Time = 0.05s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":10.61404299736023,"parameter_sync_time_sec":0.053667306900024414,"round":48,"train_sync_time_sec":0.3266103267669678,"training_time_sec":0.27294301986694336}
+Round 49: Global Val Loss = 2.7514
+Round 49: Global Val Accuracy = 0.3723
+Round 49: Training Time = 0.16s, Communication Time = 0.04s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":10.805539608001709,"parameter_sync_time_sec":0.036004066467285156,"round":49,"train_sync_time_sec":0.1914966106414795,"training_time_sec":0.15549254417419434}
+Round 50: Global Val Loss = 2.7481
+Round 50: Global Val Accuracy = 0.3746
+Round 50: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":11.014414072036743,"parameter_sync_time_sec":0.025655508041381836,"round":50,"train_sync_time_sec":0.20887446403503418,"training_time_sec":0.18321895599365234}
+Round 51: Global Val Loss = 2.7480
+Round 51: Global Val Accuracy = 0.3624
+Round 51: Training Time = 0.19s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":11.234156131744385,"parameter_sync_time_sec":0.027985572814941406,"round":51,"train_sync_time_sec":0.2197420597076416,"training_time_sec":0.1917564868927002}
+Round 52: Global Val Loss = 2.7268
+Round 52: Global Val Accuracy = 0.3801
+Round 52: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":11.423112154006958,"parameter_sync_time_sec":0.02798771858215332,"round":52,"train_sync_time_sec":0.18895602226257324,"training_time_sec":0.16096830368041992}
+Round 53: Global Val Loss = 2.7231
+Round 53: Global Val Accuracy = 0.3803
+Round 53: Training Time = 0.20s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":11.65414547920227,"parameter_sync_time_sec":0.027669429779052734,"round":53,"train_sync_time_sec":0.2310333251953125,"training_time_sec":0.20336389541625977}
+Round 54: Global Val Loss = 2.7135
+Round 54: Global Val Accuracy = 0.3843
+Round 54: Training Time = 0.15s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":11.83622121810913,"parameter_sync_time_sec":0.028278589248657227,"round":54,"train_sync_time_sec":0.18207573890686035,"training_time_sec":0.15379714965820312}
+Round 55: Global Val Loss = 2.7222
+Round 55: Global Val Accuracy = 0.3822
+Round 55: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":12.0338454246521,"parameter_sync_time_sec":0.026882648468017578,"round":55,"train_sync_time_sec":0.19762420654296875,"training_time_sec":0.17074155807495117}
+Round 56: Global Val Loss = 2.6965
+Round 56: Global Val Accuracy = 0.3899
+Round 56: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":12.238653182983398,"parameter_sync_time_sec":0.02594590187072754,"round":56,"train_sync_time_sec":0.20480775833129883,"training_time_sec":0.1788618564605713}
+Round 57: Global Val Loss = 2.7027
+Round 57: Global Val Accuracy = 0.3829
+Round 57: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":12.426397562026978,"parameter_sync_time_sec":0.02635812759399414,"round":57,"train_sync_time_sec":0.1877443790435791,"training_time_sec":0.16138625144958496}
+Round 58: Global Val Loss = 2.6894
+Round 58: Global Val Accuracy = 0.3958
+Round 58: Training Time = 0.20s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":12.656541585922241,"parameter_sync_time_sec":0.026166915893554688,"round":58,"train_sync_time_sec":0.23014402389526367,"training_time_sec":0.20397710800170898}
+Round 59: Global Val Loss = 2.6828
+Round 59: Global Val Accuracy = 0.3947
+Round 59: Training Time = 0.15s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":12.831095218658447,"parameter_sync_time_sec":0.027215957641601562,"round":59,"train_sync_time_sec":0.17455363273620605,"training_time_sec":0.1473376750946045}
+Round 60: Global Val Loss = 2.6748
+Round 60: Global Val Accuracy = 0.3937
+Round 60: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":13.039338111877441,"parameter_sync_time_sec":0.027945280075073242,"round":60,"train_sync_time_sec":0.20824289321899414,"training_time_sec":0.1802976131439209}
+Round 61: Global Val Loss = 2.6703
+Round 61: Global Val Accuracy = 0.3963
+Round 61: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":13.245725631713867,"parameter_sync_time_sec":0.0302121639251709,"round":61,"train_sync_time_sec":0.20638751983642578,"training_time_sec":0.17617535591125488}
+Round 62: Global Val Loss = 2.6749
+Round 62: Global Val Accuracy = 0.3971
+Round 62: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":13.442933559417725,"parameter_sync_time_sec":0.029070138931274414,"round":62,"train_sync_time_sec":0.19720792770385742,"training_time_sec":0.168137788772583}
+Round 63: Global Val Loss = 2.6603
+Round 63: Global Val Accuracy = 0.4116
+Round 63: Training Time = 0.19s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":13.65678358078003,"parameter_sync_time_sec":0.02732229232788086,"round":63,"train_sync_time_sec":0.2138500213623047,"training_time_sec":0.18652772903442383}
+Round 64: Global Val Loss = 2.6527
+Round 64: Global Val Accuracy = 0.4039
+Round 64: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":13.85524606704712,"parameter_sync_time_sec":0.027674436569213867,"round":64,"train_sync_time_sec":0.19846248626708984,"training_time_sec":0.17078804969787598}
+Round 65: Global Val Loss = 2.6411
+Round 65: Global Val Accuracy = 0.4098
+Round 65: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":14.04578709602356,"parameter_sync_time_sec":0.027053356170654297,"round":65,"train_sync_time_sec":0.19054102897644043,"training_time_sec":0.16348767280578613}
+Round 66: Global Val Loss = 2.6415
+Round 66: Global Val Accuracy = 0.3980
+Round 66: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":14.25105619430542,"parameter_sync_time_sec":0.027513742446899414,"round":66,"train_sync_time_sec":0.20526909828186035,"training_time_sec":0.17775535583496094}
+Round 67: Global Val Loss = 2.6234
+Round 67: Global Val Accuracy = 0.4188
+Round 67: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":14.46008038520813,"parameter_sync_time_sec":0.028353214263916016,"round":67,"train_sync_time_sec":0.20902419090270996,"training_time_sec":0.18067097663879395}
+Round 68: Global Val Loss = 2.6270
+Round 68: Global Val Accuracy = 0.4073
+Round 68: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":14.665076732635498,"parameter_sync_time_sec":0.026899099349975586,"round":68,"train_sync_time_sec":0.20499634742736816,"training_time_sec":0.17809724807739258}
+Round 69: Global Val Loss = 2.6216
+Round 69: Global Val Accuracy = 0.4132
+Round 69: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":14.856492280960083,"parameter_sync_time_sec":0.0297698974609375,"round":69,"train_sync_time_sec":0.19141554832458496,"training_time_sec":0.16164565086364746}
+Round 70: Global Val Loss = 2.6159
+Round 70: Global Val Accuracy = 0.4208
+Round 70: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":15.064486980438232,"parameter_sync_time_sec":0.027921676635742188,"round":70,"train_sync_time_sec":0.20799469947814941,"training_time_sec":0.18007302284240723}
+Round 71: Global Val Loss = 2.6160
+Round 71: Global Val Accuracy = 0.4057
+Round 71: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":15.26733112335205,"parameter_sync_time_sec":0.0266721248626709,"round":71,"train_sync_time_sec":0.20284414291381836,"training_time_sec":0.17617201805114746}
+Round 72: Global Val Loss = 2.6276
+Round 72: Global Val Accuracy = 0.4049
+Round 72: Training Time = 0.18s, Communication Time = 0.04s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":15.483011245727539,"parameter_sync_time_sec":0.03513479232788086,"round":72,"train_sync_time_sec":0.21568012237548828,"training_time_sec":0.18054533004760742}
+Round 73: Global Val Loss = 2.6046
+Round 73: Global Val Accuracy = 0.4197
+Round 73: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":15.681720733642578,"parameter_sync_time_sec":0.028039932250976562,"round":73,"train_sync_time_sec":0.19870948791503906,"training_time_sec":0.1706695556640625}
+Round 74: Global Val Loss = 2.6223
+Round 74: Global Val Accuracy = 0.4068
+Round 74: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":15.873302459716797,"parameter_sync_time_sec":0.026082515716552734,"round":74,"train_sync_time_sec":0.19158172607421875,"training_time_sec":0.16549921035766602}
+Round 75: Global Val Loss = 2.6136
+Round 75: Global Val Accuracy = 0.4039
+Round 75: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":16.073474645614624,"parameter_sync_time_sec":0.02866959571838379,"round":75,"train_sync_time_sec":0.20017218589782715,"training_time_sec":0.17150259017944336}
+Round 76: Global Val Loss = 2.5984
+Round 76: Global Val Accuracy = 0.4197
+Round 76: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":16.2641761302948,"parameter_sync_time_sec":0.02593255043029785,"round":76,"train_sync_time_sec":0.19070148468017578,"training_time_sec":0.16476893424987793}
+Round 77: Global Val Loss = 2.5991
+Round 77: Global Val Accuracy = 0.4143
+Round 77: Training Time = 0.20s, Communication Time = 0.05s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":16.511624574661255,"parameter_sync_time_sec":0.048899173736572266,"round":77,"train_sync_time_sec":0.24744844436645508,"training_time_sec":0.1985492706298828}
+Round 78: Global Val Loss = 2.5977
+Round 78: Global Val Accuracy = 0.4108
+Round 78: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":16.724643230438232,"parameter_sync_time_sec":0.0283815860748291,"round":78,"train_sync_time_sec":0.21301865577697754,"training_time_sec":0.18463706970214844}
+Round 79: Global Val Loss = 2.5766
+Round 79: Global Val Accuracy = 0.4217
+Round 79: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":16.908984899520874,"parameter_sync_time_sec":0.027364730834960938,"round":79,"train_sync_time_sec":0.1843416690826416,"training_time_sec":0.15697693824768066}
+Round 80: Global Val Loss = 2.5808
+Round 80: Global Val Accuracy = 0.4156
+Round 80: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":17.115382194519043,"parameter_sync_time_sec":0.0272061824798584,"round":80,"train_sync_time_sec":0.20639729499816895,"training_time_sec":0.17919111251831055}
+Round 81: Global Val Loss = 2.5669
+Round 81: Global Val Accuracy = 0.4224
+Round 81: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":17.306625843048096,"parameter_sync_time_sec":0.02714061737060547,"round":81,"train_sync_time_sec":0.19124364852905273,"training_time_sec":0.16410303115844727}
+Round 82: Global Val Loss = 2.5574
+Round 82: Global Val Accuracy = 0.4260
+Round 82: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":17.491920232772827,"parameter_sync_time_sec":0.02600693702697754,"round":82,"train_sync_time_sec":0.18529438972473145,"training_time_sec":0.1592874526977539}
+Round 83: Global Val Loss = 2.5646
+Round 83: Global Val Accuracy = 0.4208
+Round 83: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":17.69526171684265,"parameter_sync_time_sec":0.027367591857910156,"round":83,"train_sync_time_sec":0.20334148406982422,"training_time_sec":0.17597389221191406}
+Round 84: Global Val Loss = 2.5654
+Round 84: Global Val Accuracy = 0.4265
+Round 84: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":17.898394107818604,"parameter_sync_time_sec":0.026160717010498047,"round":84,"train_sync_time_sec":0.20313239097595215,"training_time_sec":0.1769716739654541}
+Round 85: Global Val Loss = 2.5563
+Round 85: Global Val Accuracy = 0.4231
+Round 85: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":18.102814197540283,"parameter_sync_time_sec":0.026019811630249023,"round":85,"train_sync_time_sec":0.2044200897216797,"training_time_sec":0.17840027809143066}
+Round 86: Global Val Loss = 2.5500
+Round 86: Global Val Accuracy = 0.4326
+Round 86: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":18.289594173431396,"parameter_sync_time_sec":0.02576589584350586,"round":86,"train_sync_time_sec":0.18677997589111328,"training_time_sec":0.16101408004760742}
+Round 87: Global Val Loss = 2.5563
+Round 87: Global Val Accuracy = 0.4295
+Round 87: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":18.473414421081543,"parameter_sync_time_sec":0.02617478370666504,"round":87,"train_sync_time_sec":0.18382024765014648,"training_time_sec":0.15764546394348145}
+Round 88: Global Val Loss = 2.5442
+Round 88: Global Val Accuracy = 0.4269
+Round 88: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":18.667797088623047,"parameter_sync_time_sec":0.02622199058532715,"round":88,"train_sync_time_sec":0.1943826675415039,"training_time_sec":0.16816067695617676}
+Round 89: Global Val Loss = 2.5610
+Round 89: Global Val Accuracy = 0.4314
+Round 89: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":18.86807107925415,"parameter_sync_time_sec":0.02564072608947754,"round":89,"train_sync_time_sec":0.20027399063110352,"training_time_sec":0.17463326454162598}
+Round 90: Global Val Loss = 2.5279
+Round 90: Global Val Accuracy = 0.4367
+Round 90: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":19.063204526901245,"parameter_sync_time_sec":0.026972293853759766,"round":90,"train_sync_time_sec":0.19513344764709473,"training_time_sec":0.16816115379333496}
+Round 91: Global Val Loss = 2.5322
+Round 91: Global Val Accuracy = 0.4388
+Round 91: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":19.26570749282837,"parameter_sync_time_sec":0.026084423065185547,"round":91,"train_sync_time_sec":0.20250296592712402,"training_time_sec":0.17641854286193848}
+Round 92: Global Val Loss = 2.5358
+Round 92: Global Val Accuracy = 0.4276
+Round 92: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":19.474344968795776,"parameter_sync_time_sec":0.03189659118652344,"round":92,"train_sync_time_sec":0.20863747596740723,"training_time_sec":0.1767408847808838}
+Round 93: Global Val Loss = 2.5282
+Round 93: Global Val Accuracy = 0.4403
+Round 93: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":19.671626329421997,"parameter_sync_time_sec":0.02690577507019043,"round":93,"train_sync_time_sec":0.1972813606262207,"training_time_sec":0.17037558555603027}
+Round 94: Global Val Loss = 2.5366
+Round 94: Global Val Accuracy = 0.4296
+Round 94: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":19.869266271591187,"parameter_sync_time_sec":0.026863574981689453,"round":94,"train_sync_time_sec":0.19763994216918945,"training_time_sec":0.1707763671875}
+Round 95: Global Val Loss = 2.5250
+Round 95: Global Val Accuracy = 0.4337
+Round 95: Training Time = 0.18s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":20.0826358795166,"parameter_sync_time_sec":0.03434252738952637,"round":95,"train_sync_time_sec":0.21336960792541504,"training_time_sec":0.17902708053588867}
+Round 96: Global Val Loss = 2.5185
+Round 96: Global Val Accuracy = 0.4451
+Round 96: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":20.268171787261963,"parameter_sync_time_sec":0.02539968490600586,"round":96,"train_sync_time_sec":0.18553590774536133,"training_time_sec":0.16013622283935547}
+Round 97: Global Val Loss = 2.5308
+Round 97: Global Val Accuracy = 0.4368
+Round 97: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":20.4572536945343,"parameter_sync_time_sec":0.026502370834350586,"round":97,"train_sync_time_sec":0.18908190727233887,"training_time_sec":0.16257953643798828}
+Round 98: Global Val Loss = 2.5101
+Round 98: Global Val Accuracy = 0.4434
+Round 98: Training Time = 0.15s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":20.638346195220947,"parameter_sync_time_sec":0.026833057403564453,"round":98,"train_sync_time_sec":0.1810925006866455,"training_time_sec":0.15425944328308105}
+Round 99: Global Val Loss = 2.5094
+Round 99: Global Val Accuracy = 0.4492
+Round 99: Training Time = 0.17s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":20.841413736343384,"parameter_sync_time_sec":0.028074264526367188,"round":99,"train_sync_time_sec":0.20306754112243652,"training_time_sec":0.17499327659606934}
+Round 100: Global Val Loss = 2.5000
+Round 100: Global Val Accuracy = 0.4526
+Round 100: Training Time = 0.16s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":21.030070781707764,"parameter_sync_time_sec":0.02530980110168457,"round":100,"train_sync_time_sec":0.18865704536437988,"training_time_sec":0.1633472442626953}
+//train_time: 47276.687000000005 ms//end
+
+================================================================================
+TIME BREAKDOWN (excluding initialization)
+================================================================================
+Total Training Time (server-observed): 18.207961 seconds
+Total Communication Time (parameter synchronization): 2.822109 seconds
+Total Training + Communication Time: 21.030071 seconds
+Total Federated Loop Wall Time: 47.276712 seconds
+Training Time Percentage (of training + communication): 86.6%
+Communication Time Percentage (of training + communication): 13.4%
+Average Training Time per Round: 0.18 seconds
+Average Communication Time per Round: 0.03 seconds
+================================================================================
+[Training Time] Dataset: ogbn-arxiv, Batch Size: 512, Trainers: 5, Hops: 2, IID Beta: 10000.0 => Training Time = 18.21 seconds
+[Communication Time] Dataset: ogbn-arxiv, Batch Size: 512, Trainers: 5, Hops: 2, IID Beta: 10000.0 => Communication Time = 2.82 seconds
+average_final_test_loss, 2.6387965100180883
+Average test accuracy, 0.4323189904798297
+
+================================================================================
+INDIVIDUAL TRAINER MEMORY USAGE
+================================================================================
+
+====================================================================================================
+TRAINER MEMORY vs LOCAL GRAPH SIZE
+====================================================================================================
+Trainer  Memory(MB)   Nodes    Edges    Memory/Node  Memory/Edge
+----------------------------------------------------------------------------------------------------
+0        1643.4       33869    819411   0.049        0.002
+1        1591.4       33869    798959   0.047        0.002
+2        1695.6       33869    867002   0.050        0.002
+3        1637.2       33868    855521   0.048        0.002
+4        1680.5       33868    865715   0.050        0.002
+====================================================================================================
+Total Memory Usage: 8248.1 MB (8.05 GB)
+Total Nodes: 169343, Total Edges: 4206608
+Average Memory per Trainer: 1649.6 MB
+Average Nodes per Trainer: 33868.6
+Average Edges per Trainer: 841321.6
+Max Memory: 1695.6 MB (Trainer 2)
+Min Memory: 1591.4 MB (Trainer 1)
+Peak RSS: 1718.4 MB (Trainer 2)
+Overall Memory/Node Ratio: 0.049 MB/node
+Overall Memory/Edge Ratio: 0.002 MB/edge
+====================================================================================================
+//Log Theoretical Pretrain Comm Cost: 538.21 MB //end
+//Log Theoretical Train Comm Cost: 167.14 MB //end
+
+================================================================================
+CSV FORMAT RESULT:
+DS,IID,BS,ExecutionTime[s],TrainingTime[s],CommTime[s],TrainCommTime[s],FinalTestAcc[%],TheoreticalCommCost[MB],PeakMem[MB],AvgRoundTrainTime[s],AvgRoundCommTime[s],AvgRoundTime[s],ModelSize[MB],TotalParams
+ogbn-arxiv,10000.0,512,64.1,18.2,2.8,21.0,43.23,705.4,1718.4,0.182,0.028,0.210,0.167,43816
+================================================================================
+
+================================================================================
+EXPERIMENT SUMMARY
+================================================================================
+Dataset: ogbn-arxiv
+Method: FedGCN
+Trainers: 5
+IID Beta: 10000.0
+Batch Size: 512
+Hops: 2
+Total Execution Time: 64.06 seconds
+Training Time: 18.21 seconds
+Communication Time: 2.82 seconds
+Pretrain Comm Cost: 538.21 MB
+Training Comm Cost: 167.14 MB
+================================================================================
+
+NC_RESOURCE_MONITOR_SUMMARY, snapshot_path=$HOME/fedgraph/benchmark/results/nc_batch_size_convergence/c3_arxiv_2hop_bs512_100r_rank_sweep_20261013T033300Z/chunked_cpu_none/runs/20261013_033533_ogbn-arxiv_FedGCN_bs512_seed43_beta10000p0/fedgraph_logs/resource_snapshots.jsonl, summary_path=$HOME/fedgraph/benchmark/results/nc_batch_size_convergence/c3_arxiv_2hop_bs512_100r_rank_sweep_20261013T033300Z/chunked_cpu_none/runs/20261013_033533_ogbn-arxiv_FedGCN_bs512_seed43_beta10000p0/fedgraph_logs/resource_snapshot_summary.json
+(Trainer pid=48388) running AggreGCN_Arxiv [repeated 4x across cluster]
+(Trainer pid=48271) NC_ADJ_RELABEL, trainer=4, mode=artifact-precomputed, source_edges=865715, output_edges=865715, dropped_edges=0, time_sec=0.004551, source=$HOME/fedgraph-artifacts/ogbn-arxiv-5-2hop-v2/shards/trainer-004/adj.pt [repeated 4x across cluster]

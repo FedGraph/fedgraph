@@ -1,0 +1,182 @@
+================================================================================
+Starting FedGraph NC batch-size convergence run: 20260925_193541_ogbn-papers100M_FedAvg_bs512_seed42_beta10000p0
+{
+  "batch_size": 512,
+  "dataset": "ogbn-papers100M",
+  "distribution_type": "average",
+  "elastic_training": false,
+  "evaluation_split": "test",
+  "global_rounds": 3,
+  "gpu": true,
+  "graph_relabel_cache_dir": null,
+  "graph_relabel_chunk_edges": 1000000,
+  "graph_storage_mode": "cpu",
+  "hf_artifact_num_hops": 1,
+  "hf_local_artifact_cache_dir": null,
+  "hf_local_artifact_repo": null,
+  "hf_local_artifact_revision": null,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_artifact_dir": null,
+  "local_artifact_rank_hosts": null,
+  "local_step": 3,
+  "max_rounds": null,
+  "method": "FedAvg",
+  "n_trainer": 10,
+  "num_cpus_per_trainer": 8,
+  "num_gpus_per_trainer": 1.0,
+  "num_hops": 0,
+  "num_layers": 2,
+  "pretrain_feature_upload_mode": "dense",
+  "resource_monitor_mode": "manual",
+  "resource_snapshot_interval_rounds": 1,
+  "seed": 42,
+  "server_device": "cpu",
+  "target_train_comm_times_sec": [],
+  "target_val_accs": [],
+  "target_val_losses": [],
+  "use_huggingface": true,
+  "use_ogb_load_patch": true,
+  "val_loss_min_delta": 0.0,
+  "val_loss_patience": 20
+}
+================================================================================
+FedGraph Differential Privacy module loaded (v1.0.0)
+✓ Differential Privacy support loaded
+NC_GRAPH_STORAGE, mode=cpu
+NC_RESOURCE_MONITOR, mode=manual, snapshot_interval_rounds=1, snapshot_path=benchmark/results/nc_batch_size_convergence/c1_papers100m10_cpu_bs512_3r_20260925T193137Z/runs/20260925_193541_ogbn-papers100M_FedAvg_bs512_seed42_beta10000p0/fedgraph_logs/resource_snapshots.jsonl, prometheus_summary_path=None
+Initialization start time recorded.
+2026-09-25 19:35:46,161	INFO worker.py:1683 -- Using address node-11:6379 set in the environment variable RAY_ADDRESS
+2026-09-25 19:35:46,164	INFO worker.py:1833 -- Connecting to existing Ray cluster at address: node-11:6379...
+2026-09-25 19:35:46,182	INFO worker.py:2015 -- Connected to Ray cluster. View the dashboard at http://127.0.0.1:8265
+Changing method to FedAvg
+(pid=3133, ip=node-07) FedGraph Differential Privacy module loaded (v1.0.0)
+(pid=3133, ip=node-07) ✓ Differential Privacy support loaded
+(Trainer pid=3133, ip=node-07) Loading client data 9 from 1-hop Hugging Face artifact
+(Trainer pid=3133, ip=node-07) INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_9/resolve/main/local_node_index.pt "HTTP/1.1 302 Found"
+(Trainer pid=3133, ip=node-07) Loaded local_node_index.pt, size: torch.Size([11105876])
+(Trainer pid=3133, ip=node-07) Loaded communicate_node_index.pt, size: torch.Size([48731299])
+(Trainer pid=3133, ip=node-07) Loaded adj.pt, size: torch.Size([2, 871558295])
+(pid=3137, ip=node-02) FedGraph Differential Privacy module loaded (v1.0.0) [repeated 9x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)
+(pid=3137, ip=node-02) ✓ Differential Privacy support loaded [repeated 9x across cluster]
+(Trainer pid=3137, ip=node-02) Loading client data 6 from 1-hop Hugging Face artifact [repeated 9x across cluster]
+(Trainer pid=3137, ip=node-02) Loaded local_node_index.pt, size: torch.Size([11106176]) [repeated 9x across cluster]
+(Trainer pid=3137, ip=node-02) Loaded communicate_node_index.pt, size: torch.Size([48737006]) [repeated 9x across cluster]
+(Trainer pid=3133, ip=node-07) INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_9/resolve/main/train_labels.pt "HTTP/1.1 302 Found" [repeated 30x across cluster]
+(Trainer pid=3133, ip=node-07) Loaded train_labels.pt, size: torch.Size([120808])
+(Trainer pid=3133, ip=node-07) INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_9/resolve/main/val_labels.pt "HTTP/1.1 404 Not Found"
+(Trainer pid=3133, ip=node-07) Loaded test_labels.pt, size: torch.Size([21332])
+(Trainer pid=3133, ip=node-07) Loaded features.pt, size: torch.Size([11105876, 128])
+(Trainer pid=3133, ip=node-07) Loaded idx_train.pt, size: torch.Size([120808])
+(Trainer pid=3133, ip=node-07) Loaded idx_test.pt, size: torch.Size([21332])
+(Trainer pid=3133, ip=node-07) $HOME/fedgraph/fedgraph/trainer_class.py:260: UserWarning: Hugging Face trainer data does not contain global metadata; falling back to inference for compatibility with existing repositories.
+(Trainer pid=3133, ip=node-07)   warnings.warn(
+(Trainer pid=3133, ip=node-07) Trainer 9 artifact load completed in 12.430s; process RSS=20849143808; process peak RSS=20849143808 bytes
+(Trainer pid=3247, ip=node-08) Running GCN_arxiv
+(Trainer pid=3137, ip=node-02) Loaded adj.pt, size: torch.Size([2, 871713219]) [repeated 9x across cluster]
+(Trainer pid=3137, ip=node-02) Loaded train_labels.pt, size: torch.Size([120929]) [repeated 9x across cluster]
+(Trainer pid=3137, ip=node-02) Loaded test_labels.pt, size: torch.Size([21612]) [repeated 9x across cluster]
+(Trainer pid=3137, ip=node-02) Loaded features.pt, size: torch.Size([11106176, 128]) [repeated 9x across cluster]
+(Trainer pid=3137, ip=node-02) Loaded idx_train.pt, size: torch.Size([120929]) [repeated 9x across cluster]
+(Trainer pid=3137, ip=node-02) Loaded idx_test.pt, size: torch.Size([21612]) [repeated 9x across cluster]
+(Trainer pid=3137, ip=node-02) Trainer 6 artifact load completed in 12.642s; process RSS=20851572736; process peak RSS=20851572736 bytes [repeated 9x across cluster]
+Running GCN_arxiv
+//Log init_time: 24427.429 ms //end
+Pretrain start time recorded.
+//pretrain_time: 0.067 ms//end
+Train start time recorded.
+NC_PER_ROUND_EVALUATION, split=test, elastic_training=False
+global_rounds 3
+Round 1: Global Test Loss = 5.1616
+Round 1: Global Test Accuracy = 0.0051
+Round 1: Training Time = 1.55s, Communication Time = 0.04s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":1.5958635807037354,"parameter_sync_time_sec":0.04095959663391113,"round":1,"train_sync_time_sec":1.5958635807037354,"training_time_sec":1.5549039840698242}
+Round 2: Global Test Loss = 5.1488
+Round 2: Global Test Accuracy = 0.0067
+Round 2: Training Time = 1.21s, Communication Time = 0.04s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":2.8492143154144287,"parameter_sync_time_sec":0.038721561431884766,"round":2,"train_sync_time_sec":1.2533507347106934,"training_time_sec":1.2146291732788086}
+Round 3: Global Test Loss = 5.1369
+Round 3: Global Test Accuracy = 0.0094
+Round 3: Training Time = 1.18s, Communication Time = 0.04s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":4.069336414337158,"parameter_sync_time_sec":0.03820323944091797,"round":3,"train_sync_time_sec":1.2201220989227295,"training_time_sec":1.1819188594818115}
+//train_time: 6032.478 ms//end
+
+================================================================================
+TIME BREAKDOWN (excluding initialization)
+================================================================================
+Total Training Time (server-observed): 3.951452 seconds
+Total Communication Time (parameter synchronization): 0.117884 seconds
+Total Training + Communication Time: 4.069336 seconds
+Total Federated Loop Wall Time: 6.032457 seconds
+Training Time Percentage (of training + communication): 97.1%
+Communication Time Percentage (of training + communication): 2.9%
+Average Training Time per Round: 1.32 seconds
+Average Communication Time per Round: 0.04 seconds
+================================================================================
+[Training Time] Dataset: ogbn-papers100M, Batch Size: 512, Trainers: 10, Hops: 0, IID Beta: 10000.0 => Training Time = 3.95 seconds
+[Communication Time] Dataset: ogbn-papers100M, Batch Size: 512, Trainers: 10, Hops: 0, IID Beta: 10000.0 => Communication Time = 0.12 seconds
+average_final_test_loss, 5.136938784746695
+Average test accuracy, 0.009447694642339959
+
+================================================================================
+INDIVIDUAL TRAINER MEMORY USAGE
+================================================================================
+
+====================================================================================================
+TRAINER MEMORY vs LOCAL GRAPH SIZE
+====================================================================================================
+Trainer  Memory(MB)   Nodes    Edges    Memory/Node  Memory/Edge
+----------------------------------------------------------------------------------------------------
+0        7736.6       11105838 16107222 0.001        0.000
+1        7741.9       11106055 16137081 0.001        0.000
+2        7740.4       11106047 16175386 0.001        0.000
+3        7738.2       11105879 16141659 0.001        0.000
+4        7741.9       11106352 16139660 0.001        0.000
+5        7743.8       11105809 16168116 0.001        0.000
+6        7742.9       11106176 16201161 0.001        0.000
+7        7738.9       11105953 16170381 0.001        0.000
+8        7738.2       11105971 16176510 0.001        0.000
+9        7740.1       11105876 16129326 0.001        0.000
+====================================================================================================
+Total Memory Usage: 77402.9 MB (75.59 GB)
+Total Nodes: 111059956, Total Edges: 161546502
+Average Memory per Trainer: 7740.3 MB
+Average Nodes per Trainer: 11105995.6
+Average Edges per Trainer: 16154650.2
+Max Memory: 7743.8 MB (Trainer 5)
+Min Memory: 7736.6 MB (Trainer 0)
+Peak RSS: 23514.0 MB (Trainer 5)
+Overall Memory/Node Ratio: 0.001 MB/node
+Overall Memory/Edge Ratio: 0.000 MB/edge
+====================================================================================================
+//Log Theoretical Pretrain Comm Cost: 0.00 MB //end
+//Log Theoretical Train Comm Cost: 17.79 MB //end
+
+================================================================================
+CSV FORMAT RESULT:
+DS,IID,BS,ExecutionTime[s],TrainingTime[s],CommTime[s],TrainCommTime[s],FinalTestAcc[%],TheoreticalCommCost[MB],PeakMem[MB],AvgRoundTrainTime[s],AvgRoundCommTime[s],AvgRoundTime[s],ModelSize[MB],TotalParams
+ogbn-papers100M,10000.0,512,31.0,4.0,0.1,4.1,0.94,17.8,23514.0,1.317,0.039,1.356,0.297,77740
+================================================================================
+
+================================================================================
+EXPERIMENT SUMMARY
+================================================================================
+Dataset: ogbn-papers100M
+Method: FedAvg
+Trainers: 10
+IID Beta: 10000.0
+Batch Size: 512
+Hops: 0
+Total Execution Time: 30.99 seconds
+Training Time: 3.95 seconds
+Communication Time: 0.12 seconds
+Pretrain Comm Cost: 0.00 MB
+Training Comm Cost: 17.79 MB
+================================================================================
+
+NC_RESOURCE_MONITOR_SUMMARY, snapshot_path=benchmark/results/nc_batch_size_convergence/c1_papers100m10_cpu_bs512_3r_20260925T193137Z/runs/20260925_193541_ogbn-papers100M_FedAvg_bs512_seed42_beta10000p0/fedgraph_logs/resource_snapshots.jsonl, summary_path=benchmark/results/nc_batch_size_convergence/c1_papers100m10_cpu_bs512_3r_20260925T193137Z/runs/20260925_193541_ogbn-papers100M_FedAvg_bs512_seed42_beta10000p0/fedgraph_logs/resource_snapshot_summary.json
+(Trainer pid=21177, ip=node-09) Running GCN_arxiv [repeated 9x across cluster]
+(Trainer pid=3137, ip=node-02) INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_6/resolve/main/idx_test.pt "HTTP/1.1 302 Found" [repeated 49x across cluster]
+(Trainer pid=3137, ip=node-02) INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_6/resolve/main/class_num.pt "HTTP/1.1 404 Not Found" [repeated 39x across cluster]
+(Trainer pid=3137, ip=node-02) $HOME/fedgraph/fedgraph/trainer_class.py:260: UserWarning: Hugging Face trainer data does not contain global metadata; falling back to inference for compatibility with existing repositories. [repeated 9x across cluster]
+(Trainer pid=3137, ip=node-02)   warnings.warn( [repeated 9x across cluster]

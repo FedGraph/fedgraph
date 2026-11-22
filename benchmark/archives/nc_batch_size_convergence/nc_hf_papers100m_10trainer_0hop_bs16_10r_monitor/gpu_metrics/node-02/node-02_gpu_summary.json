@@ -1,0 +1,26 @@
+{
+  "generated_at_utc": "2026-08-12T21:58:28.019708+00:00",
+  "gpus": [
+    {
+      "first_timestamp": "2026/08/12 21:56:37.873",
+      "gpu_index": "0",
+      "gpu_name": "Tesla T4",
+      "gpu_utilization_pct_max": 100.0,
+      "gpu_utilization_pct_mean": 11.73394495412844,
+      "gpu_uuid": "GPU-archive-68",
+      "last_timestamp": "2026/08/12 21:58:26.966",
+      "memory_total_mib_max": 15360.0,
+      "memory_total_mib_mean": 15360.0,
+      "memory_used_mib_max": 6879.0,
+      "memory_used_mib_mean": 2977.0733944954127,
+      "memory_utilization_pct_max": 19.0,
+      "memory_utilization_pct_mean": 1.7522935779816513,
+      "power_draw_watts_max": 41.11,
+      "power_draw_watts_mean": 18.755596330275228,
+      "sample_count": 109,
+      "temperature_gpu_c_max": 32.0,
+      "temperature_gpu_c_mean": 28.81651376146789
+    }
+  ],
+  "source_csv": "$HOME/fedgraph-logs/papers100m-0hop/gpu/nc_hf_papers100m_10trainer_0hop_bs16_10r_monitor/node-02_nvidia_smi.csv"
+}

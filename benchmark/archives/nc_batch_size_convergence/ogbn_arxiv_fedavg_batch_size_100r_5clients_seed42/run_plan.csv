@@ -1,0 +1,6 @@
+run_index,dataset,method,batch_size,seed,global_rounds,local_step,learning_rate,n_trainer,iid_beta,distribution_type,num_layers,num_hops,gpu,num_cpus_per_trainer,num_gpus_per_trainer,use_ogb_load_patch
+1,ogbn-arxiv,FedAvg,256,42,100,3,0.01,5,10000.0,average,2,0,False,1,0.0,True
+2,ogbn-arxiv,FedAvg,512,42,100,3,0.01,5,10000.0,average,2,0,False,1,0.0,True
+3,ogbn-arxiv,FedAvg,1024,42,100,3,0.01,5,10000.0,average,2,0,False,1,0.0,True
+4,ogbn-arxiv,FedAvg,2048,42,100,3,0.01,5,10000.0,average,2,0,False,1,0.0,True
+5,ogbn-arxiv,FedAvg,-1,42,100,3,0.01,5,10000.0,average,2,0,False,1,0.0,True

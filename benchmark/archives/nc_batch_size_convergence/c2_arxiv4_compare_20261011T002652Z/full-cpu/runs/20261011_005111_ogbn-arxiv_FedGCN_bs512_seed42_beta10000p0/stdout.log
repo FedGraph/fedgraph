@@ -1,0 +1,231 @@
+================================================================================
+Starting FedGraph NC batch-size convergence run: 20261011_005111_ogbn-arxiv_FedGCN_bs512_seed42_beta10000p0
+{
+  "batch_size": 512,
+  "dataset": "ogbn-arxiv",
+  "distribution_type": "average",
+  "elastic_training": false,
+  "evaluation_split": "validation",
+  "global_rounds": 3,
+  "gpu": true,
+  "graph_relabel_cache_dir": null,
+  "graph_relabel_chunk_edges": 50000,
+  "graph_storage_mode": "cpu",
+  "hf_artifact_num_hops": null,
+  "hf_local_artifact_cache_dir": null,
+  "hf_local_artifact_repo": null,
+  "hf_local_artifact_revision": null,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_artifact_dir": "$HOME/fedgraph-artifacts/ogbn-arxiv-4trainer-2hop-v2",
+  "local_artifact_rank_hosts": null,
+  "local_step": 1,
+  "max_rounds": null,
+  "method": "FedGCN",
+  "n_trainer": 4,
+  "num_cpus_per_trainer": 1,
+  "num_gpus_per_trainer": 0.25,
+  "num_hops": 2,
+  "num_layers": 2,
+  "pretrain_feature_aggregation_mode": "full",
+  "pretrain_feature_chunk_edges": 1000000,
+  "pretrain_feature_chunk_rows": 65536,
+  "pretrain_feature_max_inflight_trainers": 4,
+  "pretrain_feature_output_dir": null,
+  "pretrain_feature_upload_mode": "indexed",
+  "resource_monitor_mode": "manual",
+  "resource_snapshot_interval_rounds": 1,
+  "seed": 42,
+  "server_device": "cpu",
+  "target_train_comm_times_sec": [],
+  "target_val_accs": [],
+  "target_val_losses": [],
+  "use_huggingface": false,
+  "use_ogb_load_patch": true,
+  "val_loss_min_delta": 0.0,
+  "val_loss_patience": 20
+}
+================================================================================
+FedGraph Differential Privacy module loaded (v1.0.0)
+✓ Differential Privacy support loaded
+NC_GRAPH_STORAGE, mode=cpu
+NC_PRETRAIN_FEATURE_AGGREGATION, mode=full
+NC_RESOURCE_MONITOR, mode=manual, snapshot_interval_rounds=1, snapshot_path=$HOME/fedgraph/benchmark/results/nc_batch_size_convergence/c2_arxiv4_compare_20261011T002652Z/full-cpu/runs/20261011_005111_ogbn-arxiv_FedGCN_bs512_seed42_beta10000p0/fedgraph_logs/resource_snapshots.jsonl, prometheus_summary_path=None
+Initialization start time recorded.
+2026-10-11 00:51:22,301	INFO worker.py:2015 -- Started a local Ray instance. View the dashboard at http://127.0.0.1:8265
+(pid=19662) FedGraph Differential Privacy module loaded (v1.0.0)
+(pid=19662) ✓ Differential Privacy support loaded
+(Trainer pid=19663) Loaded local artifact v2 shard 1 (2-hop) from $HOME/fedgraph-artifacts/ogbn-arxiv-4trainer-2hop-v2/shards/trainer-001
+(Trainer pid=19663) Trainer 1 artifact load completed in 0.119s; process RSS=794042368; process peak RSS=810213376 bytes
+(Trainer pid=19663) running AggreGCN_Arxiv
+Running AggreGCN_Arxiv
+//Log init_time: 15217.616 ms //end
+Pretrain start time recorded.
+(Trainer pid=19663) $HOME/fedgraph/fedgraph/trainer_class.py:1162: UserWarning: torch.searchsorted(): input value tensor is non-contiguous, this will lower the performance due to extra data copy when converting non-contiguous tensor to contiguous, please use contiguous input value tensor if possible. This message will only appear once per program. (Triggered internally at ../aten/src/ATen/native/BucketizationUtils.h:32.)
+(Trainer pid=19663)   target_positions = torch.searchsorted(local_node_ids, target_nodes)
+server aggregates all local neighbor feature sums
+clients received feature aggregation from server
+//pretrain_time: 2190.709 ms//end
+(Trainer pid=19663) NC_ADJ_RELABEL, trainer=1, mode=artifact-precomputed, source_edges=911479, output_edges=911479, dropped_edges=0, time_sec=0.011311, source=$HOME/fedgraph-artifacts/ogbn-arxiv-4trainer-2hop-v2/shards/trainer-001/adj.ptTrain start time recorded.
+
+global_rounds 3
+Traceback (most recent call last):
+  File "$HOME/fedgraph/benchmark/benchmark_NC_batch_size_convergence.py", line 809, in run_experiment
+    run_fedgraph(
+  File "$HOME/fedgraph/fedgraph/federated_methods.py", line 912, in run_fedgraph
+    run_NC(args, data)
+  File "$HOME/fedgraph/fedgraph/federated_methods.py", line 1958, in run_NC
+    round_stats = server.train(i)
+                  ^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/fedgraph/fedgraph/server_class.py", line 398, in train
+    ray.get(train_refs)
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/auto_init_hook.py", line 22, in auto_init_wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/client_mode_hook.py", line 110, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/worker.py", line 2968, in get
+    values, debugger_breakpoint = worker.get_objects(
+                                  ^^^^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/worker.py", line 1050, in get_objects
+    raise value.as_instanceof_cause()
+ray.exceptions.RayTaskError(RuntimeError): ray::Trainer.train() (pid=19661, ip=node-01, actor_id=d5b7a74ac1d9510fc59c988901000000, repr=<fedgraph.federated_methods.Trainer object at 0x7d0cd2f547a0>)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/fedgraph/fedgraph/trainer_class.py", line 2304, in train
+    loader = self._make_neighbor_loader(data, self.idx_train, shuffle=True)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/fedgraph/fedgraph/trainer_class.py", line 2225, in _make_neighbor_loader
+    return NeighborLoader(
+           ^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/loader/neighbor_loader.py", line 229, in __init__
+    neighbor_sampler = NeighborSampler(
+                       ^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/sampler/neighbor_sampler.py", line 101, in __init__
+    self.colptr, self.row, self.perm = to_csc(
+                                       ^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/sampler/utils.py", line 93, in to_csc
+    row, col, perm = sort_csc(row, col, src_node_time, edge_time)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/sampler/utils.py", line 32, in sort_csc
+    col, perm = index_sort(col)
+                ^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/utils/_index_sort.py", line 32, in index_sort
+    return pyg_lib.ops.index_sort(inputs, max_value=max_value)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/pyg_lib/ops/__init__.py", line 321, in index_sort
+    return torch.ops.pyg.index_sort(inputs, max_value)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch/_ops.py", line 1116, in __call__
+    return self._op(*args, **(kwargs or {}))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Input should be contiguous.
+2026-10-11 00:51:34,938	ERROR worker.py:437 -- Unhandled error (suppress with 'RAY_IGNORE_UNHANDLED_ERRORS=1'): ray::Trainer.train() (pid=19662, ip=node-01, actor_id=ec6b28cc24a35188204dba9101000000, repr=<fedgraph.federated_methods.Trainer object at 0x7557ba37d9d0>)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/fedgraph/fedgraph/trainer_class.py", line 2304, in train
+    loader = self._make_neighbor_loader(data, self.idx_train, shuffle=True)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/fedgraph/fedgraph/trainer_class.py", line 2225, in _make_neighbor_loader
+    return NeighborLoader(
+           ^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/loader/neighbor_loader.py", line 229, in __init__
+    neighbor_sampler = NeighborSampler(
+                       ^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/sampler/neighbor_sampler.py", line 101, in __init__
+    self.colptr, self.row, self.perm = to_csc(
+                                       ^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/sampler/utils.py", line 93, in to_csc
+    row, col, perm = sort_csc(row, col, src_node_time, edge_time)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/sampler/utils.py", line 32, in sort_csc
+    col, perm = index_sort(col)
+                ^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/utils/_index_sort.py", line 32, in index_sort
+    return pyg_lib.ops.index_sort(inputs, max_value=max_value)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/pyg_lib/ops/__init__.py", line 321, in index_sort
+    return torch.ops.pyg.index_sort(inputs, max_value)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch/_ops.py", line 1116, in __call__
+    return self._op(*args, **(kwargs or {}))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Input should be contiguous.
+2026-10-11 00:51:34,939	ERROR worker.py:437 -- Unhandled error (suppress with 'RAY_IGNORE_UNHANDLED_ERRORS=1'): ray::Trainer.train() (pid=19660, ip=node-01, actor_id=d60dc1c605ce45c9cc9032f001000000, repr=<fedgraph.federated_methods.Trainer object at 0x748e82469ee0>)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/fedgraph/fedgraph/trainer_class.py", line 2304, in train
+    loader = self._make_neighbor_loader(data, self.idx_train, shuffle=True)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/fedgraph/fedgraph/trainer_class.py", line 2225, in _make_neighbor_loader
+    return NeighborLoader(
+           ^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/loader/neighbor_loader.py", line 229, in __init__
+    neighbor_sampler = NeighborSampler(
+                       ^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/sampler/neighbor_sampler.py", line 101, in __init__
+    self.colptr, self.row, self.perm = to_csc(
+                                       ^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/sampler/utils.py", line 93, in to_csc
+    row, col, perm = sort_csc(row, col, src_node_time, edge_time)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/sampler/utils.py", line 32, in sort_csc
+    col, perm = index_sort(col)
+                ^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/utils/_index_sort.py", line 32, in index_sort
+    return pyg_lib.ops.index_sort(inputs, max_value=max_value)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/pyg_lib/ops/__init__.py", line 321, in index_sort
+    return torch.ops.pyg.index_sort(inputs, max_value)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch/_ops.py", line 1116, in __call__
+    return self._op(*args, **(kwargs or {}))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Input should be contiguous.
+2026-10-11 00:51:34,944	ERROR worker.py:437 -- Unhandled error (suppress with 'RAY_IGNORE_UNHANDLED_ERRORS=1'): ray::Trainer.train() (pid=19663, ip=node-01, actor_id=b998954c66642db0d5aea9e901000000, repr=<fedgraph.federated_methods.Trainer object at 0x79846b27daf0>)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/fedgraph/fedgraph/trainer_class.py", line 2304, in train
+    loader = self._make_neighbor_loader(data, self.idx_train, shuffle=True)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/fedgraph/fedgraph/trainer_class.py", line 2225, in _make_neighbor_loader
+    return NeighborLoader(
+           ^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/loader/neighbor_loader.py", line 229, in __init__
+    neighbor_sampler = NeighborSampler(
+                       ^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/sampler/neighbor_sampler.py", line 101, in __init__
+    self.colptr, self.row, self.perm = to_csc(
+                                       ^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/sampler/utils.py", line 93, in to_csc
+    row, col, perm = sort_csc(row, col, src_node_time, edge_time)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/sampler/utils.py", line 32, in sort_csc
+    col, perm = index_sort(col)
+                ^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/utils/_index_sort.py", line 32, in index_sort
+    return pyg_lib.ops.index_sort(inputs, max_value=max_value)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/pyg_lib/ops/__init__.py", line 321, in index_sort
+    return torch.ops.pyg.index_sort(inputs, max_value)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$HOME/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch/_ops.py", line 1116, in __call__
+    return self._op(*args, **(kwargs or {}))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Input should be contiguous.
+(pid=19661) FedGraph Differential Privacy module loaded (v1.0.0) [repeated 3x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)
+(pid=19661) ✓ Differential Privacy support loaded [repeated 3x across cluster]
+(Trainer pid=19661) Loaded local artifact v2 shard 0 (2-hop) from $HOME/fedgraph-artifacts/ogbn-arxiv-4trainer-2hop-v2/shards/trainer-000 [repeated 3x across cluster]
+(Trainer pid=19661) Trainer 0 artifact load completed in 0.101s; process RSS=793210880; process peak RSS=809160704 bytes [repeated 3x across cluster]
+(Trainer pid=19660) running AggreGCN_Arxiv [repeated 3x across cluster]
+(Trainer pid=19660) NC_ADJ_RELABEL, trainer=2, mode=artifact-precomputed, source_edges=911287, output_edges=911287, dropped_edges=0, time_sec=0.006829, source=$HOME/fedgraph-artifacts/ogbn-arxiv-4trainer-2hop-v2/shards/trainer-002/adj.pt [repeated 3x across cluster]
+(Trainer pid=19660) $HOME/fedgraph/fedgraph/trainer_class.py:1162: UserWarning: torch.searchsorted(): input value tensor is non-contiguous, this will lower the performance due to extra data copy when converting non-contiguous tensor to contiguous, please use contiguous input value tensor if possible. This message will only appear once per program. (Triggered internally at ../aten/src/ATen/native/BucketizationUtils.h:32.) [repeated 3x across cluster]
+(Trainer pid=19660)   target_positions = torch.searchsorted(local_node_ids, target_nodes) [repeated 3x across cluster]

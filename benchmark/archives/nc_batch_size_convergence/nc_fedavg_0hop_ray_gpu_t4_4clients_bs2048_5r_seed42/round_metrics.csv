@@ -1,0 +1,6 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,val_acc,val_loss,local_steps,train_time_sec,comm_time_sec,train_comm_time_sec,cum_train_comm_time_sec
+nc_fedavg_0hop_ray_gpu_t4_4clients_bs2048_5r_seed42,20260727_010817_ogbn-arxiv_FedAvg_bs2048_seed42_beta10000p0,ogbn-arxiv,FedAvg,2048,42,10000.0,1,0.0882,3.7268,1,0.96,0.03,0.99,0.99
+nc_fedavg_0hop_ray_gpu_t4_4clients_bs2048_5r_seed42,20260727_010817_ogbn-arxiv_FedAvg_bs2048_seed42_beta10000p0,ogbn-arxiv,FedAvg,2048,42,10000.0,2,0.0862,3.7205,2,0.07,0.02,0.09000000000000001,1.08
+nc_fedavg_0hop_ray_gpu_t4_4clients_bs2048_5r_seed42,20260727_010817_ogbn-arxiv_FedAvg_bs2048_seed42_beta10000p0,ogbn-arxiv,FedAvg,2048,42,10000.0,3,0.0833,3.7145,3,0.07,0.03,0.1,1.1800000000000002
+nc_fedavg_0hop_ray_gpu_t4_4clients_bs2048_5r_seed42,20260727_010817_ogbn-arxiv_FedAvg_bs2048_seed42_beta10000p0,ogbn-arxiv,FedAvg,2048,42,10000.0,4,0.0804,3.7088,4,0.06,0.02,0.08,1.2600000000000002
+nc_fedavg_0hop_ray_gpu_t4_4clients_bs2048_5r_seed42,20260727_010817_ogbn-arxiv_FedAvg_bs2048_seed42_beta10000p0,ogbn-arxiv,FedAvg,2048,42,10000.0,5,0.0772,3.7032,5,0.07,0.02,0.09000000000000001,1.3500000000000003
