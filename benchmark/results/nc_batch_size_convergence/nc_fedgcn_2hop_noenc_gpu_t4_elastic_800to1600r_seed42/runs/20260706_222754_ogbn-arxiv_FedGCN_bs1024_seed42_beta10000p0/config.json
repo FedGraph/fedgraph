@@ -1,0 +1,46 @@
+{
+  "batch_size": 1024,
+  "dataset": "ogbn-arxiv",
+  "distribution_type": "average",
+  "elastic_training": true,
+  "global_rounds": 800,
+  "gpu": true,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_step": 3,
+  "max_rounds": 1600,
+  "method": "FedGCN",
+  "n_trainer": 5,
+  "num_cpus_per_trainer": 0,
+  "num_gpus_per_trainer": 0.2,
+  "num_hops": 2,
+  "num_layers": 2,
+  "seed": 42,
+  "target_train_comm_times_sec": [
+    600.0,
+    1200.0,
+    1800.0,
+    2400.0,
+    3000.0,
+    3600.0,
+    4800.0,
+    6000.0
+  ],
+  "target_val_accs": [
+    0.58,
+    0.59,
+    0.6,
+    0.61,
+    0.62
+  ],
+  "target_val_losses": [
+    1.8,
+    1.75,
+    1.7,
+    1.65,
+    1.6
+  ],
+  "use_ogb_load_patch": true,
+  "val_loss_min_delta": 0.01,
+  "val_loss_patience": 50
+}

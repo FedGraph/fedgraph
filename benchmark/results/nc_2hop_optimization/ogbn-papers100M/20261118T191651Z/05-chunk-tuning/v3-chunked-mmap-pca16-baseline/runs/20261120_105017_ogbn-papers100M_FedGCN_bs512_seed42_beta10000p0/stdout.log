@@ -1,0 +1,291 @@
+================================================================================
+Starting FedGraph NC batch-size convergence run: 20261120_105017_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0
+{
+  "batch_size": 512,
+  "dataset": "ogbn-papers100M",
+  "distribution_type": "average",
+  "elastic_training": false,
+  "evaluation_batch_size": 512,
+  "evaluation_split": "validation",
+  "feature_compression_chunk_rows": 65536,
+  "feature_compression_max_inflight_trainers": 4,
+  "feature_compression_mode": "shared-pca",
+  "feature_compression_output_dir": "/mnt/fedgraph-nvme/fedgraph-runtime/20261118T191651Z/05-chunk-tuning/v3-chunked-mmap-pca16-baseline/compression",
+  "feature_compression_rank": 16,
+  "global_rounds": 3,
+  "gpu": true,
+  "graph_relabel_cache_dir": null,
+  "graph_relabel_chunk_edges": 1000000,
+  "graph_storage_mode": "mmap",
+  "hf_artifact_num_hops": null,
+  "hf_local_artifact_cache_dir": null,
+  "hf_local_artifact_repo": null,
+  "hf_local_artifact_revision": null,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_artifact_dir": "/mnt/fedgraph-nvme/artifacts/papers100m-10-2hop-v3-compact",
+  "local_artifact_rank_hosts": "/home/ubuntu/fedgraph-papers100m-2hop-rank-hosts.txt",
+  "local_step": 1,
+  "max_rounds": null,
+  "method": "FedGCN",
+  "n_trainer": 10,
+  "num_cpus_per_trainer": 1,
+  "num_gpus_per_trainer": 1.0,
+  "num_hops": 2,
+  "num_layers": 2,
+  "pretrain_feature_aggregation_mode": "chunked",
+  "pretrain_feature_chunk_edges": 1000000,
+  "pretrain_feature_chunk_rows": 262144,
+  "pretrain_feature_max_inflight_trainers": 10,
+  "pretrain_feature_output_dir": "/mnt/fedgraph-nvme/fedgraph-runtime/20261118T191651Z/05-chunk-tuning/v3-chunked-mmap-pca16-baseline/pretrain",
+  "pretrain_feature_upload_mode": "indexed",
+  "resource_monitor_mode": "manual",
+  "resource_snapshot_interval_rounds": 1,
+  "seed": 42,
+  "server_device": "cpu",
+  "target_train_comm_times_sec": [],
+  "target_val_accs": [],
+  "target_val_losses": [],
+  "use_huggingface": false,
+  "use_ogb_load_patch": true,
+  "val_loss_min_delta": 0.0,
+  "val_loss_patience": 20
+}
+================================================================================
+FedGraph Differential Privacy module loaded (v1.0.0)
+✓ Differential Privacy support loaded
+NC_GRAPH_STORAGE, mode=mmap
+NC_PRETRAIN_FEATURE_AGGREGATION, mode=chunked
+NC_FEATURE_COMPRESSION, mode=shared-pca, rank=16, chunk_rows=65536, max_inflight_trainers=4, output_dir=/mnt/fedgraph-nvme/fedgraph-runtime/20261118T191651Z/05-chunk-tuning/v3-chunked-mmap-pca16-baseline/compression/20261120_105017_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0
+NC_RESOURCE_MONITOR, mode=manual, snapshot_interval_rounds=1, snapshot_path=/home/ubuntu/fedgraph/benchmark/results/nc_2hop_optimization/ogbn-papers100M/20261118T191651Z/05-chunk-tuning/v3-chunked-mmap-pca16-baseline/runs/20261120_105017_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0/fedgraph_logs/resource_snapshots.jsonl, prometheus_summary_path=None
+Initialization start time recorded.
+2026-11-20 10:50:22,210	INFO worker.py:1683 -- Using address 10.195.25.34:6379 set in the environment variable RAY_ADDRESS
+2026-11-20 10:50:22,213	INFO worker.py:1833 -- Connecting to existing Ray cluster at address: 10.195.25.34:6379...
+2026-11-20 10:50:22,232	INFO worker.py:2015 -- Connected to Ray cluster. View the dashboard at [1m[32mhttp://127.0.0.1:8265 [39m[22m
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=0, host=10.195.25.35, node_id=de745a22d9368f96ce942909ae1ba8900b8673ed357c3fb071753e13
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=1, host=10.195.25.15, node_id=8ce6c460d33e9137decc226f1ed7e11427b24af95a3d5db16c427542
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=2, host=10.195.25.42, node_id=2999607ae8a514850282c18879deecf9248eb7ba4cd106012b89aae5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=3, host=10.195.25.38, node_id=9e6e4e2106c44f1dfdecbb1323f6b4cc808421ec4b19acd6c663088b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=4, host=10.195.25.16, node_id=c213d0242f5a1fa392a368fe02219dae2fe7efbed9c83c4269fd3b12
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=5, host=10.195.25.33, node_id=e5d6e5ea8a4b02df606d37afeedc19264ba1ea210e1cc7c62577bfc4
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=6, host=10.195.25.12, node_id=2b124077096d18db573a9f7cd655a2c96e1fe541a6c7f89d9fb6c63f
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=7, host=10.195.25.28, node_id=ac9a637d6458d5ee1d928b84be085732a918cdf3687ab84b6e56584b
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=8, host=10.195.25.61, node_id=e25b1e525899d16ce7e9219c6d6e0c77e40337808134ca071f555c08
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=9, host=10.195.25.14, node_id=bdfd4ce9b06a34e9e805288d70f15ab20b65697586b0566cb9221a57
+[36m(pid=38276, ip=10.195.25.12)[0m FedGraph Differential Privacy module loaded (v1.0.0)
+[36m(pid=38276, ip=10.195.25.12)[0m ✓ Differential Privacy support loaded
+[36m(Trainer pid=38276, ip=10.195.25.12)[0m Loaded local artifact v3 shard 6 (2-hop) from /mnt/fedgraph-nvme/artifacts/papers100m-10-2hop-v3-compact/shards/trainer-006
+[36m(pid=16170, ip=10.195.25.38)[0m FedGraph Differential Privacy module loaded (v1.0.0)[32m [repeated 9x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)[0m
+[36m(pid=16170, ip=10.195.25.38)[0m ✓ Differential Privacy support loaded[32m [repeated 9x across cluster][0m
+[36m(Trainer pid=38276, ip=10.195.25.12)[0m Trainer 6 artifact load completed in 14.294s; process RSS=9597284352; process peak RSS=10497953792 bytes
+NC_FEATURE_COMPRESSION_METRIC {"basis_output_path":"/home/ubuntu/fedgraph/benchmark/results/nc_2hop_optimization/ogbn-papers100M/20261118T191651Z/05-chunk-tuning/v3-chunked-mmap-pca16-baseline/runs/20261120_105017_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0/fedgraph_logs/feature_compression/shared-pca-r16-8aa5b65a95fd713b.pt","basis_sha256":"8aa5b65a95fd713b0aa0b3732f45291a0fb9e35822c46b275b0f808db0dc8ee4","basis_tensor_broadcast_bytes":92160,"basis_tensor_bytes":9216,"basis_wall_time_sec":0.002777185996819753,"compressed_feature_dim":16,"compression_setup_traffic_bytes":1402880,"compression_wall_time_sec":49.38014637000015,"feature_bytes_saved":49754860288,"feature_storage_reduction_ratio":8.0,"max_inflight_trainers":4,"max_trainer_projection_time_sec":2.208189044999017,"mode":"shared-pca","original_feature_bytes":56862697472,"original_feature_dim":128,"projected_feature_bytes":7107837184,"projected_feature_fraction":0.125,"projection_wall_time_sec":5.456863218998478,"retained_energy":0.8207015562172439,"row_count":111059956,"statistics_tensor_upload_bytes":1310720,"statistics_wall_time_sec":43.91848384199693,"trainer_count":10}
+NC_FEATURE_COMPRESSION_SUMMARY, mode=shared-pca, rows=111059956, original_dim=128, rank=16, retained_energy=0.820701556217, basis_sha256=8aa5b65a95fd713b0aa0b3732f45291a0fb9e35822c46b275b0f808db0dc8ee4, basis_output_path=/home/ubuntu/fedgraph/benchmark/results/nc_2hop_optimization/ogbn-papers100M/20261118T191651Z/05-chunk-tuning/v3-chunked-mmap-pca16-baseline/runs/20261120_105017_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0/fedgraph_logs/feature_compression/shared-pca-r16-8aa5b65a95fd713b.pt, statistics_tensor_upload_bytes=1310720, basis_tensor_broadcast_bytes=92160, original_feature_bytes=56862697472, projection_output_bytes=7107837184, feature_bytes_saved=49754860288, statistics_wall_time_sec=43.918484, basis_wall_time_sec=0.002777, projection_wall_time_sec=5.456863, max_trainer_projection_time_sec=2.208189, max_inflight_trainers=4
+//Log init_time: 75526.587 ms //end
+Pretrain start time recorded.
+Starting bounded chunked plaintext feature aggregation...
+NC_PRETRAIN_CHUNK, chunk=1/424, global_start=0, global_stop=262144, upload_bytes=94004640, download_bytes=75203712, time_sec=1.639958
+NC_PRETRAIN_CHUNK, chunk=4/424, global_start=786432, global_stop=1048576, upload_bytes=93845280, download_bytes=75076224, time_sec=1.413445
+NC_PRETRAIN_CHUNK, chunk=8/424, global_start=1835008, global_stop=2097152, upload_bytes=94083520, download_bytes=75266816, time_sec=1.393332
+NC_PRETRAIN_CHUNK, chunk=12/424, global_start=2883584, global_stop=3145728, upload_bytes=94079200, download_bytes=75263360, time_sec=1.406971
+NC_PRETRAIN_CHUNK, chunk=16/424, global_start=3932160, global_stop=4194304, upload_bytes=87563360, download_bytes=70050688, time_sec=1.247657
+NC_PRETRAIN_CHUNK, chunk=20/424, global_start=4980736, global_stop=5242880, upload_bytes=77386880, download_bytes=61909504, time_sec=1.076761
+NC_PRETRAIN_CHUNK, chunk=24/424, global_start=6029312, global_stop=6291456, upload_bytes=39654960, download_bytes=31723968, time_sec=0.566611
+NC_PRETRAIN_CHUNK, chunk=28/424, global_start=7077888, global_stop=7340032, upload_bytes=79938800, download_bytes=63951040, time_sec=1.335619
+NC_PRETRAIN_CHUNK, chunk=32/424, global_start=8126464, global_stop=8388608, upload_bytes=106026160, download_bytes=84820928, time_sec=1.668427
+NC_PRETRAIN_CHUNK, chunk=36/424, global_start=9175040, global_stop=9437184, upload_bytes=110380480, download_bytes=88304384, time_sec=1.660512
+NC_PRETRAIN_CHUNK, chunk=40/424, global_start=10223616, global_stop=10485760, upload_bytes=110237520, download_bytes=88190016, time_sec=1.662820
+NC_PRETRAIN_CHUNK, chunk=44/424, global_start=11272192, global_stop=11534336, upload_bytes=110412880, download_bytes=88330304, time_sec=1.651671
+NC_PRETRAIN_CHUNK, chunk=48/424, global_start=12320768, global_stop=12582912, upload_bytes=110761520, download_bytes=88609216, time_sec=1.720783
+NC_PRETRAIN_CHUNK, chunk=52/424, global_start=13369344, global_stop=13631488, upload_bytes=110624000, download_bytes=88499200, time_sec=1.669517
+NC_PRETRAIN_CHUNK, chunk=56/424, global_start=14417920, global_stop=14680064, upload_bytes=114422960, download_bytes=91538368, time_sec=2.044494
+NC_PRETRAIN_CHUNK, chunk=60/424, global_start=15466496, global_stop=15728640, upload_bytes=125483840, download_bytes=100387072, time_sec=2.369755
+NC_PRETRAIN_CHUNK, chunk=64/424, global_start=16515072, global_stop=16777216, upload_bytes=127649280, download_bytes=102119424, time_sec=2.455009
+NC_PRETRAIN_CHUNK, chunk=68/424, global_start=17563648, global_stop=17825792, upload_bytes=130462960, download_bytes=104370368, time_sec=1.888340
+NC_PRETRAIN_CHUNK, chunk=72/424, global_start=18612224, global_stop=18874368, upload_bytes=130492160, download_bytes=104393728, time_sec=1.941179
+NC_PRETRAIN_CHUNK, chunk=76/424, global_start=19660800, global_stop=19922944, upload_bytes=130714160, download_bytes=104571328, time_sec=1.863091
+NC_PRETRAIN_CHUNK, chunk=80/424, global_start=20709376, global_stop=20971520, upload_bytes=130590400, download_bytes=104472320, time_sec=1.904866
+NC_PRETRAIN_CHUNK, chunk=84/424, global_start=21757952, global_stop=22020096, upload_bytes=130519520, download_bytes=104415616, time_sec=1.863257
+NC_PRETRAIN_CHUNK, chunk=88/424, global_start=22806528, global_stop=23068672, upload_bytes=130598000, download_bytes=104478400, time_sec=1.869442
+NC_PRETRAIN_CHUNK, chunk=92/424, global_start=23855104, global_stop=24117248, upload_bytes=131001920, download_bytes=104801536, time_sec=1.879520
+NC_PRETRAIN_CHUNK, chunk=96/424, global_start=24903680, global_stop=25165824, upload_bytes=130657600, download_bytes=104526080, time_sec=1.921517
+NC_PRETRAIN_CHUNK, chunk=100/424, global_start=25952256, global_stop=26214400, upload_bytes=130739840, download_bytes=104591872, time_sec=1.950502
+NC_PRETRAIN_CHUNK, chunk=104/424, global_start=27000832, global_stop=27262976, upload_bytes=130929440, download_bytes=104743552, time_sec=1.894848
+NC_PRETRAIN_CHUNK, chunk=108/424, global_start=28049408, global_stop=28311552, upload_bytes=130868880, download_bytes=104695104, time_sec=1.906967
+NC_PRETRAIN_CHUNK, chunk=112/424, global_start=29097984, global_stop=29360128, upload_bytes=130663440, download_bytes=104530752, time_sec=1.949969
+NC_PRETRAIN_CHUNK, chunk=116/424, global_start=30146560, global_stop=30408704, upload_bytes=130555200, download_bytes=104444160, time_sec=1.914039
+NC_PRETRAIN_CHUNK, chunk=120/424, global_start=31195136, global_stop=31457280, upload_bytes=130760480, download_bytes=104608384, time_sec=1.923199
+NC_PRETRAIN_CHUNK, chunk=124/424, global_start=32243712, global_stop=32505856, upload_bytes=130568240, download_bytes=104454592, time_sec=1.865901
+NC_PRETRAIN_CHUNK, chunk=128/424, global_start=33292288, global_stop=33554432, upload_bytes=130844320, download_bytes=104675456, time_sec=1.890302
+NC_PRETRAIN_CHUNK, chunk=132/424, global_start=34340864, global_stop=34603008, upload_bytes=131055920, download_bytes=104844736, time_sec=1.880826
+NC_PRETRAIN_CHUNK, chunk=136/424, global_start=35389440, global_stop=35651584, upload_bytes=130874160, download_bytes=104699328, time_sec=1.934087
+NC_PRETRAIN_CHUNK, chunk=140/424, global_start=36438016, global_stop=36700160, upload_bytes=130686320, download_bytes=104549056, time_sec=1.957030
+NC_PRETRAIN_CHUNK, chunk=144/424, global_start=37486592, global_stop=37748736, upload_bytes=130724000, download_bytes=104579200, time_sec=1.875061
+NC_PRETRAIN_CHUNK, chunk=148/424, global_start=38535168, global_stop=38797312, upload_bytes=130707040, download_bytes=104565632, time_sec=1.862380
+NC_PRETRAIN_CHUNK, chunk=152/424, global_start=39583744, global_stop=39845888, upload_bytes=130655840, download_bytes=104524672, time_sec=1.889828
+NC_PRETRAIN_CHUNK, chunk=156/424, global_start=40632320, global_stop=40894464, upload_bytes=130757120, download_bytes=104605696, time_sec=1.873311
+NC_PRETRAIN_CHUNK, chunk=160/424, global_start=41680896, global_stop=41943040, upload_bytes=130872800, download_bytes=104698240, time_sec=1.870394
+NC_PRETRAIN_CHUNK, chunk=164/424, global_start=42729472, global_stop=42991616, upload_bytes=131327120, download_bytes=105061696, time_sec=1.898628
+NC_PRETRAIN_CHUNK, chunk=168/424, global_start=43778048, global_stop=44040192, upload_bytes=130858480, download_bytes=104686784, time_sec=1.921717
+NC_PRETRAIN_CHUNK, chunk=172/424, global_start=44826624, global_stop=45088768, upload_bytes=131220640, download_bytes=104976512, time_sec=1.840945
+NC_PRETRAIN_CHUNK, chunk=176/424, global_start=45875200, global_stop=46137344, upload_bytes=147736560, download_bytes=118189248, time_sec=2.496738
+NC_PRETRAIN_CHUNK, chunk=180/424, global_start=46923776, global_stop=47185920, upload_bytes=147921200, download_bytes=118336960, time_sec=2.449762
+NC_PRETRAIN_CHUNK, chunk=184/424, global_start=47972352, global_stop=48234496, upload_bytes=148113760, download_bytes=118491008, time_sec=2.483416
+NC_PRETRAIN_CHUNK, chunk=188/424, global_start=49020928, global_stop=49283072, upload_bytes=147770720, download_bytes=118216576, time_sec=2.449076
+NC_PRETRAIN_CHUNK, chunk=192/424, global_start=50069504, global_stop=50331648, upload_bytes=148085840, download_bytes=118468672, time_sec=2.466602
+NC_PRETRAIN_CHUNK, chunk=196/424, global_start=51118080, global_stop=51380224, upload_bytes=148156800, download_bytes=118525440, time_sec=2.452198
+NC_PRETRAIN_CHUNK, chunk=200/424, global_start=52166656, global_stop=52428800, upload_bytes=147868320, download_bytes=118294656, time_sec=2.466273
+NC_PRETRAIN_CHUNK, chunk=204/424, global_start=53215232, global_stop=53477376, upload_bytes=148166080, download_bytes=118532864, time_sec=2.575993
+NC_PRETRAIN_CHUNK, chunk=208/424, global_start=54263808, global_stop=54525952, upload_bytes=148377440, download_bytes=118701952, time_sec=2.448995
+NC_PRETRAIN_CHUNK, chunk=212/424, global_start=55312384, global_stop=55574528, upload_bytes=133796240, download_bytes=107036992, time_sec=1.904499
+NC_PRETRAIN_CHUNK, chunk=216/424, global_start=56360960, global_stop=56623104, upload_bytes=121561520, download_bytes=97249216, time_sec=1.815778
+NC_PRETRAIN_CHUNK, chunk=220/424, global_start=57409536, global_stop=57671680, upload_bytes=100720240, download_bytes=80576192, time_sec=1.543773
+NC_PRETRAIN_CHUNK, chunk=224/424, global_start=58458112, global_stop=58720256, upload_bytes=86053520, download_bytes=68842816, time_sec=0.895491
+NC_PRETRAIN_CHUNK, chunk=228/424, global_start=59506688, global_stop=59768832, upload_bytes=99849120, download_bytes=79879296, time_sec=1.303800
+NC_PRETRAIN_CHUNK, chunk=232/424, global_start=60555264, global_stop=60817408, upload_bytes=102058160, download_bytes=81646528, time_sec=1.376245
+NC_PRETRAIN_CHUNK, chunk=236/424, global_start=61603840, global_stop=61865984, upload_bytes=113700800, download_bytes=90960640, time_sec=1.741289
+NC_PRETRAIN_CHUNK, chunk=240/424, global_start=62652416, global_stop=62914560, upload_bytes=116109280, download_bytes=92887424, time_sec=1.720112
+NC_PRETRAIN_CHUNK, chunk=244/424, global_start=63700992, global_stop=63963136, upload_bytes=87658080, download_bytes=70126464, time_sec=1.158606
+NC_PRETRAIN_CHUNK, chunk=248/424, global_start=64749568, global_stop=65011712, upload_bytes=87598640, download_bytes=70078912, time_sec=1.168829
+NC_PRETRAIN_CHUNK, chunk=252/424, global_start=65798144, global_stop=66060288, upload_bytes=116196880, download_bytes=92957504, time_sec=1.839264
+NC_PRETRAIN_CHUNK, chunk=256/424, global_start=66846720, global_stop=67108864, upload_bytes=41046240, download_bytes=32836992, time_sec=0.546373
+NC_PRETRAIN_CHUNK, chunk=260/424, global_start=67895296, global_stop=68157440, upload_bytes=78193760, download_bytes=62555008, time_sec=0.851981
+NC_PRETRAIN_CHUNK, chunk=264/424, global_start=68943872, global_stop=69206016, upload_bytes=78202880, download_bytes=62562304, time_sec=0.852295
+NC_PRETRAIN_CHUNK, chunk=268/424, global_start=69992448, global_stop=70254592, upload_bytes=61848800, download_bytes=49479040, time_sec=0.767098
+NC_PRETRAIN_CHUNK, chunk=272/424, global_start=71041024, global_stop=71303168, upload_bytes=61766720, download_bytes=49413376, time_sec=0.767335
+NC_PRETRAIN_CHUNK, chunk=276/424, global_start=72089600, global_stop=72351744, upload_bytes=82968960, download_bytes=66375168, time_sec=1.322555
+NC_PRETRAIN_CHUNK, chunk=280/424, global_start=73138176, global_stop=73400320, upload_bytes=90173200, download_bytes=72138560, time_sec=1.579986
+NC_PRETRAIN_CHUNK, chunk=284/424, global_start=74186752, global_stop=74448896, upload_bytes=90191600, download_bytes=72153280, time_sec=1.664861
+NC_PRETRAIN_CHUNK, chunk=288/424, global_start=75235328, global_stop=75497472, upload_bytes=96053920, download_bytes=76843136, time_sec=1.658073
+NC_PRETRAIN_CHUNK, chunk=292/424, global_start=76283904, global_stop=76546048, upload_bytes=120555440, download_bytes=96444352, time_sec=1.946041
+NC_PRETRAIN_CHUNK, chunk=296/424, global_start=77332480, global_stop=77594624, upload_bytes=110314720, download_bytes=88251776, time_sec=1.961790
+NC_PRETRAIN_CHUNK, chunk=300/424, global_start=78381056, global_stop=78643200, upload_bytes=112234320, download_bytes=89787456, time_sec=2.034767
+NC_PRETRAIN_CHUNK, chunk=304/424, global_start=79429632, global_stop=79691776, upload_bytes=112260400, download_bytes=89808320, time_sec=2.119728
+NC_PRETRAIN_CHUNK, chunk=308/424, global_start=80478208, global_stop=80740352, upload_bytes=106811360, download_bytes=85449088, time_sec=1.946688
+NC_PRETRAIN_CHUNK, chunk=312/424, global_start=81526784, global_stop=81788928, upload_bytes=103893680, download_bytes=83114944, time_sec=1.922935
+NC_PRETRAIN_CHUNK, chunk=316/424, global_start=82575360, global_stop=82837504, upload_bytes=90744640, download_bytes=72595712, time_sec=1.483193
+NC_PRETRAIN_CHUNK, chunk=320/424, global_start=83623936, global_stop=83886080, upload_bytes=96983120, download_bytes=77586496, time_sec=1.540785
+NC_PRETRAIN_CHUNK, chunk=324/424, global_start=84672512, global_stop=84934656, upload_bytes=124379680, download_bytes=99503744, time_sec=2.572176
+NC_PRETRAIN_CHUNK, chunk=328/424, global_start=85721088, global_stop=85983232, upload_bytes=118510080, download_bytes=94808064, time_sec=2.535521
+NC_PRETRAIN_CHUNK, chunk=332/424, global_start=86769664, global_stop=87031808, upload_bytes=50414160, download_bytes=40331328, time_sec=0.427547
+NC_PRETRAIN_CHUNK, chunk=336/424, global_start=87818240, global_stop=88080384, upload_bytes=50426080, download_bytes=40340864, time_sec=0.417468
+NC_PRETRAIN_CHUNK, chunk=340/424, global_start=88866816, global_stop=89128960, upload_bytes=50317920, download_bytes=40254336, time_sec=0.416721
+NC_PRETRAIN_CHUNK, chunk=344/424, global_start=89915392, global_stop=90177536, upload_bytes=50299280, download_bytes=40239424, time_sec=0.417890
+NC_PRETRAIN_CHUNK, chunk=348/424, global_start=90963968, global_stop=91226112, upload_bytes=50412320, download_bytes=40329856, time_sec=0.429656
+NC_PRETRAIN_CHUNK, chunk=352/424, global_start=92012544, global_stop=92274688, upload_bytes=50382480, download_bytes=40305984, time_sec=0.422054
+NC_PRETRAIN_CHUNK, chunk=356/424, global_start=93061120, global_stop=93323264, upload_bytes=50195040, download_bytes=40156032, time_sec=0.418450
+NC_PRETRAIN_CHUNK, chunk=360/424, global_start=94109696, global_stop=94371840, upload_bytes=50377440, download_bytes=40301952, time_sec=0.422704
+NC_PRETRAIN_CHUNK, chunk=364/424, global_start=95158272, global_stop=95420416, upload_bytes=50273920, download_bytes=40219136, time_sec=0.414818
+NC_PRETRAIN_CHUNK, chunk=368/424, global_start=96206848, global_stop=96468992, upload_bytes=50392560, download_bytes=40314048, time_sec=0.418660
+NC_PRETRAIN_CHUNK, chunk=372/424, global_start=97255424, global_stop=97517568, upload_bytes=50262480, download_bytes=40209984, time_sec=0.421747
+NC_PRETRAIN_CHUNK, chunk=376/424, global_start=98304000, global_stop=98566144, upload_bytes=50221040, download_bytes=40176832, time_sec=0.425420
+NC_PRETRAIN_CHUNK, chunk=380/424, global_start=99352576, global_stop=99614720, upload_bytes=50441360, download_bytes=40353088, time_sec=0.418102
+NC_PRETRAIN_CHUNK, chunk=384/424, global_start=100401152, global_stop=100663296, upload_bytes=50306960, download_bytes=40245568, time_sec=0.413262
+NC_PRETRAIN_CHUNK, chunk=388/424, global_start=101449728, global_stop=101711872, upload_bytes=133008080, download_bytes=106406464, time_sec=2.929296
+NC_PRETRAIN_CHUNK, chunk=392/424, global_start=102498304, global_stop=102760448, upload_bytes=128330560, download_bytes=102664448, time_sec=2.710846
+NC_PRETRAIN_CHUNK, chunk=396/424, global_start=103546880, global_stop=103809024, upload_bytes=131164800, download_bytes=104931840, time_sec=2.875900
+NC_PRETRAIN_CHUNK, chunk=400/424, global_start=104595456, global_stop=104857600, upload_bytes=89001920, download_bytes=71201536, time_sec=0.940596
+NC_PRETRAIN_CHUNK, chunk=404/424, global_start=105644032, global_stop=105906176, upload_bytes=116238480, download_bytes=92990784, time_sec=2.371925
+NC_PRETRAIN_CHUNK, chunk=408/424, global_start=106692608, global_stop=106954752, upload_bytes=113324400, download_bytes=90659520, time_sec=1.878936
+NC_PRETRAIN_CHUNK, chunk=412/424, global_start=107741184, global_stop=108003328, upload_bytes=129396640, download_bytes=103517312, time_sec=2.584552
+NC_PRETRAIN_CHUNK, chunk=416/424, global_start=108789760, global_stop=109051904, upload_bytes=129717600, download_bytes=103774080, time_sec=2.671250
+NC_PRETRAIN_CHUNK, chunk=420/424, global_start=109838336, global_stop=110100480, upload_bytes=132336720, download_bytes=105869376, time_sec=2.784782
+NC_PRETRAIN_CHUNK, chunk=424/424, global_start=110886912, global_stop=111059956, upload_bytes=64989840, download_bytes=51991872, time_sec=1.017159
+[36m(Trainer pid=37975, ip=10.195.25.16)[0m NC_ADJ_RELABEL, trainer=4, mode=artifact-compact-int32-mmap, cache_hit=False, source_edges=1034302639, output_edges=1034302639, dropped_edges=0, time_sec=52.584541, cache=/mnt/fedgraph-nvme/fedgraph-runtime/20261118T191651Z/05-chunk-tuning/v3-chunked-mmap-pca16-baseline/pretrain/20261120_105017_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0/adjacency-cache/trainer-004/adj-local-d7f2f40491839f97f18101bd.edge-index.i64
+[36m(Trainer pid=16170, ip=10.195.25.38)[0m Loaded local artifact v3 shard 3 (2-hop) from /mnt/fedgraph-nvme/artifacts/papers100m-10-2hop-v3-compact/shards/trainer-003[32m [repeated 9x across cluster][0m
+[36m(Trainer pid=16170, ip=10.195.25.38)[0m Trainer 3 artifact load completed in 14.409s; process RSS=9562345472; process peak RSS=10516041728 bytes[32m [repeated 9x across cluster][0m
+NC_PRETRAIN_CHUNK_SUMMARY, chunks=424, upload_bytes=45050034400, download_bytes=36040027520, max_inflight_trainers=10
+clients finalized file-backed feature aggregations
+//pretrain_time: 746929.2860000001 ms//end
+NC_PRETRAIN_METRIC {"adjacency_transition_max_trainer_time_sec":53.22663563599781,"adjacency_transition_strategies":["artifact-compact-int32-mmap"],"adjacency_transition_wall_time_sec":53.34715877700364,"aggregation_mode":"chunked","artifact_version":3,"download_bytes":36040027520,"feature_compression_basis_sha256":"8aa5b65a95fd713b0aa0b3732f45291a0fb9e35822c46b275b0f808db0dc8ee4","feature_compression_mode":"shared-pca","feature_dim":16,"method":"FedGCN","source_artifact_version":null,"total_traffic_bytes":81090061920,"upload_bytes":45050034400,"wall_time_sec":746.9292778968811}
+NC_NEIGHBOR_SAMPLER_METRIC {"index_bytes":169954849856,"max_trainer_time_sec":115.81127794099302,"prepared_trainer_count":10,"trainer_count":10,"wall_time_sec":115.81395679800335}
+Train start time recorded.
+global_rounds 3
+Round 1: Global Val Loss = 83.7761
+Round 1: Global Val Accuracy = 0.0000
+Round 1: Training Time = 1.44s, Communication Time = 0.04s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":1.4866838455200195,"parameter_sync_time_sec":0.04410123825073242,"round":1,"train_sync_time_sec":1.4866838455200195,"training_time_sec":1.442582607269287}
+Round 2: Global Val Loss = 84.3684
+Round 2: Global Val Accuracy = 0.0329
+Round 2: Training Time = 0.18s, Communication Time = 0.04s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":1.702258586883545,"parameter_sync_time_sec":0.03527688980102539,"round":2,"train_sync_time_sec":0.2155747413635254,"training_time_sec":0.1802978515625}
+Round 3: Global Val Loss = 48.0156
+Round 3: Global Val Accuracy = 0.0231
+Round 3: Training Time = 0.14s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":1.876244306564331,"parameter_sync_time_sec":0.03255796432495117,"round":3,"train_sync_time_sec":0.17398571968078613,"training_time_sec":0.14142775535583496}
+//train_time: 2294.5299999999997 ms//end
+
+================================================================================
+TIME BREAKDOWN (excluding initialization)
+================================================================================
+Total Training Time (server-observed): 1.764308 seconds
+Total Communication Time (parameter synchronization): 0.111936 seconds
+Total Training + Communication Time: 1.876244 seconds
+Total Federated Loop Wall Time: 2.294557 seconds
+Training Time Percentage (of training + communication): 94.0%
+Communication Time Percentage (of training + communication): 6.0%
+Average Training Time per Round: 0.59 seconds
+Average Communication Time per Round: 0.04 seconds
+================================================================================
+[Training Time] Dataset: ogbn-papers100M, Batch Size: 512, Trainers: 10, Hops: 2, IID Beta: 10000.0 => Training Time = 1.76 seconds
+[Communication Time] Dataset: ogbn-papers100M, Batch Size: 512, Trainers: 10, Hops: 2, IID Beta: 10000.0 => Communication Time = 0.11 seconds
+average_final_test_loss, 33.35874184397371
+Average test accuracy, 0.019753846957200144
+
+================================================================================
+INDIVIDUAL TRAINER MEMORY USAGE
+================================================================================
+
+====================================================================================================
+TRAINER MEMORY vs LOCAL GRAPH SIZE
+====================================================================================================
+Trainer  Memory(MB)   Nodes    Edges    Memory/Node  Memory/Edge 
+----------------------------------------------------------------------------------------------------
+0        37000.2      11105996 1033431820 0.003        0.000       
+1        36751.0      11105996 1032585731 0.003        0.000       
+2        37146.8      11105996 1034276598 0.003        0.000       
+3        37178.7      11105996 1033864176 0.003        0.000       
+4        36905.2      11105996 1034302639 0.003        0.000       
+5        37161.8      11105996 1033510901 0.003        0.000       
+6        37289.7      11105995 1036114965 0.003        0.000       
+7        37148.6      11105995 1033510254 0.003        0.000       
+8        36893.7      11105995 1035102656 0.003        0.000       
+9        37117.8      11105995 1033915656 0.003        0.000       
+====================================================================================================
+Total Memory Usage: 370593.5 MB (361.91 GB)
+Total Nodes: 111059956, Total Edges: 10340615396
+Average Memory per Trainer: 37059.4 MB
+Average Nodes per Trainer: 11105995.6
+Average Edges per Trainer: 1034061539.6
+Max Memory: 37289.7 MB (Trainer 6)
+Min Memory: 36751.0 MB (Trainer 1)
+Peak RSS: 41391.1 MB (Trainer 6)
+Overall Memory/Node Ratio: 0.003 MB/node
+Overall Memory/Edge Ratio: 0.000 MB/edge
+====================================================================================================
+//Log Theoretical Pretrain Comm Cost: 77333.51 MB //end
+//Log Theoretical Train Comm Cost: 11.11 MB //end
+
+================================================================================
+CSV FORMAT RESULT:
+DS,IID,BS,ExecutionTime[s],TrainingTime[s],CommTime[s],TrainCommTime[s],FinalTestAcc[%],TheoreticalCommCost[MB],PeakMem[MB],AvgRoundTrainTime[s],AvgRoundCommTime[s],AvgRoundTime[s],ModelSize[MB],TotalParams
+ogbn-papers100M,10000.0,512,940.7,1.8,0.1,1.9,1.98,77344.6,41391.1,0.588,0.037,0.625,0.185,48556
+================================================================================
+
+================================================================================
+EXPERIMENT SUMMARY
+================================================================================
+Dataset: ogbn-papers100M
+Method: FedGCN
+Trainers: 10
+IID Beta: 10000.0
+Batch Size: 512
+Hops: 2
+Total Execution Time: 940.66 seconds
+Training Time: 1.76 seconds
+Communication Time: 0.11 seconds
+Pretrain Comm Cost: 77333.51 MB
+Training Comm Cost: 11.11 MB
+================================================================================
+
+NC_RESOURCE_MONITOR_SUMMARY, snapshot_path=/home/ubuntu/fedgraph/benchmark/results/nc_2hop_optimization/ogbn-papers100M/20261118T191651Z/05-chunk-tuning/v3-chunked-mmap-pca16-baseline/runs/20261120_105017_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0/fedgraph_logs/resource_snapshots.jsonl, summary_path=/home/ubuntu/fedgraph/benchmark/results/nc_2hop_optimization/ogbn-papers100M/20261118T191651Z/05-chunk-tuning/v3-chunked-mmap-pca16-baseline/runs/20261120_105017_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0/fedgraph_logs/resource_snapshot_summary.json
+[36m(Trainer pid=38346, ip=10.195.25.14)[0m NC_ADJ_RELABEL, trainer=9, mode=artifact-compact-int32-mmap, cache_hit=False, source_edges=1033915656, output_edges=1033915656, dropped_edges=0, time_sec=53.226636, cache=/mnt/fedgraph-nvme/fedgraph-runtime/20261118T191651Z/05-chunk-tuning/v3-chunked-mmap-pca16-baseline/pretrain/20261120_105017_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0/adjacency-cache/trainer-009/adj-local-3fbe373114c13efdb568a707.edge-index.i64[32m [repeated 9x across cluster][0m

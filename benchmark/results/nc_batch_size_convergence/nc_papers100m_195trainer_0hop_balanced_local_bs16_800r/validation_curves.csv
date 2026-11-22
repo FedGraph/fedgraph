@@ -1,0 +1,2 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,val_acc,val_loss
+nc_papers100m_195trainer_0hop_balanced_local_bs16_800r,20260914_164223_ogbn-papers100M_FedAvg_bs16_seed42_beta10000p0,ogbn-papers100M,FedAvg,16,42,10000.0,1,0.0057,5.1513

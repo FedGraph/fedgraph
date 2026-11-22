@@ -1,0 +1,4 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,evaluation_split,evaluation_acc,evaluation_loss,val_acc,val_loss,local_steps,train_time_sec,comm_time_sec,train_comm_time_sec,cum_train_comm_time_sec
+nc_arxiv_5trainer_0hop_local_artifact_1gpu_fractional_seed42,20260823_171256_ogbn-arxiv_FedAvg_bs16_seed42_beta10000p0,ogbn-arxiv,FedAvg,16,42,10000.0,1,validation,0.0759,3.7614,0.0759,3.7614,1,1.01,0.04,1.05,1.05
+nc_arxiv_5trainer_0hop_local_artifact_1gpu_fractional_seed42,20260823_171256_ogbn-arxiv_FedAvg_bs16_seed42_beta10000p0,ogbn-arxiv,FedAvg,16,42,10000.0,2,validation,0.0745,3.7552,0.0745,3.7552,2,0.02,0.04,0.06,1.11
+nc_arxiv_5trainer_0hop_local_artifact_1gpu_fractional_seed42,20260823_171256_ogbn-arxiv_FedAvg_bs16_seed42_beta10000p0,ogbn-arxiv,FedAvg,16,42,10000.0,3,validation,0.0696,3.7428,0.0696,3.7428,3,0.03,0.03,0.06,1.1700000000000002

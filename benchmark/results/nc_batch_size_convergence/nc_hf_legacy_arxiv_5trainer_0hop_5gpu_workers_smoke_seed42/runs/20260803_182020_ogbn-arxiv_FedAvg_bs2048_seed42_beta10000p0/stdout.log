@@ -1,0 +1,897 @@
+================================================================================
+Starting FedGraph NC batch-size convergence run: 20260803_182020_ogbn-arxiv_FedAvg_bs2048_seed42_beta10000p0
+{
+  "batch_size": 2048,
+  "dataset": "ogbn-arxiv",
+  "distribution_type": "average",
+  "elastic_training": false,
+  "evaluation_split": "test",
+  "global_rounds": 3,
+  "gpu": true,
+  "hf_artifact_num_hops": 1,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_step": 1,
+  "max_rounds": null,
+  "method": "FedAvg",
+  "n_trainer": 5,
+  "num_cpus_per_trainer": 2,
+  "num_gpus_per_trainer": 1.0,
+  "num_hops": 0,
+  "num_layers": 2,
+  "pretrain_feature_upload_mode": "dense",
+  "seed": 42,
+  "server_device": "cpu",
+  "target_train_comm_times_sec": [],
+  "target_val_accs": [],
+  "target_val_losses": [],
+  "use_huggingface": true,
+  "use_ogb_load_patch": true,
+  "val_loss_min_delta": 0.0,
+  "val_loss_patience": 20
+}
+================================================================================
+FedGraph Differential Privacy module loaded (v1.0.0)
+✓ Differential Privacy support loaded
+Initialization start time recorded.
+2026-08-03 18:20:33,179	INFO worker.py:1683 -- Using address 10.195.25.24:6379 set in the environment variable RAY_ADDRESS
+2026-08-03 18:20:33,183	INFO worker.py:1833 -- Connecting to existing Ray cluster at address: 10.195.25.24:6379...
+2026-08-03 18:20:33,206	INFO worker.py:2015 -- Connected to Ray cluster. View the dashboard at [1m[32mhttp://127.0.0.1:8265 [39m[22m
+Changing method to FedAvg
+[36m(pid=1569, ip=10.195.25.53)[0m FedGraph Differential Privacy module loaded (v1.0.0)
+[36m(pid=1569, ip=10.195.25.53)[0m ✓ Differential Privacy support loaded
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m Loading client data 3 from 1-hop Hugging Face artifact
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m INFO:httpx:HTTP Request: GET https://huggingface.co/api/agent-harnesses "HTTP/1.1 200 OK"
+[36m(Trainer pid=1711, ip=10.195.25.31)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-arxiv_5trainer_1hop_iid_beta_10000.0_trainer_id_4/resolve/main/local_node_index.pt "HTTP/1.1 302 Found"
+[36m(Trainer pid=1711, ip=10.195.25.31)[0m Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[36m(Trainer pid=1711, ip=10.195.25.31)[0m WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[36m(Trainer pid=1711, ip=10.195.25.31)[0m Loaded local_node_index.pt, size: torch.Size([33946])
+[36m(Trainer pid=1711, ip=10.195.25.31)[0m Loaded communicate_node_index.pt, size: torch.Size([129207])
+[36m(Trainer pid=1711, ip=10.195.25.31)[0m Loaded adj.pt, size: torch.Size([2, 2105656])
+[36m(Trainer pid=1711, ip=10.195.25.31)[0m Loaded train_labels.pt, size: torch.Size([18250])
+[36m(Trainer pid=1711, ip=10.195.25.31)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-arxiv_5trainer_1hop_iid_beta_10000.0_trainer_id_4/resolve/main/val_labels.pt "HTTP/1.1 404 Not Found"
+[36m(pid=1605, ip=10.195.25.28)[0m FedGraph Differential Privacy module loaded (v1.0.0)[32m [repeated 4x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)[0m
+[36m(pid=1605, ip=10.195.25.28)[0m ✓ Differential Privacy support loaded[32m [repeated 4x across cluster][0m
+[36m(Trainer pid=1605, ip=10.195.25.28)[0m Loading client data 2 from 1-hop Hugging Face artifact[32m [repeated 4x across cluster][0m
+[36m(Trainer pid=1711, ip=10.195.25.31)[0m Loaded test_labels.pt, size: torch.Size([9723])
+[36m(Trainer pid=1605, ip=10.195.25.28)[0m INFO:httpx:HTTP Request: GET https://huggingface.co/api/agent-harnesses "HTTP/1.1 200 OK"[32m [repeated 4x across cluster][0m
+[36m(Trainer pid=1889, ip=10.195.25.27)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-arxiv_5trainer_1hop_iid_beta_10000.0_trainer_id_1/resolve/main/test_labels.pt "HTTP/1.1 302 Found"[32m [repeated 24x across cluster][0m
+[36m(Trainer pid=1889, ip=10.195.25.27)[0m Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.[32m [repeated 4x across cluster][0m
+[36m(Trainer pid=1889, ip=10.195.25.27)[0m WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.[32m [repeated 4x across cluster][0m
+[36m(Trainer pid=1711, ip=10.195.25.31)[0m Loaded features.pt, size: torch.Size([33946, 128])
+[36m(Trainer pid=1605, ip=10.195.25.28)[0m Loaded local_node_index.pt, size: torch.Size([33913])[32m [repeated 4x across cluster][0m
+[36m(Trainer pid=1711, ip=10.195.25.31)[0m Loaded idx_train.pt, size: torch.Size([18250])
+[36m(Trainer pid=1889, ip=10.195.25.27)[0m Loaded communicate_node_index.pt, size: torch.Size([125973])[32m [repeated 4x across cluster][0m
+[36m(Trainer pid=1711, ip=10.195.25.31)[0m Loaded idx_test.pt, size: torch.Size([9723])
+[36m(Trainer pid=1711, ip=10.195.25.31)[0m /home/ubuntu/fedgraph/fedgraph/trainer_class.py:118: UserWarning: Hugging Face trainer data does not contain global metadata; falling back to inference for compatibility with existing repositories.
+[36m(Trainer pid=1711, ip=10.195.25.31)[0m   warnings.warn(
+[36m(Trainer pid=1889, ip=10.195.25.27)[0m Loaded adj.pt, size: torch.Size([2, 2063866])[32m [repeated 4x across cluster][0m
+[36m(Trainer pid=1889, ip=10.195.25.27)[0m Running GCN_arxiv
+[36m(Trainer pid=1889, ip=10.195.25.27)[0m Loaded train_labels.pt, size: torch.Size([18219])[32m [repeated 4x across cluster][0m
+Running GCN_arxiv
+//Log init_time: 23453.619 ms //end
+Pretrain start time recorded.
+//pretrain_time: 0.074 ms//end
+Train start time recorded.
+NC_PER_ROUND_EVALUATION, split=test, elastic_training=False
+global_rounds 3
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [96,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [97,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [98,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [99,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [100,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [101,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [102,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [103,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [104,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [105,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [106,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [107,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [108,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [109,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [110,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [111,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [112,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [113,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [114,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [115,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [116,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [117,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [118,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [119,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [120,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [121,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [122,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [123,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [124,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [125,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [126,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [11,0,0], thread: [127,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [0,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [1,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [2,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [3,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [4,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [5,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [6,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [7,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [8,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [9,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [10,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [11,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [12,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [13,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [14,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [15,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [16,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [17,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [18,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [19,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [20,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [21,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [22,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [23,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [24,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [25,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [26,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [27,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [28,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [29,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [30,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [31,0,0], thread: [31,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [96,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [97,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [98,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [99,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [100,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [101,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [102,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [103,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [104,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [105,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [106,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [107,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [108,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [109,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [110,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [111,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [112,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [113,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [114,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [115,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [116,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [117,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [118,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [119,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [120,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [121,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [122,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [123,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [124,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [125,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [126,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [10,0,0], thread: [127,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [96,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [97,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [98,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [99,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [100,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [101,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [102,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [103,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [104,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [105,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [106,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [107,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [108,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [109,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [110,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [111,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [112,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [113,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [114,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [115,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [116,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [117,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [118,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [119,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [120,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [121,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [122,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [123,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [124,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [125,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [126,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [13,0,0], thread: [127,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [32,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [33,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [34,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [35,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [36,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [37,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [38,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [39,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [40,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [41,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [42,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [43,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [44,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [45,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [46,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [47,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [48,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [49,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [50,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [51,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [52,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [53,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [54,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [55,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [56,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [57,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [58,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [59,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [60,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [61,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [62,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [63,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [96,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [97,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [98,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [99,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [100,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [101,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [102,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [103,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [104,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [105,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [106,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [107,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [108,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [109,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [110,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [111,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [112,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [113,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [114,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [115,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [116,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [117,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [118,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [119,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [120,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [121,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [122,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [123,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [124,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [125,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [126,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [22,0,0], thread: [127,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [0,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [1,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [2,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [3,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [4,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [5,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [6,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [7,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [8,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [9,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [10,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [11,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [12,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [13,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [14,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [15,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [16,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [17,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [18,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [19,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [20,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [21,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [22,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [23,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [24,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [25,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [26,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [27,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [28,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [29,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [30,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [15,0,0], thread: [31,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [0,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [1,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [2,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [3,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [4,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [5,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [6,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [7,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [8,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [9,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [10,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [11,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [12,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [13,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [14,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [15,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [16,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [17,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [18,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [19,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [20,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [21,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [22,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [23,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [24,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [25,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [26,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [27,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [28,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [29,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [30,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [27,0,0], thread: [31,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [0,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [1,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [2,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [3,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [4,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [5,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [6,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [7,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [8,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [9,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [10,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [11,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [12,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [13,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [14,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [15,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [16,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [17,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [18,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [19,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [20,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [21,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [22,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [23,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [24,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [25,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [26,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [27,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [28,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [29,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [30,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [31,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [64,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [65,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [66,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [67,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [68,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [69,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [70,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [71,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [72,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [73,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [74,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [75,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [76,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [77,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [78,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [79,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [80,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [81,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [82,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [83,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [84,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [85,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [86,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [87,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [88,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [89,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [90,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [91,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [92,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [93,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [94,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [95,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [96,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [97,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [98,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [99,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [100,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [101,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [102,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [103,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [104,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [105,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [106,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [107,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [108,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [109,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [110,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [111,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [112,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [113,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [114,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [115,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [116,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [117,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [118,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [119,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [120,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [121,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [122,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [123,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [124,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [125,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [126,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [127,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [0,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [1,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [2,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [3,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [4,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [5,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [6,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [7,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [8,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [9,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [10,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [11,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [12,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [13,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [14,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [15,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [16,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [17,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [18,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [19,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [20,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [21,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [22,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [23,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [24,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [25,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [26,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [27,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [28,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [29,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [30,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [31,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [0,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [1,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [2,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [3,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [4,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [5,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [6,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [7,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [8,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [9,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [10,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [11,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [12,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [13,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [14,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [15,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [16,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [17,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [18,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [19,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [20,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [21,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [22,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [23,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [24,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [25,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [26,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [27,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [28,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [29,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [30,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [31,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [0,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [1,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [2,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [3,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [4,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [5,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [6,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [7,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [8,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [9,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [10,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [11,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [12,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [13,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [14,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [15,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [16,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [17,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [18,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [19,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [20,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [21,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [22,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [23,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [24,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [25,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [26,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [27,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [28,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [29,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [30,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [19,0,0], thread: [31,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [32,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [33,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [34,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [35,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [36,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [37,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [38,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [39,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [40,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [41,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [42,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [43,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [44,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [45,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [46,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [47,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [48,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [49,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [50,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [51,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [52,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [53,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [54,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [55,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [56,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [57,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [58,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [59,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [60,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [61,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [62,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [63,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [0,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [1,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [2,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [3,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [4,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [5,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [6,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [7,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [8,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [9,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [10,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [11,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [12,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [13,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [14,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [15,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [16,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [17,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [18,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [19,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [20,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [21,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [22,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [23,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [24,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [25,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [26,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [27,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [28,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [29,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [30,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [23,0,0], thread: [31,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [32,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [33,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [34,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [35,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [36,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [37,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [38,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [39,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [40,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [41,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [42,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [43,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [44,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [45,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [46,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [47,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [48,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [49,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [50,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [51,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [52,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [53,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [54,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [55,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [56,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [57,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [58,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [59,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [60,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [61,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [62,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [35,0,0], thread: [63,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [64,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [65,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [66,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [67,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [68,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [69,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [70,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [71,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [72,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [73,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [74,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [75,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [76,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [77,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [78,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [79,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [80,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [81,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [82,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [83,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [84,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [85,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [86,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [87,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [88,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [89,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [90,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [91,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [92,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [93,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [94,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [21,0,0], thread: [95,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [32,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [33,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [34,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [35,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [36,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [37,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [38,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [39,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [40,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [41,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [42,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [43,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [44,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [45,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [46,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [47,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [48,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [49,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [50,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [51,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [52,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [53,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [54,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [55,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [56,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [57,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [58,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [59,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [60,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [61,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [62,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [63,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [96,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [97,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [98,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [99,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [100,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [101,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [102,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [103,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [104,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [105,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [106,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [107,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [108,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [109,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [110,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [111,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [112,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [113,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [114,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [115,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [116,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [117,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [118,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [119,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [120,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [121,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [122,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [123,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [124,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [125,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [126,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [30,0,0], thread: [127,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [0,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [1,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [2,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [3,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [4,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [5,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [6,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [7,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [8,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [9,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [10,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [11,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [12,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [13,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [14,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [15,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [16,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [17,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [18,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [19,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [20,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [21,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [22,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [23,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [24,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [25,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [26,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [27,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [28,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [29,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [30,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [16,0,0], thread: [31,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [96,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [97,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [98,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [99,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [100,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [101,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [102,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [103,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [104,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [105,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [106,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [107,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [108,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [109,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [110,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [111,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [112,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [113,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [114,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [115,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [116,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [117,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [118,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [119,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [120,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [121,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [122,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [123,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [124,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [125,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [126,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [26,0,0], thread: [127,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [64,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [65,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [66,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [67,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [68,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [69,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [70,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [71,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [72,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [73,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [74,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [75,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [76,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [77,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [78,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [79,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [80,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [81,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [82,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [83,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [84,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [85,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [86,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [87,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [88,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [89,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [90,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [91,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [92,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [93,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [94,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1569, ip=10.195.25.53)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [17,0,0], thread: [95,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+[36m(Trainer pid=1889, ip=10.195.25.27)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-arxiv_5trainer_1hop_iid_beta_10000.0_trainer_id_1/resolve/main/class_num.pt "HTTP/1.1 404 Not Found"[32m [repeated 19x across cluster][0m
+Traceback (most recent call last):
+  File "/home/ubuntu/fedgraph/benchmark/benchmark_NC_batch_size_convergence.py", line 699, in run_experiment
+    run_fedgraph(
+  File "/home/ubuntu/fedgraph/fedgraph/federated_methods.py", line 466, in run_fedgraph
+    run_NC(args, data)
+  File "/home/ubuntu/fedgraph/fedgraph/federated_methods.py", line 1248, in run_NC
+    round_stats = server.train(i)
+                  ^^^^^^^^^^^^^^^
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/fedgraph/fedgraph/server_class.py", line 398, in train
+    ray.get(train_refs)
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/auto_init_hook.py", line 22, in auto_init_wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/client_mode_hook.py", line 110, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/worker.py", line 2968, in get
+    values, debugger_breakpoint = worker.get_objects(
+                                  ^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/worker.py", line 1050, in get_objects
+    raise value.as_instanceof_cause()
+ray.exceptions.RayTaskError(RuntimeError): [36mray::Trainer.train()[39m (pid=1569, ip=10.195.25.53, actor_id=459e0f56fcadc7393e218ad101000000, repr=<fedgraph.federated_methods.Trainer object at 0x7c213fffc350>)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/fedgraph/fedgraph/trainer_class.py", line 1007, in train
+    ).to(self.device)
+      ^^^^^^^^^^^^^^^
+RuntimeError: CUDA error: device-side assert triggered
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+2026-08-03 18:20:56,760	ERROR worker.py:437 -- Unhandled error (suppress with 'RAY_IGNORE_UNHANDLED_ERRORS=1'): [36mray::Trainer.train()[39m (pid=1711, ip=10.195.25.31, actor_id=e4d4fad19950a8451bce919101000000, repr=<fedgraph.federated_methods.Trainer object at 0x7202141ed850>)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/fedgraph/fedgraph/trainer_class.py", line 1007, in train
+    ).to(self.device)
+      ^^^^^^^^^^^^^^^
+RuntimeError: CUDA error: device-side assert triggered
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+2026-08-03 18:20:56,777	ERROR worker.py:437 -- Unhandled error (suppress with 'RAY_IGNORE_UNHANDLED_ERRORS=1'): [36mray::Trainer.train()[39m (pid=1605, ip=10.195.25.28, actor_id=6e0a4f516f4cd523c7be2b6001000000, repr=<fedgraph.federated_methods.Trainer object at 0x7286d5d318e0>)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/fedgraph/fedgraph/trainer_class.py", line 1007, in train
+    ).to(self.device)
+      ^^^^^^^^^^^^^^^
+RuntimeError: CUDA error: device-side assert triggered
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+2026-08-03 18:20:56,778	ERROR worker.py:437 -- Unhandled error (suppress with 'RAY_IGNORE_UNHANDLED_ERRORS=1'): [36mray::Trainer.train()[39m (pid=1889, ip=10.195.25.27, actor_id=783665f857ca0d3603a0f0e801000000, repr=<fedgraph.federated_methods.Trainer object at 0x72b5337e1c10>)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/fedgraph/fedgraph/trainer_class.py", line 1007, in train
+    ).to(self.device)
+      ^^^^^^^^^^^^^^^
+RuntimeError: CUDA error: device-side assert triggered
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+2026-08-03 18:20:56,778	ERROR worker.py:437 -- Unhandled error (suppress with 'RAY_IGNORE_UNHANDLED_ERRORS=1'): [36mray::Trainer.train()[39m (pid=2180, ip=10.195.25.22, actor_id=a6554296a055285b3a17a93a01000000, repr=<fedgraph.federated_methods.Trainer object at 0x738d4a7514c0>)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/fedgraph/fedgraph/trainer_class.py", line 1007, in train
+    ).to(self.device)
+      ^^^^^^^^^^^^^^^
+RuntimeError: CUDA error: device-side assert triggered
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+[36m(Trainer pid=1889, ip=10.195.25.27)[0m Loaded test_labels.pt, size: torch.Size([9623])[32m [repeated 4x across cluster][0m
+[36m(Trainer pid=1889, ip=10.195.25.27)[0m Loaded features.pt, size: torch.Size([33849, 128])[32m [repeated 4x across cluster][0m
+[36m(Trainer pid=1889, ip=10.195.25.27)[0m Loaded idx_train.pt, size: torch.Size([18219])[32m [repeated 4x across cluster][0m
+[36m(Trainer pid=1889, ip=10.195.25.27)[0m Loaded idx_test.pt, size: torch.Size([9623])[32m [repeated 4x across cluster][0m
+[36m(Trainer pid=1711, ip=10.195.25.31)[0m Running GCN_arxiv[32m [repeated 4x across cluster][0m
+[36m(Trainer pid=1889, ip=10.195.25.27)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-arxiv_5trainer_1hop_iid_beta_10000.0_trainer_id_1/resolve/main/idx_test.pt "HTTP/1.1 302 Found"[32m [repeated 15x across cluster][0m
+[36m(Trainer pid=1889, ip=10.195.25.27)[0m /home/ubuntu/fedgraph/fedgraph/trainer_class.py:118: UserWarning: Hugging Face trainer data does not contain global metadata; falling back to inference for compatibility with existing repositories.[32m [repeated 4x across cluster][0m
+[36m(Trainer pid=1889, ip=10.195.25.27)[0m   warnings.warn([32m [repeated 4x across cluster][0m
+[36m(Trainer pid=1605, ip=10.195.25.28)[0m ../aten/src/ATen/native/cuda/IndexKernel.cu:93: operator(): block: [20,0,0], thread: [31,0,0] Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.[32m [repeated 3360x across cluster][0m

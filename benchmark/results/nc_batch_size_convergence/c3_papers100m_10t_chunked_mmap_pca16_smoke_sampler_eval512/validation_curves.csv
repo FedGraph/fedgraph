@@ -1,0 +1,2 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,val_acc,val_loss
+c3_papers100m_10t_chunked_mmap_pca16_smoke_sampler_eval512,20261014_193657_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0,ogbn-papers100M,FedGCN,16,42,10000.0,1,0.0017,92.0063

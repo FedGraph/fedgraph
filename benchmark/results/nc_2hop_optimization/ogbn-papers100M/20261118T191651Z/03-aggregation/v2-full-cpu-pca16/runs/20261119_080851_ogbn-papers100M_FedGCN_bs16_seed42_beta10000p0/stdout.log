@@ -1,0 +1,110 @@
+================================================================================
+Starting FedGraph NC batch-size convergence run: 20261119_080851_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0
+{
+  "batch_size": 16,
+  "dataset": "ogbn-papers100M",
+  "distribution_type": "average",
+  "elastic_training": false,
+  "evaluation_batch_size": 512,
+  "evaluation_split": "validation",
+  "feature_compression_chunk_rows": 65536,
+  "feature_compression_max_inflight_trainers": 4,
+  "feature_compression_mode": "shared-pca",
+  "feature_compression_output_dir": null,
+  "feature_compression_rank": 16,
+  "global_rounds": 3,
+  "gpu": true,
+  "graph_relabel_cache_dir": null,
+  "graph_relabel_chunk_edges": 1000000,
+  "graph_storage_mode": "cpu",
+  "hf_artifact_num_hops": null,
+  "hf_local_artifact_cache_dir": null,
+  "hf_local_artifact_repo": null,
+  "hf_local_artifact_revision": null,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_artifact_dir": "/mnt/fedgraph-nvme/artifacts/papers100m-10-2hop-v2-derived",
+  "local_artifact_rank_hosts": "/home/ubuntu/fedgraph-papers100m-2hop-rank-hosts.txt",
+  "local_step": 1,
+  "max_rounds": null,
+  "method": "FedGCN",
+  "n_trainer": 10,
+  "num_cpus_per_trainer": 1,
+  "num_gpus_per_trainer": 1.0,
+  "num_hops": 2,
+  "num_layers": 2,
+  "pretrain_feature_aggregation_mode": "full",
+  "pretrain_feature_chunk_edges": 1000000,
+  "pretrain_feature_chunk_rows": 262144,
+  "pretrain_feature_max_inflight_trainers": 10,
+  "pretrain_feature_output_dir": null,
+  "pretrain_feature_upload_mode": "indexed",
+  "resource_monitor_mode": "manual",
+  "resource_snapshot_interval_rounds": 1,
+  "seed": 42,
+  "server_device": "cpu",
+  "target_train_comm_times_sec": [],
+  "target_val_accs": [],
+  "target_val_losses": [],
+  "use_huggingface": false,
+  "use_ogb_load_patch": true,
+  "val_loss_min_delta": 0.0,
+  "val_loss_patience": 20
+}
+================================================================================
+FedGraph Differential Privacy module loaded (v1.0.0)
+✓ Differential Privacy support loaded
+NC_GRAPH_STORAGE, mode=cpu
+NC_PRETRAIN_FEATURE_AGGREGATION, mode=full
+NC_FEATURE_COMPRESSION, mode=shared-pca, rank=16, chunk_rows=65536, max_inflight_trainers=4, output_dir=None
+NC_RESOURCE_MONITOR, mode=manual, snapshot_interval_rounds=1, snapshot_path=/home/ubuntu/fedgraph/benchmark/results/nc_2hop_optimization/ogbn-papers100M/03-aggregation/v2-full-cpu-pca16/runs/20261119_080851_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0/fedgraph_logs/resource_snapshots.jsonl, prometheus_summary_path=None
+Initialization start time recorded.
+2026-11-19 08:08:55,464	INFO worker.py:1683 -- Using address 10.195.25.34:6379 set in the environment variable RAY_ADDRESS
+2026-11-19 08:08:55,467	INFO worker.py:1833 -- Connecting to existing Ray cluster at address: 10.195.25.34:6379...
+2026-11-19 08:08:55,485	INFO worker.py:2015 -- Connected to Ray cluster. View the dashboard at [1m[32mhttp://127.0.0.1:8265 [39m[22m
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=0, host=10.195.25.35, node_id=09672e99e8d671c6f7b22a2665a57882383f35d5a815dfee34030072
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=1, host=10.195.25.15, node_id=b8387d5743512686a261f437b57688cbce857ce27712413f80ee3aba
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=2, host=10.195.25.42, node_id=bc8a36fd257889fe511bca54a3a8582621598cb03e504fc9971f8c61
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=3, host=10.195.25.38, node_id=6ce8d5c188fefe7001099be28f6b816205f6cbd27daf377343c29da3
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=4, host=10.195.25.16, node_id=cde3a8685955f9cf1323799c8f5cbfedc54bb51a4b18fdc9c1ab68ca
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=5, host=10.195.25.33, node_id=662c52e00d403cd90d84080f874596c4fba6d73b383cd76249a8f494
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=6, host=10.195.25.12, node_id=f0b27ba5f3a183864671ad2cebe18470a177ed0047697f8130585570
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=7, host=10.195.25.28, node_id=747f27a22bbd62daf8ae673ea13085c07367c29f4a836c7fa9982655
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=8, host=10.195.25.61, node_id=ca31d0719d14ca4dd60820489dcfeac96aae45a56f998731cfd2e6c2
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=9, host=10.195.25.14, node_id=f842b63abc18b6b769beeb2078ce44dcb469e1ed92e87e8cbaec2abb
+[36m(pid=8310, ip=10.195.25.12)[0m FedGraph Differential Privacy module loaded (v1.0.0)
+[36m(pid=8310, ip=10.195.25.12)[0m ✓ Differential Privacy support loaded
+[36m(Trainer pid=8373, ip=10.195.25.38)[0m Loaded local artifact v2 shard 3 (2-hop) from /mnt/fedgraph-nvme/artifacts/papers100m-10-2hop-v2-derived/shards/trainer-003
+[36m(pid=8303, ip=10.195.25.42)[0m FedGraph Differential Privacy module loaded (v1.0.0)[32m [repeated 9x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)[0m
+[36m(pid=8303, ip=10.195.25.42)[0m ✓ Differential Privacy support loaded[32m [repeated 9x across cluster][0m
+[36m(Trainer pid=8373, ip=10.195.25.38)[0m Trainer 3 artifact load completed in 122.657s; process RSS=23505600512; process peak RSS=40276770816 bytes
+[36m(Trainer pid=8310, ip=10.195.25.12)[0m Loaded local artifact v2 shard 6 (2-hop) from /mnt/fedgraph-nvme/artifacts/papers100m-10-2hop-v2-derived/shards/trainer-006[32m [repeated 8x across cluster][0m
+[36m(Trainer pid=8194, ip=10.195.25.35)[0m Trainer 0 artifact load completed in 126.285s; process RSS=23504752640; process peak RSS=40164839424 bytes[32m [repeated 7x across cluster][0m
+NC_FEATURE_COMPRESSION_METRIC {"basis_output_path":"/home/ubuntu/fedgraph/benchmark/results/nc_2hop_optimization/ogbn-papers100M/03-aggregation/v2-full-cpu-pca16/runs/20261119_080851_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0/fedgraph_logs/feature_compression/shared-pca-r16-8aa5b65a95fd713b.pt","basis_sha256":"8aa5b65a95fd713b0aa0b3732f45291a0fb9e35822c46b275b0f808db0dc8ee4","basis_tensor_broadcast_bytes":92160,"basis_tensor_bytes":9216,"basis_wall_time_sec":0.11231635500007542,"compressed_feature_dim":16,"compression_setup_traffic_bytes":1402880,"compression_wall_time_sec":44.49238291100119,"feature_bytes_saved":49754860288,"feature_storage_reduction_ratio":8.0,"max_inflight_trainers":4,"max_trainer_projection_time_sec":1.5409859470019,"mode":"shared-pca","original_feature_bytes":56862697472,"original_feature_dim":128,"projected_feature_bytes":7107837184,"projected_feature_fraction":0.125,"projection_wall_time_sec":4.560652254000161,"retained_energy":0.8207015562172439,"row_count":111059956,"statistics_tensor_upload_bytes":1310720,"statistics_wall_time_sec":39.76428594599929,"trainer_count":10}
+NC_FEATURE_COMPRESSION_SUMMARY, mode=shared-pca, rows=111059956, original_dim=128, rank=16, retained_energy=0.820701556217, basis_sha256=8aa5b65a95fd713b0aa0b3732f45291a0fb9e35822c46b275b0f808db0dc8ee4, basis_output_path=/home/ubuntu/fedgraph/benchmark/results/nc_2hop_optimization/ogbn-papers100M/03-aggregation/v2-full-cpu-pca16/runs/20261119_080851_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0/fedgraph_logs/feature_compression/shared-pca-r16-8aa5b65a95fd713b.pt, statistics_tensor_upload_bytes=1310720, basis_tensor_broadcast_bytes=92160, original_feature_bytes=56862697472, projection_output_bytes=7107837184, feature_bytes_saved=49754860288, statistics_wall_time_sec=39.764286, basis_wall_time_sec=0.112316, projection_wall_time_sec=4.560652, max_trainer_projection_time_sec=1.540986, max_inflight_trainers=4
+//Log init_time: 217377.562 ms //end
+Pretrain start time recorded.
+Traceback (most recent call last):
+  File "/home/ubuntu/fedgraph/benchmark/benchmark_NC_batch_size_convergence.py", line 877, in run_experiment
+    run_fedgraph(
+  File "/home/ubuntu/fedgraph/fedgraph/federated_methods.py", line 1196, in run_fedgraph
+    run_NC(args, data)
+  File "/home/ubuntu/fedgraph/fedgraph/federated_methods.py", line 2240, in run_NC
+    indexed_feature_sums.extend(
+  File "/home/ubuntu/fedgraph/fedgraph/federated_methods.py", line 2241, in <genexpr>
+    ray.get(feature_sum_ref) for feature_sum_ref in ready
+    ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/auto_init_hook.py", line 22, in auto_init_wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/client_mode_hook.py", line 110, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/worker.py", line 2968, in get
+    values, debugger_breakpoint = worker.get_objects(
+                                  ^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/worker.py", line 1052, in get_objects
+    raise value
+ray.exceptions.OutOfMemoryError: 1 worker(s) were killed due to the node running low on memory. Memory on the node (IP: 10.195.25.38, ID: 6ce8d5c188fefe7001099be28f6b816205f6cbd27daf377343c29da3) was 59.85GB / 62.10GB (0.963884); OOM kill reason: Memory usage 63651647488B exceeded threshold of 63342436352B (95.0% of 66676248576B total); Object store memory usage: [- objects spillable: 0; - bytes spillable: 0; - objects unsealed: 0; - bytes unsealed: 0; - objects in use: 0; - bytes in use: 0; - objects evictable: 0; - bytes evictable: 0; ; - objects created by worker: 0; - bytes created by worker: 0; - objects restored: 0; - bytes restored: 0; - objects received: 0; - bytes received: 0; - objects errored: 0; - bytes errored: 0; ; Eviction Stats:; (global lru) capacity: 8589934592; (global lru) used: 0%; (global lru) num objects: 0; (global lru) num evictions: 0; (global lru) bytes evicted: 0]; Ray killed 1 worker(s) based on the killing policy; Considered workers: [; Selected to kill: (Actor(4fdd5a76a5d09d6ad65021d905000000): job ID=05000000, lease ID=570000006e318ae37e08c43b2e2ec5f9379e93e55a80d7561421a42cdd880404, task name=Trainer.__init__, required resources={GPU: 1, CPU: 1}, pid=8373, actual memory used=57.04GB, worker ID=bcf5fb9ac79bfb253d6608655361319548609c03f6c9314f99e7ab4f)]; Total non-selected idle workers: 0; Total non-selected idle workers USS bytes: 0.00GB; To see more information about memory usage on this node, use `ray logs raylet.out -ip 10.195.25.38`; Top 10 memory users: PID	MEM(GB)	COMMAND; 8373	57.04	ray::Trainer.get_indexed_local_feature_sum; 3750	0.09	ray::DashboardAgent; 3705	0.09	/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/core/src/ray/raylet/raylet...; 3678	0.07	/home/ubuntu/miniconda3/envs/fedgraph312/bin/python /home/ubuntu/miniconda3/envs/fedgraph312/bin/ray...; 3704	0.04	/home/ubuntu/miniconda3/envs/fedgraph312/bin/python -u /home/ubuntu/miniconda3/envs/fedgraph312/lib/...; 3752	0.04	ray::RuntimeEnvAgent; 8369	0.01	nvidia-smi --query-gpu=timestamp,index,uuid,name,utilization.gpu,utilization.memory,memory.used,memo...; 3632	0.00	tmux new-session -d -s ray-worker-10-195-25-38 cd /home/ubuntu/fedgraph && /home/ubuntu/fedgraph/scr...; 3634	0.00	/usr/bin/dbus-daemon --session --address=systemd: --nofork --nopidfile --systemd-activation --syslog...; 3633	0.00	bash /home/ubuntu/fedgraph/scripts/manual_ray/start-worker.sh --head-ip 10.195.25.34 --num-cpus 8 --...; Refer to the documentation on how to address the out of memory issue: https://docs.ray.io/en/latest/ray-core/scheduling/ray-oom-prevention.html. Consider provisioning more memory on this node or reducing task parallelism by requesting more CPUs per task. Set max_restarts and max_task_retries to enable retry when the task crashes due to OOM. To adjust the kill threshold, set the environment variable `RAY_memory_usage_threshold` when starting Ray. To disable worker killing, set the environment variable `RAY_memory_monitor_refresh_ms` to zero. Since 2.56, Ray updated the oom killing policy to enabling killing multiple workers and selecting workers based on the time since the task start executing. To revert to the legacy policy of determining worker to oom kill based on owner group size or only selecting a single worker to kill at a time, set the environment variable `RAY_worker_killing_policy_by_group` to true before starting Ray. If the idle workers have a non-trivial memory footprint at the time of OOM (check OOM log for non-selected idle workers), consider setting the environment variable `RAY_idle_worker_killing_memory_threshold_bytes` to a lower value to consider idle workers with lower memory footprint for killing.
+[36m(Trainer pid=8718, ip=10.195.25.16)[0m Loaded local artifact v2 shard 4 (2-hop) from /mnt/fedgraph-nvme/artifacts/papers100m-10-2hop-v2-derived/shards/trainer-004
+[36m(Trainer pid=8718, ip=10.195.25.16)[0m Trainer 4 artifact load completed in 131.027s; process RSS=23519571968; process peak RSS=40232337408 bytes[32m [repeated 2x across cluster][0m

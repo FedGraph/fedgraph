@@ -1,0 +1,2 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,val_acc,val_loss
+full-cpu-contiguous-smoke,20261011_020802_ogbn-arxiv_FedGCN_bs512_seed42_beta10000p0,ogbn-arxiv,FedGCN,512,42,10000.0,1,0.009,5.7432

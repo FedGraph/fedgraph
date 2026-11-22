@@ -1,0 +1,2 @@
+run_index,dataset,method,batch_size,seed,global_rounds,local_step,learning_rate,n_trainer,iid_beta,distribution_type,num_layers,num_hops,gpu,server_device,pretrain_feature_upload_mode,use_huggingface,hf_artifact_num_hops,evaluation_split,num_cpus_per_trainer,num_gpus_per_trainer,use_ogb_load_patch,elastic_training,max_rounds,val_loss_patience,val_loss_min_delta,target_val_accs,target_val_losses,target_train_comm_times_sec
+1,cora,FedGCN,256,42,10,1,0.5,2,10000.0,average,2,2,True,cpu,indexed,False,,validation,2,1.0,False,False,,20,0.0,[],[],[]

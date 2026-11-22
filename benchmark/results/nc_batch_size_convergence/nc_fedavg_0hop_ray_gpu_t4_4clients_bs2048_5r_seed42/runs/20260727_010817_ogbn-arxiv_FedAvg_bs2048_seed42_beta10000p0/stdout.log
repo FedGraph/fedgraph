@@ -1,0 +1,131 @@
+================================================================================
+Starting FedGraph NC batch-size convergence run: 20260727_010817_ogbn-arxiv_FedAvg_bs2048_seed42_beta10000p0
+{
+  "batch_size": 2048,
+  "dataset": "ogbn-arxiv",
+  "distribution_type": "average",
+  "elastic_training": false,
+  "global_rounds": 5,
+  "gpu": true,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_step": 1,
+  "max_rounds": null,
+  "method": "FedAvg",
+  "n_trainer": 4,
+  "num_cpus_per_trainer": 1,
+  "num_gpus_per_trainer": 0.25,
+  "num_hops": 0,
+  "num_layers": 2,
+  "seed": 42,
+  "server_device": "cpu",
+  "target_train_comm_times_sec": [],
+  "target_val_accs": [],
+  "target_val_losses": [],
+  "use_ogb_load_patch": true,
+  "val_loss_min_delta": 0.0,
+  "val_loss_patience": 20
+}
+================================================================================
+FedGraph Differential Privacy module loaded (v1.0.0)
+✓ Differential Privacy support loaded
+config:  {'fedgraph_task': 'NC', 'dataset': 'ogbn-arxiv', 'method': 'FedAvg', 'iid_beta': 10000.0, 'distribution_type': 'average', 'global_rounds': 5, 'local_step': 1, 'learning_rate': 0.01, 'n_trainer': 4, 'batch_size': 2048, 'num_layers': 2, 'num_hops': 0, 'gpu': True, 'server_device': 'cpu', 'num_cpus_per_trainer': 1, 'num_gpus_per_trainer': 0.25, 'logdir': 'benchmark/results/nc_batch_size_convergence/nc_fedavg_0hop_ray_gpu_t4_4clients_bs2048_5r_seed42/runs/20260727_010817_ogbn-arxiv_FedAvg_bs2048_seed42_beta10000p0/fedgraph_logs', 'use_encryption': False, 'use_huggingface': False, 'saveto_huggingface': False, 'use_cluster': False, 'use_lowrank': False, 'use_dp': False, 'elastic_training': False, 'max_rounds': 5, 'val_loss_patience': 20, 'val_loss_min_delta': 0.0, 'val_loss_plateau_window': 10, 'val_loss_plateau_tolerance': 0.01, 'target_val_accs': [], 'target_val_losses': [], 'target_train_comm_times_sec': []}
+/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ogb/nodeproppred/dataset_pyg.py:91: UserWarning: The given NumPy array is not writable, and PyTorch does not support non-writable tensors. This means writing to this tensor will result in undefined behavior. You may want to copy the array to protect its data or make it writable before converting it to a tensor. This type of warning will be suppressed for the rest of this program. (Triggered internally at ../torch/csrc/utils/tensor_numpy.cpp:206.)
+  train_idx = torch.from_numpy(pd.read_csv(osp.join(path, 'train.csv.gz'), compression='gzip', header = None).values.T[0]).to(torch.long)
+Initialization start time recorded.
+2026-07-27 01:08:33,420	INFO worker.py:2015 -- Started a local Ray instance. View the dashboard at [1m[32mhttp://127.0.0.1:8265 [39m[22m
+Changing method to FedAvg
+[36m(pid=8426)[0m FedGraph Differential Privacy module loaded (v1.0.0)
+[36m(pid=8426)[0m ✓ Differential Privacy support loaded
+Running GCN_arxiv
+[36m(Trainer pid=8426)[0m Running GCN_arxiv
+//Log init_time: 16092.969000000001 ms //end
+Pretrain start time recorded.
+//pretrain_time: 0.107 ms//end
+Train start time recorded.
+global_rounds 5
+Round 1: Global Val Loss = 3.7268
+Round 1: Global Val Accuracy = 0.0882
+Round 1: Training Time = 0.96s, Communication Time = 0.03s
+Round 2: Global Val Loss = 3.7205
+Round 2: Global Val Accuracy = 0.0862
+Round 2: Training Time = 0.07s, Communication Time = 0.02s
+Round 3: Global Val Loss = 3.7145
+Round 3: Global Val Accuracy = 0.0833
+Round 3: Training Time = 0.07s, Communication Time = 0.03s
+Round 4: Global Val Loss = 3.7088
+Round 4: Global Val Accuracy = 0.0804
+Round 4: Training Time = 0.06s, Communication Time = 0.02s
+Round 5: Global Val Loss = 3.7032
+Round 5: Global Val Accuracy = 0.0772
+Round 5: Training Time = 0.07s, Communication Time = 0.02s
+//train_time: 1703.333 ms//end
+
+================================================================================
+TIME BREAKDOWN (excluding initialization)
+================================================================================
+Total Pure Training Time (forward + gradient descent): 1.23 seconds
+Total Communication Time (parameter aggregation): 0.12 seconds
+Total Training + Communication Time: 1.70 seconds
+Training Time Percentage: 72.5%
+Communication Time Percentage: 7.3%
+Average Training Time per Round: 0.25 seconds
+Average Communication Time per Round: 0.02 seconds
+================================================================================
+[Pure Training Time] Dataset: ogbn-arxiv, Batch Size: 2048, Trainers: 4, Hops: 0, IID Beta: 10000.0 => Pure Training Time = 1.23 seconds
+[Communication Time] Dataset: ogbn-arxiv, Batch Size: 2048, Trainers: 4, Hops: 0, IID Beta: 10000.0 => Communication Time = 0.12 seconds
+average_final_test_loss, 3.7065209882572288
+Average test accuracy, 0.0821348476431496
+
+================================================================================
+INDIVIDUAL TRAINER MEMORY USAGE
+================================================================================
+
+====================================================================================================
+TRAINER MEMORY vs LOCAL GRAPH SIZE
+====================================================================================================
+Trainer  Memory(MB)   Nodes    Edges    Memory/Node  Memory/Edge 
+----------------------------------------------------------------------------------------------------
+0        1342.4       42248    146190   0.032        0.009       
+1        1343.1       42181    134536   0.032        0.010       
+2        1344.7       42446    138410   0.032        0.010       
+3        1369.1       42468    159784   0.032        0.009       
+====================================================================================================
+Total Memory Usage: 5399.2 MB (5.27 GB)
+Total Nodes: 169343, Total Edges: 578920
+Average Memory per Trainer: 1349.8 MB
+Average Nodes per Trainer: 42335.8
+Average Edges per Trainer: 144730.0
+Max Memory: 1369.1 MB (Trainer 3)
+Min Memory: 1342.4 MB (Trainer 0)
+Overall Memory/Node Ratio: 0.032 MB/node
+Overall Memory/Edge Ratio: 0.009 MB/edge
+====================================================================================================
+//Log Theoretical Pretrain Comm Cost: 0.00 MB //end
+//Log Theoretical Train Comm Cost: 6.69 MB //end
+
+================================================================================
+CSV FORMAT RESULT:
+DS,IID,BS,TotalTime[s],PureTrainingTime[s],CommTime[s],FinalAcc[%],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
+ogbn-arxiv,10000.0,2048,11.7,1.2,0.1,0.08,6.7,1369.1,0.247,0.167,0
+================================================================================
+
+================================================================================
+EXPERIMENT SUMMARY
+================================================================================
+Dataset: ogbn-arxiv
+Method: FedAvg
+Trainers: 4
+IID Beta: 10000.0
+Batch Size: 2048
+Hops: 0
+Total Execution Time: 11.70 seconds
+Pure Training Time: 1.23 seconds
+Communication Time: 0.12 seconds
+Pretrain Comm Cost: 0.00 MB
+Training Comm Cost: 6.69 MB
+================================================================================
+
+[36m(pid=8428)[0m FedGraph Differential Privacy module loaded (v1.0.0)[32m [repeated 3x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)[0m
+[36m(pid=8428)[0m ✓ Differential Privacy support loaded[32m [repeated 3x across cluster][0m
+[36m(Trainer pid=8427)[0m Running GCN_arxiv[32m [repeated 3x across cluster][0m

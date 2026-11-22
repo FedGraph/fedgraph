@@ -1,0 +1,2 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,evaluation_split,evaluation_acc,evaluation_loss,val_acc,val_loss,local_steps,train_time_sec,training_time_sec,parameter_sync_time_sec,train_sync_time_sec,cumulative_train_sync_time_sec,comm_time_sec,train_comm_time_sec,cum_train_comm_time_sec
+nc_papers100m_195trainer_0hop_balanced_local_bs16_800r,20260914_164223_ogbn-papers100M_FedAvg_bs16_seed42_beta10000p0,ogbn-papers100M,FedAvg,16,42,10000.0,1,validation,0.0057,5.1513,0.0057,5.1513,3,1.12,1.12,0.57,1.69,1.69,0.57,1.69,1.69

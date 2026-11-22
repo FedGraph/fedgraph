@@ -1,0 +1,26 @@
+{
+  "generated_at_utc": "2026-11-19T04:41:42.557260+00:00",
+  "gpus": [
+    {
+      "first_timestamp": "2026/11/19 04:09:02.531",
+      "gpu_index": "0",
+      "gpu_name": "Tesla T4",
+      "gpu_utilization_pct_max": 10.0,
+      "gpu_utilization_pct_mean": 0.006683804627249357,
+      "gpu_uuid": "GPU-8204075a-e3a6-4a97-ef1d-886640498154",
+      "last_timestamp": "2026/11/19 04:41:41.438",
+      "memory_total_mib_max": 15360.0,
+      "memory_total_mib_mean": 15360.0,
+      "memory_used_mib_max": 461.0,
+      "memory_used_mib_mean": 52.346529562982006,
+      "memory_utilization_pct_max": 1.0,
+      "memory_utilization_pct_mean": 0.0005141388174807198,
+      "power_draw_watts_max": 26.7,
+      "power_draw_watts_mean": 18.152997429305913,
+      "sample_count": 1945,
+      "temperature_gpu_c_max": 33.0,
+      "temperature_gpu_c_mean": 29.737789203084834
+    }
+  ],
+  "source_csv": "/home/ubuntu/fedgraph-logs/local-artifact-2hop/20261118T191651Z/01-fleet-smoke/gpu/v3-chunked-mmap-pca16/ip-10-195-25-16_nvidia_smi.csv"
+}

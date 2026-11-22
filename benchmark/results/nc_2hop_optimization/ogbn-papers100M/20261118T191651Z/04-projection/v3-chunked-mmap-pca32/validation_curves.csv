@@ -1,0 +1,11 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,val_acc,val_loss
+v3-chunked-mmap-pca32,20261120_005100_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,1,0.0,36.4451
+v3-chunked-mmap-pca32,20261120_005100_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,2,0.0292,32.4513
+v3-chunked-mmap-pca32,20261120_005100_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,3,0.0296,29.1328
+v3-chunked-mmap-pca32,20261120_005100_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,4,0.0343,15.8083
+v3-chunked-mmap-pca32,20261120_005100_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,5,0.017,9.1496
+v3-chunked-mmap-pca32,20261120_005100_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,6,0.0231,5.3423
+v3-chunked-mmap-pca32,20261120_005100_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,7,0.0269,5.2332
+v3-chunked-mmap-pca32,20261120_005100_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,8,0.0292,5.1795
+v3-chunked-mmap-pca32,20261120_005100_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,9,0.03,5.1503
+v3-chunked-mmap-pca32,20261120_005100_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,10,0.0326,5.1244

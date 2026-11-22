@@ -1,0 +1,11 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,evaluation_split,evaluation_acc,evaluation_loss,val_acc,val_loss,local_steps,train_time_sec,comm_time_sec,train_comm_time_sec,cum_train_comm_time_sec
+nc_hf_papers100m_10trainer_0hop_bs2048_10r_monitor,20260813_184514_ogbn-papers100M_FedAvg_bs2048_seed42_beta10000p0,ogbn-papers100M,FedAvg,2048,42,10000.0,1,test,0.0051,5.1614,,,3,1.36,0.07,1.4300000000000002,1.4300000000000002
+nc_hf_papers100m_10trainer_0hop_bs2048_10r_monitor,20260813_184514_ogbn-papers100M_FedAvg_bs2048_seed42_beta10000p0,ogbn-papers100M,FedAvg,2048,42,10000.0,2,test,0.0066,5.1492,,,6,1.01,0.07,1.08,2.5100000000000002
+nc_hf_papers100m_10trainer_0hop_bs2048_10r_monitor,20260813_184514_ogbn-papers100M_FedAvg_bs2048_seed42_beta10000p0,ogbn-papers100M,FedAvg,2048,42,10000.0,3,test,0.0092,5.1381,,,9,1.0,0.06,1.06,3.5700000000000003
+nc_hf_papers100m_10trainer_0hop_bs2048_10r_monitor,20260813_184514_ogbn-papers100M_FedAvg_bs2048_seed42_beta10000p0,ogbn-papers100M,FedAvg,2048,42,10000.0,4,test,0.0128,5.1272,,,12,0.99,0.13,1.12,4.69
+nc_hf_papers100m_10trainer_0hop_bs2048_10r_monitor,20260813_184514_ogbn-papers100M_FedAvg_bs2048_seed42_beta10000p0,ogbn-papers100M,FedAvg,2048,42,10000.0,5,test,0.0167,5.1161,,,15,0.99,0.06,1.05,5.74
+nc_hf_papers100m_10trainer_0hop_bs2048_10r_monitor,20260813_184514_ogbn-papers100M_FedAvg_bs2048_seed42_beta10000p0,ogbn-papers100M,FedAvg,2048,42,10000.0,6,test,0.0217,5.1038,,,18,1.0,0.07,1.07,6.8100000000000005
+nc_hf_papers100m_10trainer_0hop_bs2048_10r_monitor,20260813_184514_ogbn-papers100M_FedAvg_bs2048_seed42_beta10000p0,ogbn-papers100M,FedAvg,2048,42,10000.0,7,test,0.026,5.0903,,,21,1.0,0.2,1.2,8.01
+nc_hf_papers100m_10trainer_0hop_bs2048_10r_monitor,20260813_184514_ogbn-papers100M_FedAvg_bs2048_seed42_beta10000p0,ogbn-papers100M,FedAvg,2048,42,10000.0,8,test,0.0298,5.0755,,,24,1.0,0.06,1.06,9.07
+nc_hf_papers100m_10trainer_0hop_bs2048_10r_monitor,20260813_184514_ogbn-papers100M_FedAvg_bs2048_seed42_beta10000p0,ogbn-papers100M,FedAvg,2048,42,10000.0,9,test,0.0331,5.0595,,,27,0.99,0.19,1.18,10.25
+nc_hf_papers100m_10trainer_0hop_bs2048_10r_monitor,20260813_184514_ogbn-papers100M_FedAvg_bs2048_seed42_beta10000p0,ogbn-papers100M,FedAvg,2048,42,10000.0,10,test,0.0361,5.0426,,,30,1.0,0.06,1.06,11.31

@@ -1,0 +1,26 @@
+{
+  "generated_at_utc": "2026-10-11T02:25:36.646034+00:00",
+  "gpus": [
+    {
+      "first_timestamp": "2026/10/11 02:25:06.251",
+      "gpu_index": "0",
+      "gpu_name": "Tesla T4",
+      "gpu_utilization_pct_max": 49.0,
+      "gpu_utilization_pct_mean": 1.9,
+      "gpu_uuid": "GPU-0c38ed59-bae0-ba64-628a-86a02e688800",
+      "last_timestamp": "2026/10/11 02:25:35.536",
+      "memory_total_mib_max": 15360.0,
+      "memory_total_mib_mean": 15360.0,
+      "memory_used_mib_max": 1031.0,
+      "memory_used_mib_mean": 127.03333333333333,
+      "memory_utilization_pct_max": 15.0,
+      "memory_utilization_pct_mean": 0.6,
+      "power_draw_watts_max": 38.65,
+      "power_draw_watts_mean": 34.79533333333333,
+      "sample_count": 30,
+      "temperature_gpu_c_max": 37.0,
+      "temperature_gpu_c_mean": 37.0
+    }
+  ],
+  "source_csv": "/home/ubuntu/fedgraph/benchmark/results/nc_batch_size_convergence/c2_arxiv4_compare_20261011T022257Z/host-monitor/gpu/chunked-cpu/ip-10-195-25-24_nvidia_smi.csv"
+}

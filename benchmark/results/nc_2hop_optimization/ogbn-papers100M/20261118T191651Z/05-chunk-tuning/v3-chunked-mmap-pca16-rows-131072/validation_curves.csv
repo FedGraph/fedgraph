@@ -1,0 +1,4 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,val_acc,val_loss
+v3-chunked-mmap-pca16-rows-131072,20261120_110712_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,1,0.0,83.7761
+v3-chunked-mmap-pca16-rows-131072,20261120_110712_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,2,0.0329,84.3684
+v3-chunked-mmap-pca16-rows-131072,20261120_110712_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,3,0.0231,48.0155

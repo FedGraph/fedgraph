@@ -1,0 +1,1037 @@
+================================================================================
+Starting FedGraph NC batch-size convergence run: 20260706_225053_ogbn-arxiv_FedGCN_bs2048_seed42_beta10000p0
+{
+  "batch_size": 2048,
+  "dataset": "ogbn-arxiv",
+  "distribution_type": "average",
+  "elastic_training": false,
+  "global_rounds": 300,
+  "gpu": true,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_step": 3,
+  "max_rounds": null,
+  "method": "FedGCN",
+  "n_trainer": 5,
+  "num_cpus_per_trainer": 0,
+  "num_gpus_per_trainer": 0.2,
+  "num_hops": 2,
+  "num_layers": 2,
+  "seed": 42,
+  "target_train_comm_times_sec": [
+    120.0,
+    240.0,
+    360.0,
+    480.0,
+    600.0,
+    900.0,
+    1200.0
+  ],
+  "target_val_accs": [
+    0.5,
+    0.52,
+    0.54,
+    0.56,
+    0.58
+  ],
+  "target_val_losses": [
+    2.1,
+    2.0,
+    1.95,
+    1.9,
+    1.85
+  ],
+  "use_ogb_load_patch": true,
+  "val_loss_min_delta": 0.0,
+  "val_loss_patience": 20
+}
+================================================================================
+FedGraph Differential Privacy module loaded (v1.0.0)
+✓ Differential Privacy support loaded
+config:  {'fedgraph_task': 'NC', 'dataset': 'ogbn-arxiv', 'method': 'FedGCN', 'iid_beta': 10000.0, 'distribution_type': 'average', 'global_rounds': 300, 'local_step': 3, 'learning_rate': 0.01, 'n_trainer': 5, 'batch_size': 2048, 'num_layers': 2, 'num_hops': 2, 'gpu': True, 'num_cpus_per_trainer': 0, 'num_gpus_per_trainer': 0.2, 'logdir': 'benchmark/results/nc_batch_size_convergence/nc_fedgcn_2hop_noenc_gpu_t4_fixed_300r_bs2048_full_seed42/runs/20260706_225053_ogbn-arxiv_FedGCN_bs2048_seed42_beta10000p0/fedgraph_logs', 'use_encryption': False, 'use_huggingface': False, 'saveto_huggingface': False, 'use_cluster': False, 'use_lowrank': False, 'use_dp': False, 'elastic_training': False, 'max_rounds': 300, 'val_loss_patience': 20, 'val_loss_min_delta': 0.0, 'val_loss_plateau_window': 20, 'val_loss_plateau_tolerance': 0.01, 'target_val_accs': [0.5, 0.52, 0.54, 0.56, 0.58], 'target_val_losses': [2.1, 2.0, 1.95, 1.9, 1.85], 'target_train_comm_times_sec': [120.0, 240.0, 360.0, 480.0, 600.0, 900.0, 1200.0]}
+/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ogb/nodeproppred/dataset_pyg.py:91: UserWarning: The given NumPy array is not writable, and PyTorch does not support non-writable tensors. This means writing to this tensor will result in undefined behavior. You may want to copy the array to protect its data or make it writable before converting it to a tensor. This type of warning will be suppressed for the rest of this program. (Triggered internally at ../torch/csrc/utils/tensor_numpy.cpp:206.)
+  train_idx = torch.from_numpy(pd.read_csv(osp.join(path, 'train.csv.gz'), compression='gzip', header = None).values.T[0]).to(torch.long)
+Initialization start time recorded.
+2026-07-06 22:51:05,600	INFO worker.py:2015 -- Started a local Ray instance. View the dashboard at [1m[32mhttp://127.0.0.1:8265 [39m[22m
+[36m(pid=30033)[0m FedGraph Differential Privacy module loaded (v1.0.0)
+[36m(pid=30033)[0m ✓ Differential Privacy support loaded
+[36m(Trainer pid=30033)[0m running AggreGCN_Arxiv
+Running AggreGCN_Arxiv
+//Log init_time: 18861.041 ms //end
+Pretrain start time recorded.
+server aggregates all local neighbor feature sums
+clients received feature aggregation from server
+//pretrain_time: 3807.486 ms//end
+Train start time recorded.
+global_rounds 300
+Round 1: Global Val Loss = 3.5990
+Round 1: Global Val Accuracy = 0.0165
+Round 1: Training Time = 1.33s, Communication Time = 0.03s
+Round 2: Global Val Loss = 3.4440
+Round 2: Global Val Accuracy = 0.1090
+Round 2: Training Time = 0.64s, Communication Time = 0.05s
+Round 3: Global Val Loss = 3.4042
+Round 3: Global Val Accuracy = 0.1630
+Round 3: Training Time = 0.65s, Communication Time = 0.04s
+Round 4: Global Val Loss = 3.3555
+Round 4: Global Val Accuracy = 0.2078
+Round 4: Training Time = 0.72s, Communication Time = 0.06s
+Round 5: Global Val Loss = 3.3073
+Round 5: Global Val Accuracy = 0.2348
+Round 5: Training Time = 0.70s, Communication Time = 0.04s
+Round 6: Global Val Loss = 3.2764
+Round 6: Global Val Accuracy = 0.2544
+Round 6: Training Time = 0.67s, Communication Time = 0.03s
+Round 7: Global Val Loss = 3.2609
+Round 7: Global Val Accuracy = 0.2563
+Round 7: Training Time = 0.73s, Communication Time = 0.03s
+Round 8: Global Val Loss = 3.2211
+Round 8: Global Val Accuracy = 0.2644
+Round 8: Training Time = 0.57s, Communication Time = 0.03s
+Round 9: Global Val Loss = 3.1942
+Round 9: Global Val Accuracy = 0.2689
+Round 9: Training Time = 0.64s, Communication Time = 0.03s
+Round 10: Global Val Loss = 3.1614
+Round 10: Global Val Accuracy = 0.2746
+Round 10: Training Time = 0.65s, Communication Time = 0.04s
+Round 11: Global Val Loss = 3.1491
+Round 11: Global Val Accuracy = 0.2738
+Round 11: Training Time = 0.61s, Communication Time = 0.04s
+Round 12: Global Val Loss = 3.1118
+Round 12: Global Val Accuracy = 0.2760
+Round 12: Training Time = 0.60s, Communication Time = 0.03s
+Round 13: Global Val Loss = 3.1244
+Round 13: Global Val Accuracy = 0.2750
+Round 13: Training Time = 0.79s, Communication Time = 0.03s
+Round 14: Global Val Loss = 3.0704
+Round 14: Global Val Accuracy = 0.2767
+Round 14: Training Time = 0.64s, Communication Time = 0.03s
+Round 15: Global Val Loss = 3.0754
+Round 15: Global Val Accuracy = 0.2761
+Round 15: Training Time = 0.62s, Communication Time = 0.04s
+Round 16: Global Val Loss = 3.0351
+Round 16: Global Val Accuracy = 0.2773
+Round 16: Training Time = 0.63s, Communication Time = 0.04s
+Round 17: Global Val Loss = 3.0356
+Round 17: Global Val Accuracy = 0.2780
+Round 17: Training Time = 0.70s, Communication Time = 0.04s
+Round 18: Global Val Loss = 3.0111
+Round 18: Global Val Accuracy = 0.2765
+Round 18: Training Time = 0.68s, Communication Time = 0.03s
+Round 19: Global Val Loss = 2.9983
+Round 19: Global Val Accuracy = 0.2782
+Round 19: Training Time = 0.64s, Communication Time = 0.03s
+Round 20: Global Val Loss = 2.9869
+Round 20: Global Val Accuracy = 0.2764
+Round 20: Training Time = 0.59s, Communication Time = 0.04s
+Round 21: Global Val Loss = 2.9744
+Round 21: Global Val Accuracy = 0.2784
+Round 21: Training Time = 0.62s, Communication Time = 0.04s
+Round 22: Global Val Loss = 2.9547
+Round 22: Global Val Accuracy = 0.2779
+Round 22: Training Time = 0.65s, Communication Time = 0.04s
+Round 23: Global Val Loss = 2.9422
+Round 23: Global Val Accuracy = 0.2792
+Round 23: Training Time = 0.58s, Communication Time = 0.04s
+Round 24: Global Val Loss = 2.9222
+Round 24: Global Val Accuracy = 0.2832
+Round 24: Training Time = 0.62s, Communication Time = 0.03s
+Round 25: Global Val Loss = 2.9060
+Round 25: Global Val Accuracy = 0.2854
+Round 25: Training Time = 0.68s, Communication Time = 0.04s
+Round 26: Global Val Loss = 2.8883
+Round 26: Global Val Accuracy = 0.2875
+Round 26: Training Time = 0.64s, Communication Time = 0.04s
+Round 27: Global Val Loss = 2.8812
+Round 27: Global Val Accuracy = 0.2936
+Round 27: Training Time = 0.62s, Communication Time = 0.04s
+Round 28: Global Val Loss = 2.8570
+Round 28: Global Val Accuracy = 0.2971
+Round 28: Training Time = 0.65s, Communication Time = 0.03s
+Round 29: Global Val Loss = 2.8434
+Round 29: Global Val Accuracy = 0.3046
+Round 29: Training Time = 0.63s, Communication Time = 0.03s
+Round 30: Global Val Loss = 2.8353
+Round 30: Global Val Accuracy = 0.3137
+Round 30: Training Time = 0.61s, Communication Time = 0.04s
+Round 31: Global Val Loss = 2.8156
+Round 31: Global Val Accuracy = 0.3146
+Round 31: Training Time = 0.64s, Communication Time = 0.03s
+Round 32: Global Val Loss = 2.8157
+Round 32: Global Val Accuracy = 0.3222
+Round 32: Training Time = 0.62s, Communication Time = 0.03s
+Round 33: Global Val Loss = 2.7972
+Round 33: Global Val Accuracy = 0.3203
+Round 33: Training Time = 0.60s, Communication Time = 0.04s
+Round 34: Global Val Loss = 2.7949
+Round 34: Global Val Accuracy = 0.3266
+Round 34: Training Time = 0.68s, Communication Time = 0.04s
+Round 35: Global Val Loss = 2.7793
+Round 35: Global Val Accuracy = 0.3261
+Round 35: Training Time = 0.60s, Communication Time = 0.03s
+Round 36: Global Val Loss = 2.7723
+Round 36: Global Val Accuracy = 0.3331
+Round 36: Training Time = 0.70s, Communication Time = 0.03s
+Round 37: Global Val Loss = 2.7585
+Round 37: Global Val Accuracy = 0.3326
+Round 37: Training Time = 0.70s, Communication Time = 0.04s
+Round 38: Global Val Loss = 2.7564
+Round 38: Global Val Accuracy = 0.3258
+Round 38: Training Time = 0.65s, Communication Time = 0.04s
+Round 39: Global Val Loss = 2.7423
+Round 39: Global Val Accuracy = 0.3411
+Round 39: Training Time = 0.66s, Communication Time = 0.04s
+Round 40: Global Val Loss = 2.7377
+Round 40: Global Val Accuracy = 0.3278
+Round 40: Training Time = 0.81s, Communication Time = 0.04s
+Round 41: Global Val Loss = 2.7261
+Round 41: Global Val Accuracy = 0.3387
+Round 41: Training Time = 0.60s, Communication Time = 0.03s
+Round 42: Global Val Loss = 2.7196
+Round 42: Global Val Accuracy = 0.3410
+Round 42: Training Time = 0.63s, Communication Time = 0.03s
+Round 43: Global Val Loss = 2.7081
+Round 43: Global Val Accuracy = 0.3453
+Round 43: Training Time = 0.62s, Communication Time = 0.03s
+Round 44: Global Val Loss = 2.7042
+Round 44: Global Val Accuracy = 0.3338
+Round 44: Training Time = 0.66s, Communication Time = 0.04s
+Round 45: Global Val Loss = 2.6963
+Round 45: Global Val Accuracy = 0.3465
+Round 45: Training Time = 0.71s, Communication Time = 0.04s
+Round 46: Global Val Loss = 2.6903
+Round 46: Global Val Accuracy = 0.3434
+Round 46: Training Time = 0.66s, Communication Time = 0.03s
+Round 47: Global Val Loss = 2.6808
+Round 47: Global Val Accuracy = 0.3533
+Round 47: Training Time = 0.62s, Communication Time = 0.03s
+Round 48: Global Val Loss = 2.6739
+Round 48: Global Val Accuracy = 0.3472
+Round 48: Training Time = 0.64s, Communication Time = 0.04s
+Round 49: Global Val Loss = 2.6755
+Round 49: Global Val Accuracy = 0.3580
+Round 49: Training Time = 0.65s, Communication Time = 0.04s
+Round 50: Global Val Loss = 2.6599
+Round 50: Global Val Accuracy = 0.3512
+Round 50: Training Time = 0.65s, Communication Time = 0.03s
+Round 51: Global Val Loss = 2.6575
+Round 51: Global Val Accuracy = 0.3558
+Round 51: Training Time = 0.61s, Communication Time = 0.03s
+Round 52: Global Val Loss = 2.6500
+Round 52: Global Val Accuracy = 0.3537
+Round 52: Training Time = 0.67s, Communication Time = 0.03s
+Round 53: Global Val Loss = 2.6462
+Round 53: Global Val Accuracy = 0.3592
+Round 53: Training Time = 0.77s, Communication Time = 0.03s
+Round 54: Global Val Loss = 2.6382
+Round 54: Global Val Accuracy = 0.3621
+Round 54: Training Time = 0.61s, Communication Time = 0.03s
+Round 55: Global Val Loss = 2.6278
+Round 55: Global Val Accuracy = 0.3655
+Round 55: Training Time = 0.63s, Communication Time = 0.04s
+Round 56: Global Val Loss = 2.6240
+Round 56: Global Val Accuracy = 0.3594
+Round 56: Training Time = 0.69s, Communication Time = 0.03s
+Round 57: Global Val Loss = 2.6147
+Round 57: Global Val Accuracy = 0.3657
+Round 57: Training Time = 0.66s, Communication Time = 0.04s
+Round 58: Global Val Loss = 2.6145
+Round 58: Global Val Accuracy = 0.3604
+Round 58: Training Time = 0.64s, Communication Time = 0.03s
+Round 59: Global Val Loss = 2.6093
+Round 59: Global Val Accuracy = 0.3715
+Round 59: Training Time = 0.64s, Communication Time = 0.04s
+Round 60: Global Val Loss = 2.5990
+Round 60: Global Val Accuracy = 0.3615
+Round 60: Training Time = 0.66s, Communication Time = 0.04s
+Round 61: Global Val Loss = 2.5956
+Round 61: Global Val Accuracy = 0.3754
+Round 61: Training Time = 0.66s, Communication Time = 0.03s
+Round 62: Global Val Loss = 2.5876
+Round 62: Global Val Accuracy = 0.3659
+Round 62: Training Time = 0.67s, Communication Time = 0.04s
+Round 63: Global Val Loss = 2.5844
+Round 63: Global Val Accuracy = 0.3776
+Round 63: Training Time = 0.61s, Communication Time = 0.03s
+Round 64: Global Val Loss = 2.5774
+Round 64: Global Val Accuracy = 0.3739
+Round 64: Training Time = 0.65s, Communication Time = 0.04s
+Round 65: Global Val Loss = 2.5673
+Round 65: Global Val Accuracy = 0.3848
+Round 65: Training Time = 0.64s, Communication Time = 0.04s
+Round 66: Global Val Loss = 2.5615
+Round 66: Global Val Accuracy = 0.3742
+Round 66: Training Time = 0.80s, Communication Time = 0.04s
+Round 67: Global Val Loss = 2.5579
+Round 67: Global Val Accuracy = 0.3862
+Round 67: Training Time = 0.70s, Communication Time = 0.04s
+Round 68: Global Val Loss = 2.5561
+Round 68: Global Val Accuracy = 0.3781
+Round 68: Training Time = 0.63s, Communication Time = 0.04s
+Round 69: Global Val Loss = 2.5437
+Round 69: Global Val Accuracy = 0.3877
+Round 69: Training Time = 0.60s, Communication Time = 0.03s
+Round 70: Global Val Loss = 2.5494
+Round 70: Global Val Accuracy = 0.3844
+Round 70: Training Time = 0.69s, Communication Time = 0.03s
+Round 71: Global Val Loss = 2.5310
+Round 71: Global Val Accuracy = 0.3903
+Round 71: Training Time = 0.63s, Communication Time = 0.04s
+Round 72: Global Val Loss = 2.5342
+Round 72: Global Val Accuracy = 0.3867
+Round 72: Training Time = 0.66s, Communication Time = 0.04s
+Round 73: Global Val Loss = 2.5303
+Round 73: Global Val Accuracy = 0.3916
+Round 73: Training Time = 0.60s, Communication Time = 0.03s
+Round 74: Global Val Loss = 2.5292
+Round 74: Global Val Accuracy = 0.3885
+Round 74: Training Time = 0.62s, Communication Time = 0.05s
+Round 75: Global Val Loss = 2.5189
+Round 75: Global Val Accuracy = 0.3960
+Round 75: Training Time = 0.61s, Communication Time = 0.04s
+Round 76: Global Val Loss = 2.5235
+Round 76: Global Val Accuracy = 0.3891
+Round 76: Training Time = 0.65s, Communication Time = 0.04s
+Round 77: Global Val Loss = 2.5137
+Round 77: Global Val Accuracy = 0.4050
+Round 77: Training Time = 0.62s, Communication Time = 0.03s
+Round 78: Global Val Loss = 2.5120
+Round 78: Global Val Accuracy = 0.3890
+Round 78: Training Time = 0.61s, Communication Time = 0.03s
+Round 79: Global Val Loss = 2.5030
+Round 79: Global Val Accuracy = 0.4033
+Round 79: Training Time = 0.68s, Communication Time = 0.03s
+Round 80: Global Val Loss = 2.5018
+Round 80: Global Val Accuracy = 0.3945
+Round 80: Training Time = 0.68s, Communication Time = 0.04s
+Round 81: Global Val Loss = 2.4932
+Round 81: Global Val Accuracy = 0.4045
+Round 81: Training Time = 0.64s, Communication Time = 0.04s
+Round 82: Global Val Loss = 2.4915
+Round 82: Global Val Accuracy = 0.3989
+Round 82: Training Time = 0.64s, Communication Time = 0.03s
+Round 83: Global Val Loss = 2.4827
+Round 83: Global Val Accuracy = 0.4049
+Round 83: Training Time = 0.67s, Communication Time = 0.04s
+Round 84: Global Val Loss = 2.4833
+Round 84: Global Val Accuracy = 0.3984
+Round 84: Training Time = 0.60s, Communication Time = 0.04s
+Round 85: Global Val Loss = 2.4746
+Round 85: Global Val Accuracy = 0.4157
+Round 85: Training Time = 0.60s, Communication Time = 0.05s
+Round 86: Global Val Loss = 2.4742
+Round 86: Global Val Accuracy = 0.4041
+Round 86: Training Time = 0.61s, Communication Time = 0.04s
+Round 87: Global Val Loss = 2.4678
+Round 87: Global Val Accuracy = 0.4177
+Round 87: Training Time = 0.64s, Communication Time = 0.04s
+Round 88: Global Val Loss = 2.4654
+Round 88: Global Val Accuracy = 0.4026
+Round 88: Training Time = 0.59s, Communication Time = 0.04s
+Round 89: Global Val Loss = 2.4585
+Round 89: Global Val Accuracy = 0.4159
+Round 89: Training Time = 0.57s, Communication Time = 0.04s
+Round 90: Global Val Loss = 2.4574
+Round 90: Global Val Accuracy = 0.4112
+Round 90: Training Time = 0.64s, Communication Time = 0.04s
+Round 91: Global Val Loss = 2.4415
+Round 91: Global Val Accuracy = 0.4226
+Round 91: Training Time = 0.61s, Communication Time = 0.04s
+Round 92: Global Val Loss = 2.4523
+Round 92: Global Val Accuracy = 0.4153
+Round 92: Training Time = 0.60s, Communication Time = 0.03s
+Round 93: Global Val Loss = 2.4430
+Round 93: Global Val Accuracy = 0.4205
+Round 93: Training Time = 0.63s, Communication Time = 0.04s
+Round 94: Global Val Loss = 2.4372
+Round 94: Global Val Accuracy = 0.4167
+Round 94: Training Time = 0.79s, Communication Time = 0.04s
+Round 95: Global Val Loss = 2.4331
+Round 95: Global Val Accuracy = 0.4235
+Round 95: Training Time = 0.65s, Communication Time = 0.04s
+Round 96: Global Val Loss = 2.4235
+Round 96: Global Val Accuracy = 0.4156
+Round 96: Training Time = 0.59s, Communication Time = 0.03s
+Round 97: Global Val Loss = 2.4296
+Round 97: Global Val Accuracy = 0.4291
+Round 97: Training Time = 0.64s, Communication Time = 0.04s
+Round 98: Global Val Loss = 2.4219
+Round 98: Global Val Accuracy = 0.4149
+Round 98: Training Time = 0.58s, Communication Time = 0.04s
+Round 99: Global Val Loss = 2.4207
+Round 99: Global Val Accuracy = 0.4322
+Round 99: Training Time = 0.61s, Communication Time = 0.03s
+Round 100: Global Val Loss = 2.4199
+Round 100: Global Val Accuracy = 0.4172
+Round 100: Training Time = 0.64s, Communication Time = 0.03s
+Round 101: Global Val Loss = 2.4159
+Round 101: Global Val Accuracy = 0.4356
+Round 101: Training Time = 0.56s, Communication Time = 0.04s
+Round 102: Global Val Loss = 2.4078
+Round 102: Global Val Accuracy = 0.4275
+Round 102: Training Time = 0.61s, Communication Time = 0.04s
+Round 103: Global Val Loss = 2.4043
+Round 103: Global Val Accuracy = 0.4370
+Round 103: Training Time = 0.63s, Communication Time = 0.03s
+Round 104: Global Val Loss = 2.3970
+Round 104: Global Val Accuracy = 0.4281
+Round 104: Training Time = 0.67s, Communication Time = 0.04s
+Round 105: Global Val Loss = 2.4004
+Round 105: Global Val Accuracy = 0.4406
+Round 105: Training Time = 0.62s, Communication Time = 0.04s
+Round 106: Global Val Loss = 2.3935
+Round 106: Global Val Accuracy = 0.4317
+Round 106: Training Time = 0.61s, Communication Time = 0.04s
+Round 107: Global Val Loss = 2.3884
+Round 107: Global Val Accuracy = 0.4431
+Round 107: Training Time = 0.61s, Communication Time = 0.03s
+Round 108: Global Val Loss = 2.3898
+Round 108: Global Val Accuracy = 0.4312
+Round 108: Training Time = 0.61s, Communication Time = 0.03s
+Round 109: Global Val Loss = 2.3836
+Round 109: Global Val Accuracy = 0.4424
+Round 109: Training Time = 0.62s, Communication Time = 0.04s
+Round 110: Global Val Loss = 2.3763
+Round 110: Global Val Accuracy = 0.4331
+Round 110: Training Time = 0.64s, Communication Time = 0.04s
+Round 111: Global Val Loss = 2.3755
+Round 111: Global Val Accuracy = 0.4474
+Round 111: Training Time = 0.61s, Communication Time = 0.04s
+Round 112: Global Val Loss = 2.3723
+Round 112: Global Val Accuracy = 0.4365
+Round 112: Training Time = 0.68s, Communication Time = 0.04s
+Round 113: Global Val Loss = 2.3658
+Round 113: Global Val Accuracy = 0.4515
+Round 113: Training Time = 0.62s, Communication Time = 0.05s
+Round 114: Global Val Loss = 2.3691
+Round 114: Global Val Accuracy = 0.4317
+Round 114: Training Time = 0.62s, Communication Time = 0.03s
+Round 115: Global Val Loss = 2.3686
+Round 115: Global Val Accuracy = 0.4508
+Round 115: Training Time = 0.62s, Communication Time = 0.03s
+Round 116: Global Val Loss = 2.3588
+Round 116: Global Val Accuracy = 0.4395
+Round 116: Training Time = 0.58s, Communication Time = 0.04s
+Round 117: Global Val Loss = 2.3589
+Round 117: Global Val Accuracy = 0.4515
+Round 117: Training Time = 0.68s, Communication Time = 0.03s
+Round 118: Global Val Loss = 2.3546
+Round 118: Global Val Accuracy = 0.4370
+Round 118: Training Time = 0.65s, Communication Time = 0.04s
+Round 119: Global Val Loss = 2.3537
+Round 119: Global Val Accuracy = 0.4537
+Round 119: Training Time = 0.60s, Communication Time = 0.03s
+Round 120: Global Val Loss = 2.3455
+Round 120: Global Val Accuracy = 0.4440
+Round 120: Training Time = 0.68s, Communication Time = 0.04s
+Round 121: Global Val Loss = 2.3495
+Round 121: Global Val Accuracy = 0.4579
+Round 121: Training Time = 0.65s, Communication Time = 0.04s
+Round 122: Global Val Loss = 2.3427
+Round 122: Global Val Accuracy = 0.4427
+Round 122: Training Time = 0.73s, Communication Time = 0.03s
+Round 123: Global Val Loss = 2.3434
+Round 123: Global Val Accuracy = 0.4597
+Round 123: Training Time = 0.67s, Communication Time = 0.04s
+Round 124: Global Val Loss = 2.3342
+Round 124: Global Val Accuracy = 0.4473
+Round 124: Training Time = 0.69s, Communication Time = 0.04s
+Round 125: Global Val Loss = 2.3360
+Round 125: Global Val Accuracy = 0.4588
+Round 125: Training Time = 0.65s, Communication Time = 0.03s
+Round 126: Global Val Loss = 2.3291
+Round 126: Global Val Accuracy = 0.4477
+Round 126: Training Time = 0.58s, Communication Time = 0.03s
+Round 127: Global Val Loss = 2.3285
+Round 127: Global Val Accuracy = 0.4566
+Round 127: Training Time = 0.62s, Communication Time = 0.04s
+Round 128: Global Val Loss = 2.3249
+Round 128: Global Val Accuracy = 0.4535
+Round 128: Training Time = 0.63s, Communication Time = 0.03s
+Round 129: Global Val Loss = 2.3207
+Round 129: Global Val Accuracy = 0.4606
+Round 129: Training Time = 0.62s, Communication Time = 0.03s
+Round 130: Global Val Loss = 2.3183
+Round 130: Global Val Accuracy = 0.4552
+Round 130: Training Time = 0.62s, Communication Time = 0.04s
+Round 131: Global Val Loss = 2.3169
+Round 131: Global Val Accuracy = 0.4663
+Round 131: Training Time = 0.58s, Communication Time = 0.04s
+Round 132: Global Val Loss = 2.3164
+Round 132: Global Val Accuracy = 0.4513
+Round 132: Training Time = 0.63s, Communication Time = 0.04s
+Round 133: Global Val Loss = 2.3176
+Round 133: Global Val Accuracy = 0.4656
+Round 133: Training Time = 0.63s, Communication Time = 0.04s
+Round 134: Global Val Loss = 2.3107
+Round 134: Global Val Accuracy = 0.4529
+Round 134: Training Time = 0.62s, Communication Time = 0.03s
+Round 135: Global Val Loss = 2.3065
+Round 135: Global Val Accuracy = 0.4669
+Round 135: Training Time = 0.65s, Communication Time = 0.03s
+Round 136: Global Val Loss = 2.3049
+Round 136: Global Val Accuracy = 0.4559
+Round 136: Training Time = 0.62s, Communication Time = 0.03s
+Round 137: Global Val Loss = 2.3052
+Round 137: Global Val Accuracy = 0.4700
+Round 137: Training Time = 0.61s, Communication Time = 0.04s
+Round 138: Global Val Loss = 2.2999
+Round 138: Global Val Accuracy = 0.4538
+Round 138: Training Time = 0.67s, Communication Time = 0.03s
+Round 139: Global Val Loss = 2.3004
+Round 139: Global Val Accuracy = 0.4703
+Round 139: Training Time = 0.69s, Communication Time = 0.03s
+Round 140: Global Val Loss = 2.2999
+Round 140: Global Val Accuracy = 0.4545
+Round 140: Training Time = 0.63s, Communication Time = 0.03s
+Round 141: Global Val Loss = 2.2977
+Round 141: Global Val Accuracy = 0.4692
+Round 141: Training Time = 0.60s, Communication Time = 0.03s
+Round 142: Global Val Loss = 2.2908
+Round 142: Global Val Accuracy = 0.4575
+Round 142: Training Time = 0.70s, Communication Time = 0.04s
+Round 143: Global Val Loss = 2.2964
+Round 143: Global Val Accuracy = 0.4723
+Round 143: Training Time = 0.63s, Communication Time = 0.03s
+Round 144: Global Val Loss = 2.2920
+Round 144: Global Val Accuracy = 0.4553
+Round 144: Training Time = 0.62s, Communication Time = 0.04s
+Round 145: Global Val Loss = 2.2870
+Round 145: Global Val Accuracy = 0.4764
+Round 145: Training Time = 0.62s, Communication Time = 0.04s
+Round 146: Global Val Loss = 2.2866
+Round 146: Global Val Accuracy = 0.4579
+Round 146: Training Time = 0.64s, Communication Time = 0.03s
+Round 147: Global Val Loss = 2.2873
+Round 147: Global Val Accuracy = 0.4752
+Round 147: Training Time = 0.65s, Communication Time = 0.04s
+Round 148: Global Val Loss = 2.2757
+Round 148: Global Val Accuracy = 0.4631
+Round 148: Training Time = 0.67s, Communication Time = 0.03s
+Round 149: Global Val Loss = 2.2773
+Round 149: Global Val Accuracy = 0.4757
+Round 149: Training Time = 0.85s, Communication Time = 0.04s
+Round 150: Global Val Loss = 2.2717
+Round 150: Global Val Accuracy = 0.4642
+Round 150: Training Time = 0.59s, Communication Time = 0.04s
+Round 151: Global Val Loss = 2.2725
+Round 151: Global Val Accuracy = 0.4791
+Round 151: Training Time = 0.62s, Communication Time = 0.04s
+Round 152: Global Val Loss = 2.2676
+Round 152: Global Val Accuracy = 0.4673
+Round 152: Training Time = 0.61s, Communication Time = 0.04s
+Round 153: Global Val Loss = 2.2732
+Round 153: Global Val Accuracy = 0.4805
+Round 153: Training Time = 0.59s, Communication Time = 0.03s
+Round 154: Global Val Loss = 2.2654
+Round 154: Global Val Accuracy = 0.4629
+Round 154: Training Time = 0.65s, Communication Time = 0.04s
+Round 155: Global Val Loss = 2.2633
+Round 155: Global Val Accuracy = 0.4797
+Round 155: Training Time = 0.65s, Communication Time = 0.04s
+Round 156: Global Val Loss = 2.2548
+Round 156: Global Val Accuracy = 0.4688
+Round 156: Training Time = 0.61s, Communication Time = 0.03s
+Round 157: Global Val Loss = 2.2598
+Round 157: Global Val Accuracy = 0.4760
+Round 157: Training Time = 0.64s, Communication Time = 0.04s
+Round 158: Global Val Loss = 2.2563
+Round 158: Global Val Accuracy = 0.4685
+Round 158: Training Time = 0.63s, Communication Time = 0.03s
+Round 159: Global Val Loss = 2.2538
+Round 159: Global Val Accuracy = 0.4798
+Round 159: Training Time = 0.59s, Communication Time = 0.04s
+Round 160: Global Val Loss = 2.2471
+Round 160: Global Val Accuracy = 0.4725
+Round 160: Training Time = 0.64s, Communication Time = 0.04s
+Round 161: Global Val Loss = 2.2556
+Round 161: Global Val Accuracy = 0.4811
+Round 161: Training Time = 0.66s, Communication Time = 0.04s
+Round 162: Global Val Loss = 2.2361
+Round 162: Global Val Accuracy = 0.4760
+Round 162: Training Time = 0.63s, Communication Time = 0.03s
+Round 163: Global Val Loss = 2.2500
+Round 163: Global Val Accuracy = 0.4816
+Round 163: Training Time = 0.66s, Communication Time = 0.03s
+Round 164: Global Val Loss = 2.2351
+Round 164: Global Val Accuracy = 0.4763
+Round 164: Training Time = 0.65s, Communication Time = 0.03s
+Round 165: Global Val Loss = 2.2437
+Round 165: Global Val Accuracy = 0.4854
+Round 165: Training Time = 0.60s, Communication Time = 0.03s
+Round 166: Global Val Loss = 2.2383
+Round 166: Global Val Accuracy = 0.4718
+Round 166: Training Time = 0.72s, Communication Time = 0.04s
+Round 167: Global Val Loss = 2.2422
+Round 167: Global Val Accuracy = 0.4872
+Round 167: Training Time = 0.68s, Communication Time = 0.04s
+Round 168: Global Val Loss = 2.2370
+Round 168: Global Val Accuracy = 0.4714
+Round 168: Training Time = 0.64s, Communication Time = 0.04s
+Round 169: Global Val Loss = 2.2344
+Round 169: Global Val Accuracy = 0.4884
+Round 169: Training Time = 0.66s, Communication Time = 0.04s
+Round 170: Global Val Loss = 2.2372
+Round 170: Global Val Accuracy = 0.4707
+Round 170: Training Time = 0.64s, Communication Time = 0.04s
+Round 171: Global Val Loss = 2.2301
+Round 171: Global Val Accuracy = 0.4868
+Round 171: Training Time = 0.66s, Communication Time = 0.04s
+Round 172: Global Val Loss = 2.2273
+Round 172: Global Val Accuracy = 0.4757
+Round 172: Training Time = 0.61s, Communication Time = 0.04s
+Round 173: Global Val Loss = 2.2283
+Round 173: Global Val Accuracy = 0.4874
+Round 173: Training Time = 0.63s, Communication Time = 0.03s
+Round 174: Global Val Loss = 2.2241
+Round 174: Global Val Accuracy = 0.4772
+Round 174: Training Time = 0.63s, Communication Time = 0.04s
+Round 175: Global Val Loss = 2.2281
+Round 175: Global Val Accuracy = 0.4896
+Round 175: Training Time = 0.68s, Communication Time = 0.04s
+Round 176: Global Val Loss = 2.2239
+Round 176: Global Val Accuracy = 0.4740
+Round 176: Training Time = 0.67s, Communication Time = 0.03s
+Round 177: Global Val Loss = 2.2217
+Round 177: Global Val Accuracy = 0.4901
+Round 177: Training Time = 0.68s, Communication Time = 0.03s
+Round 178: Global Val Loss = 2.2151
+Round 178: Global Val Accuracy = 0.4781
+Round 178: Training Time = 0.64s, Communication Time = 0.04s
+Round 179: Global Val Loss = 2.2203
+Round 179: Global Val Accuracy = 0.4864
+Round 179: Training Time = 0.85s, Communication Time = 0.04s
+Round 180: Global Val Loss = 2.2117
+Round 180: Global Val Accuracy = 0.4822
+Round 180: Training Time = 0.67s, Communication Time = 0.04s
+Round 181: Global Val Loss = 2.2140
+Round 181: Global Val Accuracy = 0.4955
+Round 181: Training Time = 0.66s, Communication Time = 0.03s
+Round 182: Global Val Loss = 2.2099
+Round 182: Global Val Accuracy = 0.4785
+Round 182: Training Time = 0.62s, Communication Time = 0.03s
+Round 183: Global Val Loss = 2.2063
+Round 183: Global Val Accuracy = 0.4923
+Round 183: Training Time = 0.62s, Communication Time = 0.04s
+Round 184: Global Val Loss = 2.2118
+Round 184: Global Val Accuracy = 0.4781
+Round 184: Training Time = 0.68s, Communication Time = 0.04s
+Round 185: Global Val Loss = 2.2062
+Round 185: Global Val Accuracy = 0.4934
+Round 185: Training Time = 0.66s, Communication Time = 0.04s
+Round 186: Global Val Loss = 2.1998
+Round 186: Global Val Accuracy = 0.4837
+Round 186: Training Time = 0.62s, Communication Time = 0.03s
+Round 187: Global Val Loss = 2.2065
+Round 187: Global Val Accuracy = 0.4944
+Round 187: Training Time = 0.60s, Communication Time = 0.03s
+Round 188: Global Val Loss = 2.1938
+Round 188: Global Val Accuracy = 0.4853
+Round 188: Training Time = 0.61s, Communication Time = 0.04s
+Round 189: Global Val Loss = 2.1979
+Round 189: Global Val Accuracy = 0.4961
+Round 189: Training Time = 0.59s, Communication Time = 0.04s
+Round 190: Global Val Loss = 2.1963
+Round 190: Global Val Accuracy = 0.4862
+Round 190: Training Time = 0.60s, Communication Time = 0.04s
+Round 191: Global Val Loss = 2.1979
+Round 191: Global Val Accuracy = 0.4971
+Round 191: Training Time = 0.69s, Communication Time = 0.04s
+Round 192: Global Val Loss = 2.1882
+Round 192: Global Val Accuracy = 0.4874
+Round 192: Training Time = 0.65s, Communication Time = 0.03s
+Round 193: Global Val Loss = 2.1937
+Round 193: Global Val Accuracy = 0.4983
+Round 193: Training Time = 0.60s, Communication Time = 0.04s
+Round 194: Global Val Loss = 2.1885
+Round 194: Global Val Accuracy = 0.4884
+Round 194: Training Time = 0.62s, Communication Time = 0.03s
+Round 195: Global Val Loss = 2.1882
+Round 195: Global Val Accuracy = 0.4991
+Round 195: Training Time = 0.63s, Communication Time = 0.04s
+Round 196: Global Val Loss = 2.1862
+Round 196: Global Val Accuracy = 0.4854
+Round 196: Training Time = 0.65s, Communication Time = 0.03s
+Round 197: Global Val Loss = 2.1888
+Round 197: Global Val Accuracy = 0.4983
+Round 197: Training Time = 0.61s, Communication Time = 0.03s
+Round 198: Global Val Loss = 2.1752
+Round 198: Global Val Accuracy = 0.4930
+Round 198: Training Time = 0.61s, Communication Time = 0.04s
+Round 199: Global Val Loss = 2.1848
+Round 199: Global Val Accuracy = 0.5021
+Round 199: Training Time = 0.66s, Communication Time = 0.04s
+Round 200: Global Val Loss = 2.1750
+Round 200: Global Val Accuracy = 0.4887
+Round 200: Training Time = 0.60s, Communication Time = 0.04s
+Round 201: Global Val Loss = 2.1789
+Round 201: Global Val Accuracy = 0.5002
+Round 201: Training Time = 0.66s, Communication Time = 0.03s
+Round 202: Global Val Loss = 2.1733
+Round 202: Global Val Accuracy = 0.4888
+Round 202: Training Time = 0.59s, Communication Time = 0.04s
+Round 203: Global Val Loss = 2.1759
+Round 203: Global Val Accuracy = 0.5030
+Round 203: Training Time = 0.58s, Communication Time = 0.04s
+Round 204: Global Val Loss = 2.1758
+Round 204: Global Val Accuracy = 0.4882
+Round 204: Training Time = 0.57s, Communication Time = 0.04s
+Round 205: Global Val Loss = 2.1739
+Round 205: Global Val Accuracy = 0.5008
+Round 205: Training Time = 0.66s, Communication Time = 0.03s
+Round 206: Global Val Loss = 2.1649
+Round 206: Global Val Accuracy = 0.4943
+Round 206: Training Time = 0.64s, Communication Time = 0.03s
+Round 207: Global Val Loss = 2.1694
+Round 207: Global Val Accuracy = 0.5015
+Round 207: Training Time = 0.60s, Communication Time = 0.03s
+Round 208: Global Val Loss = 2.1664
+Round 208: Global Val Accuracy = 0.4923
+Round 208: Training Time = 0.65s, Communication Time = 0.04s
+Round 209: Global Val Loss = 2.1700
+Round 209: Global Val Accuracy = 0.5035
+Round 209: Training Time = 0.68s, Communication Time = 0.03s
+Round 210: Global Val Loss = 2.1676
+Round 210: Global Val Accuracy = 0.4898
+Round 210: Training Time = 0.57s, Communication Time = 0.03s
+Round 211: Global Val Loss = 2.1650
+Round 211: Global Val Accuracy = 0.5023
+Round 211: Training Time = 0.65s, Communication Time = 0.04s
+Round 212: Global Val Loss = 2.1678
+Round 212: Global Val Accuracy = 0.4889
+Round 212: Training Time = 0.60s, Communication Time = 0.03s
+Round 213: Global Val Loss = 2.1605
+Round 213: Global Val Accuracy = 0.5042
+Round 213: Training Time = 0.67s, Communication Time = 0.04s
+Round 214: Global Val Loss = 2.1618
+Round 214: Global Val Accuracy = 0.4917
+Round 214: Training Time = 0.67s, Communication Time = 0.05s
+Round 215: Global Val Loss = 2.1595
+Round 215: Global Val Accuracy = 0.5072
+Round 215: Training Time = 0.61s, Communication Time = 0.03s
+Round 216: Global Val Loss = 2.1511
+Round 216: Global Val Accuracy = 0.4980
+Round 216: Training Time = 0.73s, Communication Time = 0.04s
+Round 217: Global Val Loss = 2.1552
+Round 217: Global Val Accuracy = 0.5064
+Round 217: Training Time = 0.80s, Communication Time = 0.04s
+Round 218: Global Val Loss = 2.1552
+Round 218: Global Val Accuracy = 0.4922
+Round 218: Training Time = 0.59s, Communication Time = 0.03s
+Round 219: Global Val Loss = 2.1537
+Round 219: Global Val Accuracy = 0.5089
+Round 219: Training Time = 0.61s, Communication Time = 0.04s
+Round 220: Global Val Loss = 2.1471
+Round 220: Global Val Accuracy = 0.4957
+Round 220: Training Time = 0.57s, Communication Time = 0.03s
+Round 221: Global Val Loss = 2.1479
+Round 221: Global Val Accuracy = 0.5069
+Round 221: Training Time = 0.62s, Communication Time = 0.03s
+Round 222: Global Val Loss = 2.1467
+Round 222: Global Val Accuracy = 0.4969
+Round 222: Training Time = 0.63s, Communication Time = 0.03s
+Round 223: Global Val Loss = 2.1442
+Round 223: Global Val Accuracy = 0.5078
+Round 223: Training Time = 0.64s, Communication Time = 0.03s
+Round 224: Global Val Loss = 2.1471
+Round 224: Global Val Accuracy = 0.4961
+Round 224: Training Time = 0.62s, Communication Time = 0.03s
+Round 225: Global Val Loss = 2.1511
+Round 225: Global Val Accuracy = 0.5106
+Round 225: Training Time = 0.62s, Communication Time = 0.04s
+Round 226: Global Val Loss = 2.1406
+Round 226: Global Val Accuracy = 0.4986
+Round 226: Training Time = 0.67s, Communication Time = 0.04s
+Round 227: Global Val Loss = 2.1404
+Round 227: Global Val Accuracy = 0.5079
+Round 227: Training Time = 0.61s, Communication Time = 0.04s
+Round 228: Global Val Loss = 2.1313
+Round 228: Global Val Accuracy = 0.4999
+Round 228: Training Time = 0.68s, Communication Time = 0.03s
+Round 229: Global Val Loss = 2.1346
+Round 229: Global Val Accuracy = 0.5102
+Round 229: Training Time = 0.60s, Communication Time = 0.03s
+Round 230: Global Val Loss = 2.1293
+Round 230: Global Val Accuracy = 0.5012
+Round 230: Training Time = 0.63s, Communication Time = 0.04s
+Round 231: Global Val Loss = 2.1374
+Round 231: Global Val Accuracy = 0.5092
+Round 231: Training Time = 0.63s, Communication Time = 0.04s
+Round 232: Global Val Loss = 2.1314
+Round 232: Global Val Accuracy = 0.4991
+Round 232: Training Time = 0.61s, Communication Time = 0.04s
+Round 233: Global Val Loss = 2.1316
+Round 233: Global Val Accuracy = 0.5126
+Round 233: Training Time = 0.69s, Communication Time = 0.05s
+Round 234: Global Val Loss = 2.1347
+Round 234: Global Val Accuracy = 0.4971
+Round 234: Training Time = 0.60s, Communication Time = 0.04s
+Round 235: Global Val Loss = 2.1282
+Round 235: Global Val Accuracy = 0.5124
+Round 235: Training Time = 0.67s, Communication Time = 0.03s
+Round 236: Global Val Loss = 2.1294
+Round 236: Global Val Accuracy = 0.4996
+Round 236: Training Time = 0.61s, Communication Time = 0.04s
+Round 237: Global Val Loss = 2.1284
+Round 237: Global Val Accuracy = 0.5133
+Round 237: Training Time = 0.63s, Communication Time = 0.03s
+Round 238: Global Val Loss = 2.1246
+Round 238: Global Val Accuracy = 0.5010
+Round 238: Training Time = 0.70s, Communication Time = 0.03s
+Round 239: Global Val Loss = 2.1224
+Round 239: Global Val Accuracy = 0.5138
+Round 239: Training Time = 0.64s, Communication Time = 0.04s
+Round 240: Global Val Loss = 2.1141
+Round 240: Global Val Accuracy = 0.5055
+Round 240: Training Time = 0.66s, Communication Time = 0.04s
+Round 241: Global Val Loss = 2.1173
+Round 241: Global Val Accuracy = 0.5154
+Round 241: Training Time = 0.60s, Communication Time = 0.04s
+Round 242: Global Val Loss = 2.1168
+Round 242: Global Val Accuracy = 0.5035
+Round 242: Training Time = 0.59s, Communication Time = 0.04s
+Round 243: Global Val Loss = 2.1158
+Round 243: Global Val Accuracy = 0.5169
+Round 243: Training Time = 0.63s, Communication Time = 0.04s
+Round 244: Global Val Loss = 2.1124
+Round 244: Global Val Accuracy = 0.5051
+Round 244: Training Time = 0.58s, Communication Time = 0.04s
+Round 245: Global Val Loss = 2.1099
+Round 245: Global Val Accuracy = 0.5165
+Round 245: Training Time = 0.69s, Communication Time = 0.03s
+Round 246: Global Val Loss = 2.1155
+Round 246: Global Val Accuracy = 0.5038
+Round 246: Training Time = 0.59s, Communication Time = 0.04s
+Round 247: Global Val Loss = 2.1085
+Round 247: Global Val Accuracy = 0.5172
+Round 247: Training Time = 0.75s, Communication Time = 0.04s
+Round 248: Global Val Loss = 2.1156
+Round 248: Global Val Accuracy = 0.5030
+Round 248: Training Time = 0.63s, Communication Time = 0.04s
+Round 249: Global Val Loss = 2.1064
+Round 249: Global Val Accuracy = 0.5184
+Round 249: Training Time = 0.62s, Communication Time = 0.04s
+Round 250: Global Val Loss = 2.1122
+Round 250: Global Val Accuracy = 0.5037
+Round 250: Training Time = 0.63s, Communication Time = 0.03s
+Round 251: Global Val Loss = 2.0985
+Round 251: Global Val Accuracy = 0.5185
+Round 251: Training Time = 0.62s, Communication Time = 0.04s
+Round 252: Global Val Loss = 2.1122
+Round 252: Global Val Accuracy = 0.5034
+Round 252: Training Time = 0.66s, Communication Time = 0.04s
+Round 253: Global Val Loss = 2.0966
+Round 253: Global Val Accuracy = 0.5187
+Round 253: Training Time = 0.61s, Communication Time = 0.04s
+Round 254: Global Val Loss = 2.0978
+Round 254: Global Val Accuracy = 0.5088
+Round 254: Training Time = 0.63s, Communication Time = 0.03s
+Round 255: Global Val Loss = 2.0983
+Round 255: Global Val Accuracy = 0.5197
+Round 255: Training Time = 0.65s, Communication Time = 0.04s
+Round 256: Global Val Loss = 2.1039
+Round 256: Global Val Accuracy = 0.5069
+Round 256: Training Time = 0.62s, Communication Time = 0.03s
+Round 257: Global Val Loss = 2.0934
+Round 257: Global Val Accuracy = 0.5206
+Round 257: Training Time = 0.66s, Communication Time = 0.04s
+Round 258: Global Val Loss = 2.1001
+Round 258: Global Val Accuracy = 0.5064
+Round 258: Training Time = 0.65s, Communication Time = 0.04s
+Round 259: Global Val Loss = 2.0985
+Round 259: Global Val Accuracy = 0.5217
+Round 259: Training Time = 0.62s, Communication Time = 0.04s
+Round 260: Global Val Loss = 2.1096
+Round 260: Global Val Accuracy = 0.5034
+Round 260: Training Time = 0.66s, Communication Time = 0.04s
+Round 261: Global Val Loss = 2.0882
+Round 261: Global Val Accuracy = 0.5218
+Round 261: Training Time = 0.69s, Communication Time = 0.03s
+Round 262: Global Val Loss = 2.0954
+Round 262: Global Val Accuracy = 0.5080
+Round 262: Training Time = 0.68s, Communication Time = 0.04s
+Round 263: Global Val Loss = 2.0847
+Round 263: Global Val Accuracy = 0.5234
+Round 263: Training Time = 0.64s, Communication Time = 0.04s
+Round 264: Global Val Loss = 2.0906
+Round 264: Global Val Accuracy = 0.5086
+Round 264: Training Time = 0.60s, Communication Time = 0.03s
+Round 265: Global Val Loss = 2.0810
+Round 265: Global Val Accuracy = 0.5247
+Round 265: Training Time = 0.70s, Communication Time = 0.04s
+Round 266: Global Val Loss = 2.0925
+Round 266: Global Val Accuracy = 0.5093
+Round 266: Training Time = 0.59s, Communication Time = 0.04s
+Round 267: Global Val Loss = 2.0807
+Round 267: Global Val Accuracy = 0.5244
+Round 267: Training Time = 0.61s, Communication Time = 0.04s
+Round 268: Global Val Loss = 2.0825
+Round 268: Global Val Accuracy = 0.5133
+Round 268: Training Time = 0.64s, Communication Time = 0.04s
+Round 269: Global Val Loss = 2.0773
+Round 269: Global Val Accuracy = 0.5247
+Round 269: Training Time = 0.65s, Communication Time = 0.03s
+Round 270: Global Val Loss = 2.0851
+Round 270: Global Val Accuracy = 0.5105
+Round 270: Training Time = 0.67s, Communication Time = 0.03s
+Round 271: Global Val Loss = 2.0838
+Round 271: Global Val Accuracy = 0.5240
+Round 271: Training Time = 0.58s, Communication Time = 0.03s
+Round 272: Global Val Loss = 2.0766
+Round 272: Global Val Accuracy = 0.5143
+Round 272: Training Time = 0.61s, Communication Time = 0.04s
+Round 273: Global Val Loss = 2.0741
+Round 273: Global Val Accuracy = 0.5250
+Round 273: Training Time = 0.61s, Communication Time = 0.03s
+Round 274: Global Val Loss = 2.0770
+Round 274: Global Val Accuracy = 0.5141
+Round 274: Training Time = 0.61s, Communication Time = 0.04s
+Round 275: Global Val Loss = 2.0758
+Round 275: Global Val Accuracy = 0.5260
+Round 275: Training Time = 0.80s, Communication Time = 0.03s
+Round 276: Global Val Loss = 2.0908
+Round 276: Global Val Accuracy = 0.5066
+Round 276: Training Time = 0.63s, Communication Time = 0.04s
+Round 277: Global Val Loss = 2.0672
+Round 277: Global Val Accuracy = 0.5247
+Round 277: Training Time = 0.60s, Communication Time = 0.05s
+Round 278: Global Val Loss = 2.0731
+Round 278: Global Val Accuracy = 0.5140
+Round 278: Training Time = 0.60s, Communication Time = 0.03s
+Round 279: Global Val Loss = 2.0683
+Round 279: Global Val Accuracy = 0.5239
+Round 279: Training Time = 0.63s, Communication Time = 0.03s
+Round 280: Global Val Loss = 2.0737
+Round 280: Global Val Accuracy = 0.5119
+Round 280: Training Time = 0.61s, Communication Time = 0.03s
+Round 281: Global Val Loss = 2.0625
+Round 281: Global Val Accuracy = 0.5271
+Round 281: Training Time = 0.66s, Communication Time = 0.03s
+Round 282: Global Val Loss = 2.0710
+Round 282: Global Val Accuracy = 0.5145
+Round 282: Training Time = 0.62s, Communication Time = 0.03s
+Round 283: Global Val Loss = 2.0628
+Round 283: Global Val Accuracy = 0.5272
+Round 283: Training Time = 0.64s, Communication Time = 0.03s
+Round 284: Global Val Loss = 2.0636
+Round 284: Global Val Accuracy = 0.5171
+Round 284: Training Time = 0.63s, Communication Time = 0.03s
+Round 285: Global Val Loss = 2.0570
+Round 285: Global Val Accuracy = 0.5286
+Round 285: Training Time = 0.59s, Communication Time = 0.03s
+Round 286: Global Val Loss = 2.0645
+Round 286: Global Val Accuracy = 0.5148
+Round 286: Training Time = 0.62s, Communication Time = 0.04s
+Round 287: Global Val Loss = 2.0579
+Round 287: Global Val Accuracy = 0.5288
+Round 287: Training Time = 0.69s, Communication Time = 0.03s
+Round 288: Global Val Loss = 2.0652
+Round 288: Global Val Accuracy = 0.5151
+Round 288: Training Time = 0.62s, Communication Time = 0.04s
+Round 289: Global Val Loss = 2.0543
+Round 289: Global Val Accuracy = 0.5293
+Round 289: Training Time = 0.63s, Communication Time = 0.03s
+Round 290: Global Val Loss = 2.0597
+Round 290: Global Val Accuracy = 0.5175
+Round 290: Training Time = 0.58s, Communication Time = 0.03s
+Round 291: Global Val Loss = 2.0470
+Round 291: Global Val Accuracy = 0.5279
+Round 291: Training Time = 0.64s, Communication Time = 0.04s
+Round 292: Global Val Loss = 2.0629
+Round 292: Global Val Accuracy = 0.5122
+Round 292: Training Time = 0.68s, Communication Time = 0.04s
+Round 293: Global Val Loss = 2.0511
+Round 293: Global Val Accuracy = 0.5273
+Round 293: Training Time = 0.60s, Communication Time = 0.03s
+Round 294: Global Val Loss = 2.0534
+Round 294: Global Val Accuracy = 0.5189
+Round 294: Training Time = 0.63s, Communication Time = 0.03s
+Round 295: Global Val Loss = 2.0528
+Round 295: Global Val Accuracy = 0.5291
+Round 295: Training Time = 0.64s, Communication Time = 0.03s
+Round 296: Global Val Loss = 2.0458
+Round 296: Global Val Accuracy = 0.5213
+Round 296: Training Time = 0.59s, Communication Time = 0.03s
+Round 297: Global Val Loss = 2.0441
+Round 297: Global Val Accuracy = 0.5305
+Round 297: Training Time = 0.64s, Communication Time = 0.03s
+Round 298: Global Val Loss = 2.0414
+Round 298: Global Val Accuracy = 0.5220
+Round 298: Training Time = 0.63s, Communication Time = 0.03s
+Round 299: Global Val Loss = 2.0483
+Round 299: Global Val Accuracy = 0.5300
+Round 299: Training Time = 0.65s, Communication Time = 0.04s
+Round 300: Global Val Loss = 2.0460
+Round 300: Global Val Accuracy = 0.5196
+Round 300: Training Time = 0.65s, Communication Time = 0.03s
+//train_time: 246353.59900000002 ms//end
+
+================================================================================
+TIME BREAKDOWN (excluding initialization)
+================================================================================
+Total Pure Training Time (forward + gradient descent): 192.84 seconds
+Total Communication Time (parameter aggregation): 10.76 seconds
+Total Training + Communication Time: 246.35 seconds
+Training Time Percentage: 78.3%
+Communication Time Percentage: 4.4%
+Average Training Time per Round: 0.64 seconds
+Average Communication Time per Round: 0.04 seconds
+================================================================================
+[Pure Training Time] Dataset: ogbn-arxiv, Batch Size: 2048, Trainers: 5, Hops: 2, IID Beta: 10000.0 => Pure Training Time = 192.84 seconds
+[Communication Time] Dataset: ogbn-arxiv, Batch Size: 2048, Trainers: 5, Hops: 2, IID Beta: 10000.0 => Communication Time = 10.76 seconds
+average_final_test_loss, 1.9778066193069266
+Average test accuracy, 0.5259963376746292
+
+================================================================================
+INDIVIDUAL TRAINER MEMORY USAGE
+================================================================================
+
+====================================================================================================
+TRAINER MEMORY vs LOCAL GRAPH SIZE
+====================================================================================================
+Trainer  Memory(MB)   Nodes    Edges    Memory/Node  Memory/Edge 
+----------------------------------------------------------------------------------------------------
+0        2472.7       33876    2080648  0.073        0.001       
+1        2590.2       33849    2063866  0.077        0.001       
+2        2386.6       33913    2079486  0.070        0.001       
+3        2475.9       33759    2073192  0.073        0.001       
+4        2483.3       33946    2105656  0.073        0.001       
+====================================================================================================
+Total Memory Usage: 12408.7 MB (12.12 GB)
+Total Nodes: 169343, Total Edges: 10402848
+Average Memory per Trainer: 2481.7 MB
+Average Nodes per Trainer: 33868.6
+Average Edges per Trainer: 2080569.6
+Max Memory: 2590.2 MB (Trainer 1)
+Min Memory: 2386.6 MB (Trainer 2)
+Overall Memory/Node Ratio: 0.073 MB/node
+Overall Memory/Edge Ratio: 0.001 MB/edge
+====================================================================================================
+//Log Theoretical Pretrain Comm Cost: 724.10 MB //end
+//Log Theoretical Train Comm Cost: 501.43 MB //end
+
+================================================================================
+CSV FORMAT RESULT:
+DS,IID,BS,TotalTime[s],PureTrainingTime[s],CommTime[s],FinalAcc[%],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
+ogbn-arxiv,10000.0,2048,263.5,192.8,10.8,0.53,1225.5,2590.2,0.643,0.167,0
+================================================================================
+
+================================================================================
+EXPERIMENT SUMMARY
+================================================================================
+Dataset: ogbn-arxiv
+Method: FedGCN
+Trainers: 5
+IID Beta: 10000.0
+Batch Size: 2048
+Hops: 2
+Total Execution Time: 263.47 seconds
+Pure Training Time: 192.84 seconds
+Communication Time: 10.76 seconds
+Pretrain Comm Cost: 724.10 MB
+Training Comm Cost: 501.43 MB
+================================================================================
+
+[36m(pid=30034)[0m FedGraph Differential Privacy module loaded (v1.0.0)[32m [repeated 4x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)[0m
+[36m(pid=30034)[0m ✓ Differential Privacy support loaded[32m [repeated 4x across cluster][0m
+[36m(Trainer pid=30164)[0m running AggreGCN_Arxiv[32m [repeated 4x across cluster][0m

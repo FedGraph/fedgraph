@@ -1,0 +1,11 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,evaluation_split,evaluation_acc,evaluation_loss,val_acc,val_loss,local_steps,train_time_sec,comm_time_sec,train_comm_time_sec,cum_train_comm_time_sec
+nc_hf_papers100m_10trainer_0hop_bs256_10r_monitor,20260813_183839_ogbn-papers100M_FedAvg_bs256_seed42_beta10000p0,ogbn-papers100M,FedAvg,256,42,10000.0,1,test,0.0051,5.1612,,,3,1.79,0.14,1.9300000000000002,1.9300000000000002
+nc_hf_papers100m_10trainer_0hop_bs256_10r_monitor,20260813_183839_ogbn-papers100M_FedAvg_bs256_seed42_beta10000p0,ogbn-papers100M,FedAvg,256,42,10000.0,2,test,0.0066,5.1486,,,6,0.99,0.14,1.13,3.06
+nc_hf_papers100m_10trainer_0hop_bs256_10r_monitor,20260813_183839_ogbn-papers100M_FedAvg_bs256_seed42_beta10000p0,ogbn-papers100M,FedAvg,256,42,10000.0,3,test,0.0095,5.1371,,,9,0.98,0.13,1.1099999999999999,4.17
+nc_hf_papers100m_10trainer_0hop_bs256_10r_monitor,20260813_183839_ogbn-papers100M_FedAvg_bs256_seed42_beta10000p0,ogbn-papers100M,FedAvg,256,42,10000.0,4,test,0.0133,5.1255,,,12,0.97,0.06,1.03,5.2
+nc_hf_papers100m_10trainer_0hop_bs256_10r_monitor,20260813_183839_ogbn-papers100M_FedAvg_bs256_seed42_beta10000p0,ogbn-papers100M,FedAvg,256,42,10000.0,5,test,0.0186,5.1129,,,15,0.97,0.06,1.03,6.23
+nc_hf_papers100m_10trainer_0hop_bs256_10r_monitor,20260813_183839_ogbn-papers100M_FedAvg_bs256_seed42_beta10000p0,ogbn-papers100M,FedAvg,256,42,10000.0,6,test,0.0233,5.1002,,,18,0.98,0.13,1.1099999999999999,7.34
+nc_hf_papers100m_10trainer_0hop_bs256_10r_monitor,20260813_183839_ogbn-papers100M_FedAvg_bs256_seed42_beta10000p0,ogbn-papers100M,FedAvg,256,42,10000.0,7,test,0.0276,5.0861,,,21,0.97,0.06,1.03,8.37
+nc_hf_papers100m_10trainer_0hop_bs256_10r_monitor,20260813_183839_ogbn-papers100M_FedAvg_bs256_seed42_beta10000p0,ogbn-papers100M,FedAvg,256,42,10000.0,8,test,0.0316,5.07,,,24,0.98,0.19,1.17,9.54
+nc_hf_papers100m_10trainer_0hop_bs256_10r_monitor,20260813_183839_ogbn-papers100M_FedAvg_bs256_seed42_beta10000p0,ogbn-papers100M,FedAvg,256,42,10000.0,9,test,0.0351,5.0526,,,27,0.97,0.06,1.03,10.569999999999999
+nc_hf_papers100m_10trainer_0hop_bs256_10r_monitor,20260813_183839_ogbn-papers100M_FedAvg_bs256_seed42_beta10000p0,ogbn-papers100M,FedAvg,256,42,10000.0,10,test,0.038,5.0348,,,30,0.97,0.06,1.03,11.599999999999998

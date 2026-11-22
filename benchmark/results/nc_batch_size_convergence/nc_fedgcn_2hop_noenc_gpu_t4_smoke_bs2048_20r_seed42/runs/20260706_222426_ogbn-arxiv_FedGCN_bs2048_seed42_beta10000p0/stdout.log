@@ -1,0 +1,193 @@
+================================================================================
+Starting FedGraph NC batch-size convergence run: 20260706_222426_ogbn-arxiv_FedGCN_bs2048_seed42_beta10000p0
+{
+  "batch_size": 2048,
+  "dataset": "ogbn-arxiv",
+  "distribution_type": "average",
+  "elastic_training": false,
+  "global_rounds": 20,
+  "gpu": true,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_step": 3,
+  "max_rounds": null,
+  "method": "FedGCN",
+  "n_trainer": 5,
+  "num_cpus_per_trainer": 0,
+  "num_gpus_per_trainer": 0.2,
+  "num_hops": 2,
+  "num_layers": 2,
+  "seed": 42,
+  "target_train_comm_times_sec": [],
+  "target_val_accs": [],
+  "target_val_losses": [],
+  "use_ogb_load_patch": true,
+  "val_loss_min_delta": 0.0,
+  "val_loss_patience": 20
+}
+================================================================================
+FedGraph Differential Privacy module loaded (v1.0.0)
+✓ Differential Privacy support loaded
+config:  {'fedgraph_task': 'NC', 'dataset': 'ogbn-arxiv', 'method': 'FedGCN', 'iid_beta': 10000.0, 'distribution_type': 'average', 'global_rounds': 20, 'local_step': 3, 'learning_rate': 0.01, 'n_trainer': 5, 'batch_size': 2048, 'num_layers': 2, 'num_hops': 2, 'gpu': True, 'num_cpus_per_trainer': 0, 'num_gpus_per_trainer': 0.2, 'logdir': 'benchmark/results/nc_batch_size_convergence/nc_fedgcn_2hop_noenc_gpu_t4_smoke_bs2048_20r_seed42/runs/20260706_222426_ogbn-arxiv_FedGCN_bs2048_seed42_beta10000p0/fedgraph_logs', 'use_encryption': False, 'use_huggingface': False, 'saveto_huggingface': False, 'use_cluster': False, 'use_lowrank': False, 'use_dp': False, 'elastic_training': False, 'max_rounds': 20, 'val_loss_patience': 20, 'val_loss_min_delta': 0.0, 'val_loss_plateau_window': 10, 'val_loss_plateau_tolerance': 0.01, 'target_val_accs': [], 'target_val_losses': [], 'target_train_comm_times_sec': []}
+Downloading http://snap.stanford.edu/ogb/data/nodeproppred/arxiv.zip
+  0%|          | 0/81 [00:00<?, ?it/s]Downloaded 0.00 GB:   0%|          | 0/81 [00:02<?, ?it/s]Downloaded 0.00 GB:   1%|1         | 1/81 [00:02<02:58,  2.23s/it]Downloaded 0.00 GB:   1%|1         | 1/81 [00:02<02:58,  2.23s/it]Downloaded 0.00 GB:   2%|2         | 2/81 [00:02<01:45,  1.34s/it]Downloaded 0.00 GB:   2%|2         | 2/81 [00:03<01:45,  1.34s/it]Downloaded 0.00 GB:   4%|3         | 3/81 [00:03<01:12,  1.08it/s]Downloaded 0.00 GB:   4%|3         | 3/81 [00:03<01:12,  1.08it/s]Downloaded 0.00 GB:   5%|4         | 4/81 [00:03<00:52,  1.47it/s]Downloaded 0.00 GB:   5%|4         | 4/81 [00:03<00:52,  1.47it/s]Downloaded 0.00 GB:   6%|6         | 5/81 [00:03<00:41,  1.84it/s]Downloaded 0.01 GB:   6%|6         | 5/81 [00:04<00:41,  1.84it/s]Downloaded 0.01 GB:   7%|7         | 6/81 [00:04<00:34,  2.20it/s]Downloaded 0.01 GB:   7%|7         | 6/81 [00:04<00:34,  2.20it/s]Downloaded 0.01 GB:   9%|8         | 7/81 [00:04<00:26,  2.77it/s]Downloaded 0.01 GB:   9%|8         | 7/81 [00:04<00:26,  2.77it/s]Downloaded 0.01 GB:  10%|9         | 8/81 [00:04<00:23,  3.17it/s]Downloaded 0.01 GB:  10%|9         | 8/81 [00:04<00:23,  3.17it/s]Downloaded 0.01 GB:  11%|#1        | 9/81 [00:04<00:19,  3.60it/s]Downloaded 0.01 GB:  11%|#1        | 9/81 [00:04<00:19,  3.60it/s]Downloaded 0.01 GB:  12%|#2        | 10/81 [00:04<00:16,  4.20it/s]Downloaded 0.01 GB:  12%|#2        | 10/81 [00:05<00:16,  4.20it/s]Downloaded 0.01 GB:  14%|#3        | 11/81 [00:05<00:14,  4.76it/s]Downloaded 0.01 GB:  14%|#3        | 11/81 [00:05<00:14,  4.76it/s]Downloaded 0.01 GB:  15%|#4        | 12/81 [00:05<00:13,  5.28it/s]Downloaded 0.01 GB:  15%|#4        | 12/81 [00:05<00:13,  5.28it/s]Downloaded 0.01 GB:  16%|#6        | 13/81 [00:05<00:11,  6.16it/s]Downloaded 0.01 GB:  16%|#6        | 13/81 [00:05<00:11,  6.16it/s]Downloaded 0.01 GB:  16%|#6        | 13/81 [00:05<00:11,  6.16it/s]Downloaded 0.01 GB:  19%|#8        | 15/81 [00:05<00:09,  7.21it/s]Downloaded 0.02 GB:  19%|#8        | 15/81 [00:05<00:09,  7.21it/s]Downloaded 0.02 GB:  20%|#9        | 16/81 [00:05<00:08,  7.43it/s]Downloaded 0.02 GB:  20%|#9        | 16/81 [00:05<00:08,  7.43it/s]Downloaded 0.02 GB:  20%|#9        | 16/81 [00:06<00:08,  7.43it/s]Downloaded 0.02 GB:  22%|##2       | 18/81 [00:06<00:08,  7.08it/s]Downloaded 0.02 GB:  22%|##2       | 18/81 [00:06<00:08,  7.08it/s]Downloaded 0.02 GB:  22%|##2       | 18/81 [00:06<00:08,  7.08it/s]Downloaded 0.02 GB:  25%|##4       | 20/81 [00:06<00:06,  9.31it/s]Downloaded 0.02 GB:  25%|##4       | 20/81 [00:06<00:06,  9.31it/s]Downloaded 0.02 GB:  25%|##4       | 20/81 [00:06<00:06,  9.31it/s]Downloaded 0.02 GB:  27%|##7       | 22/81 [00:06<00:07,  8.19it/s]Downloaded 0.02 GB:  27%|##7       | 22/81 [00:06<00:07,  8.19it/s]Downloaded 0.02 GB:  28%|##8       | 23/81 [00:06<00:07,  7.37it/s]Downloaded 0.02 GB:  28%|##8       | 23/81 [00:06<00:07,  7.37it/s]Downloaded 0.02 GB:  30%|##9       | 24/81 [00:06<00:09,  6.08it/s]Downloaded 0.02 GB:  30%|##9       | 24/81 [00:07<00:09,  6.08it/s]Downloaded 0.02 GB:  31%|###       | 25/81 [00:07<00:09,  6.21it/s]Downloaded 0.03 GB:  31%|###       | 25/81 [00:07<00:09,  6.21it/s]Downloaded 0.03 GB:  32%|###2      | 26/81 [00:07<00:09,  5.55it/s]Downloaded 0.03 GB:  32%|###2      | 26/81 [00:07<00:09,  5.55it/s]Downloaded 0.03 GB:  33%|###3      | 27/81 [00:07<00:10,  4.96it/s]Downloaded 0.03 GB:  33%|###3      | 27/81 [00:07<00:10,  4.96it/s]Downloaded 0.03 GB:  35%|###4      | 28/81 [00:07<00:11,  4.60it/s]Downloaded 0.03 GB:  35%|###4      | 28/81 [00:08<00:11,  4.60it/s]Downloaded 0.03 GB:  36%|###5      | 29/81 [00:08<00:11,  4.53it/s]Downloaded 0.03 GB:  36%|###5      | 29/81 [00:08<00:11,  4.53it/s]Downloaded 0.03 GB:  37%|###7      | 30/81 [00:08<00:11,  4.45it/s]Downloaded 0.03 GB:  37%|###7      | 30/81 [00:08<00:11,  4.45it/s]Downloaded 0.03 GB:  38%|###8      | 31/81 [00:08<00:11,  4.28it/s]Downloaded 0.03 GB:  38%|###8      | 31/81 [00:08<00:11,  4.28it/s]Downloaded 0.03 GB:  40%|###9      | 32/81 [00:08<00:10,  4.51it/s]Downloaded 0.03 GB:  40%|###9      | 32/81 [00:08<00:10,  4.51it/s]Downloaded 0.03 GB:  41%|####      | 33/81 [00:08<00:11,  4.31it/s]Downloaded 0.03 GB:  41%|####      | 33/81 [00:09<00:11,  4.31it/s]Downloaded 0.03 GB:  42%|####1     | 34/81 [00:09<00:10,  4.52it/s]Downloaded 0.03 GB:  42%|####1     | 34/81 [00:09<00:10,  4.52it/s]Downloaded 0.03 GB:  43%|####3     | 35/81 [00:09<00:10,  4.40it/s]Downloaded 0.04 GB:  43%|####3     | 35/81 [00:09<00:10,  4.40it/s]Downloaded 0.04 GB:  44%|####4     | 36/81 [00:09<00:09,  4.54it/s]Downloaded 0.04 GB:  44%|####4     | 36/81 [00:09<00:09,  4.54it/s]Downloaded 0.04 GB:  46%|####5     | 37/81 [00:09<00:09,  4.43it/s]Downloaded 0.04 GB:  46%|####5     | 37/81 [00:10<00:09,  4.43it/s]Downloaded 0.04 GB:  47%|####6     | 38/81 [00:10<00:09,  4.59it/s]Downloaded 0.04 GB:  47%|####6     | 38/81 [00:10<00:09,  4.59it/s]Downloaded 0.04 GB:  48%|####8     | 39/81 [00:10<00:09,  4.47it/s]Downloaded 0.04 GB:  48%|####8     | 39/81 [00:10<00:09,  4.47it/s]Downloaded 0.04 GB:  49%|####9     | 40/81 [00:10<00:08,  4.62it/s]Downloaded 0.04 GB:  49%|####9     | 40/81 [00:10<00:08,  4.62it/s]Downloaded 0.04 GB:  51%|#####     | 41/81 [00:10<00:08,  4.49it/s]Downloaded 0.04 GB:  51%|#####     | 41/81 [00:10<00:08,  4.49it/s]Downloaded 0.04 GB:  52%|#####1    | 42/81 [00:10<00:08,  4.67it/s]Downloaded 0.04 GB:  52%|#####1    | 42/81 [00:11<00:08,  4.67it/s]Downloaded 0.04 GB:  53%|#####3    | 43/81 [00:11<00:08,  4.49it/s]Downloaded 0.04 GB:  53%|#####3    | 43/81 [00:11<00:08,  4.49it/s]Downloaded 0.04 GB:  54%|#####4    | 44/81 [00:11<00:07,  4.70it/s]Downloaded 0.04 GB:  54%|#####4    | 44/81 [00:11<00:07,  4.70it/s]Downloaded 0.04 GB:  56%|#####5    | 45/81 [00:11<00:08,  4.49it/s]Downloaded 0.04 GB:  56%|#####5    | 45/81 [00:11<00:08,  4.49it/s]Downloaded 0.04 GB:  57%|#####6    | 46/81 [00:11<00:07,  4.70it/s]Downloaded 0.05 GB:  57%|#####6    | 46/81 [00:12<00:07,  4.70it/s]Downloaded 0.05 GB:  58%|#####8    | 47/81 [00:12<00:07,  4.51it/s]Downloaded 0.05 GB:  58%|#####8    | 47/81 [00:12<00:07,  4.51it/s]Downloaded 0.05 GB:  59%|#####9    | 48/81 [00:12<00:07,  4.70it/s]Downloaded 0.05 GB:  59%|#####9    | 48/81 [00:12<00:07,  4.70it/s]Downloaded 0.05 GB:  60%|######    | 49/81 [00:12<00:07,  4.49it/s]Downloaded 0.05 GB:  60%|######    | 49/81 [00:12<00:07,  4.49it/s]Downloaded 0.05 GB:  62%|######1   | 50/81 [00:12<00:07,  4.08it/s]Downloaded 0.05 GB:  62%|######1   | 50/81 [00:13<00:07,  4.08it/s]Downloaded 0.05 GB:  63%|######2   | 51/81 [00:13<00:07,  3.88it/s]Downloaded 0.05 GB:  63%|######2   | 51/81 [00:13<00:07,  3.88it/s]Downloaded 0.05 GB:  64%|######4   | 52/81 [00:13<00:08,  3.53it/s]Downloaded 0.05 GB:  64%|######4   | 52/81 [00:13<00:08,  3.53it/s]Downloaded 0.05 GB:  65%|######5   | 53/81 [00:13<00:07,  3.56it/s]Downloaded 0.05 GB:  65%|######5   | 53/81 [00:14<00:07,  3.56it/s]Downloaded 0.05 GB:  67%|######6   | 54/81 [00:14<00:08,  3.17it/s]Downloaded 0.05 GB:  67%|######6   | 54/81 [00:14<00:08,  3.17it/s]Downloaded 0.05 GB:  68%|######7   | 55/81 [00:14<00:08,  3.09it/s]Downloaded 0.05 GB:  68%|######7   | 55/81 [00:14<00:08,  3.09it/s]Downloaded 0.05 GB:  69%|######9   | 56/81 [00:14<00:08,  3.00it/s]Downloaded 0.06 GB:  69%|######9   | 56/81 [00:15<00:08,  3.00it/s]Downloaded 0.06 GB:  70%|#######   | 57/81 [00:15<00:08,  2.95it/s]Downloaded 0.06 GB:  70%|#######   | 57/81 [00:15<00:08,  2.95it/s]Downloaded 0.06 GB:  72%|#######1  | 58/81 [00:15<00:07,  2.98it/s]Downloaded 0.06 GB:  72%|#######1  | 58/81 [00:15<00:07,  2.98it/s]Downloaded 0.06 GB:  73%|#######2  | 59/81 [00:15<00:07,  2.97it/s]Downloaded 0.06 GB:  73%|#######2  | 59/81 [00:16<00:07,  2.97it/s]Downloaded 0.06 GB:  74%|#######4  | 60/81 [00:16<00:07,  2.95it/s]Downloaded 0.06 GB:  74%|#######4  | 60/81 [00:16<00:07,  2.95it/s]Downloaded 0.06 GB:  75%|#######5  | 61/81 [00:16<00:06,  2.99it/s]Downloaded 0.06 GB:  75%|#######5  | 61/81 [00:16<00:06,  2.99it/s]Downloaded 0.06 GB:  77%|#######6  | 62/81 [00:16<00:06,  3.04it/s]Downloaded 0.06 GB:  77%|#######6  | 62/81 [00:17<00:06,  3.04it/s]Downloaded 0.06 GB:  78%|#######7  | 63/81 [00:17<00:05,  3.05it/s]Downloaded 0.06 GB:  78%|#######7  | 63/81 [00:17<00:05,  3.05it/s]Downloaded 0.06 GB:  79%|#######9  | 64/81 [00:17<00:05,  3.00it/s]Downloaded 0.06 GB:  79%|#######9  | 64/81 [00:17<00:05,  3.00it/s]Downloaded 0.06 GB:  80%|########  | 65/81 [00:17<00:05,  2.72it/s]Downloaded 0.06 GB:  80%|########  | 65/81 [00:18<00:05,  2.72it/s]Downloaded 0.06 GB:  81%|########1 | 66/81 [00:18<00:05,  2.59it/s]Downloaded 0.07 GB:  81%|########1 | 66/81 [00:18<00:05,  2.59it/s]Downloaded 0.07 GB:  83%|########2 | 67/81 [00:18<00:05,  2.62it/s]Downloaded 0.07 GB:  83%|########2 | 67/81 [00:19<00:05,  2.62it/s]Downloaded 0.07 GB:  84%|########3 | 68/81 [00:19<00:05,  2.60it/s]Downloaded 0.07 GB:  84%|########3 | 68/81 [00:19<00:05,  2.60it/s]Downloaded 0.07 GB:  85%|########5 | 69/81 [00:19<00:04,  2.66it/s]Downloaded 0.07 GB:  85%|########5 | 69/81 [00:19<00:04,  2.66it/s]Downloaded 0.07 GB:  86%|########6 | 70/81 [00:19<00:04,  2.67it/s]Downloaded 0.07 GB:  86%|########6 | 70/81 [00:20<00:04,  2.67it/s]Downloaded 0.07 GB:  88%|########7 | 71/81 [00:20<00:03,  2.75it/s]Downloaded 0.07 GB:  88%|########7 | 71/81 [00:20<00:03,  2.75it/s]Downloaded 0.07 GB:  89%|########8 | 72/81 [00:20<00:03,  2.73it/s]Downloaded 0.07 GB:  89%|########8 | 72/81 [00:20<00:03,  2.73it/s]Downloaded 0.07 GB:  90%|######### | 73/81 [00:20<00:03,  2.55it/s]Downloaded 0.07 GB:  90%|######### | 73/81 [00:21<00:03,  2.55it/s]Downloaded 0.07 GB:  91%|#########1| 74/81 [00:21<00:02,  2.44it/s]Downloaded 0.07 GB:  91%|#########1| 74/81 [00:21<00:02,  2.44it/s]Downloaded 0.07 GB:  93%|#########2| 75/81 [00:21<00:02,  2.39it/s]Downloaded 0.07 GB:  93%|#########2| 75/81 [00:22<00:02,  2.39it/s]Downloaded 0.07 GB:  94%|#########3| 76/81 [00:22<00:02,  2.35it/s]Downloaded 0.08 GB:  94%|#########3| 76/81 [00:22<00:02,  2.35it/s]Downloaded 0.08 GB:  95%|#########5| 77/81 [00:22<00:01,  2.36it/s]Downloaded 0.08 GB:  95%|#########5| 77/81 [00:23<00:01,  2.36it/s]Downloaded 0.08 GB:  96%|#########6| 78/81 [00:23<00:01,  2.43it/s]Downloaded 0.08 GB:  96%|#########6| 78/81 [00:23<00:01,  2.43it/s]Downloaded 0.08 GB:  98%|#########7| 79/81 [00:23<00:00,  2.41it/s]Downloaded 0.08 GB:  98%|#########7| 79/81 [00:23<00:00,  2.41it/s]Downloaded 0.08 GB:  99%|#########8| 80/81 [00:23<00:00,  3.09it/s]Downloaded 0.08 GB:  99%|#########8| 80/81 [00:23<00:00,  3.09it/s]Downloaded 0.08 GB: 100%|##########| 81/81 [00:23<00:00,  3.43it/s]
+Extracting dataset/arxiv.zip
+Processing...
+Loading necessary files...
+This might take a while.
+Processing graphs...
+  0%|          | 0/1 [00:00<?, ?it/s]100%|##########| 1/1 [00:00<00:00, 18477.11it/s]
+Converting graphs into PyG objects...
+  0%|          | 0/1 [00:00<?, ?it/s]100%|##########| 1/1 [00:00<00:00, 299.79it/s]
+/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ogb/nodeproppred/dataset_pyg.py:187: UserWarning: The given NumPy array is not writable, and PyTorch does not support non-writable tensors. This means writing to this tensor will result in undefined behavior. You may want to copy the array to protect its data or make it writable before converting it to a tensor. This type of warning will be suppressed for the rest of this program. (Triggered internally at ../torch/csrc/utils/tensor_numpy.cpp:206.)
+  data.y = torch.from_numpy(node_label).to(torch.long)
+Saving...
+Done!
+Initialization start time recorded.
+2026-07-06 22:25:06,394	INFO worker.py:2015 -- Started a local Ray instance. View the dashboard at [1m[32mhttp://127.0.0.1:8265 [39m[22m
+[36m(pid=18879)[0m FedGraph Differential Privacy module loaded (v1.0.0)
+[36m(pid=18879)[0m ✓ Differential Privacy support loaded
+Running AggreGCN_Arxiv
+[36m(Trainer pid=18879)[0m running AggreGCN_Arxiv
+//Log init_time: 18630.855 ms //end
+Pretrain start time recorded.
+server aggregates all local neighbor feature sums
+clients received feature aggregation from server
+//pretrain_time: 3791.852 ms//end
+Train start time recorded.
+global_rounds 20
+[36m(Trainer pid=18879)[0m /home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/loader/neighbor_loader.py:229: UserWarning: Using 'NeighborSampler' without a 'pyg-lib' installation is deprecated and will be removed soon. Please install 'pyg-lib' for accelerated neighborhood sampling
+[36m(Trainer pid=18879)[0m   neighbor_sampler = NeighborSampler(
+Round 1: Global Val Loss = 3.5922
+Round 1: Global Val Accuracy = 0.0164
+Round 1: Training Time = 1.53s, Communication Time = 0.03s
+Round 2: Global Val Loss = 3.4599
+Round 2: Global Val Accuracy = 0.0792
+Round 2: Training Time = 0.73s, Communication Time = 0.04s
+Round 3: Global Val Loss = 3.3923
+Round 3: Global Val Accuracy = 0.1785
+Round 3: Training Time = 0.65s, Communication Time = 0.05s
+Round 4: Global Val Loss = 3.3552
+Round 4: Global Val Accuracy = 0.2074
+Round 4: Training Time = 0.70s, Communication Time = 0.03s
+Round 5: Global Val Loss = 3.3038
+Round 5: Global Val Accuracy = 0.2345
+Round 5: Training Time = 0.76s, Communication Time = 0.04s
+Round 6: Global Val Loss = 3.2894
+Round 6: Global Val Accuracy = 0.2488
+Round 6: Training Time = 0.78s, Communication Time = 0.03s
+Round 7: Global Val Loss = 3.2472
+Round 7: Global Val Accuracy = 0.2629
+Round 7: Training Time = 0.74s, Communication Time = 0.04s
+Round 8: Global Val Loss = 3.2120
+Round 8: Global Val Accuracy = 0.2643
+Round 8: Training Time = 0.71s, Communication Time = 0.04s
+Round 9: Global Val Loss = 3.1849
+Round 9: Global Val Accuracy = 0.2734
+Round 9: Training Time = 0.73s, Communication Time = 0.04s
+Round 10: Global Val Loss = 3.1704
+Round 10: Global Val Accuracy = 0.2719
+Round 10: Training Time = 0.72s, Communication Time = 0.03s
+Round 11: Global Val Loss = 3.1385
+Round 11: Global Val Accuracy = 0.2749
+Round 11: Training Time = 0.69s, Communication Time = 0.03s
+Round 12: Global Val Loss = 3.1232
+Round 12: Global Val Accuracy = 0.2760
+Round 12: Training Time = 0.68s, Communication Time = 0.03s
+Round 13: Global Val Loss = 3.0839
+Round 13: Global Val Accuracy = 0.2763
+Round 13: Training Time = 0.76s, Communication Time = 0.04s
+Round 14: Global Val Loss = 3.0907
+Round 14: Global Val Accuracy = 0.2768
+Round 14: Training Time = 0.69s, Communication Time = 0.03s
+Round 15: Global Val Loss = 3.0547
+Round 15: Global Val Accuracy = 0.2768
+Round 15: Training Time = 0.77s, Communication Time = 0.03s
+Round 16: Global Val Loss = 3.0474
+Round 16: Global Val Accuracy = 0.2773
+Round 16: Training Time = 0.77s, Communication Time = 0.03s
+Round 17: Global Val Loss = 3.0211
+Round 17: Global Val Accuracy = 0.2774
+Round 17: Training Time = 0.66s, Communication Time = 0.03s
+Round 18: Global Val Loss = 3.0152
+Round 18: Global Val Accuracy = 0.2776
+Round 18: Training Time = 0.76s, Communication Time = 0.03s
+Round 19: Global Val Loss = 2.9929
+Round 19: Global Val Accuracy = 0.2775
+Round 19: Training Time = 0.66s, Communication Time = 0.04s
+Round 20: Global Val Loss = 2.9862
+Round 20: Global Val Accuracy = 0.2773
+Round 20: Training Time = 0.71s, Communication Time = 0.03s
+//train_time: 18721.797 ms//end
+
+================================================================================
+TIME BREAKDOWN (excluding initialization)
+================================================================================
+Total Pure Training Time (forward + gradient descent): 15.17 seconds
+Total Communication Time (parameter aggregation): 0.70 seconds
+Total Training + Communication Time: 18.72 seconds
+Training Time Percentage: 81.0%
+Communication Time Percentage: 3.7%
+Average Training Time per Round: 0.76 seconds
+Average Communication Time per Round: 0.04 seconds
+================================================================================
+[Pure Training Time] Dataset: ogbn-arxiv, Batch Size: 2048, Trainers: 5, Hops: 2, IID Beta: 10000.0 => Pure Training Time = 15.17 seconds
+[Communication Time] Dataset: ogbn-arxiv, Batch Size: 2048, Trainers: 5, Hops: 2, IID Beta: 10000.0 => Communication Time = 0.70 seconds
+average_final_test_loss, 2.9713869738833387
+Average test accuracy, 0.25874945990988213
+
+================================================================================
+INDIVIDUAL TRAINER MEMORY USAGE
+================================================================================
+
+====================================================================================================
+TRAINER MEMORY vs LOCAL GRAPH SIZE
+====================================================================================================
+Trainer  Memory(MB)   Nodes    Edges    Memory/Node  Memory/Edge 
+----------------------------------------------------------------------------------------------------
+0        2088.1       33876    2080648  0.062        0.001       
+1        2135.3       33849    2063866  0.063        0.001       
+2        2094.5       33913    2079486  0.062        0.001       
+3        2099.6       33759    2073192  0.062        0.001       
+4        2177.0       33946    2105656  0.064        0.001       
+====================================================================================================
+Total Memory Usage: 10594.5 MB (10.35 GB)
+Total Nodes: 169343, Total Edges: 10402848
+Average Memory per Trainer: 2118.9 MB
+Average Nodes per Trainer: 33868.6
+Average Edges per Trainer: 2080569.6
+Max Memory: 2177.0 MB (Trainer 4)
+Min Memory: 2088.1 MB (Trainer 0)
+Overall Memory/Node Ratio: 0.063 MB/node
+Overall Memory/Edge Ratio: 0.001 MB/edge
+====================================================================================================
+//Log Theoretical Pretrain Comm Cost: 724.10 MB //end
+//Log Theoretical Train Comm Cost: 33.43 MB //end
+
+================================================================================
+CSV FORMAT RESULT:
+DS,IID,BS,TotalTime[s],PureTrainingTime[s],CommTime[s],FinalAcc[%],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
+ogbn-arxiv,10000.0,2048,35.7,15.2,0.7,0.26,757.5,2177.0,0.759,0.167,0
+================================================================================
+
+================================================================================
+EXPERIMENT SUMMARY
+================================================================================
+Dataset: ogbn-arxiv
+Method: FedGCN
+Trainers: 5
+IID Beta: 10000.0
+Batch Size: 2048
+Hops: 2
+Total Execution Time: 35.69 seconds
+Pure Training Time: 15.17 seconds
+Communication Time: 0.70 seconds
+Pretrain Comm Cost: 724.10 MB
+Training Comm Cost: 33.43 MB
+================================================================================
+
+[36m(pid=18880)[0m FedGraph Differential Privacy module loaded (v1.0.0)[32m [repeated 4x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)[0m
+[36m(pid=18880)[0m ✓ Differential Privacy support loaded[32m [repeated 4x across cluster][0m
+[36m(Trainer pid=19012)[0m running AggreGCN_Arxiv[32m [repeated 4x across cluster][0m
+[36m(Trainer pid=19012)[0m /home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/loader/neighbor_loader.py:229: UserWarning: Using 'NeighborSampler' without a 'pyg-lib' installation is deprecated and will be removed soon. Please install 'pyg-lib' for accelerated neighborhood sampling[32m [repeated 4x across cluster][0m
+[36m(Trainer pid=19012)[0m   neighbor_sampler = NeighborSampler([32m [repeated 4x across cluster][0m

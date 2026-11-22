@@ -1,0 +1,43 @@
+{
+  "batch_size": 64,
+  "dataset": "cora",
+  "distribution_type": "average",
+  "elastic_training": true,
+  "global_rounds": 500,
+  "gpu": true,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.5,
+  "local_step": 3,
+  "max_rounds": 1500,
+  "method": "FedGCN",
+  "n_trainer": 5,
+  "num_cpus_per_trainer": 0,
+  "num_gpus_per_trainer": 0.2,
+  "num_hops": 2,
+  "num_layers": 2,
+  "seed": 42,
+  "target_train_comm_times_sec": [
+    30.0,
+    60.0,
+    120.0,
+    180.0,
+    240.0,
+    300.0,
+    600.0
+  ],
+  "target_val_accs": [
+    0.75,
+    0.78,
+    0.8,
+    0.82
+  ],
+  "target_val_losses": [
+    1.0,
+    0.8,
+    0.7,
+    0.6
+  ],
+  "use_ogb_load_patch": false,
+  "val_loss_min_delta": 0.001,
+  "val_loss_patience": 100
+}

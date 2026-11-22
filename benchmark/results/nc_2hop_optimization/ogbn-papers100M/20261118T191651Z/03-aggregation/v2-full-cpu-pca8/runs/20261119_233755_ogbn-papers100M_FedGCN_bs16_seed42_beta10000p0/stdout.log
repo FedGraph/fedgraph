@@ -1,0 +1,111 @@
+================================================================================
+Starting FedGraph NC batch-size convergence run: 20261119_233755_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0
+{
+  "batch_size": 16,
+  "dataset": "ogbn-papers100M",
+  "distribution_type": "average",
+  "elastic_training": false,
+  "evaluation_batch_size": 512,
+  "evaluation_split": "validation",
+  "feature_compression_chunk_rows": 65536,
+  "feature_compression_max_inflight_trainers": 4,
+  "feature_compression_mode": "shared-pca",
+  "feature_compression_output_dir": null,
+  "feature_compression_rank": 8,
+  "global_rounds": 3,
+  "gpu": true,
+  "graph_relabel_cache_dir": null,
+  "graph_relabel_chunk_edges": 1000000,
+  "graph_storage_mode": "cpu",
+  "hf_artifact_num_hops": null,
+  "hf_local_artifact_cache_dir": null,
+  "hf_local_artifact_repo": null,
+  "hf_local_artifact_revision": null,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_artifact_dir": "/mnt/fedgraph-nvme/artifacts/papers100m-10-2hop-v2-derived",
+  "local_artifact_rank_hosts": "/home/ubuntu/fedgraph-papers100m-2hop-rank-hosts.txt",
+  "local_step": 1,
+  "max_rounds": null,
+  "method": "FedGCN",
+  "n_trainer": 10,
+  "num_cpus_per_trainer": 1,
+  "num_gpus_per_trainer": 1.0,
+  "num_hops": 2,
+  "num_layers": 2,
+  "pretrain_feature_aggregation_mode": "full",
+  "pretrain_feature_chunk_edges": 1000000,
+  "pretrain_feature_chunk_rows": 262144,
+  "pretrain_feature_max_inflight_trainers": 10,
+  "pretrain_feature_output_dir": null,
+  "pretrain_feature_upload_mode": "indexed",
+  "resource_monitor_mode": "manual",
+  "resource_snapshot_interval_rounds": 1,
+  "seed": 42,
+  "server_device": "cpu",
+  "target_train_comm_times_sec": [],
+  "target_val_accs": [],
+  "target_val_losses": [],
+  "use_huggingface": false,
+  "use_ogb_load_patch": true,
+  "val_loss_min_delta": 0.0,
+  "val_loss_patience": 20
+}
+================================================================================
+FedGraph Differential Privacy module loaded (v1.0.0)
+✓ Differential Privacy support loaded
+NC_GRAPH_STORAGE, mode=cpu
+NC_PRETRAIN_FEATURE_AGGREGATION, mode=full
+NC_FEATURE_COMPRESSION, mode=shared-pca, rank=8, chunk_rows=65536, max_inflight_trainers=4, output_dir=None
+NC_RESOURCE_MONITOR, mode=manual, snapshot_interval_rounds=1, snapshot_path=/home/ubuntu/fedgraph/benchmark/results/nc_2hop_optimization/ogbn-papers100M/20261118T191651Z/03-aggregation/v2-full-cpu-pca8/runs/20261119_233755_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0/fedgraph_logs/resource_snapshots.jsonl, prometheus_summary_path=None
+Initialization start time recorded.
+2026-11-19 23:38:00,275	INFO worker.py:1683 -- Using address 10.195.25.34:6379 set in the environment variable RAY_ADDRESS
+2026-11-19 23:38:00,278	INFO worker.py:1833 -- Connecting to existing Ray cluster at address: 10.195.25.34:6379...
+2026-11-19 23:38:00,297	INFO worker.py:2015 -- Connected to Ray cluster. View the dashboard at [1m[32mhttp://127.0.0.1:8265 [39m[22m
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=0, host=10.195.25.35, node_id=1daf1371f5d3826cdd53bd9baa7c97875dc1bc701a9eb9da5e4ac437
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=1, host=10.195.25.15, node_id=895249e01012459d4a0973c87edbc18f16dad19909406e7c1600d380
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=2, host=10.195.25.42, node_id=eb2af42e019371ec3ed669b27bac67ef54ae174d31963a2ba05492c4
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=3, host=10.195.25.38, node_id=cfb00b5f0d415763436c363ae44d674c70a633b22b3781406ea144ed
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=4, host=10.195.25.16, node_id=10641425bb4799f601514a903e537b6095346d29e39929cf700e89e8
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=5, host=10.195.25.33, node_id=f8bbd63a731cc303246247aa26904a05511d9e3c7f60a9363d23f72e
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=6, host=10.195.25.12, node_id=1fac4571fc5b1ed925e382471e4c5fa7dba3c55c89d09420e67d5672
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=7, host=10.195.25.28, node_id=5cfe9163da6ff50ab53323700fad2bc62cf6c480909119aff8816ca5
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=8, host=10.195.25.61, node_id=4b4916126045bba398982b5acdd2e926470dc2222f25531e03460f90
+LOCAL_ARTIFACT_RANK_AFFINITY, rank=9, host=10.195.25.14, node_id=5133cc4771fdd70c09831f797ce4da631c960c9309ae9f0861955445
+[36m(pid=3871, ip=10.195.25.42)[0m FedGraph Differential Privacy module loaded (v1.0.0)
+[36m(pid=3871, ip=10.195.25.42)[0m ✓ Differential Privacy support loaded
+[36m(Trainer pid=3920, ip=10.195.25.16)[0m Loaded local artifact v2 shard 4 (2-hop) from /mnt/fedgraph-nvme/artifacts/papers100m-10-2hop-v2-derived/shards/trainer-004
+[36m(pid=3952, ip=10.195.25.38)[0m FedGraph Differential Privacy module loaded (v1.0.0)[32m [repeated 9x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)[0m
+[36m(pid=3952, ip=10.195.25.38)[0m ✓ Differential Privacy support loaded[32m [repeated 9x across cluster][0m
+[36m(Trainer pid=3980, ip=10.195.25.15)[0m Trainer 1 artifact load completed in 123.245s; process RSS=23482269696; process peak RSS=40942284800 bytes
+[36m(Trainer pid=4148, ip=10.195.25.28)[0m Loaded local artifact v2 shard 7 (2-hop) from /mnt/fedgraph-nvme/artifacts/papers100m-10-2hop-v2-derived/shards/trainer-007[32m [repeated 9x across cluster][0m
+[36m(Trainer pid=4049, ip=10.195.25.33)[0m Trainer 5 artifact load completed in 126.280s; process RSS=23514501120; process peak RSS=40984621056 bytes[32m [repeated 8x across cluster][0m
+NC_FEATURE_COMPRESSION_METRIC {"basis_output_path":"/home/ubuntu/fedgraph/benchmark/results/nc_2hop_optimization/ogbn-papers100M/20261118T191651Z/03-aggregation/v2-full-cpu-pca8/runs/20261119_233755_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0/fedgraph_logs/feature_compression/shared-pca-r8-7a54f6330a46dbc0.pt","basis_sha256":"7a54f6330a46dbc0c153f5305f1562ed34255c14b8430235ee6e67356041a837","basis_tensor_broadcast_bytes":51200,"basis_tensor_bytes":5120,"basis_wall_time_sec":0.0026387369998701615,"compressed_feature_dim":8,"compression_setup_traffic_bytes":1361920,"compression_wall_time_sec":43.864335316000506,"feature_bytes_saved":53308778880,"feature_storage_reduction_ratio":16.0,"max_inflight_trainers":4,"max_trainer_projection_time_sec":1.349176617000012,"mode":"shared-pca","original_feature_bytes":56862697472,"original_feature_dim":128,"projected_feature_bytes":3553918592,"projected_feature_fraction":0.0625,"projection_wall_time_sec":4.021162537999771,"retained_energy":0.7710873122152563,"row_count":111059956,"statistics_tensor_upload_bytes":1310720,"statistics_wall_time_sec":39.838598341999386,"trainer_count":10}
+NC_FEATURE_COMPRESSION_SUMMARY, mode=shared-pca, rows=111059956, original_dim=128, rank=8, retained_energy=0.771087312215, basis_sha256=7a54f6330a46dbc0c153f5305f1562ed34255c14b8430235ee6e67356041a837, basis_output_path=/home/ubuntu/fedgraph/benchmark/results/nc_2hop_optimization/ogbn-papers100M/20261118T191651Z/03-aggregation/v2-full-cpu-pca8/runs/20261119_233755_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0/fedgraph_logs/feature_compression/shared-pca-r8-7a54f6330a46dbc0.pt, statistics_tensor_upload_bytes=1310720, basis_tensor_broadcast_bytes=51200, original_feature_bytes=56862697472, projection_output_bytes=3553918592, feature_bytes_saved=53308778880, statistics_wall_time_sec=39.838598, basis_wall_time_sec=0.002639, projection_wall_time_sec=4.021163, max_trainer_projection_time_sec=1.349177, max_inflight_trainers=4
+//Log init_time: 214920.711 ms //end
+Pretrain start time recorded.
+[33m(raylet)[0m [2026-11-19 23:49:45,939 E 4485 4507] (raylet) file_system_monitor.cc:116: /home/ubuntu/fedgraph-ray/session_2026-11-19_23-08-51_994757_4052 is over 95% full, available space: 2.04824 GB; capacity: 76.4492 GB. Object creation will fail if spilling is required.
+Traceback (most recent call last):
+  File "/home/ubuntu/fedgraph/benchmark/benchmark_NC_batch_size_convergence.py", line 877, in run_experiment
+    run_fedgraph(
+  File "/home/ubuntu/fedgraph/fedgraph/federated_methods.py", line 1196, in run_fedgraph
+    run_NC(args, data)
+  File "/home/ubuntu/fedgraph/fedgraph/federated_methods.py", line 2240, in run_NC
+    indexed_feature_sums.extend(
+  File "/home/ubuntu/fedgraph/fedgraph/federated_methods.py", line 2241, in <genexpr>
+    ray.get(feature_sum_ref) for feature_sum_ref in ready
+    ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/auto_init_hook.py", line 22, in auto_init_wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/client_mode_hook.py", line 110, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/worker.py", line 2968, in get
+    values, debugger_breakpoint = worker.get_objects(
+                                  ^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/worker.py", line 1052, in get_objects
+    raise value
+ray.exceptions.OutOfDiskError: ('ec4968ec520919dc3ada8e089844210204306e5d0200000001000000', b'\n\x1c\tF\xa5\x1fT3q\x05C\xf7U\xe0(P_\xe4!\x01\xd4\x89\x93\xd1\xeb\xb6y\x882\x08\x12\x0c10.195.25.34\x18\x9bN"\x1c\x02\x00\x00\x00\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff', '')
+The object cannot be created because the local object store is full and the local disk's utilization is over capacity (95% by default).Tip: Use `df` on this node to check disk usage and `ray memory` to check object store memory usage.
+[36m(Trainer pid=4148, ip=10.195.25.28)[0m Trainer 7 artifact load completed in 133.779s; process RSS=23497080832; process peak RSS=40972181504 bytes

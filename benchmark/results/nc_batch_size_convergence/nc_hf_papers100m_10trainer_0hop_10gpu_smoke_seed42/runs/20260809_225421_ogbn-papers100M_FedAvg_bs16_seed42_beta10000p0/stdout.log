@@ -1,0 +1,156 @@
+================================================================================
+Starting FedGraph NC batch-size convergence run: 20260809_225421_ogbn-papers100M_FedAvg_bs16_seed42_beta10000p0
+{
+  "batch_size": 16,
+  "dataset": "ogbn-papers100M",
+  "distribution_type": "average",
+  "elastic_training": false,
+  "evaluation_split": "test",
+  "global_rounds": 3,
+  "gpu": true,
+  "hf_artifact_num_hops": 1,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_step": 3,
+  "max_rounds": null,
+  "method": "FedAvg",
+  "n_trainer": 10,
+  "num_cpus_per_trainer": 8,
+  "num_gpus_per_trainer": 1.0,
+  "num_hops": 0,
+  "num_layers": 2,
+  "pretrain_feature_upload_mode": "dense",
+  "seed": 42,
+  "server_device": "cpu",
+  "target_train_comm_times_sec": [],
+  "target_val_accs": [],
+  "target_val_losses": [],
+  "use_huggingface": true,
+  "use_ogb_load_patch": true,
+  "val_loss_min_delta": 0.0,
+  "val_loss_patience": 20
+}
+================================================================================
+FedGraph Differential Privacy module loaded (v1.0.0)
+✓ Differential Privacy support loaded
+Initialization start time recorded.
+2026-08-09 22:54:29,658	INFO worker.py:1683 -- Using address 10.195.25.24:6379 set in the environment variable RAY_ADDRESS
+2026-08-09 22:54:29,663	INFO worker.py:1833 -- Connecting to existing Ray cluster at address: 10.195.25.24:6379...
+2026-08-09 22:54:29,686	INFO worker.py:2015 -- Connected to Ray cluster. View the dashboard at [1m[32mhttp://127.0.0.1:8265 [39m[22m
+Changing method to FedAvg
+[36m(pid=3111, ip=10.195.25.28)[0m INFO:matplotlib.font_manager:generated new fontManager
+[36m(pid=3111, ip=10.195.25.28)[0m FedGraph Differential Privacy module loaded (v1.0.0)
+[36m(pid=3111, ip=10.195.25.28)[0m ✓ Differential Privacy support loaded
+[36m(Trainer pid=3111, ip=10.195.25.28)[0m Loading client data 7 from 1-hop Hugging Face artifact
+[36m(Trainer pid=3111, ip=10.195.25.28)[0m INFO:httpx:HTTP Request: GET https://huggingface.co/api/agent-harnesses "HTTP/1.1 200 OK"
+[36m(Trainer pid=3111, ip=10.195.25.28)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_7/resolve/main/local_node_index.pt "HTTP/1.1 302 Found"
+[36m(Trainer pid=3669, ip=10.195.25.35)[0m Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[36m(Trainer pid=3669, ip=10.195.25.35)[0m WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[36m(Trainer pid=3485, ip=10.195.25.14)[0m Loaded local_node_index.pt, size: torch.Size([11106176])
+[36m(pid=26004, ip=10.195.25.15)[0m INFO:matplotlib.font_manager:generated new fontManager[32m [repeated 8x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)[0m
+[36m(Trainer pid=3669, ip=10.195.25.35)[0m Loaded communicate_node_index.pt, size: torch.Size([48740389])
+[36m(pid=26004, ip=10.195.25.15)[0m FedGraph Differential Privacy module loaded (v1.0.0)[32m [repeated 9x across cluster][0m
+[36m(pid=26004, ip=10.195.25.15)[0m ✓ Differential Privacy support loaded[32m [repeated 9x across cluster][0m
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m Loading client data 4 from 1-hop Hugging Face artifact[32m [repeated 9x across cluster][0m
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m INFO:httpx:HTTP Request: GET https://huggingface.co/api/agent-harnesses "HTTP/1.1 200 OK"[32m [repeated 9x across cluster][0m
+[36m(Trainer pid=3669, ip=10.195.25.35)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_0/resolve/main/adj.pt "HTTP/1.1 302 Found"[32m [repeated 20x across cluster][0m
+[36m(Trainer pid=3169, ip=10.195.25.42)[0m Loaded local_node_index.pt, size: torch.Size([11106047])[32m [repeated 9x across cluster][0m
+[36m(Trainer pid=3669, ip=10.195.25.35)[0m Loaded adj.pt, size: torch.Size([2, 871772866])
+[36m(Trainer pid=3169, ip=10.195.25.42)[0m Loaded communicate_node_index.pt, size: torch.Size([48766380])[32m [repeated 9x across cluster][0m
+[36m(Trainer pid=3669, ip=10.195.25.35)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_0/resolve/main/train_labels.pt "HTTP/1.1 302 Found"[32m [repeated 10x across cluster][0m
+[36m(Trainer pid=3669, ip=10.195.25.35)[0m Loaded train_labels.pt, size: torch.Size([120671])
+[36m(Trainer pid=3669, ip=10.195.25.35)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_0/resolve/main/val_labels.pt "HTTP/1.1 404 Not Found"
+[36m(Trainer pid=3669, ip=10.195.25.35)[0m Loaded test_labels.pt, size: torch.Size([21307])
+[36m(Trainer pid=3169, ip=10.195.25.42)[0m Loaded adj.pt, size: torch.Size([2, 872117592])[32m [repeated 8x across cluster][0m
+[36m(Trainer pid=3111, ip=10.195.25.28)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_7/resolve/main/features.pt "HTTP/1.1 302 Found"[32m [repeated 17x across cluster][0m
+[36m(Trainer pid=3169, ip=10.195.25.42)[0m Loaded train_labels.pt, size: torch.Size([120643])[32m [repeated 8x across cluster][0m
+[36m(Trainer pid=25369, ip=10.195.25.16)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_9/resolve/main/val_labels.pt "HTTP/1.1 404 Not Found"[32m [repeated 7x across cluster][0m
+[36m(Trainer pid=3169, ip=10.195.25.42)[0m Loaded test_labels.pt, size: torch.Size([21490])[32m [repeated 7x across cluster][0m
+[36m(Trainer pid=3669, ip=10.195.25.35)[0m Loaded features.pt, size: torch.Size([11105838, 128])
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m Loaded adj.pt, size: torch.Size([2, 871648239])
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m Loaded train_labels.pt, size: torch.Size([121232])
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m Loaded test_labels.pt, size: torch.Size([21302])[32m [repeated 2x across cluster][0m
+[36m(Trainer pid=3669, ip=10.195.25.35)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_0/resolve/main/idx_train.pt "HTTP/1.1 302 Found"[32m [repeated 13x across cluster][0m
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_4/resolve/main/val_labels.pt "HTTP/1.1 404 Not Found"[32m [repeated 2x across cluster][0m
+[36m(Trainer pid=3669, ip=10.195.25.35)[0m Loaded idx_train.pt, size: torch.Size([120671])
+[36m(Trainer pid=3669, ip=10.195.25.35)[0m Loaded idx_test.pt, size: torch.Size([21307])
+[36m(Trainer pid=3669, ip=10.195.25.35)[0m /home/ubuntu/fedgraph/fedgraph/trainer_class.py:161: UserWarning: Hugging Face trainer data does not contain global metadata; falling back to inference for compatibility with existing repositories.
+[36m(Trainer pid=3669, ip=10.195.25.35)[0m   warnings.warn(
+[36m(Trainer pid=3111, ip=10.195.25.28)[0m Loaded features.pt, size: torch.Size([11105953, 128])
+[36m(Trainer pid=3485, ip=10.195.25.14)[0m Loaded features.pt, size: torch.Size([11106176, 128])
+[36m(Trainer pid=3111, ip=10.195.25.28)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_7/resolve/main/idx_train.pt "HTTP/1.1 302 Found"[32m [repeated 2x across cluster][0m
+[36m(Trainer pid=3669, ip=10.195.25.35)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_0/resolve/main/class_num.pt "HTTP/1.1 404 Not Found"[32m [repeated 3x across cluster][0m
+[36m(Trainer pid=3111, ip=10.195.25.28)[0m Loaded idx_train.pt, size: torch.Size([120506])
+[36m(Trainer pid=3111, ip=10.195.25.28)[0m Loaded idx_test.pt, size: torch.Size([21428])
+[36m(Trainer pid=3111, ip=10.195.25.28)[0m /home/ubuntu/fedgraph/fedgraph/trainer_class.py:161: UserWarning: Hugging Face trainer data does not contain global metadata; falling back to inference for compatibility with existing repositories.
+[36m(Trainer pid=3111, ip=10.195.25.28)[0m   warnings.warn(
+[36m(Trainer pid=3169, ip=10.195.25.42)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_2/resolve/main/idx_test.pt "HTTP/1.1 302 Found"[32m [repeated 15x across cluster][0m
+[36m(Trainer pid=3169, ip=10.195.25.42)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_2/resolve/main/global_node_num.pt "HTTP/1.1 404 Not Found"[32m [repeated 23x across cluster][0m
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m Loaded features.pt, size: torch.Size([11106352, 128])[32m [repeated 7x across cluster][0m
+[36m(Trainer pid=3169, ip=10.195.25.42)[0m Loaded idx_train.pt, size: torch.Size([120643])[32m [repeated 7x across cluster][0m
+[36m(Trainer pid=3169, ip=10.195.25.42)[0m Loaded idx_test.pt, size: torch.Size([21490])[32m [repeated 7x across cluster][0m
+[36m(Trainer pid=3169, ip=10.195.25.42)[0m /home/ubuntu/fedgraph/fedgraph/trainer_class.py:161: UserWarning: Hugging Face trainer data does not contain global metadata; falling back to inference for compatibility with existing repositories.[32m [repeated 7x across cluster][0m
+[36m(Trainer pid=3169, ip=10.195.25.42)[0m   warnings.warn([32m [repeated 7x across cluster][0m
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_4/resolve/main/idx_train.pt "HTTP/1.1 302 Found"
+[36m(Trainer pid=3169, ip=10.195.25.42)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_2/resolve/main/class_num.pt "HTTP/1.1 404 Not Found"
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_4/resolve/main/idx_val.pt "HTTP/1.1 404 Not Found"
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_4/resolve/main/idx_test.pt "HTTP/1.1 302 Found"
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_4/resolve/main/global_node_num.pt "HTTP/1.1 404 Not Found"
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m INFO:httpx:HTTP Request: HEAD https://huggingface.co/datasets/FedGraph/fedgraph_ogbn-papers100M_10trainer_1hop_iid_beta_10000.0_trainer_id_4/resolve/main/class_num.pt "HTTP/1.1 404 Not Found"
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m Exception raised in creation task: The actor died because of an error raised in its creation task, [36mray::Trainer.__init__()[39m (pid=26004, ip=10.195.25.15, actor_id=3a487efa0f42b7d9cb20ccde01000000, repr=<fedgraph.federated_methods.Trainer object at 0x7daad7fbe1b0>)
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m   File "/home/ubuntu/fedgraph/fedgraph/federated_methods.py", line 628, in __init__
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m     super().__init__(*args, **kwds)
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m   File "/home/ubuntu/fedgraph/fedgraph/low_rank/trainer_lowrank.py", line 15, in __init__
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m     super().__init__(*args, **kwargs)
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m   File "/home/ubuntu/fedgraph/fedgraph/trainer_class.py", line 325, in __init__
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m     self.relabel_adj(local_node_index)
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m   File "/home/ubuntu/fedgraph/fedgraph/trainer_class.py", line 1026, in relabel_adj
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m     _, self.adj, __, ___ = torch_geometric.utils.k_hop_subgraph(
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m   File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/utils/_subgraph.py", line 361, in k_hop_subgraph
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m     node_mask[subset] = True
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m     ~~~~~~~~~^^^^^^^^
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m IndexError: index 111059954 is out of bounds for dimension 0 with size 111059951
+Traceback (most recent call last):
+  File "/home/ubuntu/fedgraph/benchmark/benchmark_NC_batch_size_convergence.py", line 699, in run_experiment
+    run_fedgraph(
+  File "/home/ubuntu/fedgraph/fedgraph/federated_methods.py", line 466, in run_fedgraph
+    run_NC(args, data)
+  File "/home/ubuntu/fedgraph/fedgraph/federated_methods.py", line 713, in run_NC
+    ray.get(trainers[i].get_info.remote()) for i in range(len(trainers))
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/auto_init_hook.py", line 22, in auto_init_wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/client_mode_hook.py", line 110, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/worker.py", line 2968, in get
+    values, debugger_breakpoint = worker.get_objects(
+                                  ^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/worker.py", line 1052, in get_objects
+    raise value
+ray.exceptions.ActorDiedError: The actor died because of an error raised in its creation task, [36mray::Trainer.__init__()[39m (pid=26004, ip=10.195.25.15, actor_id=3a487efa0f42b7d9cb20ccde01000000, repr=<fedgraph.federated_methods.Trainer object at 0x7daad7fbe1b0>)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/fedgraph/fedgraph/federated_methods.py", line 628, in __init__
+    super().__init__(*args, **kwds)
+  File "/home/ubuntu/fedgraph/fedgraph/low_rank/trainer_lowrank.py", line 15, in __init__
+    super().__init__(*args, **kwargs)
+  File "/home/ubuntu/fedgraph/fedgraph/trainer_class.py", line 325, in __init__
+    self.relabel_adj(local_node_index)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/fedgraph/fedgraph/trainer_class.py", line 1026, in relabel_adj
+    _, self.adj, __, ___ = torch_geometric.utils.k_hop_subgraph(
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/torch_geometric/utils/_subgraph.py", line 361, in k_hop_subgraph
+    node_mask[subset] = True
+    ~~~~~~~~~^^^^^^^^
+IndexError: index 111059954 is out of bounds for dimension 0 with size 111059951
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m Loaded idx_train.pt, size: torch.Size([121232])
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m Loaded idx_test.pt, size: torch.Size([21302])
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m /home/ubuntu/fedgraph/fedgraph/trainer_class.py:161: UserWarning: Hugging Face trainer data does not contain global metadata; falling back to inference for compatibility with existing repositories.
+[36m(Trainer pid=26004, ip=10.195.25.15)[0m   warnings.warn(

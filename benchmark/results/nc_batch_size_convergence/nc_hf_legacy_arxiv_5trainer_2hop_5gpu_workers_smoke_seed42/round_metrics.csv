@@ -1,0 +1,4 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,evaluation_split,evaluation_acc,evaluation_loss,val_acc,val_loss,local_steps,train_time_sec,comm_time_sec,train_comm_time_sec,cum_train_comm_time_sec
+nc_hf_legacy_arxiv_5trainer_2hop_5gpu_workers_smoke_seed42,20260802_202911_ogbn-arxiv_FedGCN_bs2048_seed42_beta10000p0,ogbn-arxiv,FedGCN,2048,42,10000.0,1,test,0.0143,4.1553,,,1,0.74,0.04,0.78,0.78
+nc_hf_legacy_arxiv_5trainer_2hop_5gpu_workers_smoke_seed42,20260802_202911_ogbn-arxiv_FedGCN_bs2048_seed42_beta10000p0,ogbn-arxiv,FedGCN,2048,42,10000.0,2,test,0.0132,3.8047,,,2,0.16,0.03,0.19,0.97
+nc_hf_legacy_arxiv_5trainer_2hop_5gpu_workers_smoke_seed42,20260802_202911_ogbn-arxiv_FedGCN_bs2048_seed42_beta10000p0,ogbn-arxiv,FedGCN,2048,42,10000.0,3,test,0.0133,3.6327,,,3,0.15,0.03,0.18,1.15

@@ -1,0 +1,6 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,val_acc,val_loss
+nc_fedgcn_2hop_dense_ray_gpu_t4_4clients_bs2048_5r_seed42,20260727_011357_ogbn-arxiv_FedGCN_bs2048_seed42_beta10000p0,ogbn-arxiv,FedGCN,2048,42,10000.0,1,0.0163,4.0432
+nc_fedgcn_2hop_dense_ray_gpu_t4_4clients_bs2048_5r_seed42,20260727_011357_ogbn-arxiv_FedGCN_bs2048_seed42_beta10000p0,ogbn-arxiv,FedGCN,2048,42,10000.0,2,0.0148,3.7305
+nc_fedgcn_2hop_dense_ray_gpu_t4_4clients_bs2048_5r_seed42,20260727_011357_ogbn-arxiv_FedGCN_bs2048_seed42_beta10000p0,ogbn-arxiv,FedGCN,2048,42,10000.0,3,0.0167,3.6053
+nc_fedgcn_2hop_dense_ray_gpu_t4_4clients_bs2048_5r_seed42,20260727_011357_ogbn-arxiv_FedGCN_bs2048_seed42_beta10000p0,ogbn-arxiv,FedGCN,2048,42,10000.0,4,0.0186,3.5287
+nc_fedgcn_2hop_dense_ray_gpu_t4_4clients_bs2048_5r_seed42,20260727_011357_ogbn-arxiv_FedGCN_bs2048_seed42_beta10000p0,ogbn-arxiv,FedGCN,2048,42,10000.0,5,0.0207,3.5015

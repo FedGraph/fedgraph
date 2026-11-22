@@ -1,0 +1,4 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,val_acc,val_loss
+nc_arxiv_5trainer_0hop_local_artifact_1gpu_fractional_seed42,20260823_171256_ogbn-arxiv_FedAvg_bs16_seed42_beta10000p0,ogbn-arxiv,FedAvg,16,42,10000.0,1,0.0759,3.7614
+nc_arxiv_5trainer_0hop_local_artifact_1gpu_fractional_seed42,20260823_171256_ogbn-arxiv_FedAvg_bs16_seed42_beta10000p0,ogbn-arxiv,FedAvg,16,42,10000.0,2,0.0745,3.7552
+nc_arxiv_5trainer_0hop_local_artifact_1gpu_fractional_seed42,20260823_171256_ogbn-arxiv_FedAvg_bs16_seed42_beta10000p0,ogbn-arxiv,FedAvg,16,42,10000.0,3,0.0696,3.7428

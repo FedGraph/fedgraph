@@ -1,0 +1,11 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,val_acc,val_loss
+c3_papers100m_10t_chunked_mmap_pca16_512bz_10r,20261015_214727_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,1,0.0,83.7761
+c3_papers100m_10t_chunked_mmap_pca16_512bz_10r,20261015_214727_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,2,0.0329,84.3684
+c3_papers100m_10t_chunked_mmap_pca16_512bz_10r,20261015_214727_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,3,0.0231,48.0156
+c3_papers100m_10t_chunked_mmap_pca16_512bz_10r,20261015_214727_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,4,0.0161,12.4482
+c3_papers100m_10t_chunked_mmap_pca16_512bz_10r,20261015_214727_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,5,0.0547,5.3229
+c3_papers100m_10t_chunked_mmap_pca16_512bz_10r,20261015_214727_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,6,0.0544,5.1876
+c3_papers100m_10t_chunked_mmap_pca16_512bz_10r,20261015_214727_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,7,0.0591,5.1372
+c3_papers100m_10t_chunked_mmap_pca16_512bz_10r,20261015_214727_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,8,0.063,5.1065
+c3_papers100m_10t_chunked_mmap_pca16_512bz_10r,20261015_214727_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,9,0.063,5.0891
+c3_papers100m_10t_chunked_mmap_pca16_512bz_10r,20261015_214727_ogbn-papers100M_FedGCN_bs512_seed42_beta10000p0,ogbn-papers100M,FedGCN,512,42,10000.0,10,0.0659,5.0733

@@ -1,0 +1,11 @@
+{
+  "basis_sha256": "7a54f6330a46dbc0c153f5305f1562ed34255c14b8430235ee6e67356041a837",
+  "compressed_dim": 8,
+  "eigenvalue_dtype": "float64",
+  "matrix_dtype": "float32",
+  "original_dim": 128,
+  "projection": "uncentered_pca",
+  "retained_energy": 0.7710873122152563,
+  "store_version": 1,
+  "total_energy": 865211643.8878945
+}

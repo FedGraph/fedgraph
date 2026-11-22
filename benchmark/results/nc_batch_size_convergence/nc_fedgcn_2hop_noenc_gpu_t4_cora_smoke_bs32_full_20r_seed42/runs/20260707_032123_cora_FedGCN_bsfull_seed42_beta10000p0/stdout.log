@@ -1,0 +1,215 @@
+================================================================================
+Starting FedGraph NC batch-size convergence run: 20260707_032123_cora_FedGCN_bsfull_seed42_beta10000p0
+{
+  "batch_size": -1,
+  "dataset": "cora",
+  "distribution_type": "average",
+  "elastic_training": false,
+  "global_rounds": 20,
+  "gpu": true,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.5,
+  "local_step": 3,
+  "max_rounds": null,
+  "method": "FedGCN",
+  "n_trainer": 5,
+  "num_cpus_per_trainer": 0,
+  "num_gpus_per_trainer": 0.2,
+  "num_hops": 2,
+  "num_layers": 2,
+  "seed": 42,
+  "target_train_comm_times_sec": [],
+  "target_val_accs": [],
+  "target_val_losses": [],
+  "use_ogb_load_patch": false,
+  "val_loss_min_delta": 0.0,
+  "val_loss_patience": 20
+}
+================================================================================
+config:  {'fedgraph_task': 'NC', 'dataset': 'cora', 'method': 'FedGCN', 'iid_beta': 10000.0, 'distribution_type': 'average', 'global_rounds': 20, 'local_step': 3, 'learning_rate': 0.5, 'n_trainer': 5, 'batch_size': -1, 'num_layers': 2, 'num_hops': 2, 'gpu': True, 'num_cpus_per_trainer': 0, 'num_gpus_per_trainer': 0.2, 'logdir': 'benchmark/results/nc_batch_size_convergence/nc_fedgcn_2hop_noenc_gpu_t4_cora_smoke_bs32_full_20r_seed42/runs/20260707_032123_cora_FedGCN_bsfull_seed42_beta10000p0/fedgraph_logs', 'use_encryption': False, 'use_huggingface': False, 'saveto_huggingface': False, 'use_cluster': False, 'use_lowrank': False, 'use_dp': False, 'elastic_training': False, 'max_rounds': 20, 'val_loss_patience': 20, 'val_loss_min_delta': 0.0, 'val_loss_plateau_window': 10, 'val_loss_plateau_tolerance': 0.01, 'target_val_accs': [], 'target_val_losses': [], 'target_train_comm_times_sec': []}
+File already exists: ./data/cora/raw/ind.cora.x
+File already exists: ./data/cora/raw/ind.cora.tx
+File already exists: ./data/cora/raw/ind.cora.allx
+File already exists: ./data/cora/raw/ind.cora.y
+File already exists: ./data/cora/raw/ind.cora.ty
+File already exists: ./data/cora/raw/ind.cora.ally
+File already exists: ./data/cora/raw/ind.cora.graph
+File already exists: ./data/cora/raw/ind.cora.test.index
+/home/ubuntu/fedgraph/fedgraph/data_process.py:276: VisibleDeprecationWarning: dtype(): align should be passed as Python or NumPy boolean but got `align=0`. Did you mean to pass a tuple to create a subarray type? (Deprecated NumPy 2.4)
+  objects.append(pkl.load(f, encoding="latin1"))
+Initialization start time recorded.
+--- Logging error ---
+Traceback (most recent call last):
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/logging/__init__.py", line 1163, in emit
+    stream.write(msg + self.terminator)
+  File "/home/ubuntu/fedgraph/benchmark/benchmark_NC_batch_size_convergence.py", line 105, in write
+    stream.write(data)
+ValueError: I/O operation on closed file.
+Call stack:
+  File "/home/ubuntu/fedgraph/benchmark/benchmark_NC_batch_size_convergence.py", line 1161, in <module>
+    raise SystemExit(main())
+  File "/home/ubuntu/fedgraph/benchmark/benchmark_NC_batch_size_convergence.py", line 1132, in main
+    summary = run_experiment(
+  File "/home/ubuntu/fedgraph/benchmark/benchmark_NC_batch_size_convergence.py", line 679, in run_experiment
+    run_fedgraph(
+  File "/home/ubuntu/fedgraph/fedgraph/federated_methods.py", line 357, in run_fedgraph
+    run_NC(args, data)
+  File "/home/ubuntu/fedgraph/fedgraph/federated_methods.py", line 452, in run_NC
+    ray.init(**_ray_kwargs)
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/client_mode_hook.py", line 110, in wrapper
+    return func(*args, **kwargs)
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/worker.py", line 2015, in init
+    logger.info(
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/logging/__init__.py", line 1539, in info
+    self._log(INFO, msg, args, **kwargs)
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/logging/__init__.py", line 1684, in _log
+    self.handle(record)
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/logging/__init__.py", line 1700, in handle
+    self.callHandlers(record)
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/logging/__init__.py", line 1762, in callHandlers
+    hdlr.handle(record)
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/logging/__init__.py", line 1028, in handle
+    self.emit(record)
+  File "/home/ubuntu/miniconda3/envs/fedgraph312/lib/python3.12/site-packages/ray/_private/log.py", line 64, in emit
+    logging._StderrHandler.emit(self, record)
+Message: 'Started a local Ray instance. View the dashboard at %s%s%s %s%s'
+Arguments: ('\x1b[1m', '\x1b[32m', 'http://127.0.0.1:8265', '\x1b[39m', '\x1b[22m')
+[36m(pid=82632)[0m FedGraph Differential Privacy module loaded (v1.0.0)
+[36m(pid=82632)[0m ✓ Differential Privacy support loaded
+//Log init_time: 17721.07 ms //end
+Pretrain start time recorded.
+server aggregates all local neighbor feature sums
+clients received feature aggregation from server
+//pretrain_time: 506.972 ms//end
+Train start time recorded.
+global_rounds 20
+Round 1: Global Val Loss = 1.6510
+Round 1: Global Val Accuracy = 0.2820
+Round 1: Training Time = 0.62s, Communication Time = 0.02s
+Round 2: Global Val Loss = 1.2106
+Round 2: Global Val Accuracy = 0.6100
+Round 2: Training Time = 0.02s, Communication Time = 0.02s
+Round 3: Global Val Loss = 0.8765
+Round 3: Global Val Accuracy = 0.7520
+Round 3: Training Time = 0.02s, Communication Time = 0.02s
+Round 4: Global Val Loss = 1.0243
+Round 4: Global Val Accuracy = 0.6540
+Round 4: Training Time = 0.02s, Communication Time = 0.02s
+Round 5: Global Val Loss = 0.7393
+Round 5: Global Val Accuracy = 0.7840
+Round 5: Training Time = 0.02s, Communication Time = 0.02s
+Round 6: Global Val Loss = 0.6993
+Round 6: Global Val Accuracy = 0.7900
+Round 6: Training Time = 0.02s, Communication Time = 0.02s
+Round 7: Global Val Loss = 0.7227
+Round 7: Global Val Accuracy = 0.7820
+Round 7: Training Time = 0.02s, Communication Time = 0.02s
+Round 8: Global Val Loss = 0.7154
+Round 8: Global Val Accuracy = 0.7820
+Round 8: Training Time = 0.02s, Communication Time = 0.02s
+Round 9: Global Val Loss = 0.7510
+Round 9: Global Val Accuracy = 0.7720
+Round 9: Training Time = 0.03s, Communication Time = 0.02s
+Round 10: Global Val Loss = 0.7057
+Round 10: Global Val Accuracy = 0.7880
+Round 10: Training Time = 0.03s, Communication Time = 0.02s
+Round 11: Global Val Loss = 0.7220
+Round 11: Global Val Accuracy = 0.7800
+Round 11: Training Time = 0.02s, Communication Time = 0.02s
+Round 12: Global Val Loss = 0.7034
+Round 12: Global Val Accuracy = 0.7960
+Round 12: Training Time = 0.02s, Communication Time = 0.02s
+Round 13: Global Val Loss = 0.7162
+Round 13: Global Val Accuracy = 0.7920
+Round 13: Training Time = 0.02s, Communication Time = 0.02s
+Round 14: Global Val Loss = 0.7408
+Round 14: Global Val Accuracy = 0.7880
+Round 14: Training Time = 0.02s, Communication Time = 0.02s
+Round 15: Global Val Loss = 0.7702
+Round 15: Global Val Accuracy = 0.7740
+Round 15: Training Time = 0.02s, Communication Time = 0.02s
+Round 16: Global Val Loss = 0.7624
+Round 16: Global Val Accuracy = 0.7760
+Round 16: Training Time = 0.02s, Communication Time = 0.02s
+Round 17: Global Val Loss = 0.7355
+Round 17: Global Val Accuracy = 0.7980
+Round 17: Training Time = 0.02s, Communication Time = 0.02s
+Round 18: Global Val Loss = 0.7606
+Round 18: Global Val Accuracy = 0.7800
+Round 18: Training Time = 0.02s, Communication Time = 0.02s
+Round 19: Global Val Loss = 0.7525
+Round 19: Global Val Accuracy = 0.7820
+Round 19: Training Time = 0.02s, Communication Time = 0.02s
+Round 20: Global Val Loss = 0.7725
+Round 20: Global Val Accuracy = 0.7820
+Round 20: Training Time = 0.02s, Communication Time = 0.02s
+//train_time: 1962.483 ms//end
+
+================================================================================
+TIME BREAKDOWN (excluding initialization)
+================================================================================
+Total Pure Training Time (forward + gradient descent): 1.03 seconds
+Total Communication Time (parameter aggregation): 0.40 seconds
+Total Training + Communication Time: 1.96 seconds
+Training Time Percentage: 52.7%
+Communication Time Percentage: 20.3%
+Average Training Time per Round: 0.05 seconds
+Average Communication Time per Round: 0.02 seconds
+================================================================================
+[Pure Training Time] Dataset: cora, Batch Size: -1, Trainers: 5, Hops: 2, IID Beta: 10000.0 => Pure Training Time = 1.03 seconds
+[Communication Time] Dataset: cora, Batch Size: -1, Trainers: 5, Hops: 2, IID Beta: 10000.0 => Communication Time = 0.40 seconds
+average_final_test_loss, 0.7387091835737228
+Average test accuracy, 0.798
+
+================================================================================
+INDIVIDUAL TRAINER MEMORY USAGE
+================================================================================
+
+====================================================================================================
+TRAINER MEMORY vs LOCAL GRAPH SIZE
+====================================================================================================
+Trainer  Memory(MB)   Nodes    Edges    Memory/Node  Memory/Edge 
+----------------------------------------------------------------------------------------------------
+0        1364.7       540      6106     2.527        0.223       
+1        1392.1       542      6248     2.569        0.223       
+2        1354.0       540      6082     2.507        0.223       
+3        1369.3       545      6440     2.512        0.213       
+4        1388.0       541      6150     2.566        0.226       
+====================================================================================================
+Total Memory Usage: 6868.0 MB (6.71 GB)
+Total Nodes: 2708, Total Edges: 31026
+Average Memory per Trainer: 1373.6 MB
+Average Nodes per Trainer: 541.6
+Average Edges per Trainer: 6205.2
+Max Memory: 1392.1 MB (Trainer 1)
+Min Memory: 1354.0 MB (Trainer 2)
+Overall Memory/Node Ratio: 2.536 MB/node
+Overall Memory/Edge Ratio: 0.221 MB/edge
+====================================================================================================
+//Log Theoretical Pretrain Comm Cost: 118.18 MB //end
+//Log Theoretical Train Comm Cost: 17.60 MB //end
+
+================================================================================
+CSV FORMAT RESULT:
+DS,IID,BS,TotalTime[s],PureTrainingTime[s],CommTime[s],FinalAcc[%],CommCost[MB],PeakMem[MB],AvgRoundTime[s],ModelSize[MB],TotalParams
+cora,10000.0,-1,14.8,1.0,0.4,0.80,135.8,1392.1,0.052,0.088,0
+================================================================================
+
+================================================================================
+EXPERIMENT SUMMARY
+================================================================================
+Dataset: cora
+Method: FedGCN
+Trainers: 5
+IID Beta: 10000.0
+Batch Size: -1
+Hops: 2
+Total Execution Time: 14.81 seconds
+Pure Training Time: 1.03 seconds
+Communication Time: 0.40 seconds
+Pretrain Comm Cost: 118.18 MB
+Training Comm Cost: 17.60 MB
+================================================================================
+
+[36m(pid=82750)[0m FedGraph Differential Privacy module loaded (v1.0.0)[32m [repeated 4x across cluster][0m
+[36m(pid=82750)[0m ✓ Differential Privacy support loaded[32m [repeated 4x across cluster][0m

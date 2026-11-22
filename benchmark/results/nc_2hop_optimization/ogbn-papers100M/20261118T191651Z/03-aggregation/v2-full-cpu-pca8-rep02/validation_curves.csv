@@ -1,0 +1,4 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,val_acc,val_loss
+v2-full-cpu-pca8-rep02,20261120_085644_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0,ogbn-papers100M,FedGCN,16,42,10000.0,1,0.0,191.7184
+v2-full-cpu-pca8-rep02,20261120_085644_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0,ogbn-papers100M,FedGCN,16,42,10000.0,2,0.0531,91.3782
+v2-full-cpu-pca8-rep02,20261120_085644_ogbn-papers100M_FedGCN_bs16_seed42_beta10000p0,ogbn-papers100M,FedGCN,16,42,10000.0,3,0.0289,22.1374

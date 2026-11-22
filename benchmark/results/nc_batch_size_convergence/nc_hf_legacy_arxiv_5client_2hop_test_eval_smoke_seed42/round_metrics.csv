@@ -1,0 +1,2 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,evaluation_split,evaluation_acc,evaluation_loss,val_acc,val_loss,local_steps,train_time_sec,comm_time_sec,train_comm_time_sec,cum_train_comm_time_sec
+nc_hf_legacy_arxiv_5client_2hop_test_eval_smoke_seed42,20260728_024659_ogbn-arxiv_FedGCN_bs2048_seed42_beta10000p0,ogbn-arxiv,FedGCN,2048,42,10000.0,1,,,,,,1,0.86,0.03,0.89,0.89

@@ -1,0 +1,4 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,val_acc,val_loss
+chunked-cpu,20261011_022506_ogbn-arxiv_FedGCN_bs512_seed42_beta10000p0,ogbn-arxiv,FedGCN,512,42,10000.0,1,0.009,5.7432
+chunked-cpu,20261011_022506_ogbn-arxiv_FedGCN_bs512_seed42_beta10000p0,ogbn-arxiv,FedGCN,512,42,10000.0,2,0.0127,4.8867
+chunked-cpu,20261011_022506_ogbn-arxiv_FedGCN_bs512_seed42_beta10000p0,ogbn-arxiv,FedGCN,512,42,10000.0,3,0.0172,4.3565

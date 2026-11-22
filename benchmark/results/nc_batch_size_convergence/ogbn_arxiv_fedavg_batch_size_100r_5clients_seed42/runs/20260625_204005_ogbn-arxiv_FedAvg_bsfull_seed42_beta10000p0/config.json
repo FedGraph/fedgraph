@@ -1,0 +1,18 @@
+{
+  "batch_size": -1,
+  "dataset": "ogbn-arxiv",
+  "distribution_type": "average",
+  "global_rounds": 100,
+  "gpu": false,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_step": 3,
+  "method": "FedAvg",
+  "n_trainer": 5,
+  "num_cpus_per_trainer": 1,
+  "num_gpus_per_trainer": 0.0,
+  "num_hops": 0,
+  "num_layers": 2,
+  "seed": 42,
+  "use_ogb_load_patch": true
+}
