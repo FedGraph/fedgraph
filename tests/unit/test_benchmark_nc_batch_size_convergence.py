@@ -1,4 +1,5 @@
 import io
+import json
 import logging
 import sys
 
@@ -6,6 +7,7 @@ from benchmark.benchmark_NC_batch_size_convergence import (
     Tee,
     _restore_logging_streams,
     build_configs,
+    main,
     parse_args,
     parse_run_log,
 )
@@ -28,6 +30,53 @@ def test_evaluation_batch_size_is_recorded_separately(monkeypatch):
 
     assert config.batch_size == 16
     assert config.evaluation_batch_size == 512
+
+
+def test_dry_run_accepts_feature_cache_with_default_fedgcn_method(
+    tmp_path, monkeypatch
+):
+    artifact_dir, cache_dir = tmp_path / "artifact", tmp_path / "cache"
+    artifact_dir.mkdir()
+    cache_dir.mkdir()
+    (artifact_dir / "manifest.json").write_text(
+        '{"artifact_version": 3, "hop_semantics": 2, "n_trainer": 5}'
+    )
+    (cache_dir / "feature-cache.json").write_text("{}")
+    output_dir = tmp_path / "results"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "benchmark_NC_batch_size_convergence.py",
+            "--num-hops",
+            "2",
+            "--local-artifact-dir",
+            str(artifact_dir),
+            "--pretrain-feature-upload-mode",
+            "indexed",
+            "--pretrain-feature-aggregation-mode",
+            "chunked",
+            "--pretrain-feature-cache-dir",
+            str(cache_dir),
+            "--graph-storage-mode",
+            "mmap",
+            "--graph-relabel-cache-dir",
+            str(tmp_path / "relabel"),
+            "--feature-compression-mode",
+            "shared-pca",
+            "--feature-compression-rank",
+            "16",
+            "--output-dir",
+            str(output_dir),
+            "--dry-run",
+        ],
+    )
+
+    assert main() == 0
+    args = json.loads((output_dir / "manifest.json").read_text())["args"]
+    assert args["pretrain_feature_cache_dir"] == str(cache_dir)
+    assert args["pretrain_feature_output_dir"] is None
+    assert args["feature_compression_output_dir"] is None
 
 
 def test_restore_logging_streams_detaches_run_scoped_tee(tmp_path):

@@ -9,10 +9,12 @@ import numpy as np
 import pytest
 import torch
 
+from fedgraph.feature_aggregation_cache import promote_feature_cache_rank
 from fedgraph.feature_compression import (
     feature_basis_sha256,
     solve_shared_feature_basis,
 )
+from fedgraph.graph_storage import FeatureAggregationStore
 from fedgraph.trainer_class import (
     Trainer_General,
     _load_artifact_tensor,
@@ -1071,6 +1073,81 @@ def test_chunked_v2_feature_output_finalizes_to_file_and_releases_sources(
     torch.testing.assert_close(trainer.adj, local_adjacency)
     with pytest.raises(RuntimeError, match="raw features were released"):
         trainer.get_chunked_local_feature_sum(torch.tensor([0]))
+
+
+def test_cached_v3_features_feed_the_model_and_sampler(tmp_path):
+    dataset_root = tmp_path / "synthetic"
+    artifact_dir = tmp_path / "v3"
+    pretrain_dir = tmp_path / "source-run"
+    cache_dir = tmp_path / "feature-cache"
+    _make_raw_dataset(dataset_root)
+    artifact = partition_raw_ogb_2hop(
+        dataset_root=dataset_root,
+        output_dir=artifact_dir,
+        n_trainer=2,
+        iid_beta=10000.0,
+        seed=42,
+        checksums=True,
+        chunk_rows=2,
+        adjacency_layout="local-int32",
+    )
+    row_count = artifact["shards"][0]["communicate_node_count"]
+    store = FeatureAggregationStore(
+        pretrain_dir,
+        trainer_id=0,
+        row_count=row_count,
+        feature_dim=1,
+        provenance=dict(
+            feature_compression_mode="shared-pca",
+            feature_compression_original_dim=2,
+            runtime_feature_dim=1,
+            feature_compression_basis_sha256="a" * 64,
+        ),
+    )
+    values = torch.arange(row_count, dtype=torch.float32).view(row_count, 1)
+    store.write(0, values)
+    store.finalize()
+    manifest = promote_feature_cache_rank(
+        pretrain_dir=pretrain_dir,
+        artifact_dir=artifact_dir,
+        cache_dir=cache_dir,
+        trainer_id=0,
+        norm_type="none",
+    )
+
+    trainer = Trainer_General(
+        rank=0,
+        args_hidden=8,
+        device=torch.device("cpu"),
+        args=SimpleNamespace(
+            local_artifact_dir=str(artifact_dir),
+            num_hops=2,
+            num_layers=2,
+            n_trainer=2,
+            graph_storage_mode="mmap",
+            graph_relabel_cache_dir=str(tmp_path / "adjacency-cache"),
+            graph_relabel_chunk_edges=2,
+            pretrain_feature_aggregation_mode="chunked",
+            feature_compression_mode="shared-pca",
+            dataset="ogbn-arxiv",
+            local_step=1,
+            method="FedGCN",
+            learning_rate=0.01,
+            batch_size=1,
+        ),
+    )
+    status = trainer.attach_feature_aggregation_cache(str(cache_dir), manifest)
+    assert status["feature_shape"] == 1
+    assert status["feature_compression_basis_sha256"] == "a" * 64
+    assert trainer.features.shape == (0, 1)
+    assert trainer.raw_features_released
+    assert trainer.feature_aggregation_memory_mapped
+    trainer.init_model(trainer.global_node_num, trainer.class_num)
+    assert trainer.model.convs[0].in_features == 1
+    trainer.finalize_full_feature_aggregation()
+    assert trainer.adj.dtype == torch.int64
+    assert trainer.prepare_neighbor_sampler()["prepared"]
+    torch.testing.assert_close(trainer.feature_aggregation, values, rtol=0, atol=0)
 
 
 def test_local_artifact_mmap_maps_only_large_graph_tensors(tmp_path):

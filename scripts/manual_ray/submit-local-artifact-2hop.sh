@@ -41,6 +41,9 @@ Options:
                                Concurrent trainer RPCs. Default: 4.
   --pretrain-output-dir PATH   Worker-local chunked output root. Default:
                                /mnt/fedgraph-nvme/fedgraph-runtime/pretrain.
+  --pretrain-feature-cache-dir PATH
+                               Reuse a promoted cache on workers; the head needs
+                               its manifest. Requires a separate relabel cache dir.
   --feature-compression-mode MODE
                                none or shared-pca. Default: none.
   --feature-compression-rank N Shared-PCA output width. Default: 16.
@@ -91,6 +94,7 @@ pretrain_chunk_rows=65536
 pretrain_chunk_edges=1000000
 pretrain_max_inflight_trainers=4
 pretrain_output_dir="/mnt/fedgraph-nvme/fedgraph-runtime/pretrain"
+pretrain_feature_cache_dir=""
 feature_compression_mode=none
 feature_compression_rank=16
 feature_compression_chunk_rows=65536
@@ -130,6 +134,7 @@ while (( $# > 0 )); do
         --pretrain-chunk-edges) pretrain_chunk_edges="$2"; shift 2 ;;
         --pretrain-max-inflight-trainers) pretrain_max_inflight_trainers="$2"; shift 2 ;;
         --pretrain-output-dir) pretrain_output_dir="$2"; shift 2 ;;
+        --pretrain-feature-cache-dir) pretrain_feature_cache_dir="$2"; shift 2 ;;
         --feature-compression-mode) feature_compression_mode="$2"; shift 2 ;;
         --feature-compression-rank) feature_compression_rank="$2"; shift 2 ;;
         --feature-compression-chunk-rows) feature_compression_chunk_rows="$2"; shift 2 ;;
@@ -207,6 +212,13 @@ for path in "$pretrain_output_dir" "$feature_compression_output_dir"; do
 done
 if [[ -n "$graph_relabel_cache_dir" && "$graph_relabel_cache_dir" != /* ]]; then
     die "--graph-relabel-cache-dir must be absolute"
+fi
+if [[ -n "$pretrain_feature_cache_dir" ]]; then
+    [[ "$pretrain_feature_cache_dir" == /* ]] || die "--pretrain-feature-cache-dir must be absolute"
+    [[ -n "$graph_relabel_cache_dir" ]] || die "Feature cache reuse requires --graph-relabel-cache-dir"
+    [[ "$graph_storage_mode" == "mmap" && "$pretrain_aggregation_mode" == "chunked" ]] || \
+        die "Feature cache reuse requires mmap graph storage and chunked mode"
+    require_file "$pretrain_feature_cache_dir/feature-cache.json"
 fi
 if [[ "$pretrain_aggregation_mode" == "chunked" && "$graph_storage_mode" == "device" ]]; then
     die "chunked pretraining requires graph storage cpu or mmap"
@@ -357,10 +369,12 @@ command=(
     --output-root "$output_root"
 )
 
-if [[ "$pretrain_aggregation_mode" == "chunked" ]]; then
+if [[ -n "$pretrain_feature_cache_dir" ]]; then
+    command+=(--pretrain-feature-cache-dir "$pretrain_feature_cache_dir")
+elif [[ "$pretrain_aggregation_mode" == "chunked" ]]; then
     command+=(--pretrain-feature-output-dir "$pretrain_output_dir")
 fi
-if [[ "$feature_compression_mode" == "shared-pca" && "$graph_storage_mode" == "mmap" ]]; then
+if [[ -z "$pretrain_feature_cache_dir" && "$feature_compression_mode" == "shared-pca" && "$graph_storage_mode" == "mmap" ]]; then
     command+=(--feature-compression-output-dir "$feature_compression_output_dir")
 fi
 if [[ -n "$graph_relabel_cache_dir" ]]; then

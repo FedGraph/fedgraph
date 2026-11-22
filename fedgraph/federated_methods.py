@@ -22,6 +22,11 @@ import torch
 from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
 
 from fedgraph.data_process import data_loader
+from fedgraph.feature_aggregation_cache import (
+    FeatureAggregationCacheManifest,
+    load_feature_cache_manifest,
+    validate_feature_cache_artifact,
+)
 from fedgraph.feature_compression import (
     SharedFeatureBasis,
     aggregate_feature_second_moments,
@@ -507,6 +512,59 @@ def _resolve_feature_compression_mode(args: Any) -> str:
             "feature_compression_mode must be either 'none' or 'shared-pca'"
         )
     return mode
+
+
+def _resolve_pretrain_feature_cache(
+    args: Any,
+    *,
+    graph_storage_mode: str,
+    aggregation_mode: str,
+    compression_mode: str,
+    compression_rank: int,
+) -> Optional[tuple[Path, FeatureAggregationCacheManifest]]:
+    configured = getattr(args, "pretrain_feature_cache_dir", None)
+    if not isinstance(configured, (str, Path)) or not configured:
+        return None
+    cache_dir = Path(configured).expanduser()
+    if not cache_dir.is_absolute():
+        raise ValueError("pretrain_feature_cache_dir must be an absolute path")
+    artifact_dir = getattr(args, "local_artifact_dir", None)
+    if (
+        args.method != "FedGCN"
+        or int(args.num_hops) != 2
+        or not artifact_dir
+        or getattr(args, "use_encryption", False)
+        or graph_storage_mode != "mmap"
+        or aggregation_mode != "chunked"
+    ):
+        raise ValueError(
+            "Feature cache reuse requires plaintext 2-hop FedGCN, a staged v3 artifact, "
+            "and mmap storage with chunked pretraining"
+        )
+    relabel_dir = getattr(args, "graph_relabel_cache_dir", None)
+    if not relabel_dir or not Path(relabel_dir).expanduser().is_absolute():
+        raise ValueError(
+            "Feature cache reuse requires an absolute graph_relabel_cache_dir"
+        )
+    relabel_path = Path(relabel_dir).expanduser().resolve()
+    cache_path = cache_dir.resolve()
+    if relabel_path.is_relative_to(cache_path) or cache_path.is_relative_to(
+        relabel_path
+    ):
+        raise ValueError(
+            "Write the adjacency cache outside the read-only feature cache"
+        )
+    manifest = load_feature_cache_manifest(cache_dir)
+    validate_feature_cache_artifact(manifest, Path(artifact_dir).expanduser())
+    if manifest.norm_type != getattr(args, "norm_type", "none"):
+        raise ValueError("Feature cache normalization does not match norm_type")
+    if manifest.feature_compression_mode != compression_mode or (
+        compression_mode == "shared-pca" and manifest.feature_dim != compression_rank
+    ):
+        raise ValueError(
+            "Feature cache compression mode or rank does not match the run"
+        )
+    return cache_dir, manifest
 
 
 def _aggregate_indexed_feature_sums(
@@ -1293,6 +1351,13 @@ def run_NC(args: attridict, data: Any = None) -> None:
     feature_compression_output_dir = getattr(
         args, "feature_compression_output_dir", None
     )
+    feature_cache = _resolve_pretrain_feature_cache(
+        args,
+        graph_storage_mode=graph_storage_mode,
+        aggregation_mode=pretrain_aggregation_mode,
+        compression_mode=feature_compression_mode,
+        compression_rank=feature_compression_rank,
+    )
     if feature_compression_mode == "shared-pca":
         if getattr(args, "use_encryption", False):
             raise ValueError(
@@ -1311,7 +1376,11 @@ def run_NC(args: attridict, data: Any = None) -> None:
             raise ValueError(
                 "feature_compression_max_inflight_trainers must be positive"
             )
-        if graph_storage_mode == "mmap" and not feature_compression_output_dir:
+        if (
+            graph_storage_mode == "mmap"
+            and feature_cache is None
+            and not feature_compression_output_dir
+        ):
             raise ValueError(
                 "mmap shared feature compression requires "
                 "feature_compression_output_dir"
@@ -1359,12 +1428,15 @@ def run_NC(args: attridict, data: Any = None) -> None:
         if max_inflight_trainers < 1:
             raise ValueError("pretrain_feature_max_inflight_trainers must be positive")
         feature_output_dir = getattr(args, "pretrain_feature_output_dir", None)
-        if not feature_output_dir:
+        if feature_cache is None and not feature_output_dir:
             raise ValueError(
                 "chunked pretraining feature aggregation requires "
                 "pretrain_feature_output_dir"
             )
-        if not Path(feature_output_dir).expanduser().is_absolute():
+        if (
+            feature_output_dir
+            and not Path(feature_output_dir).expanduser().is_absolute()
+        ):
             raise ValueError("pretrain_feature_output_dir must be an absolute path")
     if (
         graph_storage_mode in {"cpu", "mmap"}
@@ -1768,7 +1840,21 @@ def run_NC(args: attridict, data: Any = None) -> None:
         source_artifact_versions.pop() if len(source_artifact_versions) == 1 else None
     )
     shared_feature_basis: Optional[SharedFeatureBasis] = None
-    if feature_compression_mode == "shared-pca":
+    feature_cache_load_wall_time_sec = None
+    feature_cache_hits = 0
+    if feature_cache is not None:
+        cache_dir, cache_manifest = feature_cache
+        cache_load_start = time.perf_counter()
+        trainer_information = _run_bounded_trainer_calls(
+            trainers,
+            "attach_feature_aggregation_cache",
+            max_inflight_trainers,
+            method_args=(str(cache_dir), cache_manifest),
+        )
+        feature_cache_load_wall_time_sec = time.perf_counter() - cache_load_start
+        feature_cache_hits = len(trainer_information)
+        record_pre_model_trainer_snapshots("feature_cache_attached")
+    elif feature_compression_mode == "shared-pca":
         record_pre_model_trainer_snapshots("feature_compression_before")
         expected_feature_rows = sum(
             int(info["features_num"]) for info in trainer_information
@@ -1797,11 +1883,14 @@ def run_NC(args: attridict, data: Any = None) -> None:
         if feature_compression_mode == "shared-pca"
         else original_feature_dim
     )
-    compression_basis_hash = (
-        feature_basis_sha256(shared_feature_basis)
-        if shared_feature_basis is not None
-        else None
-    )
+    if feature_cache is not None:
+        compression_basis_hash = feature_cache[1].feature_compression_basis_sha256
+    else:
+        compression_basis_hash = (
+            feature_basis_sha256(shared_feature_basis)
+            if shared_feature_basis is not None
+            else None
+        )
     feature_shape = _validate_trainer_feature_compression_contract(
         trainer_information,
         mode=feature_compression_mode,
@@ -1894,7 +1983,18 @@ def run_NC(args: attridict, data: Any = None) -> None:
         # Clients send their local feature sum to the server, and the server
         # aggregates all local feature sums and send the global feature sum
         # of specific nodes back to each trainer.
-        if args.use_encryption:
+        if feature_cache is not None:
+            print(f"Reusing aggregated features for all {feature_cache_hits} trainers")
+            transition_started_at = time.perf_counter()
+            adjacency_transition_results = _run_bounded_trainer_calls(
+                server.trainers,
+                "finalize_full_feature_aggregation",
+                max_inflight_trainers,
+            )
+            adjacency_transition_wall_time_sec = (
+                time.perf_counter() - transition_started_at
+            )
+        elif args.use_encryption:
             print("Starting encrypted feature aggregation...")
 
             if getattr(args, "he_backend", "tenseal") == "tenseal":
@@ -2368,6 +2468,16 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 "artifact_version": artifact_version,
                 "source_artifact_version": source_artifact_version,
                 "aggregation_mode": pretrain_aggregation_mode,
+                "feature_source": (
+                    "cache"
+                    if feature_cache is not None
+                    else "raw" if args.method == "FedAvg" else "computed"
+                ),
+                "cache_id": (
+                    feature_cache[1].cache_id if feature_cache is not None else None
+                ),
+                "cache_hits": feature_cache_hits,
+                "cache_load_wall_time_sec": feature_cache_load_wall_time_sec,
                 "feature_dim": int(feature_shape),
                 "feature_compression_mode": feature_compression_mode,
                 "feature_compression_basis_sha256": compression_basis_hash,

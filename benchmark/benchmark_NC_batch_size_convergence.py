@@ -130,6 +130,7 @@ class ExperimentConfig:
     target_val_accs: List[float]
     target_val_losses: List[float]
     target_train_comm_times_sec: List[float]
+    pretrain_feature_cache_dir: Optional[str] = None
 
 
 class Tee:
@@ -428,6 +429,7 @@ def to_fedgraph_args(
                 config.pretrain_feature_max_inflight_trainers
             ),
             "pretrain_feature_output_dir": pretrain_feature_output_dir,
+            "pretrain_feature_cache_dir": config.pretrain_feature_cache_dir,
             "graph_storage_mode": config.graph_storage_mode,
             "graph_relabel_cache_dir": config.graph_relabel_cache_dir,
             "graph_relabel_chunk_edges": config.graph_relabel_chunk_edges,
@@ -1037,6 +1039,13 @@ def run_experiment(
             config.pretrain_feature_max_inflight_trainers
         ),
         "pretrain_feature_output_dir": config.pretrain_feature_output_dir,
+        "pretrain_feature_cache_dir": config.pretrain_feature_cache_dir,
+        "pretrain_feature_source": pretrain_metric.get("feature_source"),
+        "pretrain_feature_cache_id": pretrain_metric.get("cache_id"),
+        "pretrain_feature_cache_hits": pretrain_metric.get("cache_hits"),
+        "pretrain_feature_cache_load_wall_time_sec": pretrain_metric.get(
+            "cache_load_wall_time_sec"
+        ),
         "pretrain_feature_dim": pretrain_metric.get("feature_dim"),
         "pretrain_upload_bytes": pretrain_metric.get("upload_bytes"),
         "pretrain_download_bytes": pretrain_metric.get("download_bytes"),
@@ -1276,6 +1285,11 @@ def run_experiment(
         "pretrain_feature_chunk_edges",
         "pretrain_feature_max_inflight_trainers",
         "pretrain_feature_output_dir",
+        "pretrain_feature_cache_dir",
+        "pretrain_feature_source",
+        "pretrain_feature_cache_id",
+        "pretrain_feature_cache_hits",
+        "pretrain_feature_cache_load_wall_time_sec",
         "pretrain_feature_dim",
         "pretrain_upload_bytes",
         "pretrain_download_bytes",
@@ -1422,6 +1436,11 @@ def build_configs(args) -> List[ExperimentConfig]:
                         pretrain_feature_output_dir=(
                             str(args.pretrain_feature_output_dir)
                             if args.pretrain_feature_output_dir
+                            else None
+                        ),
+                        pretrain_feature_cache_dir=(
+                            str(args.pretrain_feature_cache_dir)
+                            if args.pretrain_feature_cache_dir
                             else None
                         ),
                         graph_storage_mode=args.graph_storage_mode,
@@ -1589,6 +1608,14 @@ def parse_args():
         help=(
             "Absolute worker-local root for file-backed aggregated feature "
             "outputs used by chunked pretraining. Each run gets a subdirectory."
+        ),
+    )
+    parser.add_argument(
+        "--pretrain-feature-cache-dir",
+        type=Path,
+        help=(
+            "Absolute root of a promoted per-rank feature cache. Its manifest "
+            "must also be present on the head. Reuses features for staged v3 mmap runs."
         ),
     )
     parser.add_argument(
@@ -1923,6 +1950,7 @@ def main() -> int:
     if (
         args.pretrain_feature_aggregation_mode == "chunked"
         and args.pretrain_feature_output_dir is None
+        and args.pretrain_feature_cache_dir is None
     ):
         raise SystemExit(
             "--pretrain-feature-aggregation-mode chunked requires "
@@ -1939,10 +1967,42 @@ def main() -> int:
         args.feature_compression_mode == "shared-pca"
         and args.graph_storage_mode == "mmap"
         and args.feature_compression_output_dir is None
+        and args.pretrain_feature_cache_dir is None
     ):
         raise SystemExit(
             "mmap shared-pca compression requires " "--feature-compression-output-dir"
         )
+    if args.pretrain_feature_cache_dir is not None:
+        args.pretrain_feature_cache_dir = args.pretrain_feature_cache_dir.expanduser()
+        cache_dir = args.pretrain_feature_cache_dir
+        if not cache_dir.is_absolute():
+            raise SystemExit("--pretrain-feature-cache-dir must be absolute")
+        if (
+            args.local_artifact_dir is None
+            or artifact_contract != (3, 2)
+            or method_for_num_hops(args.num_hops, args.method) != "FedGCN"
+            or args.graph_storage_mode != "mmap"
+            or args.pretrain_feature_aggregation_mode != "chunked"
+        ):
+            raise SystemExit(
+                "Feature cache reuse requires staged v3 FedGCN with mmap and chunked mode"
+            )
+        if args.graph_relabel_cache_dir is None:
+            raise SystemExit(
+                "Provide --graph-relabel-cache-dir outside the feature cache"
+            )
+        graph_dir = args.graph_relabel_cache_dir.resolve()
+        resolved_cache = cache_dir.resolve()
+        if graph_dir.is_relative_to(resolved_cache) or resolved_cache.is_relative_to(
+            graph_dir
+        ):
+            raise SystemExit(
+                "Provide --graph-relabel-cache-dir outside the feature cache"
+            )
+        if not (cache_dir / "feature-cache.json").is_file():
+            raise SystemExit(
+                f"Feature cache manifest not found: {cache_dir / 'feature-cache.json'}"
+            )
     if args.evaluation_split == "test" and args.elastic_training:
         raise SystemExit(
             "--evaluation-split test cannot be used with --elastic-training"

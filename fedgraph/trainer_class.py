@@ -24,6 +24,10 @@ from torch_geometric.sampler import NeighborSampler
 from torchmetrics.functional.retrieval import retrieval_auroc
 from torchmetrics.retrieval import RetrievalHitRate
 
+from fedgraph.feature_aggregation_cache import (
+    FeatureAggregationCacheManifest,
+    open_feature_cache_rank,
+)
 from fedgraph.feature_compression import (
     FeatureSecondMoment,
     SharedFeatureBasis,
@@ -1865,9 +1869,12 @@ class Trainer_General:
 
         # return load_time
 
-    def _release_pretraining_graph_state(self) -> None:
+    def _release_pretraining_graph_state(
+        self, feature_dim: Optional[int] = None
+    ) -> None:
         """Release tensors needed only while constructing aggregated features."""
-        feature_dim = int(self.features.size(1))
+        if feature_dim is None:
+            feature_dim = int(self.features.size(1))
         feature_dtype = self.features.dtype
         self.features = torch.empty((0, feature_dim), dtype=feature_dtype)
         self.features_memory_mapped = False
@@ -1875,8 +1882,61 @@ class Trainer_General:
         self._chunk_source_degree = None
         self._chunk_source_offsets = None
 
+    def attach_feature_aggregation_cache(
+        self, cache_dir: str, manifest: FeatureAggregationCacheManifest
+    ) -> dict[str, Any]:
+        """Attach the verified rank-local mapping before sizing the model."""
+        if self.model is not None or self.feature_aggregation_finalized:
+            raise RuntimeError(
+                f"Trainer {self.rank} has already initialized its features"
+            )
+        if self.artifact_version != 3 or self.graph_storage_mode != "mmap":
+            raise ValueError(f"Trainer {self.rank} requires a compact v3 mmap artifact")
+        if self.features.size(1) != manifest.original_feature_dim:
+            raise ValueError(
+                f"Trainer {self.rank} has a different original feature width"
+            )
+        cache_root = Path(cache_dir)
+        relabel_dir = Path(self.args.graph_relabel_cache_dir).expanduser().resolve()
+        resolved_cache = cache_root.resolve()
+        if relabel_dir.is_relative_to(resolved_cache) or resolved_cache.is_relative_to(
+            relabel_dir
+        ):
+            raise ValueError(
+                f"Trainer {self.rank} must write adjacency outside its feature cache"
+            )
+        try:
+            features, path = open_feature_cache_rank(
+                cache_dir=cache_root,
+                artifact_dir=Path(self.args.local_artifact_dir),
+                manifest=manifest,
+                trainer_id=int(self.rank),
+                expected_rows=self.communicate_node_index.numel(),
+            )
+        except (OSError, ValueError, RuntimeError) as error:
+            raise ValueError(
+                f"Trainer {self.rank} cannot reuse its feature cache: {error}"
+            ) from error
+
+        self._invalidate_neighbor_sampling_cache()
+        self.feature_aggregation = features
+        self.feature_aggregation_cache_path = str(path)
+        self.feature_aggregation_memory_mapped = features.numel() > 0
+        self.feature_aggregation_rows_written = int(features.size(0))
+        self.feature_aggregation_finalized = True
+        if manifest.feature_compression_mode == "shared-pca":
+            self.feature_compression_applied = True
+            self.feature_compression_original_dim = manifest.original_feature_dim
+            self.feature_compression_rank = manifest.feature_dim
+            self.feature_compression_basis_sha256 = (
+                manifest.feature_compression_basis_sha256
+            )
+        # The existing model initializer obtains its input width from self.features.
+        self._release_pretraining_graph_state(feature_dim=manifest.feature_dim)
+        return self.get_info()
+
     def finalize_full_feature_aggregation(self) -> dict[str, Any]:
-        """Complete the full pretraining-to-training graph transition."""
+        """Complete the graph transition once the aggregated features are attached."""
         if not self.feature_aggregation_finalized or self.feature_aggregation is None:
             raise RuntimeError("full feature aggregation has not been loaded")
 

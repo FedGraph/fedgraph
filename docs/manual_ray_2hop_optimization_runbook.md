@@ -1285,6 +1285,63 @@ mkdir -p "$p"
 rsync -av --partial "${PAPERS_HEAD_SSH}:/home/ubuntu/fedgraph/$p/" "$p/"
 ```
 
+### Reuse Completed Feature Aggregation
+
+Use this path for plaintext, staged compact v3 artifacts with mmap. It opens
+the finalized feature files without repeating PCA or cross-trainer feature
+exchange. It does not resume model weights or skip adjacency and sampler setup.
+
+On each worker, use the same v3 artifact that produced the source run. Set
+`SOURCE_PRETRAIN_DIR` to that run's `pretrain/<run-id>` directory, not the case
+directory or `trainer-NNN` subdirectory. Use the rank that is staged on this
+worker and a cache path that is independent of the experiment's scratch tree:
+
+```bash
+python -m scripts.data.prepare_nc_feature_cache promote \
+  --artifact-dir "$V3_ARTIFACT_DIR" \
+  --pretrain-dir "$SOURCE_PRETRAIN_DIR" \
+  --cache-dir "$FEATURE_CACHE_DIR" \
+  --trainer-id "$RANK" \
+  --norm-type none
+```
+
+Promotion hard-links the finalized float32 payload by default so the same
+NVMe does not need a second copy. Use `--copy` across filesystems. Do not edit
+hard-linked payloads in place. Existing feature sidecars do not identify the
+source graph; only promote files whose source run and matching artifact are
+known. PCA mode, width, and basis hash are read from the finalized sidecar.
+Keep separate cache roots for the PCA-16, PCA-64, and unprojected runs.
+
+Each worker needs `feature-cache.json` and its own `trainer-NNN/` directory.
+Keep `feature-cache.json` at the same cache root on the head. The printed
+cache IDs must match across ranks. When restoring the files to another fleet,
+verify each staged rank and use the current rank-host map to place it:
+
+```bash
+python -m scripts.data.prepare_nc_feature_cache verify \
+  --artifact-dir "$V3_ARTIFACT_DIR" \
+  --cache-dir "$FEATURE_CACHE_DIR" \
+  --trainer-id "$RANK"
+```
+
+After all ranks are staged, submit a fresh one-round case from the head:
+
+```bash
+run_papers100m_2hop 07-cache-smoke v3-mmap-cache-pca64 "$V3_ARTIFACT_DIR" \
+  --rounds 1 --batch-size 512 \
+  --pretrain-feature-cache-dir "$FEATURE_CACHE_DIR" \
+  --graph-relabel-cache-dir "$PAPERS_RUNTIME_ROOT/07-cache-smoke/adjacency" \
+  --feature-compression-mode shared-pca --feature-compression-rank 64
+```
+
+For PCA-16 change the rank and select its cache. For the unprojected cache
+use `--feature-compression-mode none`. Use a fresh case name for each run.
+The adjacency directory must be separate from the feature cache. A missing
+or mismatched rank stops the run rather than falling back to pretraining.
+Check `summary.jsonl` for `pretrain_feature_source=cache`, ten cache hits, the
+expected feature width, and zero logical pretraining payload. The reported
+cache load time covers verification and mmap setup, not every later disk read.
+
 ### Performance And Accuracy Runs
 
 Use the fixed settings and selected cases from the experiment plan. Change the
