@@ -1,0 +1,167 @@
+================================================================================
+Starting FedGraph NC batch-size convergence run: 20261118_194208_ogbn-arxiv_FedGCN_bs16_seed42_beta10000p0
+{
+  "batch_size": 16,
+  "dataset": "ogbn-arxiv",
+  "distribution_type": "average",
+  "elastic_training": false,
+  "evaluation_batch_size": 512,
+  "evaluation_split": "validation",
+  "feature_compression_chunk_rows": 65536,
+  "feature_compression_max_inflight_trainers": 4,
+  "feature_compression_mode": "none",
+  "feature_compression_output_dir": null,
+  "feature_compression_rank": 16,
+  "global_rounds": 3,
+  "gpu": true,
+  "graph_relabel_cache_dir": null,
+  "graph_relabel_chunk_edges": 1000000,
+  "graph_storage_mode": "device",
+  "hf_artifact_num_hops": null,
+  "hf_local_artifact_cache_dir": null,
+  "hf_local_artifact_repo": null,
+  "hf_local_artifact_revision": null,
+  "iid_beta": 10000.0,
+  "learning_rate": 0.01,
+  "local_artifact_dir": "$HOME/fedgraph-artifacts/arxiv-2hop-20261118T191651Z/v2-derived",
+  "local_artifact_rank_hosts": null,
+  "local_step": 1,
+  "max_rounds": null,
+  "method": "FedGCN",
+  "n_trainer": 5,
+  "num_cpus_per_trainer": 0,
+  "num_gpus_per_trainer": 0.2,
+  "num_hops": 2,
+  "num_layers": 2,
+  "pretrain_feature_aggregation_mode": "full",
+  "pretrain_feature_chunk_edges": 1000000,
+  "pretrain_feature_chunk_rows": 65536,
+  "pretrain_feature_max_inflight_trainers": 4,
+  "pretrain_feature_output_dir": null,
+  "pretrain_feature_upload_mode": "indexed",
+  "resource_monitor_mode": "manual",
+  "resource_snapshot_interval_rounds": 1,
+  "seed": 42,
+  "server_device": "cpu",
+  "target_train_comm_times_sec": [],
+  "target_val_accs": [],
+  "target_val_losses": [],
+  "use_huggingface": false,
+  "use_ogb_load_patch": true,
+  "val_loss_min_delta": 0.0,
+  "val_loss_patience": 20
+}
+================================================================================
+FedGraph Differential Privacy module loaded (v1.0.0)
+✓ Differential Privacy support loaded
+NC_GRAPH_STORAGE, mode=device
+NC_PRETRAIN_FEATURE_AGGREGATION, mode=full
+NC_FEATURE_COMPRESSION, mode=none, rank=16, chunk_rows=65536, max_inflight_trainers=4, output_dir=None
+NC_RESOURCE_MONITOR, mode=manual, snapshot_interval_rounds=1, snapshot_path=$HOME/fedgraph/benchmark/results/nc_2hop_optimization/ogbn-arxiv/20261118T191651Z/01-artifact-smoke/v2-full-device-none/runs/20261118_194208_ogbn-arxiv_FedGCN_bs16_seed42_beta10000p0/fedgraph_logs/resource_snapshots.jsonl, prometheus_summary_path=None
+Initialization start time recorded.
+2026-11-18 19:42:21,262	INFO worker.py:2015 -- Started a local Ray instance. View the dashboard at http://127.0.0.1:8265
+(pid=21080) FedGraph Differential Privacy module loaded (v1.0.0)
+(pid=21080) ✓ Differential Privacy support loaded
+(Trainer pid=21080) Loaded local artifact v2 shard 0 (2-hop) from $HOME/fedgraph-artifacts/arxiv-2hop-20261118T191651Z/v2-derived/shards/trainer-000
+(Trainer pid=21080) Trainer 0 artifact load completed in 0.212s; process RSS=803524608; process peak RSS=817836032 bytes
+(Trainer pid=21078) running AggreGCN_Arxiv
+Running AggreGCN_Arxiv
+//Log init_time: 19719.14 ms //end
+Pretrain start time recorded.
+server aggregates all local neighbor feature sums
+clients received feature aggregation from server
+//pretrain_time: 2259.27 ms//end
+NC_PRETRAIN_METRIC {"adjacency_transition_max_trainer_time_sec":0.02408357900003466,"adjacency_transition_strategies":["artifact-precomputed"],"adjacency_transition_wall_time_sec":0.04336420799972984,"aggregation_mode":"full","artifact_version":2,"download_bytes":277834240,"feature_compression_basis_sha256":null,"feature_compression_mode":"none","feature_dim":128,"method":"FedGCN","source_artifact_version":3,"total_traffic_bytes":560009640,"upload_bytes":282175400,"wall_time_sec":2.2592670917510986}
+(Trainer pid=21078) NC_ADJ_RELABEL, trainer=2, mode=artifact-precomputed, source_edges=867002, output_edges=867002, dropped_edges=0, time_sec=0.024084, source=$HOME/fedgraph-artifacts/arxiv-2hop-20261118T191651Z/v2-derived/shards/trainer-002/adj.pt
+NC_NEIGHBOR_SAMPLER_METRIC {"index_bytes":71646928,"max_trainer_time_sec":0.10541914199984603,"prepared_trainer_count":5,"trainer_count":5,"wall_time_sec":0.10759981699993659}
+Train start time recorded.
+global_rounds 3
+Round 1: Global Val Loss = 5.6509
+Round 1: Global Val Accuracy = 0.0101
+Round 1: Training Time = 0.51s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":0.5402319431304932,"parameter_sync_time_sec":0.03211236000061035,"round":1,"train_sync_time_sec":0.5402319431304932,"training_time_sec":0.5081195831298828}
+Round 2: Global Val Loss = 5.2069
+Round 2: Global Val Accuracy = 0.0138
+Round 2: Training Time = 0.02s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":0.5901315212249756,"parameter_sync_time_sec":0.027268171310424805,"round":2,"train_sync_time_sec":0.04989957809448242,"training_time_sec":0.022631406784057617}
+Round 3: Global Val Loss = 4.9117
+Round 3: Global Val Accuracy = 0.0132
+Round 3: Training Time = 0.02s, Communication Time = 0.03s
+NC_ROUND_METRIC {"cumulative_train_sync_time_sec":0.6349284648895264,"parameter_sync_time_sec":0.026429414749145508,"round":3,"train_sync_time_sec":0.04479694366455078,"training_time_sec":0.018367528915405273}
+//train_time: 956.4209999999999 ms//end
+
+================================================================================
+TIME BREAKDOWN (excluding initialization)
+================================================================================
+Total Training Time (server-observed): 0.549119 seconds
+Total Communication Time (parameter synchronization): 0.085810 seconds
+Total Training + Communication Time: 0.634928 seconds
+Total Federated Loop Wall Time: 0.956441 seconds
+Training Time Percentage (of training + communication): 86.5%
+Communication Time Percentage (of training + communication): 13.5%
+Average Training Time per Round: 0.18 seconds
+Average Communication Time per Round: 0.03 seconds
+================================================================================
+[Training Time] Dataset: ogbn-arxiv, Batch Size: 16, Trainers: 5, Hops: 2, IID Beta: 10000.0 => Training Time = 0.55 seconds
+[Communication Time] Dataset: ogbn-arxiv, Batch Size: 16, Trainers: 5, Hops: 2, IID Beta: 10000.0 => Communication Time = 0.09 seconds
+average_final_test_loss, 4.462823730985429
+Average test accuracy, 0.011995144397919566
+
+================================================================================
+INDIVIDUAL TRAINER MEMORY USAGE
+================================================================================
+
+====================================================================================================
+TRAINER MEMORY vs LOCAL GRAPH SIZE
+====================================================================================================
+Trainer  Memory(MB)   Nodes    Edges    Memory/Node  Memory/Edge
+----------------------------------------------------------------------------------------------------
+0        1488.9       33869    819411   0.044        0.002
+1        1486.8       33869    798959   0.044        0.002
+2        1490.6       33869    867002   0.044        0.002
+3        1492.0       33868    855521   0.044        0.002
+4        1486.4       33868    865715   0.044        0.002
+====================================================================================================
+Total Memory Usage: 7444.7 MB (7.27 GB)
+Total Nodes: 169343, Total Edges: 4206608
+Average Memory per Trainer: 1488.9 MB
+Average Nodes per Trainer: 33868.6
+Average Edges per Trainer: 841321.6
+Max Memory: 1492.0 MB (Trainer 3)
+Min Memory: 1486.4 MB (Trainer 4)
+Peak RSS: 1492.0 MB (Trainer 3)
+Overall Memory/Node Ratio: 0.044 MB/node
+Overall Memory/Edge Ratio: 0.002 MB/edge
+====================================================================================================
+//Log Theoretical Pretrain Comm Cost: 534.07 MB //end
+//Log Theoretical Train Comm Cost: 5.01 MB //end
+
+================================================================================
+CSV FORMAT RESULT:
+DS,IID,BS,ExecutionTime[s],TrainingTime[s],CommTime[s],TrainCommTime[s],FinalTestAcc[%],TheoreticalCommCost[MB],PeakMem[MB],AvgRoundTrainTime[s],AvgRoundCommTime[s],AvgRoundTime[s],ModelSize[MB],TotalParams
+ogbn-arxiv,10000.0,16,16.0,0.5,0.1,0.6,1.20,539.1,1492.0,0.183,0.029,0.212,0.167,43816
+================================================================================
+
+================================================================================
+EXPERIMENT SUMMARY
+================================================================================
+Dataset: ogbn-arxiv
+Method: FedGCN
+Trainers: 5
+IID Beta: 10000.0
+Batch Size: 16
+Hops: 2
+Total Execution Time: 15.97 seconds
+Training Time: 0.55 seconds
+Communication Time: 0.09 seconds
+Pretrain Comm Cost: 534.07 MB
+Training Comm Cost: 5.01 MB
+================================================================================
+
+NC_RESOURCE_MONITOR_SUMMARY, snapshot_path=$HOME/fedgraph/benchmark/results/nc_2hop_optimization/ogbn-arxiv/20261118T191651Z/01-artifact-smoke/v2-full-device-none/runs/20261118_194208_ogbn-arxiv_FedGCN_bs16_seed42_beta10000p0/fedgraph_logs/resource_snapshots.jsonl, summary_path=$HOME/fedgraph/benchmark/results/nc_2hop_optimization/ogbn-arxiv/20261118T191651Z/01-artifact-smoke/v2-full-device-none/runs/20261118_194208_ogbn-arxiv_FedGCN_bs16_seed42_beta10000p0/fedgraph_logs/resource_snapshot_summary.json
+(pid=21198) FedGraph Differential Privacy module loaded (v1.0.0) [repeated 4x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)
+(pid=21198) ✓ Differential Privacy support loaded [repeated 4x across cluster]
+(Trainer pid=21198) Loaded local artifact v2 shard 4 (2-hop) from $HOME/fedgraph-artifacts/arxiv-2hop-20261118T191651Z/v2-derived/shards/trainer-004 [repeated 4x across cluster]
+(Trainer pid=21198) Trainer 4 artifact load completed in 0.106s; process RSS=805572608; process peak RSS=820568064 bytes [repeated 4x across cluster]
+(Trainer pid=21198) running AggreGCN_Arxiv [repeated 4x across cluster]
+(Trainer pid=21198) NC_ADJ_RELABEL, trainer=4, mode=artifact-precomputed, source_edges=865715, output_edges=865715, dropped_edges=0, time_sec=0.018616, source=$HOME/fedgraph-artifacts/arxiv-2hop-20261118T191651Z/v2-derived/shards/trainer-004/adj.pt [repeated 4x across cluster]

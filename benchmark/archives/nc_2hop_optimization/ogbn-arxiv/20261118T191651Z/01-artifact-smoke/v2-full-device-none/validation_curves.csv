@@ -1,0 +1,4 @@
+experiment_name,run_id,dataset,method,batch_size,seed,iid_beta,round,val_acc,val_loss
+v2-full-device-none,20261118_194208_ogbn-arxiv_FedGCN_bs16_seed42_beta10000p0,ogbn-arxiv,FedGCN,16,42,10000.0,1,0.0101,5.6509
+v2-full-device-none,20261118_194208_ogbn-arxiv_FedGCN_bs16_seed42_beta10000p0,ogbn-arxiv,FedGCN,16,42,10000.0,2,0.0138,5.2069
+v2-full-device-none,20261118_194208_ogbn-arxiv_FedGCN_bs16_seed42_beta10000p0,ogbn-arxiv,FedGCN,16,42,10000.0,3,0.0132,4.9117
