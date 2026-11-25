@@ -215,19 +215,26 @@ the question and settings for a suite.
 | Arxiv / `02-rank-quality` | V3 chunked CPU, no PCA and ranks 128/64/32/16. Batch 512, 100 rounds, requested seeds 42/43/44. | Compare rank and accuracy. PCA-128 controls for rotation at full width. The runner used the seed-42 fallback, so the runs are repeats, not an independent-seed sweep. |
 | Papers100M / `01-fleet-smoke` | V3 chunked mmap PCA-16, batch 16, 1 round, seed 42. | Reproduce a known feasible path on the current code. Check final evaluation, sampler timing, and head/worker memory before expanding the suite. |
 | Papers100M / `02-storage` | V3 chunked mmap and CPU at PCA-16. Batch 16, 3 rounds, seed 42. Both cases use the smoke chunk limits. | Isolate graph storage. Check worker RAM and runtime disk before CPU mode. Compare RSS, host MemAvailable, CUDA allocation, sampler setup, and time. |
-| Papers100M / `03-aggregation` | Derived v2 on CPU, full vs chunked, common PCA rank after sizing. Batch 16, 3 rounds, seed 42. Optionally add matching v3 chunked CPU. | Compare chunking on the same v2 artifact and fleet. The optional v3 case measures the additional effect of the compact representation. |
+| Papers100M / `03-aggregation` | Derived v2 on CPU, full vs chunked, PCA-8 on the tested fleet. Batch 16, 3 rounds, seed 42. Optionally add matching v3 chunked CPU. | Compare chunking on the same v2 artifact and fleet. The optional v3 case measures the additional effect of the compact representation. |
 | Papers100M / `04-projection` | V3 chunked mmap, no PCA and ranks 128/64/32/16. Batch 512, 10 rounds, seed 42. Run lower ranks first. | Measure PCA setup time, pretraining payload, pretraining time and memory with matched chunk settings. Use the no-PCA case as the full-width baseline. |
 | Papers100M / `05-chunk-tuning` | V3 chunked mmap PCA-16, batch/evaluation size 512, 3 rounds, seed 42. Six single-knob cases plus an optional larger row chunk. See the [case matrix](#papers100m-chunk-tuning). | Compare pretraining throughput and peak host/Ray memory. Repeat the baseline and the leading case before selecting a setting. |
-| Papers100M / `06-rank-quality` | V3 chunked mmap, no PCA, PCA-16, and PCA-64. Batch/evaluation size 512, 800 fixed rounds. See the [case matrix](#papers100m-rank-quality). | The seed-42 triplet completed. Correct and verify seed forwarding before starting an independent-seed comparison. |
+| Papers100M / `06-rank-quality` | V3 chunked mmap, no PCA, PCA-16, and PCA-64. Batch/evaluation size 512, 800 fixed rounds. See the [case matrix](#papers100m-rank-quality). | The seed-42 triplet completed. Rerun the controls with the updated seed-aware runner for independent-seed comparisons. |
+| Papers100M / `07-cache-smoke` | Reuse the promoted PCA-16, PCA-64, and unprojected aggregates for one round each. | All three used ten rank-local caches, zero feature traffic, and matched the fresh runs' logged round-one validation metrics. |
+| Papers100M / `08-model-architecture` | Same PCA-64 cache, two layers, and one local step. Cross hidden widths 256/512 with LayerNorm off/on. Screen at 200 rounds, then run the baseline and strongest cases for 800. | Separate width and normalization effects before tuning the training recipe. See the [architecture commands](manual_ray_2hop_optimization_runbook.md#compare-papers100m-model-architectures). |
+| Papers100M / `09-training-recipe` | Start with normalized-wider and AdamW at LR 0.001 for 2 then 800 rounds, using the same PCA-64 cache, layer count, and one local step. | Verify AdamW training after weight sync, then compare with SGD at 0.01 before tuning the learning rate, scheduler, or local steps. See the [optimizer commands](manual_ray_2hop_optimization_runbook.md#tune-the-papers100m-optimizer). |
+| Papers100M / `10-hyperparameter-sweep` | Run an AdamW/PCA-64 control, screen fixed rates and cosine, then compare model settings, update budgets, and rank using matching caches. | Choose by validation curves and verify selected recipes across seeds. See the [sweep commands](manual_ray_2hop_optimization_runbook.md#run-the-hyperparameter-sweep). |
+| Papers100M / `11-model-heads` | Same unprojected cache, LayerNorm, width 1,024, AdamW/cosine, three local steps, batch 768, evaluation batch 256. Compare `gcn` and `gcn-skip` at 800 rounds. | Isolate the learned self branch. Run a short smoke on the chosen fleet before the matched pair. See the [head comparison](manual_ray_2hop_optimization_runbook.md#compare-papers100m-model-heads). |
 
-Begin with Arxiv and the Papers100M fleet smoke. Record an unavailable full
-baseline as pending if the available fleet cannot accommodate it. The mmap
-projection suite can proceed independently once the fleet smoke passes.
+Use the [runbook index](manual_ray_2hop_optimization_runbook.md#run-any-series)
+to run any series independently. The smoke cases are optional checks for new
+environments. Record an unavailable full baseline as pending if the fleet
+cannot accommodate it.
 GPU chunk compute, fanout changes, and 195-trainer 2-hop scaling are follow-up
 work driven by the measured bottlenecks.
 
-Keep plaintext FedGCN, two GNN layers, indexed upload, `norm_type=none`, one
-local step, evaluation batch 512, validation each round, and final test fixed.
+Keep plaintext FedGCN, two GNN layers, indexed upload, `norm_type=none`,
+validation each round, and final test fixed. Use the local-step count and
+evaluation batch specified for the chosen series.
 For matched cases, use the same code revision, graph partition, rank-host map,
 seed, CPU thread settings, worker hardware, and round budget. For a v2/v3
 comparison, save both manifest SHA-256 values and the conversion provenance.
@@ -323,11 +330,10 @@ and final test evaluation. Their final test accuracy was 28.85% for PCA-16,
 highest best-validation accuracy (46.45%). Do not infer a consistent PCA-64
 quality gain from one seed and one final checkpoint.
 
-The benchmark records `--seeds` but does not forward the runtime seed. Do not
-run or report an independent-seed sweep until that is fixed and the effective
-seed is verified. Rerun matched seed-42 cases under the same fixed runner if
-comparing them with new seeds. Preserve the finalized worker feature files
-before cleaning the rank-quality runtime directories.
+The archived runner recorded `--seeds` without forwarding the seed to NC.
+The updated runner forwards it. Rerun matched seed-42 cases under the same
+updated runner if comparing them with new seeds. Preserve the finalized
+worker feature files before cleaning the rank-quality runtime directories.
 
 Report validation accuracy and loss at rounds 100, 200, 400, and 800 from
 `round_metrics.csv`, plus the full curves and best-validation rounds.

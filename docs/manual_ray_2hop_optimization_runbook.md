@@ -16,10 +16,48 @@ remains the proven 0-hop reference. Commands here use a manifest-style v2/v3
 2-hop artifact and `submit-local-artifact-2hop.sh`; never use the 0-hop submit
 helper for these runs.
 
+## Run Any Series
+
+Series numbers organize results; they are not prerequisites. Set a
+[campaign ID](#campaign-layout), complete the shared setup for your dataset,
+then jump directly to the series you want. A smoke case on a new or changed
+fleet is useful, but no later series consumes an earlier series' results.
+
+* **Arxiv:** [prepare the GPU environment](#prepare-the-environment-and-dataset),
+  [prepare v3 (and optionally v2) artifacts](#prepare-matched-five-trainer-artifacts),
+  and [load the local launcher](#run-the-local-comparison-function).
+* **Papers100M:** [prepare the head](#prepare-the-head),
+  [prepare the workers](#inventory-and-prepare-workers),
+  [restore or build compact v3](#choose-the-artifact-source),
+  [stage shards](#map-synchronize-and-stage-shards),
+  [start Ray](#start-the-ray-fleet), then
+  [load the submission shell](#prepare-the-papers100m-submission-shell).
+
+| Dataset / Series | Additional Setup |
+|---|---|
+| Arxiv [01-artifact-smoke](#run-the-arxiv-artifact-smoke) | Matched v3 and derived v2 for the full matrix |
+| Arxiv [02-rank-quality](#run-the-rank-quality-sweep) | V3 only |
+| Papers100M [01-fleet-smoke](#submit-the-safe-first-canary) | V3 only; optional fleet check |
+| Papers100M [02-storage](#submit-matched-comparisons) | V3 only; check worker RAM before CPU mode |
+| Papers100M [03-aggregation](#submit-matched-comparisons) | [Derive v2](#derive-worker-local-v2-shards-for-full-baselines) from the same v3; check [full-mode capacity](#full-baseline-capacity) |
+| Papers100M [04-projection](#run-the-projection-sweep) | V3 only; check free worker NVMe between cases |
+| Papers100M [05-chunk-tuning](#run-the-chunk-tuning-sweep) | V3 only; run this series' own control |
+| Papers100M [06-rank-quality](#run-the-papers100m-rank-quality-sweep) | V3 only; computes features in each case |
+| Papers100M [07-cache-smoke](#reuse-completed-feature-aggregation) | V3 and a [prepared feature cache](#prepare-a-reusable-feature-cache) at the rank being tested |
+| Papers100M [08-model-architecture](#compare-papers100m-model-architectures), [09-training-recipe](#tune-the-papers100m-optimizer) | V3 and a [PCA-64 feature cache](#prepare-a-reusable-feature-cache) |
+| Papers100M [10-hyperparameter-sweep](#run-the-hyperparameter-sweep), [11-model-heads](#compare-papers100m-model-heads) | V3 and a [feature cache](#prepare-a-reusable-feature-cache) matching the case; 11 uses no PCA |
+
+After an EC2 stop/start, expect to reinitialize instance-store NVMe, restore
+artifacts and caches (or recreate them), and stage shards again. EBS-backed
+environments and files survive a stop/start. An ordinary reboot preserves
+instance store, but can leave it unmounted. Check the mounts before copying
+or submitting. See [AWS instance-store persistence](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-store-lifetime.html).
+
 ## Campaign Layout
 
-From the repo root, choose one campaign ID and reuse it in the Arxiv and
-Papers100M shells, including inside tmux. Use a fresh ID for a new campaign.
+From the repo root, choose one campaign ID for the runs you want to group.
+Reuse it in new shells and tmux sessions or when copying results. A Papers100M
+campaign can start without an Arxiv campaign. Use a fresh ID for a new campaign.
 
 ```bash
 export NC_2HOP_RESULTS="$PWD/benchmark/results/nc_2hop_optimization"
@@ -42,6 +80,11 @@ benchmark/results/nc_2hop_optimization/
     04-projection/v3-chunked-mmap-pca16/
     05-chunk-tuning/v3-chunked-mmap-pca16-baseline/
     06-rank-quality/v3-chunked-mmap-pca16-seed42/
+    07-cache-smoke/v3-mmap-cache-pca64/
+    08-model-architecture/baseline-200r/
+    09-training-recipe/normalized-wider-adamw-lr0.001-800r/
+    10-hyperparameter-sweep/control-800r/
+    11-model-heads/gcn-skip-800r-seed42/
 ```
 
 Pass the suite directory as `--output-root` and the case label as
@@ -108,7 +151,10 @@ and the head.
 
 ### Prepare The Environment And Dataset
 
-Run on the existing GPU host:
+Use a single Ubuntu GPU host with the current checkout at `/home/ubuntu/fedgraph`.
+On a fresh one, use [bootstrap-worker.sh](../scripts/manual_ray/bootstrap-worker.sh)
+to install or verify the `fedgraph312` GPU environment (install the driver and
+reboot first if `nvidia-smi` fails). Then run:
 
 ```bash
 cd /home/ubuntu/fedgraph
@@ -135,9 +181,10 @@ find "$ARXIV_ROOT" -maxdepth 3 -type f | head
 
 ### Prepare Matched Five-Trainer Artifacts
 
-Partition once to compact v3 and derive v2 from it. This keeps the edges,
-features, and train/validation/test splits identical across the smoke cases.
-Use fresh paths or reuse an existing validated pair with matching provenance.
+Partition once to compact v3, or reuse a validated artifact. Derive v2 only
+for the v2 cases in `01-artifact-smoke`. This keeps the edges, features, and
+train/validation/test splits identical across the smoke cases. The rank sweep
+uses only v3.
 
 ```bash
 export N_TRAINER=5
@@ -155,7 +202,11 @@ python scripts/data/partition_ogbn_nc.py \
   --iid-beta 10000 \
   --seed 42 \
   --chunk-rows 25000
+```
 
+For the full smoke matrix only:
+
+```bash
 python scripts/data/convert_nc_artifact_v3_to_v2.py \
   --source-dir "$ARXIV_V3" --output-dir "$ARXIV_V2"
 sha256sum "$ARXIV_V3/manifest.json" "$ARXIV_V2/manifest.json"
@@ -163,8 +214,9 @@ sha256sum "$ARXIV_V3/manifest.json" "$ARXIV_V2/manifest.json"
 
 ### Run The Local Comparison Function
 
-Stop any old external Ray cluster so `ray.init()` creates a local runtime that
-can advertise this host's GPU:
+Unset any remote address so `ray.init()` can create a local runtime that
+advertises this host's GPU. Stop an old local Ray runtime only on a dedicated
+host with no running jobs:
 
 ```bash
 unset RAY_ADDRESS
@@ -260,7 +312,9 @@ physical CPUs. Keep this value identical across the Arxiv modes. The
 distributed Papers100M workflow below continues to reserve one CPU per
 trainer.
 
-For the first suite, run the cases below after reviewing the experiment plan.
+### Run The Arxiv Artifact Smoke
+
+After the shared Arxiv setup, run the cases below.
 The first five keep the feature width at 128 and change one factor at a time.
 The two PCA cases check both execution paths at the same compressed width.
 
@@ -282,11 +336,12 @@ the unprojected cases.
 
 ### Run The Rank-Quality Sweep
 
-After the smoke suite passes, reuse its campaign variables, v3 artifact, and
-`run_arxiv_2hop` function. Keep CPU graph storage and chunked pretraining fixed.
-The archived run labels record the requested seeds, but the benchmark runner
-did not pass the seed into NC. Treat those cases as repeats. Use distinct seeds
-in this loop only after correcting and verifying runtime seed forwarding.
+Use the shared Arxiv setup, v3 artifact, and `run_arxiv_2hop` function. No v2
+artifact or smoke result is required. Keep CPU graph storage and chunked
+pretraining fixed.
+The archived runner recorded seed labels without passing them to NC, so treat
+those cases as repeats. The updated runner forwards the seed. Rerun the
+seed-42 control with it before comparing distinct seeds in this loop.
 
 ```bash
 export ROUNDS=100 BATCH_SIZE=512 LOCAL_STEP=1
@@ -317,8 +372,12 @@ Use the existing topology for the scalable paths:
   the complete compact v3 artifact.
 * Ten GPU workers with one trainer per GPU and one trainer per host. The
   previous chunked/mmap rank sweep ran on Tesla T4 workers.
-* One private security group permitting node-to-node TCP `6379` and
-  `10000-10100`.
+* Head and workers on a reachable private network. Allow bidirectional Ray
+  traffic only among fleet members, for example with a self-referencing TCP
+  rule on a dedicated security group. TCP `6379` alone is not enough: these
+  launchers leave the node manager, object manager, and other Ray ports
+  unpinned. Keep SSH limited to known admin sources and head-to-worker access.
+  Do not expose Ray ports publicly. See the [Ray port reference](https://docs.ray.io/en/latest/ray-core/configure.html#ports-configurations).
 
 The compact v3 artifact stores only source-sorted, communication-local `int32`
 adjacency in `adj.pt`. It does not retain the duplicate global-ID adjacency
@@ -329,7 +388,57 @@ artifact. The completed manifest, `du -sh`, and the Hugging Face repository
 size are the authoritative measurements.
 
 Full CPU and full device baselines have separate fleet requirements near the
-end of this document. Begin with chunked mmap plus rank-16 PCA.
+end of this document. On an unfamiliar fleet, an optional first check is
+chunked mmap plus PCA-16.
+
+### Prepare The Head
+
+Use an x86-64 Ubuntu head with the chosen FedGraph checkout at
+`/home/ubuntu/fedgraph`. If it already has `fedgraph312`, keep it and verify
+Python 3.12 and the same Ray version as the workers. For a fresh CPU-only
+head, install [Miniconda](https://docs.anaconda.com/miniconda/install/) at
+`$HOME/miniconda3`, then install the CPU wheels instead of the GPU worker stack:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git tmux rsync curl jq unzip
+cd /home/ubuntu/fedgraph
+source "$HOME/miniconda3/etc/profile.d/conda.sh"
+conda create -n fedgraph312 python=3.12 -y
+conda activate fedgraph312
+python -m pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 \
+  --index-url https://download.pytorch.org/whl/cpu
+python -m pip install --only-binary=:all: \
+  torch-scatter==2.1.2+pt25cpu torch-sparse==0.6.18+pt25cpu \
+  torch-cluster==1.6.3+pt25cpu torch-spline-conv==1.2.2+pt25cpu \
+  -f https://data.pyg.org/whl/torch-2.5.1+cpu.html
+python -m pip install -e . 'ray[default]==2.56.0' torch-geometric==2.8.0 huggingface_hub==1.22.0
+python -c 'import sys, ray, torch, fedgraph; print(sys.version, ray.__version__, torch.__version__)'
+```
+
+The CPU head does not need an NVIDIA driver or OpenFHE for plaintext runs.
+If Conda prompts about channel terms, review them before continuing. The
+[PyTorch](https://pytorch.org/get-started/previous-versions/#v251) and
+[PyG](https://data.pyg.org/whl/torch-2.5.1+cpu.html) wheel sources match the
+worker bootstrap's PyTorch/PyG versions. Check the active environment on both sides
+before starting Ray.
+
+Mount head instance storage **before** building or restoring artifacts:
+
+```bash
+export HEAD_NVME=/mnt/fedgraph-nvme
+lsblk -o NAME,SIZE,TYPE,MODEL,FSTYPE,MOUNTPOINTS
+./scripts/manual_ray/prepare-worker-nvme.sh --device auto --mount-point "$HEAD_NVME"
+findmnt --mountpoint "$HEAD_NVME"
+test -w "$HEAD_NVME"
+df -h "$HEAD_NVME"
+```
+
+For a confirmed blank Amazon EC2 instance-storage device, repeat the helper
+with `--format` the first time. Omit it for a remount. If auto-detection is
+ambiguous, pass the verified device from `lsblk` explicitly. Never format
+root/EBS or an existing filesystem. Do not continue unless `findmnt` shows
+the intended mount: a directory alone could be on the root filesystem.
 
 ### Inventory And Prepare Workers
 
@@ -341,6 +450,7 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate fedgraph312
 
 export HEAD_PRIVATE_IP="$(hostname -I | awk '{print $1}')"
+export HEAD_NVME=/mnt/fedgraph-nvme
 export N_TRAINER=10
 export WORKERS_FILE=$HOME/fedgraph-papers100m-workers.txt
 export RANK_HOSTS_FILE=$HOME/fedgraph-papers100m-2hop-rank-hosts.txt
@@ -348,24 +458,17 @@ nano "$WORKERS_FILE"
 ```
 
 The worker file contains one private IPv4 per line and does not include the
-head. Confirm SSH and hardware without allowing SSH to consume later lines:
-
-```bash
-ssh-add -l || ssh-add ~/.ssh/AWS_FedGraph.pem
-
-while IFS= read -r worker || [[ -n "$worker" ]]; do
-  worker="${worker%%#*}"
-  worker="${worker//[[:space:]]/}"
-  [[ -z "$worker" ]] && continue
-  echo "===== $worker ====="
-  ssh -o BatchMode=yes ubuntu@"$worker" \
-    'hostname; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader; df -h / /mnt/fedgraph-nvme 2>/dev/null || true' \
-    </dev/null
-done < "$WORKERS_FILE"
-```
+head. After a restart or with a new fleet, check that it lists the current
+private IPs. On a new head, verify worker SSH host keys before using batch
+mode. If using a forwarded agent, load the key on your own computer and check
+`ssh-add -l` on the head; do not copy the private key to the head.
+For each new worker, connect once with `ssh ubuntu@WORKER_PRIVATE_IP`, compare
+the displayed fingerprint with the worker's host key from a trusted console,
+and accept it only if it matches. Then all automation can use noninteractive SSH.
 
 For new Ubuntu workers, run the system stage, reboot, then create the Conda
-environment:
+environment. Skip these stages on restarted workers whose EBS-backed
+environment and GPU driver still work:
 
 ```bash
 ./scripts/manual_ray/setup-workers.sh \
@@ -391,6 +494,20 @@ Initialize blank instance-store NVMe after creation or EC2 stop/start:
 After an ordinary reboot, omit `--format-nvme`. Never format a mounted or
 partitioned root/EBS device.
 
+Confirm hardware and mounts without allowing SSH to consume later inventory
+lines:
+
+```bash
+while IFS= read -r worker || [[ -n "$worker" ]]; do
+  worker="${worker%%#*}"
+  worker="${worker//[[:space:]]/}"
+  [[ -z "$worker" ]] && continue
+  echo "===== $worker ====="
+  ssh -n -o BatchMode=yes ubuntu@"$worker" \
+    'hostname; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader; findmnt --mountpoint /mnt/fedgraph-nvme && df -h / /mnt/fedgraph-nvme'
+done < "$WORKERS_FILE"
+```
+
 ### Choose The Artifact Source
 
 The remaining workflow requires one complete compact v3 artifact on head NVMe.
@@ -412,35 +529,8 @@ to the benchmark.
 Follow the persistent-ZIP and head-NVMe procedure in
 `manual_ray_papers100m_runbook.md`.
 
-First verify that the head instance-store filesystem is mounted. An ordinary
-reboot preserves its contents but does not necessarily remount it. Confirm the
-device name from `lsblk`; `/dev/nvme1n1` is only the expected device for the
-current preparation head:
-
-```bash
-export HEAD_NVME=/mnt/fedgraph-nvme
-export HEAD_NVME_DEVICE=/dev/nvme1n1
-
-lsblk -o NAME,SIZE,TYPE,MODEL,FSTYPE,MOUNTPOINTS
-sudo mkdir -p "$HEAD_NVME"
-test "$(lsblk -no FSTYPE "$HEAD_NVME_DEVICE" | xargs)" = ext4
-
-if ! mountpoint -q "$HEAD_NVME"; then
-  sudo mount "$HEAD_NVME_DEVICE" "$HEAD_NVME"
-fi
-
-sudo chown ubuntu:ubuntu "$HEAD_NVME"
-findmnt "$HEAD_NVME"
-test -w "$HEAD_NVME"
-df -h "$HEAD_NVME"
-```
-
-Do not continue unless `findmnt` shows the expected instance-store device at
-`/mnt/fedgraph-nvme`. Do not run `mkfs` during a remount: it would erase the
-downloaded raw data and generated artifacts. A brand-new blank instance-store
-device must be formatted once, only after its identity has been verified.
-
-Then define the dataset paths:
+Confirm [head NVMe is mounted](#prepare-the-head) and the durable download
+path is on EBS, not instance storage. Then define the dataset paths:
 
 ```bash
 export OGB_PARENT=$HEAD_NVME/ogb
@@ -643,9 +733,9 @@ instance-store storage. It intentionally downloads the complete repository to
 the head once. Workers continue to receive only their assigned shard through
 the staging script.
 
-First mount and check head NVMe as described in **Build Path: Prepare Raw
-Papers100M Input**, then enter a persistent session. The restore path does not
-need the raw ZIP, extracted OGB input, binary cache, or partitioner work files.
+First [mount and check head NVMe](#prepare-the-head), then enter a persistent
+session. The restore path does not need the raw ZIP, extracted OGB input,
+binary cache, or partitioner work files.
 
 ```bash
 tmux new-session -s papers100m-2hop-download
@@ -665,17 +755,35 @@ export HF_ARTIFACT_REPO=FedGraph/fedgraph_ogbn-papers100M_${N_TRAINER}trainer_2h
 export HF_ARTIFACT_REVISION="REPLACE_WITH_COMMIT_HASH_RECORDED_AFTER_UPLOAD"
 
 hf auth whoami || hf auth login
-[[ "$HF_ARTIFACT_REVISION" != REPLACE_* ]]
-mkdir -p "$HEAD_NVME/artifacts" "$ARTIFACT_DIR" "$HOME/fedgraph-logs"
-df -h "$HEAD_NVME"
-set -o pipefail
+```
 
-time hf download "$HF_ARTIFACT_REPO" \
-  --repo-type dataset \
-  --revision "$HF_ARTIFACT_REVISION" \
-  --local-dir "$ARTIFACT_DIR" \
-  --max-workers 4 \
-  2>&1 | tee "$HOME/fedgraph-logs/papers100m-${N_TRAINER}trainer-2hop-v3-download.log"
+Use the recorded commit hash when reproducing a previous run or restoring its
+feature cache. If starting a new campaign without a recorded revision, resolve
+`main` once and keep the printed commit hash with the results:
+
+```bash
+export HF_ARTIFACT_REVISION="$(python -c 'import sys; from huggingface_hub import HfApi; print(HfApi().dataset_info(sys.argv[1]).sha)' "$HF_ARTIFACT_REPO")"
+printf '%s@%s\n' "$HF_ARTIFACT_REPO" "$HF_ARTIFACT_REVISION"
+```
+
+With a commit hash set and the NVMe mount verified, download to a fresh artifact
+path or resume the same revision into its existing path:
+
+```bash
+(
+  set -e -o pipefail
+  [[ "$HF_ARTIFACT_REVISION" =~ ^[0-9a-f]{40}$ ]]
+  findmnt --mountpoint "$HEAD_NVME"
+  mkdir -p "$HEAD_NVME/artifacts" "$ARTIFACT_DIR" "$HOME/fedgraph-logs"
+  df -h "$HEAD_NVME"
+
+  time hf download "$HF_ARTIFACT_REPO" \
+    --repo-type dataset \
+    --revision "$HF_ARTIFACT_REVISION" \
+    --local-dir "$ARTIFACT_DIR" \
+    --max-workers 4 \
+    2>&1 | tee "$HOME/fedgraph-logs/papers100m-${N_TRAINER}trainer-2hop-v3-download.log"
+)
 ```
 
 Rerun the identical `hf download` command after an interruption; already
@@ -719,9 +827,14 @@ the head, whether it was just built or restored from Hugging Face. The command
 below copies `manifest.json` plus only the shard assigned to each trainer rank;
 it does not replicate the complete repository to every worker.
 
-Create one trainer per worker for the first comparison round:
+Return to the head shell used for [worker inventory](#inventory-and-prepare-workers),
+or load those exports again. Set `ARTIFACT_DIR` to the path from your artifact
+build/download session. With the defaults, create one trainer per worker:
 
 ```bash
+export ARTIFACT_DIR="${ARTIFACT_DIR:-$HEAD_NVME/artifacts/papers100m-${N_TRAINER}-2hop-v3-compact}"
+test -r "$ARTIFACT_DIR/manifest.json"
+
 ./scripts/manual_ray/generate-rank-hosts.sh \
   --workers-file "$WORKERS_FILE" \
   --n-trainer "$N_TRAINER" \
@@ -729,8 +842,8 @@ Create one trainer per worker for the first comparison round:
 cat "$RANK_HOSTS_FILE"
 ```
 
-Synchronize the current working tree, including uncommitted Component 3 code,
-then stage only the assigned shard to each worker:
+Synchronize the current working tree, including any local changes needed for
+the experiment, then stage only the assigned shard to each worker:
 
 ```bash
 ./scripts/manual_ray/sync-workers.sh \
@@ -795,19 +908,24 @@ Do not run both conversion forms against the same output directory.
 
 ### Start The Ray Fleet
 
-Start the CPU-only head. Put Ray spill/log data on a writable path with enough
-space; the chunked path normally needs only the default 8 GiB object store.
+Start the CPU-only head. Use mounted NVMe for Ray spill and logs so a full
+root EBS volume does not stop aggregation. The chunked path normally needs
+only the default 8 GiB object store. Set a different budget only after sizing
+the head for the intended comparison.
 
 ```bash
 export HEAD_PRIVATE_IP="$(hostname -I | awk '{print $1}')"
-mkdir -p "$HOME/fedgraph-logs" "$HOME/fedgraph-ray"
+export HEAD_RAY_TMP_DIR="$HEAD_NVME/ray"
+export HEAD_OBJECT_STORE_GIB="${HEAD_OBJECT_STORE_GIB:-8}"
+findmnt --mountpoint "$HEAD_NVME"
+mkdir -p "$HOME/fedgraph-logs" "$HEAD_RAY_TMP_DIR"
 
 tmux new-session -d -s ray-head \
   "cd /home/ubuntu/fedgraph && ./scripts/manual_ray/start-head.sh \
   --head-ip $HEAD_PRIVATE_IP \
   --num-cpus 8 \
-  --object-store-memory-gib 8 \
-  --ray-tmp-dir /home/ubuntu/fedgraph-ray \
+  --object-store-memory-gib $HEAD_OBJECT_STORE_GIB \
+  --ray-tmp-dir '$HEAD_RAY_TMP_DIR' \
   2>&1 | tee /home/ubuntu/fedgraph-logs/ray-head-2hop-startup.log"
 sleep 3
 ```
@@ -841,7 +959,7 @@ replaces the exact worker session only when no live `raylet` is running on
 that host. It keeps sessions on workers that have already rejoined. This
 does not stop the EC2 instances or change staged artifacts.
 
-### Submit The Safe First Canary
+### Prepare The Papers100M Submission Shell
 
 Create a dedicated tmux session so all required exports are defined inside the
 driver shell:
@@ -858,18 +976,26 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate fedgraph312
 
 export HEAD_PRIVATE_IP="$(hostname -I | awk '{print $1}')"
-export N_TRAINER=10
-export WORKERS_FILE=$HOME/fedgraph-papers100m-workers.txt
-export RANK_HOSTS_FILE=$HOME/fedgraph-papers100m-2hop-rank-hosts.txt
-export V3_ARTIFACT_DIR=/mnt/fedgraph-nvme/artifacts/papers100m-${N_TRAINER}-2hop-v3-compact
-export V2_ARTIFACT_DIR=/mnt/fedgraph-nvme/artifacts/papers100m-${N_TRAINER}-2hop-v2-derived
+export HEAD_NVME=${HEAD_NVME:-/mnt/fedgraph-nvme}
+export N_TRAINER=${N_TRAINER:-10}
+export WORKERS_FILE="${WORKERS_FILE:-$HOME/fedgraph-papers100m-workers.txt}"
+export RANK_HOSTS_FILE="${RANK_HOSTS_FILE:-$HOME/fedgraph-papers100m-2hop-rank-hosts.txt}"
+# Set these explicitly if you staged your artifacts under non-default paths.
+export V3_ARTIFACT_DIR="${V3_ARTIFACT_DIR:-$HEAD_NVME/artifacts/papers100m-${N_TRAINER}-2hop-v3-compact}"
+export V2_ARTIFACT_DIR="${V2_ARTIFACT_DIR:-$HEAD_NVME/artifacts/papers100m-${N_TRAINER}-2hop-v2-derived}"
 export ARTIFACT_DIR="$V3_ARTIFACT_DIR"
-# Export the campaign ID chosen on the Arxiv host and set the root on this head.
-export NC_2HOP_RESULTS="$PWD/benchmark/results/nc_2hop_optimization"
-: "${NC_2HOP_CAMPAIGN:?Set the campaign ID in this shell first}"
+export NC_2HOP_RESULTS="${NC_2HOP_RESULTS:-$PWD/benchmark/results/nc_2hop_optimization}"
+# For existing campaigns, explicitly set the recorded ID inside this shell.
+export NC_2HOP_CAMPAIGN="${NC_2HOP_CAMPAIGN:-$(date -u +%Y%m%dT%H%M%SZ)}"
 export PAPERS_RESULT_ROOT="$NC_2HOP_RESULTS/ogbn-papers100M/$NC_2HOP_CAMPAIGN"
-export PAPERS_RUNTIME_ROOT="/mnt/fedgraph-nvme/fedgraph-runtime/$NC_2HOP_CAMPAIGN"
+export PAPERS_RUNTIME_ROOT="$HEAD_NVME/fedgraph-runtime/$NC_2HOP_CAMPAIGN"
 export PAPERS_GPU_LOGS="$HOME/fedgraph-logs/local-artifact-2hop/$NC_2HOP_CAMPAIGN"
+export PAPERS_FEATURE_CACHE_ROOT="${PAPERS_FEATURE_CACHE_ROOT:-$HEAD_NVME/feature-cache/$NC_2HOP_CAMPAIGN}"
+export PAPERS_PCA16_CACHE="$PAPERS_FEATURE_CACHE_ROOT/pca16"
+export PAPERS_PCA64_CACHE="$PAPERS_FEATURE_CACHE_ROOT/pca64"
+export PAPERS_NO_PCA_CACHE="$PAPERS_FEATURE_CACHE_ROOT/none"
+export PAPERS_MODEL_ADJ_CACHE="${PAPERS_MODEL_ADJ_CACHE:-$PAPERS_RUNTIME_ROOT/adjacency}"
+printf 'Campaign ID %s\n' "$NC_2HOP_CAMPAIGN"
 
 ./scripts/manual_ray/status.sh --head-ip "$HEAD_PRIVATE_IP"
 ```
@@ -884,9 +1010,9 @@ again:
   --install-editable
 ```
 
-Define the case launcher in the same shell. It uses the same pretraining
-limits for the first smoke and matched storage comparison. Extra arguments
-at the end select the specific case's modes and round budget.
+Define the launcher once in the same shell. Every Papers100M series uses it;
+extra arguments at the end select the modes and round budget. After loading
+this function, jump directly to your chosen series in the index.
 
 ```bash
 run_papers100m_2hop() {
@@ -921,8 +1047,10 @@ run_papers100m_2hop() {
 }
 ```
 
-After the Arxiv gate passes and the fleet is ready, submit one round with
-mmap, chunking and PCA-16. To only preview the plan, append
+### Submit The Safe First Canary
+
+For an optional first check of a new fleet, submit one round with mmap,
+chunking and PCA-16. To only preview the plan, append
 `--dry-run --output-root "$(mktemp -d)"` to the call. The preview writes the
 case manifest and run plan to scratch without contacting Ray or the workers.
 
@@ -940,7 +1068,7 @@ trainer's internal edge scan independently of the larger global row range. The
 ten-way in-flight setting assumes the documented one-trainer-per-worker fleet;
 reduce it if several trainer actors later share a worker.
 
-Before continuing, require all of the following:
+To count the smoke as successful, check all of the following:
 
 * Every trainer reports the same nonempty PCA basis hash.
 * Runtime feature dimension is 16 for compression and pretraining.
@@ -971,20 +1099,22 @@ run_papers100m_2hop 02-storage v3-chunked-cpu-pca16 "$V3_ARTIFACT_DIR" \
   --feature-compression-mode shared-pca --feature-compression-rank 16
 ```
 
-For `03-aggregation`, size the head and workers first. Run both paths on the
-same derived v2 shards at a rank that fits. The example uses rank 16, subject
-to that sizing check. V3 remains the default for the other chunked suites.
+For `03-aggregation`, size the head and workers first, then
+[derive v2 from the staged v3](#derive-worker-local-v2-shards-for-full-baselines).
+Run both paths on the same v2 shards at the same rank. PCA-8 completed on
+the tested fleet; full CPU PCA-16 did not fit worker RAM. V3 remains the
+default for the other chunked suites.
 
 ```bash
-run_papers100m_2hop 03-aggregation v2-chunked-cpu-pca16 "$V2_ARTIFACT_DIR" \
+run_papers100m_2hop 03-aggregation v2-chunked-cpu-pca8 "$V2_ARTIFACT_DIR" \
   --rounds 3 \
   --graph-storage-mode cpu --pretrain-aggregation-mode chunked \
-  --feature-compression-mode shared-pca --feature-compression-rank 16
+  --feature-compression-mode shared-pca --feature-compression-rank 8
 
-run_papers100m_2hop 03-aggregation v2-full-cpu-pca16 "$V2_ARTIFACT_DIR" \
+run_papers100m_2hop 03-aggregation v2-full-cpu-pca8 "$V2_ARTIFACT_DIR" \
   --rounds 3 \
   --graph-storage-mode cpu --pretrain-aggregation-mode full \
-  --feature-compression-mode shared-pca --feature-compression-rank 16
+  --feature-compression-mode shared-pca --feature-compression-rank 8
 ```
 
 Full mode receives complete trainer payloads. The chunked in-flight limit
@@ -993,11 +1123,9 @@ RAM and Ray object-store pressure before promoting a full baseline.
 
 ### Run The Projection Sweep
 
-Reuse the ten-worker fleet, staged compact v3 shards, and rank-host map from
-the fleet smoke. This suite does not need the derived v2 shards or a completed
-full-aggregation baseline. In the head's submission tmux shell, keep the same
-`NC_2HOP_CAMPAIGN` and load the exports and `run_papers100m_2hop` function from
-[the smoke setup](#submit-the-safe-first-canary). Use the same code revision and
+Use the shared ten-worker fleet, staged compact v3 shards, rank-host map, and
+[submission shell](#prepare-the-papers100m-submission-shell). This suite does
+not need v2 shards or a previous experiment. Use the same code revision and
 worker environments for all five cases.
 
 Check the SSH agent, artifact manifest, and Ray resources before submission:
@@ -1092,10 +1220,9 @@ rsync -av --partial "${PAPERS_HEAD_SSH}:/home/ubuntu/fedgraph/$p/" "$p/"
 ### Run The Chunk-Tuning Sweep
 
 Use the [case matrix](2hop_optimization_status.md#papers100m-chunk-tuning)
-to compare one limit at a time. Reuse the same ten-worker fleet, staged v3
-shards, and rank-host map. In the head's submission tmux shell, keep the same
-`NC_2HOP_CAMPAIGN` and load the exports and `run_papers100m_2hop` function from
-[the smoke setup](#submit-the-safe-first-canary). No v2 conversion is needed.
+to compare one limit at a time after the shared fleet and
+[submission shell](#prepare-the-papers100m-submission-shell) setup. No v2
+conversion or projection series run is needed. This series runs its own control.
 
 ```bash
 ssh-add -l
@@ -1174,11 +1301,10 @@ rsync -av --partial "${PAPERS_HEAD_SSH}:/home/ubuntu/fedgraph/$p/" "$p/"
 
 ### Run The Papers100M Rank-Quality Sweep
 
-Follow the [case matrix](2hop_optimization_status.md#papers100m-rank-quality).
-In the head's submission tmux shell, reuse the same campaign ID, exports, and
-`run_papers100m_2hop` function from [the smoke setup](#submit-the-safe-first-canary).
-If the fleet is already up, do not rerun the smoke or restage the shards. This
-series uses the same ten-worker rank map and compact v3 artifact, not v2.
+Follow the [case matrix](2hop_optimization_status.md#papers100m-rank-quality)
+after the shared fleet and
+[submission shell](#prepare-the-papers100m-submission-shell) setup. This series
+uses compact v3, computes its own features, and needs no earlier series.
 
 ```bash
 ssh-add -l
@@ -1189,10 +1315,10 @@ df -h "$PWD" /mnt/fedgraph-nvme
 ```
 
 Expect eleven live Ray nodes and ten free GPUs. Keep the head's Ray temp/spill
-directory on NVMe with the same object-store budget as `05-chunk-tuning`.
+directory on NVMe and its object-store budget fixed across cases.
 Before each case, verify the worker mounts and check
 [worker disk space](#runtime-storage-and-shutdown). Allow at least 60 GiB free
-per worker: the preceding projection suite used roughly 20 GiB, 32 GiB, and
+per worker: the historical projection sweep used roughly 20 GiB, 32 GiB, and
 43 GiB per worker in new runtime files for PCA-16, PCA-64, and no PCA,
 respectively. They are written before training, so their sizes do not scale
 with the round budget, but they remain on disk after each case. Preserve all
@@ -1258,10 +1384,10 @@ run_papers100m_rank_quality 42 pca64
 run_papers100m_rank_quality 42 none
 ```
 
-The archived sweep completed the seed-42 triplet only. For a later independent
-seed comparison, first fix and verify runtime seed forwarding, then run all
-seeds with the same corrected source revision. With that prerequisite met,
-repeat the same order at seeds 43 and 44 and check the fleet between commands:
+The archived sweep completed the seed-42 triplet only. For an independent
+seed comparison, use the updated runner that forwards the seed and rerun the
+seed-42 triplet on the same revision. Repeat the order at seeds 43 and 44 and
+check the fleet between commands:
 
 ```bash
 run_papers100m_rank_quality 43 pca16
@@ -1285,16 +1411,84 @@ mkdir -p "$p"
 rsync -av --partial "${PAPERS_HEAD_SSH}:/home/ubuntu/fedgraph/$p/" "$p/"
 ```
 
-### Reuse Completed Feature Aggregation
+### Prepare A Reusable Feature Cache
 
 Use this path for plaintext, staged compact v3 artifacts with mmap. It opens
 the finalized feature files without repeating PCA or cross-trainer feature
 exchange. It does not resume model weights or skip adjacency and sampler setup.
+Prepare only the cache your chosen case needs. This does not require
+`06-rank-quality`, `07-cache-smoke`, or another model experiment.
 
-On each worker, use the same v3 artifact that produced the source run. Set
-`SOURCE_PRETRAIN_DIR` to that run's `pretrain/<run-id>` directory, not the case
-directory or `trainer-NNN` subdirectory. Use the rank that is staged on this
-worker and a cache path that is independent of the experiment's scratch tree:
+Choose a projection in the [submission shell](#prepare-the-papers100m-submission-shell):
+
+```bash
+CACHE_PROJECTION=none  # Or pca16 or pca64, depending on the case.
+FEATURE_CACHE_DIR="$PAPERS_FEATURE_CACHE_ROOT/$CACHE_PROJECTION"
+compression_options=(--feature-compression-mode none)
+if [[ "$CACHE_PROJECTION" != none ]]; then
+  compression_options=(--feature-compression-mode shared-pca
+                       --feature-compression-rank "${CACHE_PROJECTION#pca}")
+fi
+```
+
+**Use an existing cache.** If it is still on the fleet, point
+`PAPERS_FEATURE_CACHE_ROOT` at its parent before loading the submission shell.
+If it was backed up, restore it as shown below. The v3 manifest must match
+the one used to produce the cache. If neither copy exists, build just that
+cache with the following one-round job; the features are complete before
+training begins.
+
+```bash
+case_name="v3-chunked-mmap-$CACHE_PROJECTION"
+run_papers100m_2hop cache-setup "$case_name" "$V3_ARTIFACT_DIR" \
+  --rounds 1 --local-step 1 --batch-size 16 --evaluation-batch-size 256 \
+  --graph-storage-mode mmap --pretrain-aggregation-mode chunked \
+  --graph-relabel-cache-dir "$PAPERS_MODEL_ADJ_CACHE" \
+  "${compression_options[@]}"
+```
+
+After it succeeds, read the run ID and use it to locate the **worker-local**
+features. To promote outputs from an older completed run instead, set
+`SOURCE_PRETRAIN_DIR` to that run's exact `pretrain/<run-id>` directory and
+use its matching v3 artifact and projection. Never mix ranks from different runs.
+
+```bash
+run_id=$(jq -er 'select(.status == "completed") | .run_id' \
+  "$PAPERS_RESULT_ROOT/cache-setup/$case_name/summary.jsonl")
+printf 'Source run: %s\n' "$run_id"
+SOURCE_PRETRAIN_DIR="$PAPERS_RUNTIME_ROOT/cache-setup/$case_name/pretrain/$run_id"
+```
+
+If the run ID is empty or wrong, stop and check the case before promotion.
+Promote each rank on its assigned worker and copy only the common header to
+the head. The absolute path is the same across machines, but each worker
+holds only its own ranks. Run this from the head with working SSH access:
+
+```bash
+promote_papers_feature_cache() {
+  local source_dir="$1" cache_dir="$2" rank worker cmd first_worker=""
+  test -s "$RANK_HOSTS_FILE" || return 1
+  while read -r rank worker; do
+    printf -v cmd '%q ' "$HOME/miniconda3/envs/fedgraph312/bin/python" \
+      -m scripts.data.prepare_nc_feature_cache promote \
+      --artifact-dir "$V3_ARTIFACT_DIR" --pretrain-dir "$source_dir" \
+      --cache-dir "$cache_dir" --trainer-id "$rank" --norm-type none
+    ssh -n -o BatchMode=yes "ubuntu@$worker" "cd /home/ubuntu/fedgraph && $cmd" || return 1
+    first_worker="${first_worker:-$worker}"
+  done < <(awk '{ sub(/#.*/, ""); if (NF) print $1, $2 }' "$RANK_HOSTS_FILE")
+  [[ -n "$first_worker" ]] || return 1
+  mkdir -p "$cache_dir" || return 1
+  rsync -as "ubuntu@$first_worker:$cache_dir/feature-cache.json" "$cache_dir/"
+}
+
+promote_papers_feature_cache "$SOURCE_PRETRAIN_DIR" "$FEATURE_CACHE_DIR"
+```
+
+For a retry on only a missing rank, use the command below on its assigned
+worker. Set `RANK` to the number from `RANK_HOSTS_FILE` and re-export the
+artifact, source, and cache paths there. Promotion refuses to overwrite an
+existing rank. After the missing ranks are ready, copy one worker's matching
+`feature-cache.json` to `$FEATURE_CACHE_DIR` on the head if it is not there yet.
 
 ```bash
 python -m scripts.data.prepare_nc_feature_cache promote \
@@ -1310,12 +1504,60 @@ NVMe does not need a second copy. Use `--copy` across filesystems. Do not edit
 hard-linked payloads in place. Existing feature sidecars do not identify the
 source graph; only promote files whose source run and matching artifact are
 known. PCA mode, width, and basis hash are read from the finalized sidecar.
-Keep separate cache roots for the PCA-16, PCA-64, and unprojected runs.
+Keep a separate directory per projection. For the same artifact, PCA and
+pretraining are independent of training seed, model head, width, and optimizer.
 
-Each worker needs `feature-cache.json` and its own `trainer-NNN/` directory.
-Keep `feature-cache.json` at the same cache root on the head. The printed
-cache IDs must match across ranks. When restoring the files to another fleet,
-verify each staged rank and use the current rank-host map to place it:
+**Back up or restore a cache.** Retain the head's `feature-cache.json` and
+each worker's complete `trainer-NNN/` directory (the `.f32` payload and both
+JSON sidecars). Back up the artifact repo/revision alongside it. The full-width
+cache can be hundreds of GiB across workers; budget space on EBS, S3, or
+another durable store. Do not put these files in Git or assume the Hugging
+Face artifact includes them. For a durable directory mounted on the head,
+set `CACHE_BACKUP_DIR` to an absolute path on that mounted volume with enough
+free space and run:
+
+```bash
+(
+  set -e
+  : "${CACHE_BACKUP_DIR:?Set the path on persistent storage first}"
+  test -s "$RANK_HOSTS_FILE"
+  mkdir -p "$CACHE_BACKUP_DIR"
+  cp "$FEATURE_CACHE_DIR/feature-cache.json" "$CACHE_BACKUP_DIR/"
+  while read -r rank worker; do
+    printf -v shard 'trainer-%03d' "$rank"
+    rsync -as --partial "ubuntu@$worker:$FEATURE_CACHE_DIR/$shard" "$CACHE_BACKUP_DIR/" </dev/null
+  done < <(awk '{ sub(/#.*/, ""); if (NF) print $1, $2 }' "$RANK_HOSTS_FILE")
+)
+```
+
+After staging the identical v3 artifact on a restarted fleet, restore to a
+fresh cache path using the **current** mapping. Set `CACHE_BACKUP_DIR` to the
+directory with the backup header and all rank directories. This verifies
+the feature payload and communication-node hashes on the worker for each
+rank, then publishes the head's header:
+
+```bash
+(
+  set -e
+  : "${CACHE_BACKUP_DIR:?Set the backup directory first}"
+  test -s "$RANK_HOSTS_FILE"
+  while read -r rank worker; do
+    printf -v shard 'trainer-%03d' "$rank"
+    printf -v mkdir_cmd 'mkdir -p %q' "$FEATURE_CACHE_DIR"
+    ssh -n -o BatchMode=yes "ubuntu@$worker" "$mkdir_cmd"
+    rsync -as --partial "$CACHE_BACKUP_DIR/feature-cache.json" \
+      "$CACHE_BACKUP_DIR/$shard" "ubuntu@$worker:$FEATURE_CACHE_DIR/" </dev/null
+    printf -v verify_cmd '%q ' "$HOME/miniconda3/envs/fedgraph312/bin/python" \
+      -m scripts.data.prepare_nc_feature_cache verify --artifact-dir "$V3_ARTIFACT_DIR" \
+      --cache-dir "$FEATURE_CACHE_DIR" --trainer-id "$rank"
+    ssh -n -o BatchMode=yes "ubuntu@$worker" "cd /home/ubuntu/fedgraph && $verify_cmd"
+  done < <(awk '{ sub(/#.*/, ""); if (NF) print $1, $2 }' "$RANK_HOSTS_FILE")
+  mkdir -p "$FEATURE_CACHE_DIR"
+  cp "$CACHE_BACKUP_DIR/feature-cache.json" "$FEATURE_CACHE_DIR/"
+)
+```
+
+You can also verify an existing cache on its worker for any rank:
 
 ```bash
 python -m scripts.data.prepare_nc_feature_cache verify \
@@ -1324,23 +1566,295 @@ python -m scripts.data.prepare_nc_feature_cache verify \
   --trainer-id "$RANK"
 ```
 
-After all ranks are staged, submit a fresh one-round case from the head:
+### Reuse Completed Feature Aggregation
+
+`07-cache-smoke` checks that training reads a prepared cache and does not
+exchange pretraining features. Use the cache prepared above and run one round
+from the head. Other series can use that cache without running this check:
 
 ```bash
-run_papers100m_2hop 07-cache-smoke v3-mmap-cache-pca64 "$V3_ARTIFACT_DIR" \
+run_papers100m_2hop 07-cache-smoke "v3-mmap-cache-$CACHE_PROJECTION" "$V3_ARTIFACT_DIR" \
   --rounds 1 --batch-size 512 \
+  --graph-storage-mode mmap --pretrain-aggregation-mode chunked \
   --pretrain-feature-cache-dir "$FEATURE_CACHE_DIR" \
   --graph-relabel-cache-dir "$PAPERS_RUNTIME_ROOT/07-cache-smoke/adjacency" \
-  --feature-compression-mode shared-pca --feature-compression-rank 64
+  "${compression_options[@]}"
 ```
 
-For PCA-16 change the rank and select its cache. For the unprojected cache
-use `--feature-compression-mode none`. Use a fresh case name for each run.
+To repeat it at another rank, set `CACHE_PROJECTION` and its paths as above.
+Use a fresh case name for each run.
 The adjacency directory must be separate from the feature cache. A missing
 or mismatched rank stops the run rather than falling back to pretraining.
 Check `summary.jsonl` for `pretrain_feature_source=cache`, ten cache hits, the
 expected feature width, and zero logical pretraining payload. The reported
 cache load time covers verification and mmap setup, not every later disk read.
+
+### Compare Papers100M Model Architectures
+
+In the shared [submission shell](#prepare-the-papers100m-submission-shell),
+[prepare the PCA-64 cache](#prepare-a-reusable-feature-cache) at
+`$PAPERS_PCA64_CACHE`. Neither `07-cache-smoke` nor another series is required.
+Use the same compact v3 artifact, ten-rank map, feature cache, and
+training-ready adjacency cache for every case. Changing hidden width or adding
+LayerNorm does not require a new feature cache.
+
+| Case | Hidden width | LayerNorm after first linear |
+|---|---:|---|
+| `baseline` | 256 | Off |
+| `normalized` | 256 | On |
+| `wider` | 512 | Off |
+| `normalized-wider` | 512 | On |
+
+The shared shell sets the PCA-64 path and adjacency directory. The first
+case can build the training-ready adjacency cache; later cases can reuse it.
+
+```bash
+run_papers100m_architecture() {
+  local variant="$1" rounds="$2" width=256
+  shift 2
+  local -a norm=()
+  case "$variant" in
+    baseline) ;;
+    normalized) norm=(--first-layer-norm) ;;
+    wider) width=512 ;;
+    normalized-wider) width=512; norm=(--first-layer-norm) ;;
+    *) printf 'Unknown architecture case: %s\n' "$variant" >&2; return 2 ;;
+  esac
+
+  SEED=42 run_papers100m_2hop 08-model-architecture "${variant}-${rounds}r" \
+    "$V3_ARTIFACT_DIR" \
+    --rounds "$rounds" --batch-size 512 --evaluation-batch-size 512 --local-step 1 \
+    --graph-storage-mode mmap --pretrain-aggregation-mode chunked \
+    --pretrain-feature-cache-dir "$PAPERS_PCA64_CACHE" \
+    --graph-relabel-cache-dir "$PAPERS_MODEL_ADJ_CACHE" \
+    --feature-compression-mode shared-pca --feature-compression-rank 64 \
+    --hidden-size "$width" "${norm[@]}" --resource-snapshot-interval-rounds 25 "$@"
+}
+
+run_papers100m_architecture normalized-wider 1 --dry-run --output-root "$(mktemp -d)"
+run_papers100m_architecture normalized-wider 1
+```
+
+Check that the one-round run used ten cache hits, zero feature traffic, and
+completed without memory errors. Then screen the four cases sequentially:
+
+```bash
+for variant in baseline normalized wider normalized-wider; do
+  run_papers100m_architecture "$variant" 200 || break
+done
+```
+
+Every case keeps two layers, SGD at learning rate 0.01, dropout 0.5, validation
+each round, and final test. In `summary.jsonl`, verify `hidden_size`,
+`first_layer_norm`, and the same `pretrain_feature_cache_id` across cases.
+Compare validation curves, peak memory, and training/sync time. Rerun the
+baseline and strongest candidates with `800` in place of `200`; these are
+fresh models, not resumed weights. If running every case for 800 rounds,
+read both the round-200 and round-800 metrics from those runs instead.
+Tune the optimizer, learning rate, scheduler, and local-step count separately.
+
+### Tune The Papers100M Optimizer
+
+Use `09-training-recipe` for optimizer and learning-rate comparisons. Go
+directly from the shared [submission shell](#prepare-the-papers100m-submission-shell)
+and [PCA-64 cache setup](#prepare-a-reusable-feature-cache) to this series.
+Synchronize any local code changes and check that all ten workers are ready:
+
+```bash
+./scripts/manual_ray/sync-workers.sh --workers-file "$WORKERS_FILE" --install-editable
+./scripts/manual_ray/status.sh --head-ip "$HEAD_PRIVATE_IP"
+```
+
+Stage 1 uses the `normalized-wider` model, the existing PCA-64 cache, two
+layers, training and evaluation batch size 512, and one local step. The LR
+is constant. Both optimizers use weight decay `5e-4`, applied according to
+the selected optimizer. AdamW retains its moments on each trainer across
+rounds; the server still averages only weights.
+
+```bash
+run_papers100m_recipe() {
+  local model="$1" optimizer="$2" lr="$3" rounds="$4"
+  shift 4
+  local -a norm=()
+  case "$model" in
+    normalized-wider) norm=(--first-layer-norm) ;;
+    wider) ;;
+    *) printf 'Expected normalized-wider or wider, got %s\n' "$model" >&2; return 2 ;;
+  esac
+
+  SEED=42 run_papers100m_2hop 09-training-recipe "${model}-${optimizer}-lr${lr}-${rounds}r" \
+    "$V3_ARTIFACT_DIR" \
+    --rounds "$rounds" --batch-size 512 --evaluation-batch-size 512 --local-step 1 \
+    --graph-storage-mode mmap --pretrain-aggregation-mode chunked \
+    --pretrain-feature-cache-dir "$PAPERS_PCA64_CACHE" \
+    --graph-relabel-cache-dir "$PAPERS_MODEL_ADJ_CACHE" \
+    --feature-compression-mode shared-pca --feature-compression-rank 64 \
+    --hidden-size 512 "${norm[@]}" --optimizer "$optimizer" --learning-rate "$lr" \
+    --resource-snapshot-interval-rounds 25 "$@"
+}
+
+run_papers100m_recipe normalized-wider adamw 0.001 2 --resource-snapshot-interval-rounds 1
+```
+
+The first round populates AdamW's state. The second trains after receiving
+the averaged weights. Verify both rounds completed, with ten cache hits and
+populated AdamW state on all trainers after round two:
+
+```bash
+smoke="$PAPERS_RESULT_ROOT/09-training-recipe/normalized-wider-adamw-lr0.001-2r"
+jq -e '.status == "completed" and .rounds_recorded == 2 and
+       .optimizer == "adamw" and .learning_rate == 0.001 and
+       .pretrain_feature_cache_hits == 10 and .pretrain_total_traffic_bytes == 0' \
+  "$smoke/summary.jsonl"
+jq -se '[.[] | select(.source == "trainer" and .round == 2 and
+                      .event == "round_train_and_sync_end" and
+                      .optimizer_state_bytes > 0) | .trainer_id] | unique | length == 10' \
+  "$smoke"/runs/*/fedgraph_logs/resource_snapshots.jsonl
+```
+
+Once those checks pass, start a fresh run:
+
+```bash
+run_papers100m_recipe normalized-wider adamw 0.001 800
+```
+
+Use the following matched SGD `0.01` control in this series. If you already
+have an identical `08-model-architecture/normalized-wider-800r` on the same
+artifact, seed, and cache, you can refer to it instead without rerunning it:
+
+```bash
+run_papers100m_recipe normalized-wider sgd 0.01 800
+```
+
+Compare validation accuracy and loss at rounds 200, 400, and 800, and mean
+validation accuracy over rounds 701 through 800. Select by validation, not
+by the final test result. The smoke does not resume training weights.
+
+### Run The Hyperparameter Sweep
+
+Use `10-hyperparameter-sweep` for configurable training cases. Use the shared
+[submission shell](#prepare-the-papers100m-submission-shell) and
+[prepare only the cache](#prepare-a-reusable-feature-cache) matching your case
+(PCA-64 for the examples below). No results from `08` or `09` are needed.
+Pass a unique case name, the matching cache, and normal submit flags. The
+helper does not select a model or training recipe.
+
+```bash
+run_papers100m_tuning() {
+  local name="${1:?Provide a case name}" cache_dir="${2:?Provide a feature cache directory}"
+  shift 2
+  run_papers100m_2hop 10-hyperparameter-sweep "$name" "$V3_ARTIFACT_DIR" \
+    --graph-storage-mode mmap --pretrain-aggregation-mode chunked \
+    --pretrain-feature-cache-dir "$cache_dir" \
+    --graph-relabel-cache-dir "$PAPERS_MODEL_ADJ_CACHE" \
+    --resource-snapshot-interval-rounds 25 "$@"
+}
+
+# Run this series' matched control.
+control=(
+  --first-layer-norm --hidden-size 512 --dropout 0.5
+  --optimizer adamw --learning-rate 0.001 --weight-decay 5e-4
+  --lr-scheduler constant --rounds 800 --local-step 1
+  --batch-size 512 --evaluation-batch-size 512 --seed 42
+  --feature-compression-mode shared-pca --feature-compression-rank 64
+)
+run_papers100m_tuning control-800r "$PAPERS_PCA64_CACHE" "${control[@]}" \
+  --dry-run --output-root "$(mktemp -d)"
+run_papers100m_tuning control-800r "$PAPERS_PCA64_CACHE" "${control[@]}"
+
+# Check scheduling on two rounds before a long scheduled case.
+run_papers100m_tuning cosine-smoke-2r "$PAPERS_PCA64_CACHE" "${control[@]}" \
+  --rounds 2 --lr-scheduler cosine --min-learning-rate 0.0001
+run_papers100m_tuning cosine-800r "$PAPERS_PCA64_CACHE" "${control[@]}" \
+  --lr-scheduler cosine --min-learning-rate 0.0001
+```
+
+| Setting | Driver arguments |
+|---|---|
+| Architecture | `--model-head` (`gcn` or `gcn-skip`), `--first-layer-norm` or `--no-first-layer-norm`, `--hidden-size`, `--dropout` |
+| Local optimizer | `--optimizer` (SGD or AdamW), `--learning-rate`, `--weight-decay` |
+| LR schedule | `--lr-scheduler` (constant or cosine); cosine takes `--min-learning-rate` (default 0) |
+| Budget and sampling | `--rounds`, `--local-step`, `--batch-size`, `--evaluation-batch-size` |
+| Features and seed | `--feature-compression-mode`, `--feature-compression-rank`, `--seed` |
+
+Cosine uses the initial LR on round one and approaches its floor over the
+fixed round budget. Every local step in a round uses the same LR. Check the
+applied rate in each `NC_ROUND_METRIC` stdout record. Recipe fields are
+recorded in `config.json` and `summary.jsonl`. Two layers and the sampler
+policy stay fixed.
+
+LayerNorm and dropout are model settings and do not change the saved features.
+To test rank 16, pass its cache and `--feature-compression-rank 16`; for the
+unprojected cache use `--feature-compression-mode none`. Do not use the PCA-64
+cache for another rank. A new rank without a saved cache requires a separate
+prepare-and-promote run. The driver rejects mismatched mode/rank metadata even
+in a dry run.
+
+Start with fixed-LR AdamW candidates (for example 0.0003, 0.001, and 0.003),
+then compare cosine at the best initial rate. Use that recipe to compare
+LayerNorm off, width, dropout, and weight decay, one change from the same
+reference at a time. Test more local steps and larger batches separately;
+report validation against updates and wall time as well as rounds. Change
+the rank only after picking a few recipes to compare. Confirm the best ones
+on additional seeds using the updated runner. Keep the 08/09 outputs as
+historical references.
+
+### Compare Papers100M Model Heads
+
+Use `11-model-heads` to compare the existing `gcn` classifier with the
+GraphSAGE-inspired `gcn-skip` head. After the shared
+[submission shell](#prepare-the-papers100m-submission-shell) setup, use
+[the unprojected feature cache](#prepare-a-reusable-feature-cache) at
+`$PAPERS_NO_PCA_CACHE`. You do not need results from the hyperparameter sweep.
+
+Both heads start from the same encoder and GCN weights at a fixed seed.
+The skip adds a zero-initialized linear projection of a node's own hidden
+representation to its GCN logits, before one `log_softmax`. It adds no hops
+and does not change pretraining, the artifact, or graph sampling. At hidden
+width 1,024 and 172 classes, it adds 176,128 trainable weights, about 0.67 MiB
+per model copy in float32, plus optimizer state and temporary logits.
+
+Use the best completed seed-42 recipe from the earlier sweep as a fixed control:
+LayerNorm, width 1,024, AdamW, cosine `0.005` to `0.0005`, three local steps,
+training batch 768, and evaluation batch 256. The only change in the matched
+pair is `--model-head`.
+
+```bash
+run_papers100m_head() {
+  local head="$1" rounds="$2" seed="${SEED:-42}"
+  shift 2
+  run_papers100m_2hop 11-model-heads "${head}-${rounds}r-seed${seed}${PAPERS_CASE_SUFFIX:-}" \
+    "$V3_ARTIFACT_DIR" \
+    --rounds "$rounds" --seed "$seed" --local-step 3 \
+    --batch-size 768 --evaluation-batch-size 256 \
+    --graph-storage-mode mmap --pretrain-aggregation-mode chunked \
+    --pretrain-feature-cache-dir "$PAPERS_NO_PCA_CACHE" \
+    --graph-relabel-cache-dir "$PAPERS_MODEL_ADJ_CACHE" \
+    --feature-compression-mode none --model-head "$head" \
+    --first-layer-norm --hidden-size 1024 --dropout 0.5 \
+    --optimizer adamw --learning-rate 0.005 --weight-decay 5e-4 \
+    --lr-scheduler cosine --min-learning-rate 0.0005 \
+    --resource-snapshot-interval-rounds 25 "$@"
+}
+
+run_papers100m_head gcn-skip 10 --dry-run --output-root "$(mktemp -d)"
+run_papers100m_head gcn-skip 10 --resource-snapshot-interval-rounds 1
+```
+
+The smoke checks memory, weight synchronization, ten cache hits, zero
+pretraining traffic, and final evaluation. Its shorter cosine schedule is
+not an accuracy comparison. For the matched runs, wait until the fleet is
+idle between cases:
+
+```bash
+run_papers100m_head gcn 800
+run_papers100m_head gcn-skip 800
+```
+
+Confirm `model_head`, `pretrain_feature_cache_id`, and all other settings in
+`summary.jsonl`. Compare validation curves, final test metrics, CUDA peaks,
+and per-round training/sync time and traffic. Repeat on additional seeds
+before attributing a small accuracy change to the head.
 
 ### Performance And Accuracy Runs
 
@@ -1429,6 +1943,22 @@ done < "$WORKERS_FILE"
 ```
 
 Archive benchmark results before removing runtime files or stopping instances.
+From the analysis host, choose the series directory and set `PAPERS_HEAD_SSH`
+to your head's SSH address and `NC_2HOP_CAMPAIGN` to the recorded ID. For
+example, to retrieve the model-head comparison from the default results root:
+
+```bash
+cd /home/ubuntu/fedgraph
+PAPERS_SUITE=11-model-heads
+p="benchmark/results/nc_2hop_optimization/ogbn-papers100M/$NC_2HOP_CAMPAIGN/$PAPERS_SUITE"
+mkdir -p "$p"
+rsync -av --partial "${PAPERS_HEAD_SSH}:/home/ubuntu/fedgraph/$p/" "$p/"
+```
+
+Verify the destination has the expected summaries and logs. Save any
+[reusable feature caches](#prepare-a-reusable-feature-cache) separately;
+copying results does not retain worker runtime data.
+
 When work is complete, stop the `ray-worker-*` tmux session on each worker,
 then stop the `ray-head` session. Instance-store artifacts, staged shards,
 runtime outputs, and Hugging Face caches are erased by EC2 stop/start.
