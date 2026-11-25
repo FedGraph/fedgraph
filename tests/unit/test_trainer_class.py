@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
@@ -689,6 +690,105 @@ class TestTrainerGeneral:
 
         # Verify that model state_dict loading was attempted
         assert mock_model.load_state_dict.called or hasattr(trainer, "model")
+
+    @pytest.mark.parametrize(
+        "scheduler,model_head",
+        [("constant", "gcn"), ("cosine", "gcn"), ("cosine", "gcn-skip")],
+    )
+    @pytest.mark.parametrize(
+        "device_name",
+        [
+            "cpu",
+            pytest.param(
+                "cuda",
+                marks=pytest.mark.skipif(
+                    not torch.cuda.is_available(), reason="CUDA unavailable"
+                ),
+            ),
+        ],
+    )
+    def test_adamw_preserves_state_across_broadcast(
+        self, device_name, scheduler, model_head
+    ):
+        scheduled = scheduler == "cosine"
+        args = SimpleNamespace(
+            dataset="ogbn-papers100M",
+            method="FedGCN",
+            num_hops=2,
+            num_layers=2,
+            first_layer_norm=True,
+            model_head=model_head,
+            local_step=3 if scheduled else 1,
+            batch_size=-1,
+            optimizer="adamw",
+            learning_rate=0.001,
+            global_rounds=2,
+            lr_scheduler=scheduler,
+            min_learning_rate=0.0002 if scheduled else 0.0,
+            weight_decay=0.0 if scheduled else 5e-4,
+        )
+        node_ids = torch.arange(2)
+        features = torch.tensor([[1.0, 2.0], [2.0, 1.0]])
+        trainer = Trainer_General(
+            rank=0,
+            args_hidden=8,
+            device=torch.device(device_name),
+            args=args,
+            local_node_index=node_ids,
+            communicate_node_index=node_ids,
+            adj=torch.tensor([[0, 1], [1, 0]]),
+            train_labels=node_ids,
+            test_labels=node_ids,
+            features=features,
+            idx_train=node_ids,
+            idx_test=node_ids,
+        )
+        trainer.load_feature_aggregation(features)
+        trainer.init_model(global_node_num=2, class_num=2)
+
+        optimizer = trainer.optimizer
+        parameters = tuple(trainer.model.parameters())
+        assert (trainer.model.skip_head is not None) == (model_head == "gcn-skip")
+        assert isinstance(optimizer, torch.optim.AdamW)
+        assert optimizer.param_groups[0]["lr"] == 0.001
+        assert optimizer.param_groups[0]["weight_decay"] == args.weight_decay
+        rates = []
+        optimizer.register_step_pre_hook(
+            lambda opt, _args, _kwargs: rates.append(opt.param_groups[0]["lr"])
+        )
+        trainer.train(0)
+        moments = [
+            (
+                optimizer.state[p]["exp_avg"].clone(),
+                optimizer.state[p]["exp_avg_sq"].clone(),
+            )
+            for p in parameters
+        ]
+        assert all(
+            optimizer.state[p]["step"].item() == args.local_step for p in parameters
+        )
+
+        # Act like the CPU head and send updated weight values, not optimizer state.
+        broadcast = tuple(weight + 0.25 for weight in trainer.get_params())
+        trainer.update_params(broadcast, 0)
+        torch.testing.assert_close(trainer.get_params(), broadcast)
+        assert trainer.optimizer is optimizer
+        assert all(
+            p is current for p, current in zip(parameters, trainer.model.parameters())
+        )
+        for p, (first_moment, second_moment) in zip(parameters, moments):
+            torch.testing.assert_close(optimizer.state[p]["exp_avg"], first_moment)
+            torch.testing.assert_close(optimizer.state[p]["exp_avg_sq"], second_moment)
+
+        trainer.train(1)
+        assert all(
+            optimizer.state[p]["step"].item() == 2 * args.local_step for p in parameters
+        )
+        second_rate = 0.0006 if scheduled else 0.001
+        assert rates == pytest.approx(
+            [0.001] * args.local_step + [second_rate] * args.local_step
+        )
+        assert np.isfinite(trainer.train_losses).all()
 
     def test_get_local_feature_sum(self):
         """Test get_local_feature_sum method."""

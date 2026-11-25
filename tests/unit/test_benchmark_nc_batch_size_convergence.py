@@ -3,6 +3,8 @@ import json
 import logging
 import sys
 
+import pytest
+
 from benchmark.benchmark_NC_batch_size_convergence import (
     Tee,
     _restore_logging_streams,
@@ -10,6 +12,7 @@ from benchmark.benchmark_NC_batch_size_convergence import (
     main,
     parse_args,
     parse_run_log,
+    to_fedgraph_args,
 )
 
 
@@ -30,10 +33,15 @@ def test_evaluation_batch_size_is_recorded_separately(monkeypatch):
 
     assert config.batch_size == 16
     assert config.evaluation_batch_size == 512
+    assert config.optimizer == "sgd"
+    assert config.lr_scheduler == "constant"
+    assert config.dropout == 0.5
+    assert config.weight_decay == 5e-4
 
 
-def test_dry_run_accepts_feature_cache_with_default_fedgcn_method(
-    tmp_path, monkeypatch
+@pytest.mark.parametrize("cache_width", [16, 64])
+def test_dry_run_checks_feature_cache_with_default_fedgcn_method(
+    tmp_path, monkeypatch, cache_width
 ):
     artifact_dir, cache_dir = tmp_path / "artifact", tmp_path / "cache"
     artifact_dir.mkdir()
@@ -41,7 +49,11 @@ def test_dry_run_accepts_feature_cache_with_default_fedgcn_method(
     (artifact_dir / "manifest.json").write_text(
         '{"artifact_version": 3, "hop_semantics": 2, "n_trainer": 5}'
     )
-    (cache_dir / "feature-cache.json").write_text("{}")
+    (cache_dir / "feature-cache.json").write_text(
+        json.dumps(
+            {"feature_compression_mode": "shared-pca", "feature_dim": cache_width}
+        )
+    )
     output_dir = tmp_path / "results"
     monkeypatch.setattr(
         sys,
@@ -72,11 +84,173 @@ def test_dry_run_accepts_feature_cache_with_default_fedgcn_method(
         ],
     )
 
+    if cache_width != 16:
+        with pytest.raises(SystemExit, match="Feature cache does not match.*PCA rank"):
+            main()
+        return
     assert main() == 0
     args = json.loads((output_dir / "manifest.json").read_text())["args"]
     assert args["pretrain_feature_cache_dir"] == str(cache_dir)
     assert args["pretrain_feature_output_dir"] is None
     assert args["feature_compression_output_dir"] is None
+
+
+def test_architecture_overrides_reach_runtime_config(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "benchmark_NC_batch_size_convergence.py",
+            "--dataset",
+            "ogbn-papers100M",
+            "--num-hops",
+            "2",
+            "--hidden-size",
+            "512",
+            "--first-layer-norm",
+            "--model-head",
+            "gcn-skip",
+            "--output-dir",
+            str(tmp_path / "results"),
+            "--dry-run",
+        ],
+    )
+    assert main() == 0
+    manifest = json.loads((tmp_path / "results" / "manifest.json").read_text())
+    assert manifest["args"]["model_head"] == "gcn-skip"
+    config = build_configs(parse_args())[0]
+    args = to_fedgraph_args(config, tmp_path / "logs", 5, 0.01)
+    assert args.method == "FedGCN"
+    assert args.hidden_size == 512
+    assert args.first_layer_norm is True
+    assert args.model_head == "gcn-skip"
+    assert args.num_layers == 2
+
+
+def test_training_recipe_settings_reach_runtime_config(tmp_path, monkeypatch):
+    output = tmp_path / "adamw"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "benchmark_NC_batch_size_convergence.py",
+            "--dataset",
+            "ogbn-papers100M",
+            "--num-hops",
+            "2",
+            "--optimizer",
+            "adamw",
+            "--learning-rate",
+            "1e-3",
+            "--lr-scheduler",
+            "cosine",
+            "--min-learning-rate",
+            "1e-4",
+            "--dropout",
+            "0",
+            "--weight-decay",
+            "0.001",
+            "--seeds",
+            "43",
+            "--first-layer-norm",
+            "--no-first-layer-norm",
+            "--output-dir",
+            str(output),
+            "--dry-run",
+        ],
+    )
+    assert main() == 0
+    recorded = json.loads((output / "manifest.json").read_text())["args"]
+    assert recorded["optimizer"] == "adamw"
+    assert recorded["learning_rate"] == 0.001
+    config = build_configs(parse_args())[0]
+    args = to_fedgraph_args(config, tmp_path / "logs", 5, 0.01)
+    expected = {
+        "optimizer": "adamw",
+        "learning_rate": 0.001,
+        "lr_scheduler": "cosine",
+        "min_learning_rate": 0.0001,
+        "dropout": 0,
+        "weight_decay": 0.001,
+        "first_layer_norm": False,
+    }
+    for key, value in expected.items():
+        assert recorded[key] == getattr(args, key) == value
+    assert args.seed == 43
+
+
+@pytest.mark.parametrize(
+    "flags,message",
+    [
+        (["--dropout", "1"], "--dropout must"),
+        (["--weight-decay", "-1"], "--weight-decay must"),
+        (["--min-learning-rate", "1e-4"], "requires --lr-scheduler cosine"),
+        (
+            ["--lr-scheduler", "cosine", "--min-learning-rate", "0.01"],
+            "must not exceed --learning-rate",
+        ),
+        (["--lr-scheduler", "cosine", "--elastic-training"], "fixed --rounds"),
+    ],
+)
+def test_dry_run_rejects_invalid_training_recipe(flags, message, monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "benchmark_NC_batch_size_convergence.py",
+            "--dataset",
+            "ogbn-papers100M",
+            "--num-hops",
+            "2",
+            "--learning-rate",
+            "0.001",
+            "--dry-run",
+            *flags,
+        ],
+    )
+    with pytest.raises(SystemExit, match=message):
+        main()
+
+
+@pytest.mark.parametrize(
+    "flags", [[], ["--learning-rate", "0"], ["--learning-rate", "nan"]]
+)
+def test_adamw_requires_explicit_positive_finite_learning_rate(flags, monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "benchmark_NC_batch_size_convergence.py",
+            "--dataset",
+            "ogbn-papers100M",
+            "--num-hops",
+            "2",
+            "--optimizer",
+            "adamw",
+            "--dry-run",
+            *flags,
+        ],
+    )
+    with pytest.raises(SystemExit, match="positive finite --learning-rate"):
+        main()
+
+
+@pytest.mark.parametrize(
+    "flags,message",
+    [
+        (["--hidden-size", "0"], "positive integer"),
+        (
+            ["--dataset", "ogbn-arxiv", "--num-hops", "2", "--first-layer-norm"],
+            "require 2-hop FedGCN on ogbn-papers100M",
+        ),
+    ],
+)
+def test_benchmark_rejects_invalid_architecture_overrides(flags, message, monkeypatch):
+    monkeypatch.setattr(
+        sys, "argv", ["benchmark_NC_batch_size_convergence.py", *flags, "--dry-run"]
+    )
+    with pytest.raises(SystemExit, match=message):
+        main()
 
 
 def test_restore_logging_streams_detaches_run_scoped_tee(tmp_path):

@@ -25,6 +25,16 @@ Options:
   --batch-size N               Seed nodes per local update. Default: 16.
   --evaluation-batch-size N    Seed nodes per validation/test batch. Default: 512.
   --local-step N               Updates per trainer per global round. Default: 1.
+  --optimizer MODE             sgd or adamw. Default: sgd.
+  --learning-rate RATE         Initial LR; required for AdamW or cosine decay.
+  --lr-scheduler MODE          constant or cosine. Default: constant.
+  --min-learning-rate RATE     Cosine LR floor. Default: 0.
+  --weight-decay RATE          Local optimizer weight decay. Default: 5e-4.
+  --dropout RATE               Papers100M hidden dropout. Default: 0.5.
+  --hidden-size N              Papers100M FedGCN hidden width. Default: 256.
+  --model-head MODE            gcn or gcn-skip for Papers100M. Default: gcn.
+  --first-layer-norm           Enable LayerNorm after the first Papers100M linear layer.
+  --no-first-layer-norm        Disable the optional LayerNorm. This is the default.
   --seed N                     Training seed. Default: 42.
   --num-cpus-per-trainer N     Ray CPU request per trainer. Default: 1.
   --num-gpus-per-trainer N     Ray GPU request per trainer. Default: 1.
@@ -83,6 +93,15 @@ n_trainer=10
 batch_size=16
 evaluation_batch_size=512
 local_step=1
+optimizer=sgd
+learning_rate=""
+lr_scheduler=constant
+min_learning_rate=0
+weight_decay=5e-4
+dropout=0.5
+hidden_size=""
+model_head=gcn
+first_layer_norm=false
 seed=42
 num_cpus_per_trainer=1
 num_gpus_per_trainer=1
@@ -123,6 +142,22 @@ while (( $# > 0 )); do
         --batch-size) batch_size="$2"; shift 2 ;;
         --evaluation-batch-size) evaluation_batch_size="$2"; shift 2 ;;
         --local-step) local_step="$2"; shift 2 ;;
+        --optimizer) optimizer="$2"; shift 2 ;;
+        --learning-rate)
+            [[ -n "${2:-}" ]] || die "--learning-rate requires a value"
+            learning_rate="$2"; shift 2 ;;
+        --lr-scheduler) lr_scheduler="$2"; shift 2 ;;
+        --min-learning-rate) min_learning_rate="$2"; shift 2 ;;
+        --weight-decay) weight_decay="$2"; shift 2 ;;
+        --dropout) dropout="$2"; shift 2 ;;
+        --hidden-size)
+            [[ "${2:-}" =~ ^[1-9][0-9]*$ ]] || die "--hidden-size must be a positive integer"
+            hidden_size="$2"; shift 2 ;;
+        --model-head)
+            [[ -n "${2:-}" ]] || die "--model-head requires a value"
+            model_head="$2"; shift 2 ;;
+        --first-layer-norm) first_layer_norm=true; shift ;;
+        --no-first-layer-norm) first_layer_norm=false; shift ;;
         --seed) seed="$2"; shift 2 ;;
         --num-cpus-per-trainer) num_cpus_per_trainer="$2"; shift 2 ;;
         --num-gpus-per-trainer) num_gpus_per_trainer="$2"; shift 2 ;;
@@ -164,6 +199,23 @@ require_ipv4 "$head_ip"
 require_file "${artifact_dir}/manifest.json"
 require_file "$rank_hosts_file"
 require_command python3
+[[ "$optimizer" =~ ^(sgd|adamw)$ ]] || die "--optimizer must be sgd or adamw"
+[[ "$model_head" =~ ^(gcn|gcn-skip)$ ]] || die "--model-head must be gcn or gcn-skip"
+if [[ "$model_head" == "gcn-skip" ]]; then
+    [[ "$dataset" == "ogbn-papers100M" ]] || die "--model-head gcn-skip requires ogbn-papers100M"
+fi
+[[ "$lr_scheduler" =~ ^(constant|cosine)$ ]] || die "--lr-scheduler must be constant or cosine"
+if [[ "$optimizer" == "adamw" ]]; then
+    [[ "$dataset" == "ogbn-papers100M" ]] || die "AdamW requires ogbn-papers100M"
+    [[ -n "$learning_rate" ]] || die "AdamW requires --learning-rate"
+fi
+if [[ "$lr_scheduler" == "cosine" ]]; then
+    [[ "$dataset" == "ogbn-papers100M" ]] || die "Cosine scheduling requires ogbn-papers100M"
+    [[ -n "$learning_rate" ]] || die "Cosine scheduling requires --learning-rate"
+fi
+if [[ -n "$hidden_size" || "$first_layer_norm" == "true" ]]; then
+    [[ "$dataset" == "ogbn-papers100M" ]] || die "--hidden-size and --first-layer-norm require ogbn-papers100M"
+fi
 
 for value in "$n_trainer" "$rounds" "$batch_size" "$evaluation_batch_size" "$local_step" "$seed" \
     "$num_cpus_per_trainer" "$graph_relabel_chunk_edges" \
@@ -230,10 +282,19 @@ if [[ "$feature_compression_mode" == "shared-pca" && "$graph_storage_mode" == "d
     die "shared-pca requires graph storage cpu or mmap"
 fi
 
-python3 - "$artifact_dir" "$n_trainer" "$pretrain_aggregation_mode" <<'PY'
+python3 - "$artifact_dir" "$n_trainer" "$pretrain_aggregation_mode" "$learning_rate" <<'PY'
 import json
+import math
 import sys
 from pathlib import Path
+
+if sys.argv[4]:
+    try:
+        rate = float(sys.argv[4])
+    except ValueError:
+        raise SystemExit("--learning-rate must be a positive finite number") from None
+    if not math.isfinite(rate) or rate <= 0:
+        raise SystemExit("--learning-rate must be a positive finite number")
 
 manifest = json.loads((Path(sys.argv[1]) / "manifest.json").read_text())
 expected_trainers = int(sys.argv[2])
@@ -344,9 +405,15 @@ command=(
     --evaluation-batch-size "$evaluation_batch_size"
     --rounds "$rounds"
     --local-step "$local_step"
+    --optimizer "$optimizer"
+    --lr-scheduler "$lr_scheduler"
+    --min-learning-rate "$min_learning_rate"
+    --weight-decay "$weight_decay"
+    --dropout "$dropout"
     --iid-betas 10000
     --seeds "$seed"
     --num-layers 2
+    --model-head "$model_head"
     --gpu
     --server-device cpu
     --num-gpus-per-trainer "$num_gpus_per_trainer"
@@ -369,6 +436,15 @@ command=(
     --output-root "$output_root"
 )
 
+if [[ -n "$learning_rate" ]]; then
+    command+=(--learning-rate "$learning_rate")
+fi
+if [[ -n "$hidden_size" ]]; then
+    command+=(--hidden-size "$hidden_size")
+fi
+if [[ "$first_layer_norm" == "true" ]]; then
+    command+=(--first-layer-norm)
+fi
 if [[ -n "$pretrain_feature_cache_dir" ]]; then
     command+=(--pretrain-feature-cache-dir "$pretrain_feature_cache_dir")
 elif [[ "$pretrain_aggregation_mode" == "chunked" ]]; then

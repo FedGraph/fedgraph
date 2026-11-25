@@ -97,12 +97,29 @@ class AggreGCN(torch.nn.Module):
         Dropout probability.
     NumLayers : int
         Number of GCN layers in the network.
+    first_layer_norm : bool
+        Apply per-node LayerNorm after the first linear layer.
+    model_head : str
+        Use the GCN head alone or add an independent linear skip to its logits.
     """
 
     def __init__(
-        self, nfeat: int, nhid: int, nclass: int, dropout: float, NumLayers: int
+        self,
+        nfeat: int,
+        nhid: int,
+        nclass: int,
+        dropout: float,
+        NumLayers: int,
+        *,
+        first_layer_norm: bool = False,
+        model_head: str = "gcn",
     ) -> None:
         super(AggreGCN, self).__init__()
+
+        if model_head not in {"gcn", "gcn-skip"}:
+            raise ValueError("model_head must be gcn or gcn-skip")
+        if model_head == "gcn-skip" and NumLayers != 2:
+            raise ValueError("gcn-skip requires a two-layer AggreGCN")
 
         self.convs = torch.nn.ModuleList()
         self.convs.append(torch.nn.Linear(nfeat, nhid))
@@ -110,11 +127,22 @@ class AggreGCN(torch.nn.Module):
             self.convs.append(GCNConv(nhid, nhid, normalize=True, cached=False))
         self.convs.append(GCNConv(nhid, nclass, normalize=True, cached=False))
 
+        self.input_norm = nn.LayerNorm(nhid) if first_layer_norm else None
+        self.skip_head: Optional[nn.Linear] = None
+        if model_head == "gcn-skip":
+            # Match the baseline RNG stream since the skip starts at zero.
+            with torch.random.fork_rng(devices=[]):
+                self.skip_head = nn.Linear(nhid, nclass, bias=False)
+            nn.init.zeros_(self.skip_head.weight)
         self.dropout = dropout
 
     def reset_parameters(self) -> None:
         for conv in self.convs:
             conv.reset_parameters()
+        if self.input_norm is not None:
+            self.input_norm.reset_parameters()
+        if self.skip_head is not None:
+            nn.init.zeros_(self.skip_head.weight)
 
     def forward(
         self, aggregated_feature: torch.Tensor, adj_t: torch.Tensor
@@ -137,17 +165,19 @@ class AggreGCN(torch.nn.Module):
             The log softmax of the output of the last layer.
 
         """
-        # x = torch.matmul(aggregated_dim, self.first_layer_weight)
         for i, conv in enumerate(self.convs[:-1]):
-            if i == 0:  # check dimension of adj matrix
-                x = F.relu(self.convs[0](aggregated_feature))
-                x = F.dropout(x, p=self.dropout, training=self.training)
+            if i == 0:
+                x = conv(aggregated_feature)
+                if self.input_norm is not None:
+                    x = self.input_norm(x)
             else:
                 x = conv(x, adj_t)
-                x = F.relu(x)
-                x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.convs[-1](x, adj_t)
-        return torch.log_softmax(x, dim=-1)
+            x = F.relu(x)
+            x = F.dropout(x, p=self.dropout, training=self.training)
+        logits = self.convs[-1](x, adj_t)
+        if self.skip_head is not None:
+            logits = logits + self.skip_head(x)
+        return torch.log_softmax(logits, dim=-1)
 
 
 class AggreGCN_Arxiv(torch.nn.Module):

@@ -51,6 +51,7 @@ from fedgraph.graph_storage import (
     materialize_adjacency_in_cpu_memory,
     relabel_adjacency_to_mmap_cache,
 )
+from fedgraph.nc_training import NCTrainingOptions, resolve_nc_training_options
 from fedgraph.resource_monitor import collect_resource_snapshot
 
 # Threshold-HE backend is optional. We delay-import OpenFHE bindings here so the
@@ -1050,6 +1051,7 @@ class Trainer_General:
         # self.class_num = class_num
         self.model = None
         self.optimizer = None
+        self.training_options: Optional[NCTrainingOptions] = None
         self.last_sampled_batch_phase: Optional[str] = None
         self.last_sampled_batch_node_count: Optional[int] = None
         self.last_sampled_batch_edge_count: Optional[int] = None
@@ -1249,6 +1251,8 @@ class Trainer_General:
 
     def init_model(self, global_node_num, class_num):
         self._feature_compression_contract()
+        options = resolve_nc_training_options(self.args)
+        self.training_options = options
         self.global_node_num = global_node_num
         self.class_num = class_num
         self.feature_shape = None
@@ -1272,8 +1276,10 @@ class Trainer_General:
                     nfeat=self.features.shape[1],
                     nhid=self.args_hidden,
                     nclass=class_num,
-                    dropout=0.5,
+                    dropout=options.dropout,
                     NumLayers=self.args.num_layers,
+                    first_layer_norm=getattr(self.args, "first_layer_norm", False),
+                    model_head=options.model_head,
                 ).to(self.device)
         else:
             gnn_model = getattr(self.args, "gnn_model", "auto")
@@ -1305,8 +1311,13 @@ class Trainer_General:
                     dropout=0.5,
                     NumLayers=self.args.num_layers,
                 ).to(self.device)
-        self.optimizer = torch.optim.SGD(
-            self.model.parameters(), lr=self.args.learning_rate, weight_decay=5e-4
+        optimizer_class = (
+            torch.optim.AdamW if options.optimizer == "adamw" else torch.optim.SGD
+        )
+        self.optimizer = optimizer_class(
+            self.model.parameters(),
+            lr=self.args.learning_rate,
+            weight_decay=options.weight_decay,
         )
 
     @torch.no_grad()
@@ -1323,6 +1334,17 @@ class Trainer_General:
         """
         # load global parameter from global server
         if self.model is None:
+            return
+
+        if isinstance(self.optimizer, torch.optim.AdamW):
+            # Keep the parameters on their original device with their local moments.
+            model_params = tuple(self.model.parameters())
+            if len(params) != len(model_params) or any(
+                p.shape != mp.shape for p, mp in zip(params, model_params)
+            ):
+                raise ValueError("Broadcast parameters do not match the trainer model")
+            for p, mp in zip(params, model_params):
+                mp.copy_(p)
             return
 
         self.model.to("cpu")
@@ -2785,6 +2807,14 @@ class Trainer_General:
                 "feature_aggregation has not been set. Ensure pre-training "
                 "communication is completed."
             )
+
+        options = self.training_options
+        if options is not None and options.lr_scheduler == "cosine":
+            rate = options.learning_rate_at_round(
+                self.args.learning_rate, self.args.global_rounds, current_global_round
+            )
+            for group in self.optimizer.param_groups:
+                group["lr"] = rate
 
         use_mini_batch = self._uses_mini_batch()
         self._require_supported_graph_execution(use_mini_batch)

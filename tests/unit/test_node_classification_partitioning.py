@@ -14,16 +14,16 @@ from fedgraph.feature_compression import (
     feature_basis_sha256,
     solve_shared_feature_basis,
 )
+from fedgraph.federated_methods import _resolve_nc_hidden_size
 from fedgraph.graph_storage import FeatureAggregationStore
+from fedgraph.server_class import Server
 from fedgraph.trainer_class import (
     Trainer_General,
     _load_artifact_tensor,
     load_trainer_data_from_huggingface_local_artifact,
     load_trainer_data_from_local_artifact,
 )
-from scripts.data.convert_nc_artifact_v3_to_v2 import (
-    convert_nc_artifact_v3_to_v2,
-)
+from scripts.data.convert_nc_artifact_v3_to_v2 import convert_nc_artifact_v3_to_v2
 from scripts.data.node_classification_partitioning import (
     build_label_balanced_owner_plan,
     discover_ogb_source,
@@ -1075,7 +1075,20 @@ def test_chunked_v2_feature_output_finalizes_to_file_and_releases_sources(
         trainer.get_chunked_local_feature_sum(torch.tensor([0]))
 
 
-def test_cached_v3_features_feed_the_model_and_sampler(tmp_path):
+@pytest.mark.parametrize(
+    "dataset,hidden_size,first_layer_norm,model_head",
+    [
+        pytest.param("ogbn-arxiv", None, False, "gcn", id="arxiv"),
+        pytest.param("ogbn-papers100M", None, False, "gcn", id="baseline"),
+        pytest.param("ogbn-papers100M", None, True, "gcn", id="normalized"),
+        pytest.param("ogbn-papers100M", 512, False, "gcn", id="wider"),
+        pytest.param("ogbn-papers100M", 512, True, "gcn", id="normalized-wider"),
+        pytest.param("ogbn-papers100M", 512, True, "gcn-skip", id="skip-head"),
+    ],
+)
+def test_cached_v3_features_feed_the_model_and_sampler(
+    tmp_path, dataset, hidden_size, first_layer_norm, model_head
+):
     dataset_root = tmp_path / "synthetic"
     artifact_dir = tmp_path / "v3"
     pretrain_dir = tmp_path / "source-run"
@@ -1115,27 +1128,31 @@ def test_cached_v3_features_feed_the_model_and_sampler(tmp_path):
         norm_type="none",
     )
 
-    trainer = Trainer_General(
-        rank=0,
-        args_hidden=8,
-        device=torch.device("cpu"),
-        args=SimpleNamespace(
-            local_artifact_dir=str(artifact_dir),
-            num_hops=2,
-            num_layers=2,
-            n_trainer=2,
-            graph_storage_mode="mmap",
-            graph_relabel_cache_dir=str(tmp_path / "adjacency-cache"),
-            graph_relabel_chunk_edges=2,
-            pretrain_feature_aggregation_mode="chunked",
-            feature_compression_mode="shared-pca",
-            dataset="ogbn-arxiv",
-            local_step=1,
-            method="FedGCN",
-            learning_rate=0.01,
-            batch_size=1,
-        ),
+    args = SimpleNamespace(
+        local_artifact_dir=str(artifact_dir),
+        num_hops=2,
+        num_layers=2,
+        n_trainer=2,
+        graph_storage_mode="mmap",
+        graph_relabel_cache_dir=str(tmp_path / "adjacency-cache"),
+        graph_relabel_chunk_edges=2,
+        pretrain_feature_aggregation_mode="chunked",
+        feature_compression_mode="shared-pca",
+        dataset=dataset,
+        hidden_size=hidden_size,
+        first_layer_norm=first_layer_norm,
+        model_head=model_head,
+        dropout=0.25 if dataset == "ogbn-papers100M" and first_layer_norm else 0.5,
+        local_step=1,
+        method="FedGCN",
+        learning_rate=0.01,
+        batch_size=1,
+        use_encryption=False,
     )
+    width = _resolve_nc_hidden_size(args)
+    assert width == (hidden_size or 256)
+    device = torch.device("cpu")
+    trainer = Trainer_General(rank=0, args_hidden=width, device=device, args=args)
     status = trainer.attach_feature_aggregation_cache(str(cache_dir), manifest)
     assert status["feature_shape"] == 1
     assert status["feature_compression_basis_sha256"] == "a" * 64
@@ -1143,10 +1160,46 @@ def test_cached_v3_features_feed_the_model_and_sampler(tmp_path):
     assert trainer.raw_features_released
     assert trainer.feature_aggregation_memory_mapped
     trainer.init_model(trainer.global_node_num, trainer.class_num)
+    assert isinstance(trainer.optimizer, torch.optim.SGD)
+    assert trainer.optimizer.param_groups[0]["lr"] == 0.01
+    assert trainer.optimizer.param_groups[0]["weight_decay"] == 5e-4
     assert trainer.model.convs[0].in_features == 1
     trainer.finalize_full_feature_aggregation()
     assert trainer.adj.dtype == torch.int64
     assert trainer.prepare_neighbor_sampler()["prepared"]
+    if dataset == "ogbn-papers100M":
+        model = trainer.model
+        server = Server(
+            status["feature_shape"], width, trainer.class_num, device, [], args
+        )
+        assert model.convs[0].out_features == width
+        assert model.dropout == server.model.dropout == args.dropout
+        assert len(model.convs) == 2
+        assert isinstance(model.input_norm, torch.nn.LayerNorm) == first_layer_norm
+        assert (model.skip_head is not None) == (model_head == "gcn-skip")
+        assert [(name, param.shape) for name, param in model.named_parameters()] == [
+            (name, param.shape) for name, param in server.model.named_parameters()
+        ]
+        params = tuple(param.detach().clone() for param in server.model.parameters())
+        trainer.update_params(params, 0)
+        torch.testing.assert_close(trainer.get_params(), params)
+        with torch.no_grad():
+            model.eval()
+            hidden = model.convs[0](values)
+            if first_layer_norm:
+                assert model.input_norm.normalized_shape == (width,)
+                hidden = model.input_norm(hidden)
+            expected = model.convs[-1](hidden.relu(), trainer.adj).log_softmax(dim=-1)
+            torch.testing.assert_close(model(values, trainer.adj), expected)
+        trainer.train(0)
+        assert len(trainer.train_losses) == 1
+        assert np.isfinite(trainer.train_losses[0])
+        if model.skip_head is not None:
+            assert torch.count_nonzero(model.skip_head.weight) > 0
+        assert any(
+            not torch.equal(before, after)
+            for before, after in zip(server.model.parameters(), trainer.get_params())
+        )
     torch.testing.assert_close(trainer.feature_aggregation, values, rtol=0, atol=0)
 
 

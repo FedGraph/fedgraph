@@ -26,6 +26,7 @@ from fedgraph.gnn_models import (
     GCN_arxiv,
     SAGE_products,
 )
+from fedgraph.nc_training import resolve_nc_training_options
 
 
 class Server:
@@ -80,12 +81,15 @@ class Server:
                     NumLayers=self.args.num_layers,
                 ).to(device)
             else:
+                options = resolve_nc_training_options(self.args)
                 self.model = AggreGCN(
                     nfeat=feature_dim,
                     nhid=args_hidden,
                     nclass=class_num,
-                    dropout=0.5,
+                    dropout=options.dropout,
                     NumLayers=self.args.num_layers,
+                    first_layer_norm=getattr(self.args, "first_layer_norm", False),
+                    model_head=options.model_head,
                 ).to(device)
         else:  # 0-hop FedAvg methods
             gnn_model = getattr(self.args, "gnn_model", "auto")

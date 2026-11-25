@@ -36,6 +36,7 @@ from fedgraph.feature_compression import (
 )
 from fedgraph.gnn_models import GIN
 from fedgraph.monitor_class import Monitor
+from fedgraph.nc_training import resolve_nc_training_options
 from fedgraph.resource_monitor import (
     append_resource_snapshot,
     collect_resource_snapshot,
@@ -346,6 +347,31 @@ def _validate_nc_num_hops(args: Any) -> None:
             "supported because the current implementation is equivalent to "
             "the 2-hop path."
         )
+
+
+def _resolve_nc_hidden_size(args: Any) -> int:
+    hidden_size = getattr(args, "hidden_size", None)
+    if hidden_size is not None or getattr(args, "first_layer_norm", False):
+        if (
+            args.dataset != "ogbn-papers100M"
+            or args.num_hops != 2
+            or args.method != "FedGCN"
+            or getattr(args, "use_encryption", False)
+            or getattr(args, "use_lowrank", False)
+        ):
+            raise ValueError(
+                "Model architecture overrides require standard plaintext 2-hop "
+                "FedGCN on ogbn-papers100M"
+            )
+    if hidden_size is not None:
+        if type(hidden_size) is not int or hidden_size < 1:
+            raise ValueError("hidden_size must be a positive integer")
+        return hidden_size
+    return (
+        16
+        if args.dataset in {"simulate", "cora", "citeseer", "pubmed", "reddit"}
+        else 256
+    )
 
 
 def _unpack_nc_data(data: tuple) -> dict:
@@ -1337,6 +1363,8 @@ def run_NC(args: attridict, data: Any = None) -> None:
     data: tuple
     """
     _validate_nc_num_hops(args)
+    args_hidden = _resolve_nc_hidden_size(args)
+    training_options = resolve_nc_training_options(args)
     _validate_local_nc_artifact(args)
     pretrain_aggregation_mode = _resolve_pretrain_feature_aggregation_mode(args)
     graph_storage_mode = _resolve_graph_storage_mode(args)
@@ -1549,11 +1577,6 @@ def run_NC(args: attridict, data: Any = None) -> None:
                 class_num=class_num,
                 args=args,
             )
-
-    if args.dataset in ["simulate", "cora", "citeseer", "pubmed", "reddit"]:
-        args_hidden = 16
-    else:
-        args_hidden = 256
 
     num_cpus_per_trainer = args.num_cpus_per_trainer
     trainer_device, server_device, num_gpus_per_trainer = _resolve_nc_devices(args)
@@ -2638,6 +2661,9 @@ def run_NC(args: attridict, data: Any = None) -> None:
             + json.dumps(
                 {
                     "round": round_id,
+                    "learning_rate": training_options.learning_rate_at_round(
+                        args.learning_rate, target_rounds, i
+                    ),
                     "training_time_sec": round_training_time,
                     "parameter_sync_time_sec": round_comm_time,
                     "train_sync_time_sec": round_train_sync_time,

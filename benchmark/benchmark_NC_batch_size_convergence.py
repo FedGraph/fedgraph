@@ -12,6 +12,7 @@ import csv
 import datetime as dt
 import json
 import logging
+import math
 import os
 import platform
 import random
@@ -131,6 +132,14 @@ class ExperimentConfig:
     target_val_losses: List[float]
     target_train_comm_times_sec: List[float]
     pretrain_feature_cache_dir: Optional[str] = None
+    hidden_size: Optional[int] = None
+    first_layer_norm: bool = False
+    optimizer: str = "sgd"
+    lr_scheduler: str = "constant"
+    min_learning_rate: float = 0.0
+    dropout: float = 0.5
+    weight_decay: float = 5e-4
+    model_head: str = "gcn"
 
 
 class Tee:
@@ -400,15 +409,24 @@ def to_fedgraph_args(
             "fedgraph_task": "NC",
             "dataset": config.dataset,
             "method": config.method,
+            "seed": config.seed,
             "iid_beta": config.iid_beta,
             "distribution_type": config.distribution_type,
             "global_rounds": config.global_rounds,
             "local_step": config.local_step,
             "learning_rate": config.learning_rate,
+            "optimizer": config.optimizer,
+            "lr_scheduler": config.lr_scheduler,
+            "min_learning_rate": config.min_learning_rate,
+            "dropout": config.dropout,
+            "weight_decay": config.weight_decay,
             "n_trainer": config.n_trainer,
             "batch_size": config.batch_size,
             "evaluation_batch_size": config.evaluation_batch_size,
             "num_layers": config.num_layers,
+            "hidden_size": config.hidden_size,
+            "first_layer_norm": config.first_layer_norm,
+            "model_head": config.model_head,
             "num_hops": config.num_hops,
             "gpu": config.gpu,
             "server_device": config.server_device,
@@ -1370,6 +1388,17 @@ def run_experiment(
         "error",
     ]
     write_csv_row(output_dir / "summary.csv", summary_fields, summary)
+    # Record the new settings without changing the header of existing sweep CSVs.
+    summary.update(
+        hidden_size=config.hidden_size,
+        first_layer_norm=config.first_layer_norm,
+        optimizer=config.optimizer,
+        lr_scheduler=config.lr_scheduler,
+        min_learning_rate=config.min_learning_rate,
+        dropout=config.dropout,
+        weight_decay=config.weight_decay,
+        model_head=config.model_head,
+    )
     with (output_dir / "summary.jsonl").open("a", encoding="utf-8") as jsonl_file:
         jsonl_file.write(json.dumps(summary, sort_keys=True) + "\n")
 
@@ -1402,10 +1431,18 @@ def build_configs(args) -> List[ExperimentConfig]:
                         global_rounds=args.rounds,
                         local_step=args.local_step,
                         learning_rate=learning_rate,
+                        optimizer=args.optimizer,
+                        lr_scheduler=args.lr_scheduler,
+                        min_learning_rate=args.min_learning_rate,
+                        dropout=args.dropout,
+                        weight_decay=args.weight_decay,
                         n_trainer=args.n_trainer,
                         iid_beta=iid_beta,
                         distribution_type=args.distribution_type,
                         num_layers=args.num_layers,
+                        hidden_size=args.hidden_size,
+                        first_layer_norm=args.first_layer_norm,
+                        model_head=args.model_head,
                         num_hops=args.num_hops,
                         gpu=args.gpu,
                         server_device=args.server_device,
@@ -1515,9 +1552,47 @@ def parse_args():
     parser.add_argument("--rounds", type=int, default=200)
     parser.add_argument("--local-step", type=int, default=3)
     parser.add_argument("--learning-rate", type=float, default=None)
+    parser.add_argument(
+        "--optimizer",
+        choices=("sgd", "adamw"),
+        default="sgd",
+        help="Local optimizer. AdamW is opt-in for Papers100M 2-hop FedGCN and requires --learning-rate.",
+    )
+    parser.add_argument(
+        "--lr-scheduler",
+        choices=("constant", "cosine"),
+        default="constant",
+        help="Constant LR or cosine decay over a fixed Papers100M round budget.",
+    )
+    parser.add_argument(
+        "--min-learning-rate", type=float, default=0.0, help="Cosine LR floor."
+    )
+    parser.add_argument(
+        "--dropout", type=float, default=0.5, help="Papers100M FedGCN hidden dropout."
+    )
+    parser.add_argument(
+        "--weight-decay", type=float, default=5e-4, help="Local optimizer weight decay."
+    )
     parser.add_argument("--n-trainer", type=int, default=5)
     parser.add_argument("--distribution-type", default="average")
     parser.add_argument("--num-layers", type=int, default=2)
+    parser.add_argument(
+        "--model-head",
+        choices=("gcn", "gcn-skip"),
+        default="gcn",
+        help="Add a zero-initialized logit skip for two-layer Papers100M FedGCN.",
+    )
+    parser.add_argument(
+        "--hidden-size",
+        type=int,
+        help="Override the hidden width for Papers100M 2-hop FedGCN (default: 256).",
+    )
+    parser.add_argument(
+        "--first-layer-norm",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Apply LayerNorm after the first linear layer of Papers100M 2-hop FedGCN.",
+    )
     parser.add_argument("--num-hops", type=int, default=0)
     parser.add_argument("--method", default=None)
     parser.add_argument("--gpu", action="store_true")
@@ -1818,6 +1893,55 @@ def parse_args():
 
 def main() -> int:
     args = parse_args()
+    if not 0 <= args.dropout < 1:
+        raise SystemExit("--dropout must be in [0, 1)")
+    if not math.isfinite(args.weight_decay) or args.weight_decay < 0:
+        raise SystemExit("--weight-decay must be finite and non-negative")
+    if not math.isfinite(args.min_learning_rate) or args.min_learning_rate < 0:
+        raise SystemExit("--min-learning-rate must be finite and non-negative")
+    if args.lr_scheduler == "constant" and args.min_learning_rate != 0:
+        raise SystemExit("--min-learning-rate requires --lr-scheduler cosine")
+    papers100m_fedgcn = (
+        args.dataset == "ogbn-papers100M"
+        and args.num_hops == 2
+        and method_for_num_hops(args.num_hops, args.method) == "FedGCN"
+    )
+    if (
+        args.optimizer != "sgd"
+        or args.lr_scheduler != "constant"
+        or args.model_head != "gcn"
+        or args.dropout != 0.5
+        or args.weight_decay != 5e-4
+    ) and not papers100m_fedgcn:
+        raise SystemExit(
+            "Training recipe overrides require 2-hop FedGCN on ogbn-papers100M"
+        )
+    if args.model_head == "gcn-skip" and args.num_layers != 2:
+        raise SystemExit("--model-head gcn-skip requires --num-layers 2")
+    if args.optimizer == "adamw" or args.lr_scheduler == "cosine":
+        if (
+            args.learning_rate is None
+            or not math.isfinite(args.learning_rate)
+            or args.learning_rate <= 0
+        ):
+            raise SystemExit(
+                "AdamW and cosine scheduling require a positive finite --learning-rate"
+            )
+    if args.lr_scheduler == "cosine":
+        if args.elastic_training or args.rounds < 1:
+            raise SystemExit(
+                "Cosine scheduling requires a positive fixed --rounds budget"
+            )
+        if args.min_learning_rate > args.learning_rate:
+            raise SystemExit("--min-learning-rate must not exceed --learning-rate")
+    if args.hidden_size is not None and args.hidden_size < 1:
+        raise SystemExit("--hidden-size must be a positive integer")
+    if (
+        args.hidden_size is not None or args.first_layer_norm
+    ) and not papers100m_fedgcn:
+        raise SystemExit(
+            "--hidden-size and --first-layer-norm require 2-hop FedGCN on ogbn-papers100M"
+        )
     if args.convergence_tolerance is not None:
         args.val_acc_tolerance = args.convergence_tolerance
     if args.max_rounds is not None and args.max_rounds < args.rounds:
@@ -1999,9 +2123,23 @@ def main() -> int:
             raise SystemExit(
                 "Provide --graph-relabel-cache-dir outside the feature cache"
             )
-        if not (cache_dir / "feature-cache.json").is_file():
+        cache_manifest_path = cache_dir / "feature-cache.json"
+        if not cache_manifest_path.is_file():
+            raise SystemExit(f"Feature cache manifest not found: {cache_manifest_path}")
+        try:
+            cache_manifest = json.loads(cache_manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            raise SystemExit(f"Invalid feature cache manifest: {error}") from error
+        if not isinstance(cache_manifest, dict) or (
+            cache_manifest.get("feature_compression_mode")
+            != args.feature_compression_mode
+            or (
+                args.feature_compression_mode == "shared-pca"
+                and cache_manifest.get("feature_dim") != args.feature_compression_rank
+            )
+        ):
             raise SystemExit(
-                f"Feature cache manifest not found: {cache_dir / 'feature-cache.json'}"
+                "Feature cache does not match the selected compression mode or PCA rank"
             )
     if args.evaluation_split == "test" and args.elastic_training:
         raise SystemExit(
@@ -2024,7 +2162,8 @@ def main() -> int:
             f"batch_size={config.batch_size}, "
             f"evaluation_batch_size={config.evaluation_batch_size or config.batch_size}, "
             f"seed={config.seed}, "
-            f"rounds={config.global_rounds}, lr={config.learning_rate}"
+            f"rounds={config.global_rounds}, optimizer={config.optimizer}, "
+            f"lr={config.learning_rate}, lr_scheduler={config.lr_scheduler}"
         )
 
     write_run_plan(output_dir, configs, args)
